@@ -1,0 +1,352 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, Code2, Download, Loader2, MessageSquare, RotateCw, Rocket, Smartphone, Wand2 } from "lucide-react";
+import { Logo } from "@/components/Logo";
+import { PhoneFrame } from "@/components/PhoneFrame";
+import { Preview, type PreviewError } from "@/components/Preview";
+import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
+import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
+import { getProject, saveProject, uid } from "@/lib/storage";
+import type { ChatMessage, FileMap, Project } from "@/lib/types";
+import { ChatPanel } from "./ChatPanel";
+import { CodePanel } from "./CodePanel";
+import { AppIcon, PublishPanel } from "./PublishPanel";
+
+type Tab = "preview" | "code" | "publish";
+
+export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
+  const [project, setProject] = useState<Project | null | undefined>(undefined);
+  const [tab, setTab] = useState<Tab>("preview");
+  const [mobileView, setMobileView] = useState<"chat" | "app">("chat");
+  const [platform, setPlatform] = useState<"ios" | "android">("ios");
+  const [generating, setGenerating] = useState(false);
+  const [live, setLive] = useState<ParsedGeneration | null>(null);
+  const [previewFiles, setPreviewFiles] = useState<FileMap>({});
+  const [reloadKey, setReloadKey] = useState(0);
+  const [previewError, setPreviewError] = useState<PreviewError | null>(null);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const projectRef = useRef<Project | null>(null);
+  const started = useRef(false);
+
+  const commit = useCallback((next: Project) => {
+    projectRef.current = next;
+    setProject(next);
+    saveProject(next);
+  }, []);
+
+  useEffect(() => {
+    // Projects live in localStorage, which is only readable after mount.
+    const p = getProject(id);
+    projectRef.current = p;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProject(p);
+    if (p) setPreviewFiles(p.files);
+  }, [id]);
+
+  // Debounce hand edits in the code tab into the preview.
+  useEffect(() => {
+    if (!project || generating) return;
+    const t = setTimeout(() => setPreviewFiles(project.files), 600);
+    return () => clearTimeout(t);
+  }, [project, generating]);
+
+  const send = useCallback(
+    async (text: string) => {
+      const current = projectRef.current;
+      if (!current || abortRef.current) return;
+      const userMsg: ChatMessage = { id: uid(), role: "user", content: text, createdAt: Date.now() };
+      const withUser = { ...current, messages: [...current.messages, userMsg] };
+      commit(withUser);
+      setGenerating(true);
+      setLive(null);
+      setMobileView("chat");
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let raw = "";
+      let error = "";
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            prompt: text,
+            files: current.files,
+            listing: Object.keys(current.files).length ? current.listing : undefined,
+            history: current.messages.map((m) => ({ role: m.role, content: m.content })),
+          }),
+        });
+        setDemoMode(res.headers.get("X-Appmaker-Mode") === "demo");
+        if (!res.ok || !res.body) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `Request failed (${res.status})`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let lastParse = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          raw += decoder.decode(value, { stream: true });
+          const now = performance.now();
+          if (now - lastParse > 120) {
+            lastParse = now;
+            const parsed = parseGeneration(raw);
+            setLive(parsed);
+            if (parsed.writing) setSelectedFile(parsed.writing);
+          }
+        }
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") error = (e as Error).message;
+        else error = "Stopped.";
+      }
+
+      const streamError = /<error>([\s\S]*?)<\/error>/.exec(raw)?.[1];
+      if (streamError) error = streamError;
+      const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
+      const base = projectRef.current ?? withUser;
+      // Keep only files that finished streaming.
+      const complete = Object.fromEntries(Object.entries(parsed.files).filter(([p]) => p !== parsed.writing));
+      const files: FileMap = { ...base.files, ...complete };
+      for (const p of parsed.deleted) delete files[p];
+      const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
+
+      const reply =
+        [parsed.summary || (Object.keys(complete).length ? parsed.plan || "Updated your app." : ""), error && `⚠️ ${error}`]
+          .filter(Boolean)
+          .join("\n\n") || "I couldn't produce an app for that. Try describing it differently.";
+
+      const assistantMsg: ChatMessage = {
+        id: uid(),
+        role: "assistant",
+        content: reply,
+        files: Object.keys(complete),
+        createdAt: Date.now(),
+      };
+      commit({
+        ...base,
+        name: listing.name || base.name,
+        files,
+        listing,
+        messages: [...base.messages, assistantMsg],
+      });
+      setPreviewFiles(files);
+      setReloadKey((k) => k + 1);
+      setLive(null);
+      setGenerating(false);
+      abortRef.current = null;
+      if (Object.keys(complete).length) setMobileView("app");
+    },
+    [commit],
+  );
+
+  useEffect(() => {
+    if (!project || started.current) return;
+    started.current = true;
+    if (autoStart && project.messages.length === 0 && project.prompt) {
+      window.history.replaceState(null, "", `/build/${project.id}`);
+      send(project.prompt);
+    }
+  }, [project, autoStart, send]);
+
+  const onPreviewError = useCallback((err: PreviewError | null) => setPreviewError(err), []);
+
+  if (project === undefined) {
+    return (
+      <div className="grid h-screen place-items-center">
+        <Loader2 className="h-5 w-5 animate-spin text-muted" />
+      </div>
+    );
+  }
+  if (project === null) {
+    return (
+      <div className="grid h-screen place-items-center text-center">
+        <div>
+          <p className="text-muted">This project doesn&apos;t exist on this device.</p>
+          <Link href="/" className="mt-4 inline-block rounded-lg bg-white px-4 py-2 text-sm font-medium text-black">
+            Start a new app
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const hasApp = Object.keys(project.files).length > 0;
+  const shownFiles = generating && live ? { ...project.files, ...live.files } : project.files;
+
+  const tabs: { key: Tab; label: string; icon: typeof Smartphone }[] = [
+    { key: "preview", label: "Preview", icon: Smartphone },
+    { key: "code", label: "Code", icon: Code2 },
+    { key: "publish", label: "Publish", icon: Rocket },
+  ];
+
+  return (
+    <div className="flex h-dvh flex-col">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-3">
+        <Logo href="/projects" />
+        <span className="hidden text-line sm:inline">/</span>
+        <div className="hidden min-w-0 items-center gap-2 sm:flex">
+          <AppIcon listing={project.listing} size={22} />
+          <span className="truncate text-sm font-medium">{project.name}</span>
+          {demoMode && (
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300" title="Set ANTHROPIC_API_KEY to enable AI generation">
+              Demo mode
+            </span>
+          )}
+        </div>
+        <nav className="mx-auto flex rounded-lg border border-line bg-surface p-0.5">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => {
+                setTab(t.key);
+                setMobileView("app");
+              }}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium ${
+                tab === t.key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+              }`}
+            >
+              <t.icon className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t.label}</span>
+            </button>
+          ))}
+        </nav>
+        <button
+          onClick={async () => downloadBlob(await exportProjectZip(project), `${slugify(project.listing.name)}-expo.zip`)}
+          disabled={!hasApp}
+          className="hidden items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-white/20 disabled:opacity-40 md:flex"
+        >
+          <Download className="h-3.5 w-3.5" /> Export
+        </button>
+        <button
+          onClick={() => setTab("publish")}
+          disabled={!hasApp}
+          className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+        >
+          <Rocket className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Publish</span>
+        </button>
+      </header>
+
+      <div className="flex border-b border-line lg:hidden">
+        {(["chat", "app"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setMobileView(v)}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-medium ${
+              mobileView === v ? "border-b-2 border-violet-500 text-foreground" : "text-muted"
+            }`}
+          >
+            {v === "chat" ? <MessageSquare className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}
+            {v === "chat" ? "Chat" : "App"}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        <aside
+          className={`${mobileView === "chat" ? "flex" : "hidden"} w-full flex-col border-line lg:flex lg:w-[400px] lg:shrink-0 lg:border-r`}
+        >
+          <ChatPanel
+            messages={project.messages}
+            generating={generating}
+            live={live}
+            onSend={send}
+            onStop={() => abortRef.current?.abort()}
+            hasApp={hasApp}
+          />
+        </aside>
+
+        <main className={`${mobileView === "app" ? "flex" : "hidden"} min-w-0 flex-1 flex-col lg:flex`}>
+          {tab === "preview" && (
+            <div className="relative flex min-h-0 flex-1 flex-col bg-[radial-gradient(ellipse_at_center,#15151f_0%,#07070b_70%)]">
+              <div className="flex items-center justify-center gap-2 p-3">
+                <div className="flex rounded-lg border border-line bg-surface p-0.5 text-xs">
+                  {(["ios", "android"] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPlatform(p)}
+                      className={`rounded-md px-3 py-1 font-medium ${platform === p ? "bg-surface-2 text-foreground" : "text-muted"}`}
+                    >
+                      {p === "ios" ? "iPhone" : "Android"}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setReloadKey((k) => k + 1)}
+                  className="grid h-7 w-7 place-items-center rounded-lg border border-line bg-surface text-muted hover:text-foreground"
+                  aria-label="Reload preview"
+                >
+                  <RotateCw className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="relative min-h-0 flex-1 px-4 pb-4">
+                <PhoneFrame platform={platform}>
+                  {hasApp || Object.keys(previewFiles).length ? (
+                    <Preview files={previewFiles} platform={platform} reloadKey={reloadKey} onError={onPreviewError} />
+                  ) : (
+                    <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-500">
+                      <div>
+                        {generating ? (
+                          <Loader2 className="mx-auto h-8 w-8 animate-spin text-violet-500" />
+                        ) : (
+                          <Wand2 className="mx-auto h-8 w-8 text-violet-500" />
+                        )}
+                        <p className="mt-4 text-sm">{generating ? "Designing your app…" : "Your app will appear here"}</p>
+                      </div>
+                    </div>
+                  )}
+                </PhoneFrame>
+                {generating && hasApp && (
+                  <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-surface/90 px-3 py-1.5 text-xs backdrop-blur">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> Applying changes…
+                  </div>
+                )}
+              </div>
+              {previewError && !generating && (
+                <div className="absolute inset-x-4 bottom-4 mx-auto flex max-w-lg items-start gap-3 rounded-xl border border-rose-500/30 bg-[#1a0d12]/95 p-3 text-sm backdrop-blur">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-rose-200">The app hit an error</div>
+                    <div className="mt-0.5 line-clamp-2 font-mono text-xs text-rose-300/80">{previewError.message}</div>
+                  </div>
+                  <button
+                    onClick={() =>
+                      send(`The app crashes in the preview with this error:\n\n${previewError.message}\n\nPlease find the cause and fix it.`)
+                    }
+                    className="shrink-0 rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-400"
+                  >
+                    Fix with AI
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "code" && (
+            <CodePanel
+              files={shownFiles}
+              selected={selectedFile}
+              onSelect={setSelectedFile}
+              readOnly={generating}
+              writing={live?.writing ?? null}
+              onChange={(path, code) => commit({ ...project, files: { ...project.files, [path]: code } })}
+            />
+          )}
+
+          {tab === "publish" && (
+            <PublishPanel
+              project={project}
+              hasPreviewError={!!previewError}
+              onChange={(listing) => commit({ ...project, listing, name: listing.name || project.name })}
+            />
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
