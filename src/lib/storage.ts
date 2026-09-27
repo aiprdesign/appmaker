@@ -1,4 +1,4 @@
-import type { Project, StoreListing } from "./types";
+import type { Project, SiteSummary, StoreListing } from "./types";
 
 /**
  * Projects are persisted in the browser's localStorage. Swap this module for
@@ -61,7 +61,7 @@ export function deleteProject(id: string) {
   writeAll(all);
 }
 
-export function createProject(prompt: string): Project {
+export function createProject(prompt: string, source?: SiteSummary): Project {
   const now = Date.now();
   const project: Project = {
     id: uid(),
@@ -70,6 +70,7 @@ export function createProject(prompt: string): Project {
     files: {},
     messages: [],
     listing: emptyListing(),
+    ...(source ? { source } : {}),
     createdAt: now,
     updatedAt: now,
   };

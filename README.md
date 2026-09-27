@@ -7,6 +7,18 @@ Appmaker is a SaaS app builder in the spirit of Lovable, Bolt, v0 and Rork, focu
 3. **Lets you iterate by chat.** Ask for changes ("add dark mode", "add onboarding") and only the changed files are rewritten. You can also edit code by hand in the Code tab.
 4. **Gets it ready for the stores.** The Publish tab has an AI-written App Store / Google Play listing (name, subtitle, description, keywords, category, bundle ID, privacy), an icon generator (1024×1024 PNG), a launch checklist, and a one-click **Expo project export** with `app.json`, `eas.json`, the icon, and a GitHub Actions workflow that runs `eas build` and `eas submit`.
 
+## Build an app from a website
+
+Click **Import website** under the prompt box, or type a link like `joespizza.com` into your prompt and choose **Use content from …**. Appmaker reads the page you link plus up to 3 key pages on the same site (menu, about, services, pricing, bookings and so on). It pulls out:
+
+- the business name and description
+- brand colors
+- navigation, headings and page text
+
+The AI uses these to build an app that feels like the business's official app, with its real products, prices, hours and tone. It also picks features that fit, such as ordering for a restaurant or booking for a salon. The site stays attached to the project, so later chat edits can use it too.
+
+Limitations: the importer reads the HTML the server sends. Sites that load all their content with JavaScript, or that block bots, show a friendly error instead.
+
 ## Quick start
 
 ```bash
@@ -25,6 +37,7 @@ Without an `ANTHROPIC_API_KEY`, Appmaker runs in **demo mode**. It streams one o
 | `APPMAKER_MODEL` | Model override (default `claude-opus-5`) |
 | `APPMAKER_DEMO=1` | Force demo mode |
 | `APPMAKER_RATE_LIMIT` | AI generations per IP per hour (default 30) |
+| `APPMAKER_IMPORT_RATE_LIMIT` | Website imports per IP per hour (default 30) |
 
 ## How it works
 
@@ -77,6 +90,8 @@ npm run test:e2e    # builds the app and runs browser tests (demo mode, no key n
 - The preview runs in an iframe with `sandbox="allow-scripts"` and no same-origin access. The builder only accepts messages from its own preview frame.
 - Security headers are set in `next.config.ts`: `nosniff`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` and HSTS.
 - The API key stays on the server and is never sent to the browser.
+- **Website import is protected against SSRF.** Only `http`/`https` on standard ports is allowed. Each connection, including every redirect, is checked when DNS resolves, and refused if it points at a private, loopback, link-local or cloud-metadata address. Page size, redirects and response time are all capped.
+- Imported website text is fenced as reference data, and the model is told to ignore any instructions inside it (prompt-injection defence).
 
 ## Shipping a generated app
 

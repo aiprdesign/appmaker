@@ -96,6 +96,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             files: current.files,
             listing: Object.keys(current.files).length ? current.listing : undefined,
             history: current.messages.map((m) => ({ role: m.role, content: m.content })),
+            site: current.source,
           }),
         });
         demoRef.current = res.headers.get("X-Appmaker-Mode") === "demo";
@@ -308,6 +309,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           className={`${mobileView === "chat" ? "flex" : "hidden"} w-full flex-col border-line lg:flex lg:w-[400px] lg:shrink-0 lg:border-r`}
         >
           <ChatPanel
+            source={project.source}
             messages={project.messages}
             generating={generating}
             live={live}

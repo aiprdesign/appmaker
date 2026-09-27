@@ -24,6 +24,27 @@ export interface StoreListing {
   privacyNotes: string;
 }
 
+/** One page read during a website import. */
+export interface SitePage {
+  url: string;
+  title: string;
+  headings: string[];
+  navigation: string[];
+  text: string;
+}
+
+/** Content extracted from a website the user imported to base an app on. */
+export interface SiteSummary {
+  url: string;
+  siteName: string;
+  title: string;
+  description: string;
+  /** Likely brand colors, most prominent first. */
+  colors: string[];
+  language: string;
+  pages: SitePage[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -31,6 +52,8 @@ export interface Project {
   files: FileMap;
   messages: ChatMessage[];
   listing: StoreListing;
+  /** Website the app is based on, if one was imported. */
+  source?: SiteSummary;
   createdAt: number;
   updatedAt: number;
 }

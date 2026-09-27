@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import type { FileMap, StoreListing } from "./types";
+import type { FileMap, SiteSummary, StoreListing } from "./types";
 
 /**
  * Offline demo mode: when no Anthropic credentials are configured, the
@@ -16,7 +16,7 @@ interface Demo {
 const DEMOS: Demo[] = [
   {
     dir: "habits",
-    match: /habit|routine|streak|goal|daily|mindful/i,
+    match: /\b(?:habit|routine|streak|goal|daily|mindful)/i,
     listing: {
       name: "Streakly",
       subtitle: "Build habits that stick",
@@ -32,7 +32,7 @@ const DEMOS: Demo[] = [
   },
   {
     dir: "budget",
-    match: /budget|expense|money|finance|spend|wallet|saving/i,
+    match: /\b(?:budget|expense|money|finance|spend|wallet|saving)/i,
     listing: {
       name: "Pocketwise",
       subtitle: "Simple monthly budgeting",
@@ -48,7 +48,7 @@ const DEMOS: Demo[] = [
   },
   {
     dir: "fitness",
-    match: /fitness|workout|gym|exercise|training|yoga|run/i,
+    match: /\b(?:fitness|workout|gym|exercise|training|yoga|run)/i,
     listing: {
       name: "Pulse Workouts",
       subtitle: "Guided home workouts",
@@ -74,6 +74,23 @@ function titleFromPrompt(prompt: string): string {
   return base.slice(0, 24);
 }
 
+function siteDisplayName(site: SiteSummary): string {
+  return site.siteName.replace(/\s+/g, " ").trim().slice(0, 30) || "My App";
+}
+
+function brandListing(base: StoreListing, site: SiteSummary): StoreListing {
+  const name = siteDisplayName(site);
+  const slug = name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app";
+  return {
+    ...base,
+    name,
+    subtitle: (site.description.split(/[.!?]/)[0] || base.subtitle).slice(0, 30),
+    description: site.description ? `${site.description}\n\n${base.description}` : base.description,
+    bundleId: `com.appmaker.${slug}`,
+    primaryColor: site.colors[0] ?? base.primaryColor,
+  };
+}
+
 function readDir(root: string, rel = ""): FileMap {
   const files: FileMap = {};
   for (const entry of readdirSync(path.join(root, rel))) {
@@ -87,7 +104,7 @@ function readDir(root: string, rel = ""): FileMap {
   return files;
 }
 
-export function demoResponse(prompt: string, isEdit: boolean): string {
+export function demoResponse(prompt: string, isEdit: boolean, site?: SiteSummary): string {
   if (isEdit) {
     return `<plan>Demo mode can't edit apps.</plan>\n<summary>Demo mode is active because no \`ANTHROPIC_API_KEY\` is configured, so I can only generate starter apps — not apply edits like "${prompt.slice(0, 80)}". Add an API key to your environment to unlock full AI editing.</summary>`;
   }
@@ -95,11 +112,13 @@ export function demoResponse(prompt: string, isEdit: boolean): string {
   const root = path.join(process.cwd(), "demo-apps", demo?.dir ?? "journal");
   const files = readDir(root);
   let listing: StoreListing;
-  if (demo) {
+  if (demo && !site) {
     listing = demo.listing;
+  } else if (demo && site) {
+    listing = brandListing(demo.listing, site);
   } else {
-    const name = titleFromPrompt(prompt);
-    files["App.js"] = files["App.js"].replace("__APP_NAME__", name);
+    const name = site ? siteDisplayName(site) : titleFromPrompt(prompt);
+    files["App.js"] = files["App.js"].replace("'__APP_NAME__'", JSON.stringify(name));
     listing = {
       name,
       subtitle: "Capture ideas in seconds",
@@ -111,6 +130,12 @@ export function demoResponse(prompt: string, isEdit: boolean): string {
       iconEmoji: "📓",
       privacyNotes: "Data is stored on-device only.",
     };
+    if (site) listing = brandListing(listing, site);
+  }
+  // Rebrand the starter app with the website's main color.
+  if (site?.colors[0]) {
+    const original = (demo?.listing ?? { primaryColor: "#2563EB" }).primaryColor;
+    for (const [p, code] of Object.entries(files)) files[p] = code.split(original).join(site.colors[0]);
   }
   const body = Object.entries(files)
     .map(([p, code]) => `<file path="${p}">\n${code}</file>`)

@@ -2,12 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, CheckCircle2, FileCode2, Loader2, Square, Wrench } from "lucide-react";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, SiteSummary } from "@/lib/types";
+import { SiteCard } from "@/components/SiteCard";
 import type { ParsedGeneration } from "@/lib/parse";
 import { EDIT_SUGGESTIONS } from "@/lib/templates";
 import { Markdown } from "./Markdown";
 
 interface Props {
+  /** Website the app is based on, shown above the conversation. */
+  source?: SiteSummary;
   messages: ChatMessage[];
   generating: boolean;
   live: ParsedGeneration | null;
@@ -16,7 +19,7 @@ interface Props {
   hasApp: boolean;
 }
 
-export function ChatPanel({ messages, generating, live, onSend, onStop, hasApp }: Props) {
+export function ChatPanel({ source, messages, generating, live, onSend, onStop, hasApp }: Props) {
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -35,6 +38,7 @@ export function ChatPanel({ messages, generating, live, onSend, onStop, hasApp }
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div ref={scroller} className="scrollbar-thin flex-1 space-y-4 overflow-y-auto p-4">
+        {source && <SiteCard site={source} />}
         {messages.map((m) =>
           m.kind === "auto-fix" ? (
             <details key={m.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200/90">

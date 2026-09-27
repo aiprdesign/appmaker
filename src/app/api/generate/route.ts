@@ -3,7 +3,7 @@ import { demoResponse } from "@/lib/demo";
 import { SYSTEM_PROMPT, buildUserMessage } from "@/lib/prompt";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { isAllowedPath } from "@/lib/validate";
-import type { FileMap, StoreListing } from "@/lib/types";
+import type { FileMap, SiteSummary, StoreListing } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -21,6 +21,8 @@ interface GenerateRequest {
   prompt: string;
   files?: FileMap;
   listing?: Partial<StoreListing>;
+  /** Imported website the app is based on. */
+  site?: SiteSummary;
   /** Earlier turns as plain text, oldest first. */
   history?: { role: "user" | "assistant"; content: string }[];
 }
@@ -79,6 +81,13 @@ function validateRequest(body: GenerateRequest): string | null {
     if (typeof body.listing !== "object" || Array.isArray(body.listing)) return "listing must be an object";
     if (JSON.stringify(body.listing).length > 10_000) return "listing is too large";
   }
+  if (body.site != null) {
+    const site = body.site;
+    if (typeof site !== "object" || Array.isArray(site) || typeof site.url !== "string" || !Array.isArray(site.pages)) {
+      return "site is invalid";
+    }
+    if (JSON.stringify(site).length > 40_000) return "site content is too large";
+  }
   if (body.history != null) {
     if (!Array.isArray(body.history) || body.history.length > 200) return "history must be an array of at most 200 messages";
     for (const m of body.history) {
@@ -102,7 +111,7 @@ export async function POST(req: Request) {
   const isEdit = Object.keys(files).length > 0;
 
   if (!hasCredentials()) {
-    const text = demoResponse(prompt, isEdit);
+    const text = demoResponse(prompt, isEdit, body.site);
     return textStream(async (write) => {
       // Stream in chunks so the demo feels like live generation.
       for (let i = 0; i < text.length; i += 400) {
@@ -139,7 +148,7 @@ export async function POST(req: Request) {
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
         system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-        messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing) }],
+        messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site) }],
       },
       { signal: req.signal },
     );
