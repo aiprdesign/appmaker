@@ -262,11 +262,13 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           {tabs.map((t) => (
             <button
               key={t.key}
+              aria-label={t.label}
+              aria-pressed={tab === t.key}
               onClick={() => {
                 setTab(t.key);
                 setMobileView("app");
               }}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium ${
+              className={`flex min-h-8 items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium ${
                 tab === t.key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
               }`}
             >
@@ -285,6 +287,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         <button
           onClick={() => setTab("publish")}
           disabled={!hasApp}
+          aria-label="Publish"
           className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
         >
           <Rocket className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Publish</span>

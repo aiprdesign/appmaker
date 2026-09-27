@@ -65,7 +65,7 @@ export function PromptBox() {
           e.preventDefault();
           start();
         }}
-        className="gradient-border rounded-2xl p-3 shadow-2xl shadow-violet-900/30"
+        className="gradient-border rounded-2xl p-3 shadow-2xl shadow-violet-900/30 focus-within:ring-2 focus-within:ring-violet-400/70"
       >
         {site && (
           <div className="mb-2">
@@ -107,7 +107,7 @@ export function PromptBox() {
                   }
                 }}
                 placeholder="yourwebsite.com"
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
+                className="h-8 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
                 aria-label="Website address"
               />
               <button

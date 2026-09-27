@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const ACCENT = '#10B981';
+const ACCENT = '#047857';
 const CATEGORIES = [
   { key: 'food', label: 'Food', emoji: '🍜', color: '#F59E0B' },
   { key: 'transport', label: 'Transport', emoji: '🚇', color: '#3B82F6' },
@@ -187,6 +187,6 @@ const styles = StyleSheet.create({
   barFill: { height: 10, borderRadius: 5 },
   barValue: { width: 72, textAlign: 'right', color: '#0F172A', fontWeight: '700' },
   tabBar: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#E2E8F0', paddingTop: 8, paddingBottom: 20 },
-  tab: { flex: 1, alignItems: 'center', gap: 2 },
+  tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 2 },
   tabLabel: { fontSize: 11, color: '#64748B', fontWeight: '600' },
 });

@@ -45,3 +45,4 @@ next-env.d.ts
 /public/preview/
 /test-results/
 /playwright-report/
+/evals/results/

@@ -22,8 +22,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 20, padding: 14, marginBottom: 10, gap: 12 },
   icon: { width: 48, height: 48, borderRadius: 14, backgroundColor: '#F4F2FA', alignItems: 'center', justifyContent: 'center' },
   name: { fontSize: 16, fontWeight: '600', color: '#16141F' },
-  nameDone: { color: '#9A98A6', textDecorationLine: 'line-through' },
-  meta: { fontSize: 13, color: '#8A8799', marginTop: 2 },
-  check: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: '#D5D1E3', alignItems: 'center', justifyContent: 'center' },
+  nameDone: { color: '#625F73', textDecorationLine: 'line-through' },
+  meta: { fontSize: 13, color: '#625F73', marginTop: 2 },
+  check: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#D5D1E3', alignItems: 'center', justifyContent: 'center' },
   tick: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });

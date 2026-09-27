@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const ACCENT = '#FF5A36';
+const ACCENT = '#D23C17';
 const WORKOUTS = [
   { id: 'hiit', name: 'Morning HIIT', emoji: '⚡', minutes: 20, level: 'Intermediate', moves: ['Jumping jacks', 'Burpees', 'Mountain climbers', 'High knees', 'Squat jumps'] },
   { id: 'core', name: 'Core Crusher', emoji: '🔥', minutes: 15, level: 'Beginner', moves: ['Plank', 'Crunches', 'Leg raises', 'Russian twists'] },
@@ -185,6 +185,6 @@ const styles = StyleSheet.create({
   ghost: { borderWidth: 1, borderColor: '#444', paddingHorizontal: 20, paddingVertical: 16, borderRadius: 999 },
   ghostText: { color: '#ddd', fontWeight: '700' },
   tabBar: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#F1E4DF', paddingTop: 8, paddingBottom: 20 },
-  tab: { flex: 1, alignItems: 'center', gap: 2 },
+  tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 2 },
   tabLabel: { fontSize: 11, color: '#7A6C68', fontWeight: '600' },
 });

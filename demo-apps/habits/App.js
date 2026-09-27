@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import HabitRow from './src/components/HabitRow';
 import { loadHabits, saveHabits, todayKey, streakFor } from './src/storage';
 
-const ACCENT = '#7C5CFF';
+const ACCENT = '#6440F0';
 const EMOJIS = ['💧', '📚', '🧘', '🏃', '🥗', '😴', '✍️', '🎸'];
 
 const SEED = [
@@ -163,14 +163,14 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F7F6FB' },
   safe: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
-  kicker: { color: '#8A8799', fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
+  kicker: { color: '#625F73', fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
   title: { fontSize: 34, fontWeight: '800', color: '#16141F', marginBottom: 16 },
   hero: { backgroundColor: ACCENT, borderRadius: 24, padding: 20, marginBottom: 20 },
   heroNumber: { color: '#fff', fontSize: 44, fontWeight: '800' },
-  heroLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 15, marginBottom: 14 },
+  heroLabel: { color: '#FFFFFF', fontSize: 15, marginBottom: 14 },
   track: { height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.25)' },
   fill: { height: 8, borderRadius: 4, backgroundColor: '#fff' },
-  empty: { color: '#8A8799', textAlign: 'center', marginTop: 24 },
+  empty: { color: '#625F73', textAlign: 'center', marginTop: 24 },
   input: { backgroundColor: '#fff', borderRadius: 16, padding: 16, fontSize: 17, color: '#16141F', borderWidth: 1, borderColor: '#E6E3F0' },
   section: { marginTop: 24, marginBottom: 12, fontWeight: '700', color: '#16141F', fontSize: 15 },
   emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -180,11 +180,11 @@ const styles = StyleSheet.create({
   statRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   stat: { flex: 1, backgroundColor: '#fff', borderRadius: 20, padding: 18 },
   statValue: { fontSize: 28, fontWeight: '800', color: '#16141F' },
-  statLabel: { color: '#8A8799', marginTop: 4 },
+  statLabel: { color: '#625F73', marginTop: 4 },
   statLine: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 8 },
   statLineText: { color: '#16141F', fontSize: 15, flex: 1 },
   statLineValue: { color: ACCENT, fontWeight: '700' },
   tabBar: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#ECEAF3', backgroundColor: '#fff', paddingBottom: 20, paddingTop: 8 },
-  tab: { flex: 1, alignItems: 'center', gap: 2 },
-  tabLabel: { fontSize: 11, color: '#8A8799', fontWeight: '600' },
+  tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  tabLabel: { fontSize: 11, color: '#625F73', fontWeight: '600' },
 });

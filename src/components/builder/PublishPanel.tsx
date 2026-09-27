@@ -231,7 +231,7 @@ export function PublishPanel({ project, onChange, hasPreviewError }: Props) {
                 <span className="self-center rounded-full bg-neutral-100 px-4 py-1 text-sm font-semibold text-blue-600">Get</span>
               </div>
               <p className="mt-3 line-clamp-4 text-xs text-neutral-600">{l.description || "Your description appears here."}</p>
-              <div className="mt-2 text-[11px] text-neutral-400">{l.category}</div>
+              <div className="mt-2 text-[11px] text-neutral-600">{l.category}</div>
             </div>
           </section>
 

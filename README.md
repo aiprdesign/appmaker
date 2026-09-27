@@ -96,6 +96,44 @@ npm run test:e2e    # builds the app and runs browser tests (demo mode, no key n
 - **End-to-end tests** (`tests/e2e`, Playwright) generate each demo app and tap through it. They also check persistence, the publish checklist and zip export, the crash banner, the dashboard and the mobile layout. Using a mocked AI, they verify that the auto-repair loop fixes static and runtime problems, stops after its budget, and rejects unsafe file paths.
 - **CI** (`.github/workflows/ci.yml`) runs all of the above on every push.
 
+## Measuring app quality (100-app evaluation)
+
+`npm run eval` asks the AI to build 100 different apps (`evals/prompts.ts`, 14 categories including vague requests and follow-up edits). Every app goes through the same automatic repair loop as the builder, then gets graded on a 390×844 phone screen the way a user and an App Store reviewer would:
+
+| Check | What it does |
+| --- | --- |
+| Opens without crashing | Loads the app and requires real content on screen |
+| Tapping every control never crashes | Taps every button, tab and row, up to 40 taps |
+| Forms create content | Fills in inputs (skipping search boxes), taps Add/Save, and looks for the new item |
+| Data survives reopening | Reloads the app and looks for the saved item |
+| Reaches 3+ screens | Counts distinct screens and states visited |
+| Touch targets ≥ 44pt | Apple's minimum, measured on at least 90% of controls |
+| Text contrast (WCAG AA) and no text under 11pt | Measured on every text element |
+| Fits the phone width | Nothing cut off, except inside sideways carousels |
+| Code checks, no placeholder text, saves data | Static analysis |
+| Store listing valid | App Store Connect length limits, bundle ID, colour |
+
+```bash
+npm run eval                                   # all 100, default model
+npm run eval -- --count 10                     # quick run
+npm run eval -- --provider openai --model gpt-5.5 --concurrency 4
+npm run eval -- --demo                         # no key: grades the built-in demo apps
+```
+
+The report lands in `evals/results/<time>/report.md`: the shippable rate, average score, pass rate per check, results by category, and every app with the reason it failed, plus a screenshot of each app. `tests/e2e/grader.spec.ts` proves the grader works: 12 deliberately broken apps must each fail exactly the right check, and the demo apps must score 100.
+
+A full 100-app run makes 100–300 model calls (follow-ups and repairs included). Expect roughly US$30–70 on Claude Opus 5, and less on Sonnet 5 or smaller models. These are estimates; check your provider's usage page.
+
+## Usability and accessibility of Appmaker itself
+
+`tests/e2e/ux-audit.spec.ts` audits every main screen (home, website import, AI settings, my apps, builder chat/preview/code/publish) at phone, tablet and desktop sizes. It checks:
+
+- WCAG 2.1 AA with axe-core
+- no sideways page scrolling
+- no console errors
+- WCAG 2.2 minimum tap-target size on phones
+- keyboard-only use, with a visible focus indicator
+
 ## Security
 
 - The API validates and size-limits every request, and rate-limits AI generations per IP. The limiter is in memory; use a shared store such as Redis when running multiple instances.

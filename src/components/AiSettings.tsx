@@ -194,7 +194,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                   <span className="mb-1.5 flex items-center justify-between text-xs font-medium">
                     <span>API key</span>
                     {provider.keyUrl && (
-                      <a href={provider.keyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-violet-300 hover:underline">
+                      <a href={provider.keyUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-6 items-center gap-1 px-1 text-violet-300 hover:underline">
                         Get a key <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
@@ -291,7 +291,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-line px-5 py-3">
-          <button onClick={reset} className="text-xs text-muted hover:text-foreground">
+          <button onClick={reset} className="min-h-8 rounded-md px-2 text-xs text-muted hover:bg-white/5 hover:text-foreground">
             Use site default
           </button>
           <div className="flex gap-2">
