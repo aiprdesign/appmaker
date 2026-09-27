@@ -1,12 +1,21 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { demoResponse } from "@/lib/demo";
 import { SYSTEM_PROMPT, buildUserMessage } from "@/lib/prompt";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { isAllowedPath } from "@/lib/validate";
 import type { FileMap, StoreListing } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const MODEL = process.env.APPMAKER_MODEL || "claude-opus-5";
+/** AI generations allowed per client IP per hour. */
+const HOURLY_LIMIT = Number(process.env.APPMAKER_RATE_LIMIT) || 30;
+
+const MAX_PROMPT_CHARS = 8_000;
+const MAX_FILES = 60;
+const MAX_FILES_BYTES = 600_000;
+const MAX_HISTORY_CHARS = 4_000;
 
 interface GenerateRequest {
   prompt: string;
@@ -51,6 +60,34 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Unknown error";
 }
 
+function validateRequest(body: GenerateRequest): string | null {
+  if (!body || typeof body !== "object") return "Invalid request body";
+  if (typeof body.prompt !== "string" || !body.prompt.trim()) return "prompt is required";
+  if (body.prompt.length > MAX_PROMPT_CHARS) return `prompt must be at most ${MAX_PROMPT_CHARS} characters`;
+  if (body.files != null) {
+    if (typeof body.files !== "object" || Array.isArray(body.files)) return "files must be an object";
+    const entries = Object.entries(body.files);
+    if (entries.length > MAX_FILES) return `an app can have at most ${MAX_FILES} files`;
+    let bytes = 0;
+    for (const [path, code] of entries) {
+      if (typeof code !== "string" || !isAllowedPath(path)) return `invalid file: ${path}`;
+      bytes += code.length;
+    }
+    if (bytes > MAX_FILES_BYTES) return "the app is too large to edit in one request";
+  }
+  if (body.listing != null) {
+    if (typeof body.listing !== "object" || Array.isArray(body.listing)) return "listing must be an object";
+    if (JSON.stringify(body.listing).length > 10_000) return "listing is too large";
+  }
+  if (body.history != null) {
+    if (!Array.isArray(body.history) || body.history.length > 200) return "history must be an array of at most 200 messages";
+    for (const m of body.history) {
+      if (!m || (m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string") return "invalid history entry";
+    }
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   let body: GenerateRequest;
   try {
@@ -58,8 +95,9 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const prompt = body.prompt?.trim();
-  if (!prompt) return Response.json({ error: "prompt is required" }, { status: 400 });
+  const invalid = validateRequest(body);
+  if (invalid) return Response.json({ error: invalid }, { status: 400 });
+  const prompt = body.prompt.trim();
   const files = body.files ?? {};
   const isEdit = Object.keys(files).length > 0;
 
@@ -74,11 +112,19 @@ export async function POST(req: Request) {
     });
   }
 
+  const limit = rateLimit(clientIp(req), HOURLY_LIMIT, 60 * 60 * 1000);
+  if (!limit.ok) {
+    return Response.json(
+      { error: `You've reached the limit of ${HOURLY_LIMIT} generations per hour. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.` },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
+    );
+  }
+
   const client = new Anthropic();
   const history: Anthropic.Beta.BetaMessageParam[] = (body.history ?? [])
     .slice(-8)
     .filter((m) => m.content.trim())
-    .map((m) => ({ role: m.role, content: m.content }));
+    .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_HISTORY_CHARS) }));
   // The API requires the conversation to start with a user turn.
   while (history.length && history[0].role !== "user") history.shift();
   if (history.length && history[history.length - 1].role === "user") history.pop();

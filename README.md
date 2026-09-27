@@ -24,6 +24,7 @@ Without an `ANTHROPIC_API_KEY`, Appmaker runs in **demo mode**. It streams one o
 | `ANTHROPIC_API_KEY` | Enables AI generation |
 | `APPMAKER_MODEL` | Model override (default `claude-opus-5`) |
 | `APPMAKER_DEMO=1` | Force demo mode |
+| `APPMAKER_RATE_LIMIT` | AI generations per IP per hour (default 30) |
 
 ## How it works
 
@@ -50,6 +51,32 @@ demo-apps/                   Starter apps used in demo mode
 - **Generation protocol.** The model replies with tagged sections: `<plan>`, then one `<file path="…">` per changed file, `<delete path="…"/>`, a JSON `<listing>`, and `<summary>`. The client parses the stream as it arrives, so the chat shows each file as it's written and the Code tab fills in live.
 - **Preview sandbox.** `npm run dev` and `npm run build` first run `scripts/build-preview-runtime.mjs`. It bundles React, React Native Web and shims for `@react-native-async-storage/async-storage`, `expo-status-bar`, `react-native-safe-area-context` and `expo-haptics` into `public/preview/runtime.js`, and copies Babel standalone next to it. Because of this, previews don't depend on any third-party CDN. The iframe runs with `sandbox="allow-scripts"` and no same-origin access.
 - **Allowed imports.** Generated apps may import only those modules plus `react` and `react-native`, which keeps every app previewable and buildable with Expo.
+
+## Quality gates for generated apps
+
+Every app the AI produces goes through automatic checks before you see it:
+
+1. **Static checks** (`src/lib/validate.ts`). `App.js` must exist with a default export, every import must be an allowed package or an existing local file, JSON files must be valid, and the code can't use web-only APIs (`document`, `localStorage`, `className`, HTML tags). File paths outside `App.js` / `src/` are refused, so a generated app can never overwrite export config or escape the project folder.
+2. **Runtime check.** The app is run in the preview sandbox. A crash within a few seconds of generation counts as caused by that generation.
+3. **Automatic repair.** If either check fails, the issues are sent back to the AI for a fix, up to 2 passes per request. Each pass shows as a "Quality check" note in the chat. If the app still fails after that, the **Fix with AI** button stays available.
+
+## Testing
+
+```bash
+npm run check       # lint + typecheck + unit tests
+npm run test:e2e    # builds the app and runs browser tests (demo mode, no key needed)
+```
+
+- **Unit tests** (`tests/unit`, Vitest) cover the stream parser, the quality checker (including that every built-in demo app passes it), the Expo exporter, API input validation and rate limiting.
+- **End-to-end tests** (`tests/e2e`, Playwright) generate each demo app and tap through it. They also check persistence, the publish checklist and zip export, the crash banner, the dashboard and the mobile layout. Using a mocked AI, they verify that the auto-repair loop fixes static and runtime problems, stops after its budget, and rejects unsafe file paths.
+- **CI** (`.github/workflows/ci.yml`) runs all of the above on every push.
+
+## Security
+
+- The API validates and size-limits every request, and rate-limits AI generations per IP. The limiter is in memory; use a shared store such as Redis when running multiple instances.
+- The preview runs in an iframe with `sandbox="allow-scripts"` and no same-origin access. The builder only accepts messages from its own preview frame.
+- Security headers are set in `next.config.ts`: `nosniff`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` and HSTS.
+- The API key stays on the server and is never sent to the browser.
 
 ## Shipping a generated app
 

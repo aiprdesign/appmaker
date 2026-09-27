@@ -9,12 +9,18 @@ import { Preview, type PreviewError } from "@/components/Preview";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
 import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
 import { getProject, saveProject, uid } from "@/lib/storage";
+import { describeIssues, isAllowedPath, validateApp, type ValidationIssue } from "@/lib/validate";
 import type { ChatMessage, FileMap, Project } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
 import { CodePanel } from "./CodePanel";
 import { AppIcon, PublishPanel } from "./PublishPanel";
 
 type Tab = "preview" | "code" | "publish";
+
+/** Automatic repair passes allowed after each request the user sends. */
+const AUTO_FIX_BUDGET = 2;
+/** How long after a generation a preview crash counts as caused by it. */
+const RUNTIME_WATCH_MS = 8000;
 
 export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
@@ -31,6 +37,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const abortRef = useRef<AbortController | null>(null);
   const projectRef = useRef<Project | null>(null);
   const started = useRef(false);
+  const fixBudget = useRef(AUTO_FIX_BUDGET);
+  const runtimeWatchUntil = useRef(0);
+  const demoRef = useRef(false);
 
   const commit = useCallback((next: Project) => {
     projectRef.current = next;
@@ -55,10 +64,18 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   }, [project, generating]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, opts: { autoFix?: boolean } = {}) => {
       const current = projectRef.current;
       if (!current || abortRef.current) return;
-      const userMsg: ChatMessage = { id: uid(), role: "user", content: text, createdAt: Date.now() };
+      if (!opts.autoFix) fixBudget.current = AUTO_FIX_BUDGET;
+      runtimeWatchUntil.current = 0;
+      const userMsg: ChatMessage = {
+        id: uid(),
+        role: "user",
+        content: text,
+        createdAt: Date.now(),
+        ...(opts.autoFix ? { kind: "auto-fix" as const } : {}),
+      };
       const withUser = { ...current, messages: [...current.messages, userMsg] };
       commit(withUser);
       setGenerating(true);
@@ -81,7 +98,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             history: current.messages.map((m) => ({ role: m.role, content: m.content })),
           }),
         });
-        setDemoMode(res.headers.get("X-Appmaker-Mode") === "demo");
+        demoRef.current = res.headers.get("X-Appmaker-Mode") === "demo";
+        setDemoMode(demoRef.current);
         if (!res.ok || !res.body) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body.error || `Request failed (${res.status})`);
@@ -110,10 +128,18 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       if (streamError) error = streamError;
       const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
       const base = projectRef.current ?? withUser;
-      // Keep only files that finished streaming.
-      const complete = Object.fromEntries(Object.entries(parsed.files).filter(([p]) => p !== parsed.writing));
+      // Keep only files that finished streaming, and never accept paths
+      // outside App.js / src/ (they could overwrite export config or escape
+      // the project folder when the zip is extracted).
+      const rejected: ValidationIssue[] = [];
+      const complete: FileMap = {};
+      for (const [p, code] of Object.entries(parsed.files)) {
+        if (p === parsed.writing) continue;
+        if (isAllowedPath(p)) complete[p] = code;
+        else rejected.push({ file: p, message: "was ignored; only App.js and files under src/ are allowed" });
+      }
       const files: FileMap = { ...base.files, ...complete };
-      for (const p of parsed.deleted) delete files[p];
+      for (const p of parsed.deleted) if (isAllowedPath(p)) delete files[p];
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
 
       const reply =
@@ -141,9 +167,27 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       setGenerating(false);
       abortRef.current = null;
       if (Object.keys(complete).length) setMobileView("app");
+
+      // Quality gate: statically check the app and let the AI repair it.
+      const wroteFiles = Object.keys(complete).length > 0;
+      if (!wroteFiles || error || demoRef.current) return;
+      const issues = [...rejected, ...validateApp(files)];
+      if (issues.length && fixBudget.current > 0) {
+        fixBudget.current -= 1;
+        sendRef.current?.(
+          `Automatic quality check found ${issues.length} problem${issues.length === 1 ? "" : "s"}:\n${describeIssues(issues)}\n\nFix all of them.`,
+          { autoFix: true },
+        );
+        return;
+      }
+      runtimeWatchUntil.current = Date.now() + RUNTIME_WATCH_MS;
     },
     [commit],
   );
+  const sendRef = useRef(send);
+  useEffect(() => {
+    sendRef.current = send;
+  }, [send]);
 
   useEffect(() => {
     if (!project || started.current) return;
@@ -154,7 +198,19 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     }
   }, [project, autoStart, send]);
 
-  const onPreviewError = useCallback((err: PreviewError | null) => setPreviewError(err), []);
+  const onPreviewError = useCallback((err: PreviewError | null) => {
+    setPreviewError(err);
+    // A crash right after a generation is almost always caused by it: repair
+    // it automatically instead of making the user press "Fix with AI".
+    if (err && Date.now() < runtimeWatchUntil.current && fixBudget.current > 0 && !abortRef.current) {
+      runtimeWatchUntil.current = 0;
+      fixBudget.current -= 1;
+      sendRef.current(
+        `Automatic quality check: the app crashed in the preview with this error:\n\n${err.message}\n\nFind the root cause and fix it.`,
+        { autoFix: true },
+      );
+    }
+  }, []);
 
   if (project === undefined) {
     return (

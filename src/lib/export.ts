@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import type { Project, StoreListing } from "./types";
+import { isAllowedPath } from "./validate";
 
 /** Versions from the Expo SDK 57 bundledNativeModules manifest. */
 const EXPO_DEPS: Record<string, string> = {
@@ -196,7 +197,9 @@ export async function exportProjectZip(project: Project): Promise<Blob> {
   root.file("README.md", readme(project));
   root.file(".github/workflows/eas.yml", WORKFLOW);
   root.file("assets/icon.png", await renderIcon(project.listing));
-  for (const [path, code] of Object.entries(project.files)) root.file(path, code);
+  for (const [path, code] of Object.entries(project.files)) {
+    if (isAllowedPath(path)) root.file(path, code);
+  }
   return zip.generateAsync({ type: "blob" });
 }
 

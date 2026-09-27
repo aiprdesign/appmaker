@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, CheckCircle2, FileCode2, Loader2, Square } from "lucide-react";
+import { ArrowUp, CheckCircle2, FileCode2, Loader2, Square, Wrench } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import type { ParsedGeneration } from "@/lib/parse";
 import { EDIT_SUGGESTIONS } from "@/lib/templates";
@@ -36,7 +36,15 @@ export function ChatPanel({ messages, generating, live, onSend, onStop, hasApp }
     <div className="flex h-full min-h-0 flex-col">
       <div ref={scroller} className="scrollbar-thin flex-1 space-y-4 overflow-y-auto p-4">
         {messages.map((m) =>
-          m.role === "user" ? (
+          m.kind === "auto-fix" ? (
+            <details key={m.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200/90">
+              <summary className="flex cursor-pointer list-none items-center gap-2">
+                <Wrench className="h-3.5 w-3.5 shrink-0" />
+                Quality check found a problem — fixing it automatically
+              </summary>
+              <pre className="mt-2 whitespace-pre-wrap font-mono text-[11px] text-amber-100/70">{m.content}</pre>
+            </details>
+          ) : m.role === "user" ? (
             <div key={m.id} className="ml-8 rounded-2xl rounded-tr-sm bg-surface-2 px-4 py-3 text-sm">
               {m.content}
             </div>

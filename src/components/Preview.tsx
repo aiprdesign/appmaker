@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { buildPreviewHtml } from "@/lib/preview";
 import type { FileMap } from "@/lib/types";
 
@@ -26,6 +26,7 @@ export function Preview({ files, platform, reloadKey, onError }: Props) {
     () => "",
   );
 
+  const frame = useRef<HTMLIFrameElement>(null);
   const html = useMemo(
     () => (origin && Object.keys(files).length ? buildPreviewHtml(files, origin, platform) : ""),
     [files, origin, platform],
@@ -34,7 +35,8 @@ export function Preview({ files, platform, reloadKey, onError }: Props) {
   useEffect(() => {
     onError?.(null);
     const handler = (e: MessageEvent) => {
-      if (e.data?.source !== "appmaker-preview") return;
+      // Only trust messages from our own preview frame.
+      if (e.source !== frame.current?.contentWindow || e.data?.source !== "appmaker-preview") return;
       if (e.data.type === "error") onError?.({ message: e.data.message, stack: e.data.stack });
     };
     window.addEventListener("message", handler);
@@ -45,6 +47,7 @@ export function Preview({ files, platform, reloadKey, onError }: Props) {
   return (
     <iframe
       key={reloadKey}
+      ref={frame}
       title="App preview"
       srcDoc={html}
       sandbox="allow-scripts allow-forms allow-modals"

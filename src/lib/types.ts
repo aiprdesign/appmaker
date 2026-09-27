@@ -6,6 +6,8 @@ export interface ChatMessage {
   content: string;
   /** Files the assistant wrote in this turn. */
   files?: string[];
+  /** Set on messages the builder sent automatically to repair the app. */
+  kind?: "auto-fix";
   createdAt: number;
 }
 

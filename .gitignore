@@ -43,3 +43,5 @@ next-env.d.ts
 
 # generated preview sandbox runtime
 /public/preview/
+/test-results/
+/playwright-report/
