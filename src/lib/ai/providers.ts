@@ -15,6 +15,10 @@ export type ProviderId =
   | "deepseek"
   | "xai"
   | "mistral"
+  | "together"
+  | "fireworks"
+  | "perplexity"
+  | "cerebras"
   | "custom";
 
 export interface ModelOption {
@@ -135,12 +139,53 @@ export const PROVIDERS: ProviderInfo[] = [
     models: [{ id: "mistral-large-latest", label: "Mistral Large" }],
   },
   {
+    id: "together",
+    name: "Together AI",
+    envKey: "TOGETHER_API_KEY",
+    keyUrl: "https://api.together.ai/settings/api-keys",
+    keyPlaceholder: "…",
+    baseURL: "https://api.together.xyz/v1",
+    blurb: "Hosted open models — Llama, Qwen, DeepSeek and more.",
+    models: [{ id: "meta-llama/Llama-3.3-70B-Instruct-Turbo", label: "Llama 3.3 70B Turbo" }],
+  },
+  {
+    id: "fireworks",
+    name: "Fireworks AI",
+    envKey: "FIREWORKS_API_KEY",
+    keyUrl: "https://fireworks.ai/account/api-keys",
+    keyPlaceholder: "fw_…",
+    baseURL: "https://api.fireworks.ai/inference/v1",
+    blurb: "Fast hosted open models.",
+    models: [{ id: "accounts/fireworks/models/llama-v3p3-70b-instruct", label: "Llama 3.3 70B" }],
+  },
+  {
+    id: "perplexity",
+    name: "Perplexity",
+    envKey: "PERPLEXITY_API_KEY",
+    keyUrl: "https://www.perplexity.ai/settings/api",
+    keyPlaceholder: "pplx-…",
+    baseURL: "https://api.perplexity.ai",
+    blurb: "Sonar models from Perplexity.",
+    models: [{ id: "sonar-pro", label: "Sonar Pro" }],
+  },
+  {
+    id: "cerebras",
+    name: "Cerebras",
+    envKey: "CEREBRAS_API_KEY",
+    keyUrl: "https://cloud.cerebras.ai",
+    keyPlaceholder: "csk-…",
+    baseURL: "https://api.cerebras.ai/v1",
+    blurb: "Open models at extremely high speed.",
+    models: [{ id: "llama-3.3-70b", label: "Llama 3.3 70B" }],
+  },
+  {
     id: "custom",
-    name: "Custom (OpenAI-compatible)",
+    name: "Any other AI (custom)",
     envKey: "CUSTOM_AI_API_KEY",
     keyUrl: "",
-    keyPlaceholder: "optional",
-    blurb: "Any OpenAI-compatible server, e.g. Ollama or LM Studio. Must be enabled by the site owner.",
+    keyPlaceholder: "API key (if the service needs one)",
+    blurb:
+      "Connect any AI service with an OpenAI- or Anthropic-compatible API — e.g. Azure OpenAI, AWS Bedrock gateways, LiteLLM, Hugging Face, Qwen, Kimi, a company proxy, or your own server.",
     models: [],
   },
 ];
@@ -169,7 +214,11 @@ export interface AiChoice {
   apiKey?: string;
   /** Base URL for the custom provider. */
   baseURL?: string;
+  /** Which API the custom provider speaks. */
+  apiFormat?: ApiFormat;
 }
+
+export type ApiFormat = "openai" | "anthropic";
 
 /** What the server tells the UI about its configuration. */
 export interface ServerAiConfig {

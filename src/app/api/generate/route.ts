@@ -88,6 +88,7 @@ function validateRequest(body: GenerateRequest): string | null {
     for (const k of ["provider", "model", "apiKey", "baseURL"] as const) {
       if (ai[k] != null && (typeof ai[k] !== "string" || ai[k]!.length > 500)) return `ai.${k} is invalid`;
     }
+    if (ai.apiFormat != null && ai.apiFormat !== "openai" && ai.apiFormat !== "anthropic") return "ai.apiFormat is invalid";
   }
   if (body.history != null) {
     if (!Array.isArray(body.history) || body.history.length > 200) return "history must be an array of at most 200 messages";

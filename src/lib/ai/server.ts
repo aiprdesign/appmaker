@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+import { Agent, fetch as undiciFetch } from "undici";
+import { isPrivateHost, makeSafeLookup } from "../net-guard";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER,
@@ -7,6 +9,7 @@ import {
   getProvider,
   isValidModelId,
   type AiChoice,
+  type ApiFormat,
   type ProviderId,
   type ServerAiConfig,
 } from "./providers";
@@ -20,12 +23,45 @@ import {
 
 export class AiConfigError extends Error {}
 
-const customAllowed = () => process.env.APPMAKER_ALLOW_CUSTOM_ENDPOINTS === "1";
+/** Users may connect any public AI endpoint unless the site owner turns it off. */
+const customAllowed = () => process.env.APPMAKER_DISABLE_CUSTOM_ENDPOINTS !== "1";
+/**
+ * Private/local endpoints (Ollama on localhost, a server on your LAN) are only
+ * for self-hosted installs: on a public server they would let visitors make
+ * the server call internal systems.
+ */
+const privateEndpointsAllowed = () =>
+  process.env.APPMAKER_ALLOW_PRIVATE_ENDPOINTS === "1" || process.env.APPMAKER_ALLOW_CUSTOM_ENDPOINTS === "1";
+
+/** Connections to user-supplied endpoints go through a DNS-checked agent. */
+let guardedAgent: Agent | undefined;
+function guardedFetchOptions() {
+  guardedAgent ??= new Agent({ connect: { lookup: makeSafeLookup(privateEndpointsAllowed) as never } });
+  // Redirects are refused: the endpoint was vetted, where it redirects to was not.
+  return { fetch: undiciFetch as unknown as typeof fetch, fetchOptions: { dispatcher: guardedAgent, redirect: "error" } as never };
+}
 
 function serverKey(provider: ProviderId): string | undefined {
   if (provider === "anthropic") return process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || undefined;
-  if (provider === "custom") return customAllowed() && process.env.CUSTOM_AI_BASE_URL ? process.env.CUSTOM_AI_API_KEY || "none" : undefined;
+  if (provider === "custom") return process.env.CUSTOM_AI_BASE_URL ? process.env.CUSTOM_AI_API_KEY || "none" : undefined;
   return process.env[getProvider(provider)!.envKey] || undefined;
+}
+
+/** Checks a user-supplied endpoint URL before any request is made to it. */
+function checkEndpoint(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    throw new AiConfigError("Enter a valid base URL, e.g. https://api.example.com/v1");
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new AiConfigError("The base URL must start with https://");
+  if (url.username || url.password) throw new AiConfigError("Put the API key in the key field, not in the URL.");
+  if (!privateEndpointsAllowed()) {
+    if (isPrivateHost(url)) throw new AiConfigError("That address is on a private network. Private endpoints only work on self-hosted installs.");
+    if (url.protocol !== "https:") throw new AiConfigError("Use an https:// address so your API key is sent securely.");
+  }
+  return url.toString().replace(/\/$/, "");
 }
 
 export function serverConfig(): ServerAiConfig {
@@ -44,6 +80,10 @@ export interface ResolvedAi {
   apiKey: string;
   baseURL?: string;
   usingServerKey: boolean;
+  /** API the endpoint speaks (custom provider only; presets are fixed). */
+  apiFormat?: ApiFormat;
+  /** Connections must go through the private-network guard. */
+  guarded?: boolean;
 }
 
 /**
@@ -58,17 +98,28 @@ export function resolveAi(choice: Partial<AiChoice> | undefined): ResolvedAi | n
   const model = choice?.model?.trim() || (provider === config.defaultProvider ? config.defaultModel : info.models[0]?.id) || "";
   if (!isValidModelId(model)) throw new AiConfigError("Choose a valid model in AI settings.");
 
-  let baseURL = info.baseURL;
+  const userKey = choice?.apiKey?.trim();
   if (provider === "custom") {
-    if (!customAllowed()) throw new AiConfigError("Custom AI endpoints are disabled on this server.");
-    baseURL = choice?.baseURL?.trim() || process.env.CUSTOM_AI_BASE_URL;
-    if (!baseURL || !/^https?:\/\//.test(baseURL)) throw new AiConfigError("Enter the base URL of your OpenAI-compatible server.");
+    const apiFormat: ApiFormat = choice?.apiFormat === "anthropic" ? "anthropic" : "openai";
+    const userURL = choice?.baseURL?.trim();
+    const ownerURL = process.env.CUSTOM_AI_BASE_URL?.trim();
+    if (userURL) {
+      if (!customAllowed()) throw new AiConfigError("Custom AI endpoints are disabled on this server.");
+      const baseURL = checkEndpoint(userURL);
+      // Never send the site owner's custom key to an address a user typed in.
+      const sameAsOwner = !!ownerURL && baseURL === ownerURL.replace(/\/$/, "");
+      const key = userKey || (sameAsOwner ? serverKey("custom") : undefined) || "none";
+      return { provider, model, apiKey: key, baseURL, usingServerKey: !userKey && sameAsOwner, apiFormat, guarded: true };
+    }
+    if (ownerURL) {
+      return { provider, model, apiKey: userKey || serverKey("custom")!, baseURL: ownerURL, usingServerKey: !userKey, apiFormat };
+    }
+    throw new AiConfigError("Enter the base URL of the AI service in AI settings.");
   }
 
-  const userKey = choice?.apiKey?.trim();
+  const baseURL = info.baseURL;
   const key = userKey || (process.env.APPMAKER_DEMO === "1" ? undefined : serverKey(provider));
   if (!key) {
-    if (provider === "custom" && baseURL) return { provider, model, apiKey: "none", baseURL, usingServerKey: false };
     if (config.serverKeys.length === 0) return null;
     throw new AiConfigError(`Add your ${info.name} API key in AI settings, or switch to a provider this site has set up.`);
   }
@@ -94,16 +145,32 @@ export interface GenerateArgs {
 }
 
 /** Streams the model's text through `write`. Returns why generation stopped. */
+function speaksAnthropic(ai: ResolvedAi): boolean {
+  return ai.provider === "anthropic" || (ai.provider === "custom" && ai.apiFormat === "anthropic");
+}
+
+function anthropicClient(ai: ResolvedAi): Anthropic {
+  return new Anthropic({
+    apiKey: ai.apiKey,
+    ...(ai.provider === "custom" ? { baseURL: ai.baseURL } : {}),
+    ...(ai.guarded ? guardedFetchOptions() : {}),
+  });
+}
+
+function openaiClient(ai: ResolvedAi): OpenAI {
+  return new OpenAI({ apiKey: ai.apiKey, baseURL: ai.baseURL, ...(ai.guarded ? guardedFetchOptions() : {}) });
+}
+
 export async function streamGeneration({ ai, system, messages, signal, write }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
-  if (ai.provider === "anthropic") {
-    const client = new Anthropic({ apiKey: ai.apiKey });
+  if (speaksAnthropic(ai)) {
+    const client = anthropicClient(ai);
     const modern = isModernClaude(ai.model);
     const stream = client.beta.messages.stream(
       {
         model: ai.model,
         max_tokens: modern ? 64000 : 32000,
         ...(modern ? { thinking: { type: "adaptive" as const }, output_config: { effort: "high" as const } } : {}),
-        ...(supportsFallbacks(ai.model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+        ...(ai.provider === "anthropic" && supportsFallbacks(ai.model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
         messages,
       },
@@ -119,7 +186,7 @@ export async function streamGeneration({ ai, system, messages, signal, write }: 
   }
 
   const info = getProvider(ai.provider)!;
-  const client = new OpenAI({ apiKey: ai.apiKey, baseURL: ai.baseURL });
+  const client = openaiClient(ai);
   const stream = await client.chat.completions.create(
     {
       model: ai.model,
@@ -143,13 +210,13 @@ export async function streamGeneration({ ai, system, messages, signal, write }: 
 
 /** Lists the models a key can use, for the settings dialog. */
 export async function listModels(ai: ResolvedAi): Promise<string[]> {
-  if (ai.provider === "anthropic") {
-    const client = new Anthropic({ apiKey: ai.apiKey });
+  if (speaksAnthropic(ai)) {
+    const client = anthropicClient(ai);
     const ids: string[] = [];
     for await (const m of client.models.list()) ids.push(m.id);
     return ids;
   }
-  const client = new OpenAI({ apiKey: ai.apiKey, baseURL: ai.baseURL });
+  const client = openaiClient(ai);
   const ids: string[] = [];
   for await (const m of client.models.list()) ids.push(m.id.replace(/^models\//, ""));
   // Hide models that can't write code (speech, images, embeddings…).
@@ -160,6 +227,10 @@ export async function listModels(ai: ResolvedAi): Promise<string[]> {
 
 export function aiErrorMessage(err: unknown, providerName = "the AI provider"): string {
   if (err instanceof AiConfigError) return err.message;
+  const cause = (err as { cause?: { code?: string; cause?: { code?: string } } })?.cause;
+  if (cause?.code === "EBLOCKED" || cause?.cause?.code === "EBLOCKED") {
+    return "That address points to a private network. Private endpoints only work on self-hosted installs.";
+  }
   const status = err instanceof Anthropic.APIError || err instanceof OpenAI.APIError ? err.status : undefined;
   if (status === 401 || status === 403) return `${providerName} rejected the API key. Check it in AI settings.`;
   if (status === 404) return `${providerName} doesn't recognise that model. Pick another in AI settings.`;

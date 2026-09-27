@@ -94,7 +94,11 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
       const res = await fetch("/api/ai/models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: providerId, apiKey: userKey || undefined, baseURL: draft.baseURL }),
+        body: JSON.stringify({
+          provider: providerId,
+          apiKey: userKey || undefined,
+          ...(providerId === "custom" ? { baseURL: draft.baseURL, apiFormat: draft.apiFormat ?? "openai" } : {}),
+        }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Couldn't reach the provider.");
@@ -121,6 +125,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
     if (draft.keys[id]) return { label: "Your key", tone: "text-emerald-300 bg-emerald-500/10" };
     if (config?.serverKeys.includes(id)) return { label: "Ready", tone: "text-violet-200 bg-violet-500/15" };
     if (id === "custom" && !config?.customEndpointsAllowed) return { label: "Disabled", tone: "text-muted bg-white/5" };
+    if (id === "custom") return draft.baseURL ? { label: "Set up", tone: "text-emerald-300 bg-emerald-500/10" } : { label: "Needs URL", tone: "text-muted bg-white/5" };
     return { label: "Needs key", tone: "text-muted bg-white/5" };
   };
 
@@ -173,21 +178,44 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
 
             {customBlocked ? (
               <p className="rounded-lg border border-line bg-surface p-3 text-sm text-muted">
-                Custom endpoints are turned off on this site. The site owner can enable them with{" "}
-                <code className="text-foreground">APPMAKER_ALLOW_CUSTOM_ENDPOINTS=1</code>.
+                Custom endpoints are turned off on this site by the site owner.
               </p>
             ) : (
               <>
                 {providerId === "custom" && (
-                  <label className="block">
-                    <span className="mb-1.5 block text-xs font-medium">Base URL</span>
-                    <input
-                      className={input}
-                      value={draft.baseURL ?? ""}
-                      placeholder="http://localhost:11434/v1"
-                      onChange={(e) => setDraft((d) => ({ ...d, baseURL: e.target.value }))}
-                    />
-                  </label>
+                  <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-medium">Base URL</span>
+                      <input
+                        className={`${input} font-mono`}
+                        value={draft.baseURL ?? ""}
+                        placeholder="https://api.example.com/v1"
+                        aria-label="Base URL"
+                        spellCheck={false}
+                        onChange={(e) => {
+                          setTest(null);
+                          setDraft((d) => ({ ...d, provider: "custom", baseURL: e.target.value.trim() }));
+                        }}
+                      />
+                      <span className="mt-1 block text-[11px] text-muted">From the service&apos;s API docs — usually ends in /v1.</span>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-medium">API format</span>
+                      <select
+                        className={input}
+                        aria-label="API format"
+                        value={draft.apiFormat ?? "openai"}
+                        onChange={(e) => {
+                          setTest(null);
+                          setDraft((d) => ({ ...d, provider: "custom", apiFormat: e.target.value as "openai" | "anthropic" }));
+                        }}
+                      >
+                        <option value="openai">OpenAI-compatible</option>
+                        <option value="anthropic">Anthropic-compatible</option>
+                      </select>
+                      <span className="mt-1 block text-[11px] text-muted">Most services use OpenAI-compatible.</span>
+                    </label>
+                  </div>
                 )}
 
                 <div>
@@ -227,7 +255,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                     <button
                       type="button"
                       onClick={loadModels}
-                      disabled={testing || (!userKey && !hasServerKey && providerId !== "custom")}
+                      disabled={testing || (providerId === "custom" ? !draft.baseURL : !userKey && !hasServerKey)}
                       className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:border-white/20 disabled:opacity-40"
                     >
                       {testing && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Test &amp; load models

@@ -23,7 +23,8 @@
     "node-html-parser": "^9.0.4",
     "openai": "^7.23.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "undici": "^7.30.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { AiChoice, ProviderId } from "./providers";
+import type { AiChoice, ApiFormat, ProviderId } from "./providers";
 
 /**
  * The user's AI settings, kept in this browser only. API keys the user adds
@@ -13,7 +13,9 @@ export interface AiSettings {
   provider?: ProviderId;
   model?: string;
   keys: Partial<Record<ProviderId, string>>;
+  /** Custom provider: endpoint and the API it speaks. */
   baseURL?: string;
+  apiFormat?: ApiFormat;
 }
 
 const KEY = "appmaker.ai.v1";
@@ -78,5 +80,6 @@ export function aiChoiceFor(settings: AiSettings): Partial<AiChoice> | undefined
     model: settings.model,
     apiKey: settings.keys[settings.provider] || undefined,
     baseURL: settings.provider === "custom" ? settings.baseURL : undefined,
+    apiFormat: settings.provider === "custom" ? settings.apiFormat : undefined,
   };
 }

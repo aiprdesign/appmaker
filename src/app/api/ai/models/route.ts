@@ -20,6 +20,9 @@ export async function POST(req: Request) {
       return Response.json({ error: `${k} is invalid` }, { status: 400 });
     }
   }
+  if (choice.apiFormat != null && choice.apiFormat !== "openai" && choice.apiFormat !== "anthropic") {
+    return Response.json({ error: "apiFormat is invalid" }, { status: 400 });
+  }
   const limit = rateLimit(`models:${clientIp(req)}`, 60, 60 * 60 * 1000);
   if (!limit.ok) return Response.json({ error: "Too many requests. Try again later." }, { status: 429 });
 

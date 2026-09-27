@@ -5,6 +5,7 @@ import { POST as generate } from "@/app/api/generate/route";
 import { POST as models } from "@/app/api/ai/models/route";
 import { PROVIDERS, isValidModelId } from "@/lib/ai/providers";
 import { AiConfigError, aiErrorMessage, listModels, resolveAi, serverConfig, streamGeneration } from "@/lib/ai/server";
+import { makeSafeLookup } from "@/lib/net-guard";
 
 const ENV_KEYS = [
   "ANTHROPIC_API_KEY",
@@ -15,7 +16,10 @@ const ENV_KEYS = [
   "APPMAKER_PROVIDER",
   "APPMAKER_MODEL",
   "APPMAKER_ALLOW_CUSTOM_ENDPOINTS",
+  "APPMAKER_ALLOW_PRIVATE_ENDPOINTS",
+  "APPMAKER_DISABLE_CUSTOM_ENDPOINTS",
   "CUSTOM_AI_BASE_URL",
+  "CUSTOM_AI_API_KEY",
 ];
 const saved: Record<string, string | undefined> = {};
 beforeAll(() => ENV_KEYS.forEach((k) => (saved[k] = process.env[k])));
@@ -163,11 +167,59 @@ describe("resolveAi", () => {
     expect(() => resolveAi({ provider: "nope" as never })).toThrow(AiConfigError);
   });
 
-  it("keeps custom endpoints off unless the site owner enables them", () => {
+  it("lets users connect any public https endpoint", () => {
     clearKeys();
-    expect(() => resolveAi({ provider: "custom", model: "llama3", baseURL: base })).toThrow(/disabled/);
-    process.env.APPMAKER_ALLOW_CUSTOM_ENDPOINTS = "1";
-    expect(resolveAi({ provider: "custom", model: "llama3", baseURL: base })).toMatchObject({ baseURL: base, apiKey: "none" });
+    const ai = resolveAi({ provider: "custom", model: "qwen-max", apiKey: "user", baseURL: "https://llm.example.com/v1/", apiFormat: "anthropic" });
+    expect(ai).toMatchObject({ provider: "custom", baseURL: "https://llm.example.com/v1", apiKey: "user", apiFormat: "anthropic", guarded: true, usingServerKey: false });
+    expect(resolveAi({ provider: "custom", model: "m", baseURL: "https://llm.example.com/v1" })).toMatchObject({ apiKey: "none", apiFormat: "openai" });
+  });
+
+  it.each([
+    ["http://127.0.0.1:11434/v1", /private network/],
+    ["http://localhost:11434/v1", /private network/],
+    ["https://169.254.169.254/latest", /private network/],
+    ["http://llm.example.com/v1", /https/],
+    ["https://user:pw@llm.example.com/v1", /key field/],
+    ["ftp://llm.example.com", /https/],
+    ["not a url", /valid base URL/],
+  ])("refuses unsafe endpoint %s", (baseURL, message) => {
+    clearKeys();
+    expect(() => resolveAi({ provider: "custom", model: "m", baseURL })).toThrow(message);
+  });
+
+  it("allows private endpoints only on self-hosted installs", () => {
+    clearKeys();
+    process.env.APPMAKER_ALLOW_PRIVATE_ENDPOINTS = "1";
+    expect(resolveAi({ provider: "custom", model: "llama3", baseURL: "http://localhost:11434/v1" })).toMatchObject({ baseURL: "http://localhost:11434/v1" });
+  });
+
+  it("can be switched off by the site owner", () => {
+    clearKeys();
+    process.env.APPMAKER_DISABLE_CUSTOM_ENDPOINTS = "1";
+    expect(() => resolveAi({ provider: "custom", model: "m", baseURL: "https://llm.example.com/v1" })).toThrow(/disabled/);
+    expect(serverConfig().customEndpointsAllowed).toBe(false);
+  });
+
+  it("never sends the site owner's custom key to an address a user typed", () => {
+    clearKeys();
+    process.env.CUSTOM_AI_BASE_URL = "https://owner.example.com/v1";
+    process.env.CUSTOM_AI_API_KEY = "owner-secret";
+    expect(resolveAi({ provider: "custom", model: "m", baseURL: "https://attacker.example.com/v1" })).toMatchObject({ apiKey: "none" });
+    expect(resolveAi({ provider: "custom", model: "m", baseURL: "https://owner.example.com/v1" })).toMatchObject({ apiKey: "owner-secret", usingServerKey: true });
+    const owner = resolveAi({ provider: "custom", model: "m" })!;
+    expect(owner).toMatchObject({ apiKey: "owner-secret", baseURL: "https://owner.example.com/v1" });
+    // The owner's own endpoint is trusted configuration, so it isn't forced through the guard.
+    expect(owner.guarded).toBeFalsy();
+  });
+});
+
+describe("private-network guard", () => {
+  it("blocks hostnames that resolve to private addresses", async () => {
+    const lookup = makeSafeLookup(() => false);
+    const err = await new Promise<NodeJS.ErrnoException | null>((resolve) => lookup("localhost", {}, (e) => resolve(e)));
+    expect(err?.code).toBe("EBLOCKED");
+    const ok = await new Promise<NodeJS.ErrnoException | null>((resolve) => makeSafeLookup(() => true)("localhost", {}, (e) => resolve(e)));
+    expect(ok).toBeNull();
   });
 });
 
@@ -229,6 +281,30 @@ describe("streamGeneration", () => {
     mode = "length";
     expect((await run({ provider: "openai", model: "gpt-5.5", apiKey: "u", baseURL: `${base}/v1`, usingServerKey: false })).outcome).toBe("length");
     expect(captured[1].body).not.toHaveProperty("max_tokens");
+  });
+
+  it("streams from a custom endpoint through the guarded connection, in both API formats", async () => {
+    process.env.APPMAKER_ALLOW_PRIVATE_ENDPOINTS = "1";
+    const openaiStyle = resolveAi({ provider: "custom", model: "my-model", apiKey: "u", baseURL: `${base}/v1` })!;
+    expect(openaiStyle.guarded).toBe(true);
+    expect(await run(openaiStyle)).toEqual({ out: "<plan>Hello</plan>", outcome: "done" });
+    expect(captured.at(-1)!.path).toBe("/v1/chat/completions");
+
+    const anthropicStyle = resolveAi({ provider: "custom", model: "claude-opus-5", apiKey: "u", baseURL: base, apiFormat: "anthropic" })!;
+    expect(await run(anthropicStyle)).toEqual({ out: "<plan>Hi</plan>", outcome: "done" });
+    const req = captured.at(-1)!;
+    expect(req.path).toMatch(/^\/v1\/messages/);
+    expect(req.headers["x-api-key"]).toBe("u");
+    // Anthropic-only extras (refusal fallbacks beta) are not sent to third-party endpoints.
+    expect(req.body).not.toHaveProperty("fallbacks");
+    expect(await listModels(openaiStyle)).toEqual(["gemini-x", "llama3"]);
+  });
+
+  it("refuses a custom endpoint whose host resolves to a private address", async () => {
+    const ai = { provider: "custom" as const, model: "m", apiKey: "u", baseURL: `http://localhost:${new URL(base).port}/v1`, usingServerKey: false, guarded: true };
+    const err = await run(ai).catch((e) => e);
+    expect(aiErrorMessage(err, "Custom")).toMatch(/private network/);
+    expect(captured).toHaveLength(0);
   });
 
   it("turns provider errors into friendly messages", async () => {

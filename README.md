@@ -37,7 +37,8 @@ See `.env.example` for every option. The most important ones:
 | --- | --- |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY` | Site-wide keys for each provider |
 | `APPMAKER_PROVIDER` / `APPMAKER_MODEL` | Default provider and model (default Anthropic `claude-opus-5`) |
-| `APPMAKER_ALLOW_CUSTOM_ENDPOINTS` | Allow self-hosted OpenAI-compatible servers (Ollama, LM Studio) |
+| `APPMAKER_DISABLE_CUSTOM_ENDPOINTS` | Turn off the "Any other AI" custom endpoint option |
+| `APPMAKER_ALLOW_PRIVATE_ENDPOINTS` | Self-hosted installs only: allow local endpoints such as Ollama or LM Studio |
 | `APPMAKER_RATE_LIMIT` / `APPMAKER_BYOK_RATE_LIMIT` / `APPMAKER_IMPORT_RATE_LIMIT` | Hourly limits per IP |
 | `APPMAKER_DEMO=1` | Force demo mode |
 
@@ -45,7 +46,8 @@ See `.env.example` for every option. The most important ones:
 
 Click the model button (under the prompt box, or in the builder's chat box) to open **AI model** settings:
 
-- **Providers:** Anthropic Claude, OpenAI, Google Gemini, OpenRouter (hundreds of models), Groq, DeepSeek, xAI Grok, Mistral, and an optional custom OpenAI-compatible endpoint.
+- **Providers:** Anthropic Claude, OpenAI, Google Gemini, OpenRouter (hundreds of models), Groq, DeepSeek, xAI Grok, Mistral, Together AI, Fireworks AI, Perplexity and Cerebras.
+- **Any other AI:** users can connect any service with an OpenAI- or Anthropic-compatible API (Azure OpenAI, LiteLLM, Hugging Face, Qwen, Kimi, a company gateway…) by entering its base URL, API format, key and model. For safety, only public `https` addresses are accepted. Every connection is checked when DNS resolves, redirects are refused, and a site-wide custom key is never sent to an address a user typed in.
 - **Keys:** a provider marked **Ready** has a key set by the site owner. Users can also paste their own key, which is saved only in their browser. It's sent with each request so the server can call the provider, and it's never stored or logged. Requests on the user's own key are billed to their account and have a separate, higher rate limit.
 - **Models:** each provider suggests a few models. **Test & load models** checks the key and loads every model it can use, and any model ID can be typed in.
 
