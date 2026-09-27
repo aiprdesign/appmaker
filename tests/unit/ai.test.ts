@@ -1,0 +1,283 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { POST as generate } from "@/app/api/generate/route";
+import { POST as models } from "@/app/api/ai/models/route";
+import { PROVIDERS, isValidModelId } from "@/lib/ai/providers";
+import { AiConfigError, aiErrorMessage, listModels, resolveAi, serverConfig, streamGeneration } from "@/lib/ai/server";
+
+const ENV_KEYS = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_BASE_URL",
+  "OPENAI_API_KEY",
+  "APPMAKER_DEMO",
+  "APPMAKER_PROVIDER",
+  "APPMAKER_MODEL",
+  "APPMAKER_ALLOW_CUSTOM_ENDPOINTS",
+  "CUSTOM_AI_BASE_URL",
+];
+const saved: Record<string, string | undefined> = {};
+beforeAll(() => ENV_KEYS.forEach((k) => (saved[k] = process.env[k])));
+afterEach(() => ENV_KEYS.forEach((k) => (saved[k] === undefined ? delete process.env[k] : (process.env[k] = saved[k]))));
+const clearKeys = () => ENV_KEYS.forEach((k) => delete process.env[k]);
+
+// --- Fake provider servers -------------------------------------------------
+
+interface Captured {
+  path: string;
+  headers: http.IncomingHttpHeaders;
+  body: Record<string, unknown>;
+}
+let captured: Captured[] = [];
+let mode: "ok" | "length" | "unauthorized" = "ok";
+
+const sse = (res: http.ServerResponse, events: [string | null, unknown][]) => {
+  res.writeHead(200, { "Content-Type": "text/event-stream" });
+  for (const [event, data] of events) res.write(`${event ? `event: ${event}\n` : ""}data: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`);
+  res.end();
+};
+
+const server = http.createServer((req, res) => {
+  let raw = "";
+  req.on("data", (c) => (raw += c));
+  req.on("end", () => {
+    captured.push({ path: req.url!, headers: req.headers, body: raw ? JSON.parse(raw) : {} });
+    if (mode === "unauthorized") {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }));
+    }
+    // Anthropic Messages API
+    if (req.url!.startsWith("/v1/messages")) {
+      const text = "<plan>Hi</plan>";
+      return sse(res, [
+        ["message_start", { type: "message_start", message: { id: "msg_1", type: "message", role: "assistant", model: "claude-opus-5", content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 5, output_tokens: 1 } } }],
+        ["content_block_start", { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } }],
+        ["content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } }],
+        ["content_block_stop", { type: "content_block_stop", index: 0 }],
+        ["message_delta", { type: "message_delta", delta: { stop_reason: mode === "length" ? "max_tokens" : "end_turn", stop_sequence: null }, usage: { output_tokens: 3 } }],
+        ["message_stop", { type: "message_stop" }],
+      ]);
+    }
+    if (req.url!.startsWith("/v1/models")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      const data = req.headers["x-api-key"]
+        ? [{ type: "model", id: "claude-opus-5", display_name: "Claude Opus 5", created_at: "2026-01-01T00:00:00Z" }]
+        : [{ id: "llama3" }, { id: "text-embedding-3" }, { id: "models/gemini-x" }].map((m) => ({ ...m, object: "model", created: 0, owned_by: "x" }));
+      return res.end(JSON.stringify({ data, object: "list", has_more: false, first_id: null, last_id: null }));
+    }
+    // OpenAI-compatible chat completions
+    if (req.url!.includes("/chat/completions")) {
+      const chunk = (content: string | null, finish: string | null) => ({
+        id: "c1",
+        object: "chat.completion.chunk",
+        created: 0,
+        model: "m",
+        choices: [{ index: 0, delta: content == null ? {} : { content }, finish_reason: finish }],
+      });
+      return sse(res, [
+        [null, chunk("<plan>", null)],
+        [null, chunk("Hello</plan>", null)],
+        [null, chunk(null, mode === "length" ? "length" : "stop")],
+        [null, "[DONE]"],
+      ]);
+    }
+    res.writeHead(404).end();
+  });
+});
+let base = "";
+beforeAll(async () => {
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+});
+afterAll(() => server.close());
+afterEach(() => {
+  captured = [];
+  mode = "ok";
+});
+
+const run = async (ai: NonNullable<ReturnType<typeof resolveAi>>) => {
+  let out = "";
+  const outcome = await streamGeneration({
+    ai,
+    system: "SYS",
+    messages: [{ role: "user", content: "build it" }],
+    signal: new AbortController().signal,
+    write: (t) => (out += t),
+  });
+  return { out, outcome };
+};
+
+// --- Tests -------------------------------------------------------------------
+
+describe("provider registry", () => {
+  it("has unique ids and valid suggested model ids", () => {
+    expect(new Set(PROVIDERS.map((p) => p.id)).size).toBe(PROVIDERS.length);
+    for (const p of PROVIDERS) for (const m of p.models) expect(isValidModelId(m.id)).toBe(true);
+  });
+  it.each(["gpt-5.5", "openrouter/auto", "meta-llama/llama-3.3-70b-instruct:free", "llama3:8b"])("accepts model id %s", (id) =>
+    expect(isValidModelId(id)).toBe(true),
+  );
+  it.each(["", "a b", "../../x", "x\ny", "a".repeat(200)])("rejects model id %j", (id) => expect(isValidModelId(id)).toBe(false));
+});
+
+describe("resolveAi", () => {
+  it("is demo mode when no key exists anywhere", () => {
+    clearKeys();
+    expect(resolveAi(undefined)).toBeNull();
+    expect(resolveAi({ provider: "openai" })).toBeNull();
+  });
+
+  it("defaults to Claude Opus 5 on the server key", () => {
+    clearKeys();
+    process.env.ANTHROPIC_API_KEY = "server-key";
+    expect(resolveAi(undefined)).toMatchObject({ provider: "anthropic", model: "claude-opus-5", apiKey: "server-key", usingServerKey: true });
+    expect(serverConfig().serverKeys).toEqual(["anthropic"]);
+  });
+
+  it("uses the user's own key and model", () => {
+    clearKeys();
+    process.env.ANTHROPIC_API_KEY = "server-key";
+    const ai = resolveAi({ provider: "openai", model: "gpt-5.5", apiKey: "user-key" });
+    expect(ai).toMatchObject({ provider: "openai", model: "gpt-5.5", apiKey: "user-key", usingServerKey: false });
+  });
+
+  it("asks for a key when the chosen provider has none but others do", () => {
+    clearKeys();
+    process.env.ANTHROPIC_API_KEY = "server-key";
+    expect(() => resolveAi({ provider: "openai" })).toThrow(AiConfigError);
+  });
+
+  it("honours APPMAKER_PROVIDER / APPMAKER_MODEL and picks a configured provider by default", () => {
+    clearKeys();
+    process.env.OPENAI_API_KEY = "k";
+    expect(serverConfig()).toMatchObject({ defaultProvider: "openai", defaultModel: "gpt-5.5" });
+    process.env.APPMAKER_PROVIDER = "openai";
+    process.env.APPMAKER_MODEL = "gpt-5.4";
+    expect(resolveAi(undefined)).toMatchObject({ provider: "openai", model: "gpt-5.4" });
+  });
+
+  it("rejects bad models and unknown providers", () => {
+    process.env.ANTHROPIC_API_KEY = "k";
+    expect(() => resolveAi({ model: "bad model" })).toThrow(AiConfigError);
+    expect(() => resolveAi({ provider: "nope" as never })).toThrow(AiConfigError);
+  });
+
+  it("keeps custom endpoints off unless the site owner enables them", () => {
+    clearKeys();
+    expect(() => resolveAi({ provider: "custom", model: "llama3", baseURL: base })).toThrow(/disabled/);
+    process.env.APPMAKER_ALLOW_CUSTOM_ENDPOINTS = "1";
+    expect(resolveAi({ provider: "custom", model: "llama3", baseURL: base })).toMatchObject({ baseURL: base, apiKey: "none" });
+  });
+});
+
+describe("streamGeneration", () => {
+  it("streams from Claude with adaptive thinking, effort, caching and refusal fallbacks", async () => {
+    clearKeys();
+    process.env.ANTHROPIC_BASE_URL = base;
+    const { out, outcome } = await run({ provider: "anthropic", model: "claude-opus-5", apiKey: "k", usingServerKey: true });
+    expect(out).toBe("<plan>Hi</plan>");
+    expect(outcome).toBe("done");
+    const req = captured[0];
+    expect(req.path).toMatch(/^\/v1\/messages/);
+    expect(req.headers["x-api-key"]).toBe("k");
+    expect(req.headers["anthropic-beta"]).toContain("server-side-fallback-2026-07-01");
+    expect(req.body).toMatchObject({
+      model: "claude-opus-5",
+      max_tokens: 64000,
+      stream: true,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "high" },
+      fallbacks: "default",
+      system: [{ type: "text", text: "SYS", cache_control: { type: "ephemeral" } }],
+    });
+  });
+
+  it("omits thinking, effort and fallbacks on models that don't support them", async () => {
+    process.env.ANTHROPIC_BASE_URL = base;
+    await run({ provider: "anthropic", model: "claude-haiku-4-5", apiKey: "k", usingServerKey: true });
+    expect(captured[0].body).not.toHaveProperty("thinking");
+    expect(captured[0].body).not.toHaveProperty("output_config");
+    expect(captured[0].body).not.toHaveProperty("fallbacks");
+    expect(captured[0].headers["anthropic-beta"]).toBeUndefined();
+    captured = [];
+    await run({ provider: "anthropic", model: "claude-sonnet-5", apiKey: "k", usingServerKey: true });
+    expect(captured[0].body).toMatchObject({ thinking: { type: "adaptive" } });
+    expect(captured[0].body).not.toHaveProperty("fallbacks");
+  });
+
+  it("reports when Claude hits the output limit", async () => {
+    process.env.ANTHROPIC_BASE_URL = base;
+    mode = "length";
+    expect((await run({ provider: "anthropic", model: "claude-opus-5", apiKey: "k", usingServerKey: true })).outcome).toBe("length");
+  });
+
+  it("streams from OpenAI-compatible providers", async () => {
+    const { out, outcome } = await run({ provider: "deepseek", model: "deepseek-chat", apiKey: "user", baseURL: `${base}/v1`, usingServerKey: false });
+    expect(out).toBe("<plan>Hello</plan>");
+    expect(outcome).toBe("done");
+    expect(captured[0].headers.authorization).toBe("Bearer user");
+    expect(captured[0].body).toMatchObject({
+      model: "deepseek-chat",
+      stream: true,
+      max_tokens: 8192,
+      messages: [
+        { role: "system", content: "SYS" },
+        { role: "user", content: "build it" },
+      ],
+    });
+    mode = "length";
+    expect((await run({ provider: "openai", model: "gpt-5.5", apiKey: "u", baseURL: `${base}/v1`, usingServerKey: false })).outcome).toBe("length");
+    expect(captured[1].body).not.toHaveProperty("max_tokens");
+  });
+
+  it("turns provider errors into friendly messages", async () => {
+    mode = "unauthorized";
+    const err = await run({ provider: "openai", model: "gpt-5.5", apiKey: "bad", baseURL: `${base}/v1`, usingServerKey: false }).catch((e) => e);
+    expect(aiErrorMessage(err, "OpenAI")).toMatch(/OpenAI rejected the API key/);
+  });
+});
+
+describe("listModels", () => {
+  it("lists Claude models", async () => {
+    process.env.ANTHROPIC_BASE_URL = base;
+    expect(await listModels({ provider: "anthropic", model: "x", apiKey: "k", usingServerKey: false })).toEqual(["claude-opus-5"]);
+  });
+  it("lists and filters OpenAI-compatible models", async () => {
+    const ids = await listModels({ provider: "openrouter", model: "x", apiKey: "k", baseURL: `${base}/v1`, usingServerKey: false });
+    expect(ids).toEqual(["gemini-x", "llama3"]);
+  });
+});
+
+describe("API routes", () => {
+  it("generate: uses demo mode with no keys, and asks for a key when needed", async () => {
+    clearKeys();
+    const call = (body: unknown) => generate(new Request("http://x/api/generate", { method: "POST", body: JSON.stringify(body) }));
+    const demo = await call({ prompt: "habit tracker", ai: { provider: "openai", model: "gpt-5.5" } });
+    expect(demo.headers.get("X-Appmaker-Mode")).toBe("demo");
+    process.env.ANTHROPIC_API_KEY = "server";
+    const res = await call({ prompt: "habit tracker", ai: { provider: "openai", model: "gpt-5.5" } });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Add your OpenAI API key/);
+    expect((await call({ prompt: "x", ai: { provider: "openai", apiKey: 123 } })).status).toBe(400);
+  });
+
+  it("generate: streams a real (fake-server) Claude response end to end", async () => {
+    clearKeys();
+    process.env.ANTHROPIC_API_KEY = "server";
+    process.env.ANTHROPIC_BASE_URL = base;
+    const res = await generate(new Request("http://x/api/generate", { method: "POST", body: JSON.stringify({ prompt: "a habit tracker" }) }));
+    expect(res.headers.get("X-Appmaker-Mode")).toBe("ai");
+    expect(res.headers.get("X-Appmaker-Model")).toBe("anthropic/claude-opus-5");
+    expect(await res.text()).toBe("<plan>Hi</plan>");
+    const sent = captured[0].body as { messages: { role: string; content: string }[] };
+    expect(sent.messages.at(-1)?.content).toContain("Build this app:\n\na habit tracker");
+  });
+
+  it("models: validates input", async () => {
+    clearKeys();
+    const call = (body: unknown) => models(new Request("http://x/api/ai/models", { method: "POST", body: JSON.stringify(body) }));
+    expect((await call({ provider: "nope" })).status).toBe(400);
+    expect((await call({ provider: "openai" })).status).toBe(400);
+  });
+});

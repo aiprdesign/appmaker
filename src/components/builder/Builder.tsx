@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Code2, Download, Loader2, MessageSquare, RotateCw, Rocket, Smartphone, Wand2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Preview, type PreviewError } from "@/components/Preview";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
@@ -97,6 +98,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             listing: Object.keys(current.files).length ? current.listing : undefined,
             history: current.messages.map((m) => ({ role: m.role, content: m.content })),
             site: current.source,
+            ai: aiChoiceFor(getAiSettings()),
           }),
         });
         demoRef.current = res.headers.get("X-Appmaker-Mode") === "demo";

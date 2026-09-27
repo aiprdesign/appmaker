@@ -1,4 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { getProvider, type AiChoice } from "@/lib/ai/providers";
+import { aiErrorMessage, AiConfigError, resolveAi, streamGeneration, type ResolvedAi } from "@/lib/ai/server";
 import { demoResponse } from "@/lib/demo";
 import { SYSTEM_PROMPT, buildUserMessage } from "@/lib/prompt";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -8,9 +9,10 @@ import type { FileMap, SiteSummary, StoreListing } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const MODEL = process.env.APPMAKER_MODEL || "claude-opus-5";
-/** AI generations allowed per client IP per hour. */
+/** AI generations on the site owner's keys allowed per client IP per hour. */
 const HOURLY_LIMIT = Number(process.env.APPMAKER_RATE_LIMIT) || 30;
+/** Generations with the user's own key, which only need abuse protection. */
+const BYOK_HOURLY_LIMIT = Number(process.env.APPMAKER_BYOK_RATE_LIMIT) || 300;
 
 const MAX_PROMPT_CHARS = 8_000;
 const MAX_FILES = 60;
@@ -25,14 +27,12 @@ interface GenerateRequest {
   site?: SiteSummary;
   /** Earlier turns as plain text, oldest first. */
   history?: { role: "user" | "assistant"; content: string }[];
+  /** Provider, model and optional user-supplied key. */
+  ai?: Partial<AiChoice>;
 }
 
-function hasCredentials(): boolean {
-  if (process.env.APPMAKER_DEMO === "1") return false;
-  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
-}
-
-function textStream(produce: (write: (s: string) => void) => Promise<void>): Response {
+function textStream(ai: ResolvedAi | null, produce: (write: (s: string) => void) => Promise<void>): Response {
+  const providerName = ai ? getProvider(ai.provider)!.name : undefined;
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -40,7 +40,7 @@ function textStream(produce: (write: (s: string) => void) => Promise<void>): Res
       try {
         await produce(write);
       } catch (err) {
-        write(`\n<error>${errorMessage(err)}</error>`);
+        if ((err as Error)?.name !== "AbortError") write(`\n<error>${aiErrorMessage(err, providerName)}</error>`);
       } finally {
         controller.close();
       }
@@ -50,16 +50,10 @@ function textStream(produce: (write: (s: string) => void) => Promise<void>): Res
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store",
-      "X-Appmaker-Mode": hasCredentials() ? "ai" : "demo",
+      "X-Appmaker-Mode": ai ? "ai" : "demo",
+      ...(ai ? { "X-Appmaker-Model": `${ai.provider}/${ai.model}` } : {}),
     },
   });
-}
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Anthropic.AuthenticationError) return "The Anthropic API key was rejected. Check ANTHROPIC_API_KEY.";
-  if (err instanceof Anthropic.RateLimitError) return "Rate limited by the AI provider — wait a moment and try again.";
-  if (err instanceof Anthropic.APIError) return `AI provider error (${err.status ?? "network"}): ${err.message}`;
-  return err instanceof Error ? err.message : "Unknown error";
 }
 
 function validateRequest(body: GenerateRequest): string | null {
@@ -88,6 +82,13 @@ function validateRequest(body: GenerateRequest): string | null {
     }
     if (JSON.stringify(site).length > 40_000) return "site content is too large";
   }
+  if (body.ai != null) {
+    const ai = body.ai;
+    if (typeof ai !== "object" || Array.isArray(ai)) return "ai must be an object";
+    for (const k of ["provider", "model", "apiKey", "baseURL"] as const) {
+      if (ai[k] != null && (typeof ai[k] !== "string" || ai[k]!.length > 500)) return `ai.${k} is invalid`;
+    }
+  }
   if (body.history != null) {
     if (!Array.isArray(body.history) || body.history.length > 200) return "history must be an array of at most 200 messages";
     for (const m of body.history) {
@@ -110,9 +111,17 @@ export async function POST(req: Request) {
   const files = body.files ?? {};
   const isEdit = Object.keys(files).length > 0;
 
-  if (!hasCredentials()) {
+  let ai: ResolvedAi | null;
+  try {
+    ai = resolveAi(body.ai);
+  } catch (e) {
+    if (e instanceof AiConfigError) return Response.json({ error: e.message }, { status: 400 });
+    throw e;
+  }
+
+  if (!ai) {
     const text = demoResponse(prompt, isEdit, body.site);
-    return textStream(async (write) => {
+    return textStream(null, async (write) => {
       // Stream in chunks so the demo feels like live generation.
       for (let i = 0; i < text.length; i += 400) {
         write(text.slice(i, i + 400));
@@ -121,16 +130,16 @@ export async function POST(req: Request) {
     });
   }
 
-  const limit = rateLimit(clientIp(req), HOURLY_LIMIT, 60 * 60 * 1000);
+  const hourly = ai.usingServerKey ? HOURLY_LIMIT : BYOK_HOURLY_LIMIT;
+  const limit = rateLimit(`${ai.usingServerKey ? "gen" : "byok"}:${clientIp(req)}`, hourly, 60 * 60 * 1000);
   if (!limit.ok) {
     return Response.json(
-      { error: `You've reached the limit of ${HOURLY_LIMIT} generations per hour. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.` },
+      { error: `You've reached the limit of ${hourly} generations per hour. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.` },
       { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
     );
   }
 
-  const client = new Anthropic();
-  const history: Anthropic.Beta.BetaMessageParam[] = (body.history ?? [])
+  const history: { role: "user" | "assistant"; content: string }[] = (body.history ?? [])
     .slice(-8)
     .filter((m) => m.content.trim())
     .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_HISTORY_CHARS) }));
@@ -138,32 +147,19 @@ export async function POST(req: Request) {
   while (history.length && history[0].role !== "user") history.shift();
   if (history.length && history[history.length - 1].role === "user") history.pop();
 
-  return textStream(async (write) => {
-    const stream = client.beta.messages.stream(
-      {
-        model: MODEL,
-        max_tokens: 64000,
-        thinking: { type: "adaptive" },
-        output_config: { effort: "high" },
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-        messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site) }],
-      },
-      { signal: req.signal },
-    );
-
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        write(event.delta.text);
-      }
-    }
-
-    const final = await stream.finalMessage();
-    if (final.stop_reason === "refusal") {
+  const resolved = ai;
+  return textStream(resolved, async (write) => {
+    const outcome = await streamGeneration({
+      ai: resolved,
+      system: SYSTEM_PROMPT,
+      messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site) }],
+      signal: req.signal,
+      write,
+    });
+    if (outcome === "refusal") {
       write("\n<error>The AI declined this request. Try rephrasing your app idea.</error>");
-    } else if (final.stop_reason === "max_tokens") {
-      write("\n<error>The app was too large to finish in one pass. Ask for a smaller first version, then add features step by step.</error>");
+    } else if (outcome === "length") {
+      write("\n<error>The app was too large to finish in one pass. Ask for a smaller first version, or choose a model with a larger output limit in AI settings.</error>");
     }
   });
 }

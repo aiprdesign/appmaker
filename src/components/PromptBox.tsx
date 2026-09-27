@@ -6,6 +6,7 @@ import { ArrowUp, Globe, Loader2, Sparkles } from "lucide-react";
 import { createProject } from "@/lib/storage";
 import { TEMPLATES } from "@/lib/templates";
 import type { SiteSummary } from "@/lib/types";
+import { ModelButton } from "./AiSettings";
 import { SiteCard } from "./SiteCard";
 
 /** A link typed into the prompt: an explicit URL, a www. host, or a common TLD (not "Node.js"). */
@@ -148,8 +149,9 @@ export function PromptBox() {
                 <Globe className="h-3.5 w-3.5" /> Import website
               </button>
             )}
-            <span className="hidden items-center gap-1.5 px-2 text-xs text-muted sm:flex">
-              <Sparkles className="h-3.5 w-3.5 text-violet-400" /> iOS + Android · Expo
+            <ModelButton />
+            <span className="hidden items-center gap-1.5 px-2 text-xs text-muted md:flex">
+              <Sparkles className="h-3.5 w-3.5 text-violet-400" /> iOS + Android
             </span>
           </div>
           <button

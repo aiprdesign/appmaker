@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, CheckCircle2, FileCode2, Loader2, Square, Wrench } from "lucide-react";
 import type { ChatMessage, SiteSummary } from "@/lib/types";
+import { ModelButton } from "@/components/AiSettings";
 import { SiteCard } from "@/components/SiteCard";
 import type { ParsedGeneration } from "@/lib/parse";
 import { EDIT_SUGGESTIONS } from "@/lib/templates";
@@ -131,7 +132,8 @@ export function ChatPanel({ source, messages, generating, live, onSend, onStop, 
             placeholder={hasApp ? "Ask for a change…" : "Describe your app…"}
             className="w-full resize-none bg-transparent px-3 pt-2.5 text-sm outline-none placeholder:text-muted/70"
           />
-          <div className="flex justify-end p-2 pt-0">
+          <div className="flex items-center justify-between p-2 pt-0">
+            <ModelButton />
             {generating ? (
               <button
                 onClick={onStop}

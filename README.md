@@ -31,13 +31,25 @@ Open http://localhost:3000, describe an app, and press Enter.
 
 Without an `ANTHROPIC_API_KEY`, Appmaker runs in **demo mode**. It streams one of the hand-built starter apps in `demo-apps/` (habits, budget, fitness, journal), picked to match your prompt, so you can try the whole flow offline. Editing by chat needs a key.
 
+See `.env.example` for every option. The most important ones:
+
 | Variable | Purpose |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | Enables AI generation |
-| `APPMAKER_MODEL` | Model override (default `claude-opus-5`) |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY` | Site-wide keys for each provider |
+| `APPMAKER_PROVIDER` / `APPMAKER_MODEL` | Default provider and model (default Anthropic `claude-opus-5`) |
+| `APPMAKER_ALLOW_CUSTOM_ENDPOINTS` | Allow self-hosted OpenAI-compatible servers (Ollama, LM Studio) |
+| `APPMAKER_RATE_LIMIT` / `APPMAKER_BYOK_RATE_LIMIT` / `APPMAKER_IMPORT_RATE_LIMIT` | Hourly limits per IP |
 | `APPMAKER_DEMO=1` | Force demo mode |
-| `APPMAKER_RATE_LIMIT` | AI generations per IP per hour (default 30) |
-| `APPMAKER_IMPORT_RATE_LIMIT` | Website imports per IP per hour (default 30) |
+
+## Choosing the AI model
+
+Click the model button (under the prompt box, or in the builder's chat box) to open **AI model** settings:
+
+- **Providers:** Anthropic Claude, OpenAI, Google Gemini, OpenRouter (hundreds of models), Groq, DeepSeek, xAI Grok, Mistral, and an optional custom OpenAI-compatible endpoint.
+- **Keys:** a provider marked **Ready** has a key set by the site owner. Users can also paste their own key, which is saved only in their browser. It's sent with each request so the server can call the provider, and it's never stored or logged. Requests on the user's own key are billed to their account and have a separate, higher rate limit.
+- **Models:** each provider suggests a few models. **Test & load models** checks the key and loads every model it can use, and any model ID can be typed in.
+
+Claude requests use adaptive thinking, high effort, prompt caching, and server-side refusal fallbacks where the model supports them. Other providers are called through their OpenAI-compatible APIs. Quality varies by model: smaller models are more likely to trip the automatic quality checks, which then repair the app.
 
 ## How it works
 
