@@ -165,7 +165,7 @@ A full 100-app run makes 100–300 model calls (follow-ups and repairs included)
 
 The **Build & upload with Expo** section builds the real app on Expo's servers (EAS Build). No Mac or Xcode is needed.
 
-1. **Connect Expo.** Paste an access token from [expo.dev → Account settings → Access tokens](https://expo.dev/settings/access-tokens). It is kept in the browser and sent only with build requests.
+1. **Connect Expo.** Paste an access token. On expo.dev, open your account's Settings → Access tokens (`expo.dev/accounts/<username>/settings/access-tokens`) and create one ([Expo's guide](https://docs.expo.dev/accounts/programmatic-access/)). It is kept in the browser and sent only with build requests.
 2. **Choose a build.** The options are an iPhone App Store build (`.ipa`), an Android test app (`.apk` to install on a phone) or a Google Play build (`.aab`).
 3. **Build.** The first build creates the app's project on the user's Expo account (`eas init`). Status updates live, with download links and a link to the build on expo.dev.
 

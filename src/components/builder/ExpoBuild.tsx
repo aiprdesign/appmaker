@@ -320,18 +320,26 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs text-muted">
-                Sign up free at expo.dev, then create an access token under{" "}
-                <a
-                  href="https://expo.dev/settings/access-tokens"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={inlineLink}
-                >
-                  Account settings → Access tokens
-                </a>{" "}
-                and paste it here. It stays in this browser.
-              </p>
+              <ol className="list-decimal space-y-0.5 pl-4 text-xs text-muted">
+                <li>
+                  Sign in (or sign up free) at{" "}
+                  <a href="https://expo.dev/login" target="_blank" rel="noreferrer" className={inlineLink}>
+                    expo.dev
+                  </a>
+                  .
+                </li>
+                <li>Click your account name or picture, then open the account&apos;s Settings.</li>
+                <li>
+                  Choose <strong className="text-foreground/90">Access tokens</strong> → Create token, name it “Appmaker” and copy it. The
+                  address is <code className="font-mono text-foreground/90">expo.dev/accounts/your-username/settings/access-tokens</code>.
+                </li>
+                <li>
+                  Paste it here — it stays in this browser.{" "}
+                  <a href="https://docs.expo.dev/accounts/programmatic-access/" target="_blank" rel="noreferrer" className={inlineLink}>
+                    Expo&apos;s guide
+                  </a>
+                </li>
+              </ol>
               <form
                 className="flex gap-2"
                 onSubmit={(e) => {
