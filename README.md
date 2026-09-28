@@ -93,6 +93,21 @@ demo-apps/                   Starter apps used in demo mode
 - **Preview sandbox.** `npm run dev` and `npm run build` first run `scripts/build-preview-runtime.mjs`. It bundles React, React Native Web and shims for `@react-native-async-storage/async-storage`, `expo-status-bar`, `react-native-safe-area-context` and `expo-haptics` into `public/preview/runtime.js`, and copies Babel standalone next to it. Because of this, previews don't depend on any third-party CDN. The iframe runs with `sandbox="allow-scripts"` and no same-origin access.
 - **Allowed imports.** Generated apps may import only those modules plus `react` and `react-native`, which keeps every app previewable and buildable with Expo.
 
+## Claim-safe wording (on by default)
+
+The **Wording** control, next to the AI model button on the home page and in the chat, has two options:
+
+- **Claim-safe (default).** App text and the store listing stay descriptive. The AI is told not to use:
+  - superlatives and rankings: "best", "#1", "leading", "world's fastest"
+  - absolutes: "100%", "guaranteed", "never", "always"
+  - speed promises: "in seconds", "instantly", "10x faster"
+  - unsupported comparisons: "faster", "better"
+
+  After every build, a checker (`src/lib/claims.ts`) scans the text people see (JSX text and prose strings, not code, comments or imports) and the store listing. Anything it finds is rewritten in the automatic fix pass, and the Publish checklist shows the result.
+- **Standard.** No wording rules.
+
+The choice is saved per app, and new apps start with the last choice made on the home page.
+
 ## Quality gates for generated apps
 
 Every app the AI produces goes through automatic checks before you see it:

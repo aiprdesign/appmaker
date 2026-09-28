@@ -14,6 +14,7 @@ import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
 import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
 import { getProject, saveProject, uid, withVersion } from "@/lib/storage";
 import { describeIssues, isAllowedPath, validateApp, type ValidationIssue } from "@/lib/validate";
+import { checkClaims, DEFAULT_WORDING, describeClaims } from "@/lib/claims";
 import type { ChatMessage, FileMap, Project } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
 import { CodePanel } from "./CodePanel";
@@ -151,6 +152,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             history: current.messages.filter((m) => !m.error).map((m) => ({ role: m.role, content: m.content })),
             site: current.source,
             ai: aiChoiceFor(getAiSettings()),
+            wording: current.wording ?? DEFAULT_WORDING,
           }),
         });
         demoRef.current = res.headers.get("X-Appmaker-Mode") === "demo";
@@ -233,12 +235,17 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const wroteFiles = Object.keys(complete).length > 0;
       if (!wroteFiles || error || demoRef.current) return;
       const issues = [...rejected, ...validateApp(files)];
-      if (issues.length && fixBudget.current > 0) {
+      // Claim-safe wording (on by default): marketing claims in the app's
+      // text or store listing are rewritten in the same repair pass.
+      const claims = (next.wording ?? DEFAULT_WORDING) === "claim-safe" ? checkClaims(files, next.listing) : [];
+      if ((issues.length || claims.length) && fixBudget.current > 0) {
         fixBudget.current -= 1;
-        sendRef.current?.(
-          `Automatic quality check found ${issues.length} problem${issues.length === 1 ? "" : "s"}:\n${describeIssues(issues)}\n\nFix all of them.`,
-          { autoFix: true },
-        );
+        const parts = [
+          issues.length && `Automatic quality check found ${issues.length} problem${issues.length === 1 ? "" : "s"}:\n${describeIssues(issues)}`,
+          claims.length &&
+            `Claim-safe wording is on. Rewrite these phrases as neutral, descriptive text (no superlatives, absolutes, speed promises or unsupported comparisons), in the app and in the listing:\n${describeClaims(claims)}`,
+        ].filter(Boolean);
+        sendRef.current?.(`${parts.join("\n\n")}\n\nFix all of them.`, { autoFix: true });
         return;
       }
       runtimeWatchUntil.current = Date.now() + RUNTIME_WATCH_MS;
@@ -459,6 +466,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             onRestore={restore}
             latestVersionId={project.versions?.at(-1)?.id}
             demoMode={demoMode}
+            wording={project.wording ?? DEFAULT_WORDING}
+            onWordingChange={(wording) => commit({ ...(projectRef.current ?? project), wording })}
           />
         </aside>
 

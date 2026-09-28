@@ -115,10 +115,11 @@ export function deleteProject(id: string) {
   changeListeners.forEach((l) => l({ type: "delete", id }));
 }
 
-export function createProject(prompt: string, source?: SiteSummary): Project {
+export function createProject(prompt: string, source?: SiteSummary, wording?: Project["wording"]): Project {
   const now = Date.now();
   const project: Project = {
     id: uid(),
+    ...(wording ? { wording } : {}),
     name: "Untitled app",
     prompt,
     files: {},

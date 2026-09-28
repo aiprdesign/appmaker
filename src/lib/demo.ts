@@ -21,7 +21,7 @@ const DEMOS: Demo[] = [
       name: "Streakly",
       subtitle: "Build habits that stick",
       description:
-        "Streakly makes building good habits effortless. Check off your daily habits in one tap and watch your streaks grow.\n\nPick an icon, name your habit, and Streakly keeps track of every day you show up. The stats view shows your best streak and how consistent you've been.\n\nNo accounts, no clutter — your data stays on your device.",
+        "Streakly makes building good habits effortless. Check off your daily habits in one tap and watch your streaks grow.\n\nPick an icon, name your habit, and Streakly keeps track of every day you show up. The stats view shows your longest streak and how consistent you've been.\n\nNo accounts, no clutter — your data stays on your device.",
       keywords: "habit,tracker,streak,routine,goals,daily,productivity,self care",
       category: "Health & Fitness",
       bundleId: "com.appmaker.streakly",
@@ -37,7 +37,7 @@ const DEMOS: Demo[] = [
       name: "Pocketwise",
       subtitle: "Simple monthly budgeting",
       description:
-        "Pocketwise shows you exactly how much you have left to spend this month.\n\nLog an expense in seconds, sort it into a category, and see where your money goes with clear category insights.\n\nPrivate by design: everything is stored on your phone.",
+        "Pocketwise shows you exactly how much you have left to spend this month.\n\nLog an expense in a few taps, sort it into a category, and see where your money goes with clear category insights.\n\nPrivate by design: everything is stored on your phone.",
       keywords: "budget,expense,money,finance,spending,tracker,wallet,savings",
       category: "Finance",
       bundleId: "com.appmaker.pocketwise",
@@ -125,8 +125,8 @@ export function demoResponse(prompt: string, isEdit: boolean, site?: SiteSummary
     files["App.js"] = files["App.js"].replace("'__APP_NAME__'", JSON.stringify(name));
     listing = {
       name,
-      subtitle: "Capture ideas in seconds",
-      description: `${name} is a fast, focused place for your thoughts.\n\nWrite an entry, tag it with a mood, pin what matters and search everything instantly.\n\nEverything is stored privately on your device.`,
+      subtitle: "A private place for your notes",
+      description: `${name} is a fast, focused place for your thoughts.\n\nWrite an entry, tag it with a mood, pin what matters and search all your entries.\n\nEverything is stored privately on your device.`,
       keywords: "notes,journal,diary,ideas,mood,private,writing",
       category: "Productivity",
       bundleId: `com.appmaker.${name.toLowerCase().replace(/[^a-z]/g, "") || "notebook"}`,

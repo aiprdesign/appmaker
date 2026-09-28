@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, CheckCircle2, Circle, FileCode2, Loader2, RotateCcw, RotateCw, Square, Wrench, X } from "lucide-react";
 import type { ChatMessage, PendingRequest, SiteSummary } from "@/lib/types";
 import { ModelButton } from "@/components/AiSettings";
+import { WordingControl } from "@/components/WordingControl";
+import type { Wording } from "@/lib/claims";
 import { SiteCard } from "@/components/SiteCard";
 import type { ParsedGeneration } from "@/lib/parse";
 import { EDIT_SUGGESTIONS } from "@/lib/templates";
@@ -31,6 +33,8 @@ interface Props {
   latestVersionId?: string;
   /** Demo mode can't apply edits, so change suggestions are hidden. */
   demoMode?: boolean;
+  wording: Wording;
+  onWordingChange: (w: Wording) => void;
 }
 
 /** Suggestions the AI listed at the end of its last reply ("- Add …"). */
@@ -106,7 +110,7 @@ function Progress({ live, startedAt }: { live: ParsedGeneration | null; startedA
 }
 
 export function ChatPanel(props: Props) {
-  const { source, messages, generating, live, onSend, onStop, hasApp, startedAt, interrupted, onRetry, onDismissInterrupted, onOpenFile, onRestore, latestVersionId, demoMode } = props;
+  const { source, messages, generating, live, onSend, onStop, hasApp, startedAt, interrupted, onRetry, onDismissInterrupted, onOpenFile, onRestore, latestVersionId, demoMode, wording, onWordingChange } = props;
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -240,7 +244,10 @@ export function ChatPanel(props: Props) {
             className="w-full resize-none bg-transparent px-3 pt-2.5 text-sm outline-none placeholder:text-muted/70"
           />
           <div className="flex items-center justify-between p-2 pt-0">
-            <ModelButton />
+            <div className="flex items-center gap-1">
+              <ModelButton />
+              <WordingControl value={wording} onChange={onWordingChange} />
+            </div>
             <div className="flex items-center gap-2">
               {draft.length > MAX_PROMPT * 0.8 && (
                 <span className={`text-[11px] ${tooLong ? "text-rose-400" : "text-muted"}`}>

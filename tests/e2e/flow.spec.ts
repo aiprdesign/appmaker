@@ -27,7 +27,7 @@ test("landing page renders with no errors", async ({ page }) => {
 });
 
 const DEMOS = [
-  { prompt: "A habit tracker with streaks", expect: "Today", tab: "Stats", after: "Best streak" },
+  { prompt: "A habit tracker with streaks", expect: "Today", tab: "Stats", after: "Longest streak" },
   { prompt: "Track my monthly expenses", expect: "Left to spend", tab: "Insights", after: "Monthly budget" },
   { prompt: "A home workout app", expect: "Morning HIIT", tab: "Progress", after: "Workouts" },
   { prompt: "A dream diary", expect: "Kicked off the project", tab: "Write", after: "New entry" },
@@ -54,12 +54,12 @@ test("habit tracker: data persists and store listing is complete", async ({ page
 
   await page.getByRole("button", { name: "Publish" }).first().click();
   // Honest checklist: the default com.appmaker ID and missing store links aren't "ready".
-  await expect(page.getByText("8/11")).toBeVisible();
+  await expect(page.getByText("9/12")).toBeVisible();
   await expect(page.getByText("Also needed in the stores")).toBeVisible();
   await page.getByLabel("Bundle ID / package name").fill("com.janedoe.streakly");
   await page.getByLabel("Support page URL").fill("https://janedoe.com/support");
   await page.getByLabel("Privacy policy URL").fill("https://janedoe.com/privacy");
-  await expect(page.getByText("11/11")).toBeVisible();
+  await expect(page.getByText("12/12")).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download Expo project" }).click()]);
   expect(download.suggestedFilename()).toBe("streakly-expo.zip");
 });

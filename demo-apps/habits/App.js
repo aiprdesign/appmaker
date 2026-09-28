@@ -125,7 +125,7 @@ export default function App() {
               <View style={styles.statRow}>
                 <View style={styles.stat}>
                   <Text style={styles.statValue}>{best}🔥</Text>
-                  <Text style={styles.statLabel}>Best streak</Text>
+                  <Text style={styles.statLabel}>Longest streak</Text>
                 </View>
                 <View style={styles.stat}>
                   <Text style={styles.statValue}>{habits.length}</Text>

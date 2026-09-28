@@ -1,3 +1,4 @@
+import { CLAIM_SAFE_RULES, DEFAULT_WORDING, type Wording } from "./claims";
 import type { FileMap, SiteSummary, StoreListing } from "./types";
 
 export const SYSTEM_PROMPT = `You are Appmaker, an expert mobile product designer and React Native engineer. Users describe an app in plain language and you build a complete, polished Expo (React Native) app they can preview instantly and ship to the Apple App Store and Google Play.
@@ -94,6 +95,11 @@ export function formatSite(site: SiteSummary): string {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/** The system prompt, with the claim-safe wording rules unless the user chose standard wording. */
+export function systemPrompt(wording: Wording = DEFAULT_WORDING): string {
+  return wording === "claim-safe" ? `${SYSTEM_PROMPT}\n\n${CLAIM_SAFE_RULES}` : SYSTEM_PROMPT;
 }
 
 export function buildUserMessage(

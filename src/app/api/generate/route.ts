@@ -1,7 +1,7 @@
 import { getProvider, type AiChoice } from "@/lib/ai/providers";
 import { aiErrorMessage, AiConfigError, resolveAi, streamGeneration, type ResolvedAi } from "@/lib/ai/server";
 import { demoResponse } from "@/lib/demo";
-import { SYSTEM_PROMPT, buildUserMessage } from "@/lib/prompt";
+import { buildUserMessage, systemPrompt } from "@/lib/prompt";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { isAllowedPath } from "@/lib/validate";
 import type { FileMap, SiteSummary, StoreListing } from "@/lib/types";
@@ -29,6 +29,8 @@ interface GenerateRequest {
   history?: { role: "user" | "assistant"; content: string }[];
   /** Provider, model and optional user-supplied key. */
   ai?: Partial<AiChoice>;
+  /** "claim-safe" (default) keeps app text free of marketing claims. */
+  wording?: "claim-safe" | "standard";
 }
 
 function textStream(ai: ResolvedAi | null, produce: (write: (s: string) => void) => Promise<void>): Response {
@@ -71,6 +73,7 @@ function validateRequest(body: GenerateRequest): string | null {
     }
     if (bytes > MAX_FILES_BYTES) return "the app is too large to edit in one request";
   }
+  if (body.wording != null && body.wording !== "claim-safe" && body.wording !== "standard") return "wording must be claim-safe or standard";
   if (body.listing != null) {
     if (typeof body.listing !== "object" || Array.isArray(body.listing)) return "listing must be an object";
     if (JSON.stringify(body.listing).length > 10_000) return "listing is too large";
@@ -154,7 +157,7 @@ export async function POST(req: Request) {
   return textStream(resolved, async (write) => {
     const outcome = await streamGeneration({
       ai: resolved,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt(body.wording === "standard" ? "standard" : "claim-safe"),
       messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site) }],
       signal: req.signal,
       write,

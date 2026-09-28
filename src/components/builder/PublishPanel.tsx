@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, CircleAlert, Copy, Download, ImageDown, Loader2, Star } from "lucide-react";
 import type { ExpoState, Project, StoreListing } from "@/lib/types";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
+import { checkClaims, DEFAULT_WORDING } from "@/lib/claims";
 
 const CATEGORIES = [
   "Books", "Business", "Education", "Entertainment", "Finance", "Food & Drink", "Games", "Graphics & Design",
@@ -100,6 +101,7 @@ export function PublishPanel({ project, onChange, onExpoChange, hasPreviewError 
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
 
+  const claims = useMemo(() => checkClaims(project.files, l), [project.files, l]);
   const checks = [
     { ok: Object.keys(project.files).length > 0, label: "App code generated" },
     { ok: !hasPreviewError, label: "Preview runs without errors" },
@@ -116,6 +118,20 @@ export function PublishPanel({ project, onChange, onExpoChange, hasPreviewError 
     { ok: l.privacyNotes.trim().length > 0, label: "Privacy details provided" },
     { ok: isUrl(l.supportUrl), label: "Support page link", hint: "Apple requires a page where users can get help" },
     { ok: isUrl(l.privacyPolicyUrl), label: "Privacy policy link", hint: "Both stores require a hosted privacy policy" },
+    ...((project.wording ?? DEFAULT_WORDING) === "claim-safe"
+      ? [
+          {
+            ok: claims.length === 0,
+            label: "Claim-safe wording (no marketing claims)",
+            hint: claims.length
+              ? `Found: ${claims
+                  .slice(0, 4)
+                  .map((c) => `“${c.phrase}” (${c.where.replace("Store listing: ", "listing ")})`)
+                  .join(", ")}${claims.length > 4 ? ` and ${claims.length - 4} more` : ""}. Ask the AI to "make the wording claim-safe".`
+              : undefined,
+          },
+        ]
+      : []),
   ];
   const ready = checks.filter((c) => c.ok).length;
   // Things only the stores can take; listed so "ready" never overpromises.

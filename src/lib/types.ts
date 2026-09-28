@@ -133,6 +133,8 @@ export interface Project {
   pending?: PendingRequest;
   /** Cloud builds with Expo Application Services. */
   expo?: ExpoState;
+  /** "claim-safe" (default): app text and listing avoid marketing claims. */
+  wording?: "claim-safe" | "standard";
   createdAt: number;
   updatedAt: number;
 }

@@ -10,6 +10,8 @@ import Link from "next/link";
 import { getProvider, modelLabel } from "@/lib/ai/providers";
 import { AiSettingsDialog, ModelButton, useAiReady, useAiStatus } from "./AiSettings";
 import { SiteCard } from "./SiteCard";
+import { defaultWording, rememberWording, WordingControl } from "./WordingControl";
+import { DEFAULT_WORDING, type Wording } from "@/lib/claims";
 
 /** A link typed into the prompt: an explicit URL, a www. host, or a common TLD (not "Node.js"). */
 const URL_IN_TEXT =
@@ -30,6 +32,10 @@ export function PromptBox() {
   const aiReady = useAiReady();
   const aiStatus = useAiStatus();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [wording, setWording] = useState<Wording>(DEFAULT_WORDING);
+  // The last choice is remembered in this browser (readable after mount).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setWording(defaultWording()), []);
 
   // Template cards elsewhere on the page fill in the prompt for review
   // instead of starting a (paid) build straight away.
@@ -74,7 +80,7 @@ export function PromptBox() {
     const text = value.trim() || (site ? `Turn ${site.siteName} (${site.url}) into a mobile app for its customers.` : "");
     if (!text || busy || importing || tooLong) return;
     setBusy(true);
-    const project = createProject(text, site ?? undefined);
+    const project = createProject(text, site ?? undefined, wording);
     router.push(`/build/${project.id}?auto=1`);
   };
 
@@ -198,6 +204,13 @@ export function PromptBox() {
         <div className="flex items-center justify-between gap-2 pt-1">
           <div className="flex items-center gap-1">
             <ModelButton />
+            <WordingControl
+              value={wording}
+              onChange={(w) => {
+                setWording(w);
+                rememberWording(w);
+              }}
+            />
             <span className="hidden items-center gap-1.5 px-2 text-xs text-muted md:flex">
               <Sparkles className="h-3.5 w-3.5 text-violet-400" /> iOS + Android
             </span>
