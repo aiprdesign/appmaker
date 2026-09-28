@@ -1,3 +1,4 @@
+import { feature } from "@/lib/server/features";
 import { InputError, parseAscAppId, parseAscKey, parseIcon, parseLink, parseProject, parseSigning, parseTarget } from "@/lib/eas/input";
 import { buildLimit, easErrorResponse, readJson, resolveToken } from "@/lib/eas/respond";
 import { startBuild } from "@/lib/eas/server";
@@ -8,6 +9,7 @@ export const maxDuration = 300;
 /** Starts a build on Expo's servers; iOS builds can go straight to App Store Connect. */
 export async function POST(req: Request) {
   try {
+    if (!(await feature("cloudBuilds"))) return Response.json({ error: "Cloud builds are turned off on this site. Download the project to build it yourself." }, { status: 403 });
     const body = await readJson(req);
     const { token, hosted } = resolveToken(body.token);
     const link = parseLink(body.link);

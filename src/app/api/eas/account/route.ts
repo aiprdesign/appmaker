@@ -2,6 +2,7 @@ import { parseToken } from "@/lib/eas/input";
 import { easErrorResponse, readJson } from "@/lib/eas/respond";
 import { easAvailable, ensureExpoDeps, hostedToken, whoami } from "@/lib/eas/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { feature } from "@/lib/server/features";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,7 @@ export const runtime = "nodejs";
  * that the site's token works.
  */
 export async function GET(req: Request) {
+  if (!(await feature("cloudBuilds"))) return Response.json({ available: false, hosted: false, off: true });
   const available = easAvailable();
   const token = hostedToken();
   const hosted = available && !!token;

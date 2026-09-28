@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/server/features";
 import { assertSameOrigin, AuthError } from "@/lib/server/auth";
 import { clearedChallengeCookie, verifyRegistration } from "@/lib/server/passkeys";
 import { accountError, readBody, requireUser } from "@/lib/server/respond";
@@ -10,6 +11,7 @@ export async function POST(req: Request) {
   try {
     const user = await requireUser(req);
     assertSameOrigin(req);
+    await requireFeature("passkeys");
     const body = await readBody(req);
     if (!body.response || typeof body.response !== "object") throw new AuthError("response is required", 400);
     const passkey = await verifyRegistration(req, user, body.response as RegistrationResponseJSON);

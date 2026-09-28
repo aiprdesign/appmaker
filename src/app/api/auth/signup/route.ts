@@ -1,5 +1,6 @@
 import { assertSameOrigin, checkPassword, createSession, createUser, normalizeEmail, sessionCookie } from "@/lib/server/auth";
 import { accountError, readBody, requireDatabase } from "@/lib/server/respond";
+import { requireFeature } from "@/lib/server/features";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -8,6 +9,7 @@ export async function POST(req: Request) {
   try {
     requireDatabase();
     assertSameOrigin(req);
+    await requireFeature("signups");
     if (!rateLimit(`signup:${clientIp(req)}`, 10, 60 * 60 * 1000).ok) {
       return Response.json({ error: "Too many new accounts from here. Try again later." }, { status: 429 });
     }

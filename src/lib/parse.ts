@@ -37,6 +37,18 @@ export function stripModelArtifacts(text: string): string {
     .replace(/^[ \t]*<\/?(?:function_calls|invoke|parameter|tool_call|antml:[a-z_]+)(?:\s[^>\n]*)?>[ \t]*\n?/gm, "");
 }
 
+/** The same files with model markup removed; the same object when nothing changed. */
+export function cleanFiles<T extends Record<string, string>>(files: T): T {
+  let changed = false;
+  const out: Record<string, string> = {};
+  for (const [path, code] of Object.entries(files)) {
+    const cleaned = stripModelArtifacts(code);
+    if (cleaned !== code) changed = true;
+    out[path] = cleaned;
+  }
+  return changed ? (out as T) : files;
+}
+
 function stripFence(code: string): string {
   // Models occasionally wrap file bodies in markdown fences; drop them.
   return stripModelArtifacts(code)

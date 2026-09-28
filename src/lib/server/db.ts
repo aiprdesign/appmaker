@@ -60,6 +60,11 @@ create table if not exists app_challenges (
   user_id text references app_users(id) on delete cascade,
   expires_at timestamptz not null
 );
+create table if not exists app_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
 create table if not exists app_projects (
   user_id text not null references app_users(id) on delete cascade,
   id text not null,

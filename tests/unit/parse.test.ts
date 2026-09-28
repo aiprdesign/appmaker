@@ -63,3 +63,13 @@ describe("model artifacts", () => {
     expect(parseGeneration(`<file path="App.js">\n${code}\n</file>`).files["App.js"]).toBe(`${code}\n`);
   });
 });
+
+describe("cleaning saved apps", () => {
+  it("repairs files saved with model markup and leaves clean ones untouched", async () => {
+    const { cleanFiles } = await import("@/lib/parse");
+    const dirty = { "src/storage.js": "export const a = 1;\n</｜DSML｜ parameter>\n", "App.js": "export default () => null;\n" };
+    expect(cleanFiles(dirty)).toEqual({ "src/storage.js": "export const a = 1;\n", "App.js": "export default () => null;\n" });
+    const clean = { "App.js": "export default () => null;\n" };
+    expect(cleanFiles(clean)).toBe(clean);
+  });
+});

@@ -1,5 +1,6 @@
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { SiteError, importSite } from "@/lib/site";
+import { feature } from "@/lib/server/features";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -8,6 +9,7 @@ export const maxDuration = 60;
 const HOURLY_LIMIT = Number(process.env.APPMAKER_IMPORT_RATE_LIMIT) || 30;
 
 export async function POST(req: Request) {
+  if (!(await feature("websiteImport"))) return Response.json({ error: "Building from a website is turned off on this site." }, { status: 403 });
   let url: unknown;
   try {
     ({ url } = await req.json());

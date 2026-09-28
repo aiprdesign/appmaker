@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { AuthError, type User } from "./auth";
 import { query } from "./db";
+import { feature } from "./features";
 
 /**
  * "Sign in with Google" (OpenID Connect, authorization code flow with PKCE).
@@ -17,6 +18,11 @@ const tokenUrl = () => process.env.GOOGLE_TOKEN_URL || "https://oauth2.googleapi
 
 export function googleConfigured(): boolean {
   return !!process.env.GOOGLE_CLIENT_ID?.trim() && !!process.env.GOOGLE_CLIENT_SECRET?.trim();
+}
+
+/** Keys are set and the site owner has it switched on in /admin. */
+export async function googleEnabled(): Promise<boolean> {
+  return googleConfigured() && (await feature("google"));
 }
 
 /** The site's public address; behind a proxy (Railway) the forwarded headers carry it. */
@@ -132,6 +138,7 @@ export async function userForGoogle(sub: string, email: string): Promise<User> {
   if (linked[0]) return linked[0];
   const byEmail = await query<User>("update app_users set google_sub = $1 where email = $2 and google_sub is null returning id, email", [sub, email]);
   if (byEmail[0]) return byEmail[0];
+  if (!(await feature("signups"))) throw new AuthError("New sign-ups are paused on this site. Existing accounts can still sign in.", 403);
   const id = randomBytes(12).toString("base64url");
   // Google-only accounts have no password; password sign-in can't match an empty hash.
   const created = await query<User>(

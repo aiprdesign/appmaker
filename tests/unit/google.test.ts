@@ -7,6 +7,7 @@ import { POST as signup } from "@/app/api/auth/signup/route";
 import { POST as login } from "@/app/api/auth/login/route";
 import { GET as me } from "@/app/api/auth/me/route";
 import { closeDatabase, query } from "@/lib/server/db";
+import { setFeature } from "@/lib/server/features";
 
 // "Sign in with Google" against a stand-in Google token endpoint. Needs TEST_DATABASE_URL.
 const DB = process.env.TEST_DATABASE_URL;
@@ -26,7 +27,7 @@ function get(path: string, cookie?: string) {
 const cookies = (res: Response) => res.headers.getSetCookie().map((c) => c.split(";")[0]);
 
 async function beginSignIn() {
-  const res = start(get("/api/auth/google/start"));
+  const res = await start(get("/api/auth/google/start"));
   const location = new URL(res.headers.get("location")!);
   const oauth = cookies(res).find((c) => c.startsWith("appmaker_oauth="))!;
   return { location, oauth, state: location.searchParams.get("state")! };
@@ -59,9 +60,12 @@ describe.skipIf(!DB)("Sign in with Google", () => {
     });
     await new Promise<void>((r) => google.listen(0, "127.0.0.1", r));
     process.env.GOOGLE_TOKEN_URL = `http://127.0.0.1:${(google.address() as { port: number }).port}/token`;
+    // Google sign-in is off until the site owner switches it on in /admin.
+    await setFeature("google", true);
   });
   afterAll(async () => {
     google.close();
+    await setFeature("google", false);
     await closeDatabase();
     for (const k of ["DATABASE_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_TOKEN_URL"]) delete process.env[k];
   });
@@ -125,9 +129,16 @@ describe.skipIf(!DB)("Sign in with Google", () => {
     expect(await query("select id from app_users where email like '%@gmail.com'")).toHaveLength(0);
   });
 
+  it("is off when switched off in admin, even with keys", async () => {
+    await setFeature("google", false);
+    expect((await start(get("/api/auth/google/start"))).headers.get("location")).toMatch(/\/login\?error=google-off/);
+    expect(await (await me(get("/api/auth/me"))).json()).toMatchObject({ google: false });
+    await setFeature("google", true);
+  });
+
   it("is off without the Google settings", async () => {
     delete process.env.GOOGLE_CLIENT_SECRET;
-    expect(start(get("/api/auth/google/start")).headers.get("location")).toMatch(/\/login\?error=google-off/);
+    expect((await start(get("/api/auth/google/start"))).headers.get("location")).toMatch(/\/login\?error=google-off/);
     expect(await (await me(get("/api/auth/me"))).json()).toMatchObject({ google: false });
     process.env.GOOGLE_CLIENT_SECRET = "test-secret";
   });

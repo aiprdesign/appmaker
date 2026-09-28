@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/server/features";
 import { assertSameOrigin } from "@/lib/server/auth";
 import { authenticationOptions } from "@/lib/server/passkeys";
 import { accountError, requireDatabase } from "@/lib/server/respond";
@@ -10,6 +11,7 @@ export async function POST(req: Request) {
   try {
     requireDatabase();
     assertSameOrigin(req);
+    await requireFeature("passkeys");
     if (!rateLimit(`passkey-options:${clientIp(req)}`, 60, 15 * 60 * 1000).ok) {
       return Response.json({ error: "Too many attempts. Wait a few minutes and try again." }, { status: 429 });
     }

@@ -15,6 +15,7 @@ import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
 import { getProject, saveProject, uid, withVersion } from "@/lib/storage";
 import { describeIssues, isAllowedPath, validateApp, type ValidationIssue } from "@/lib/validate";
 import { checkClaims, DEFAULT_WORDING, describeClaims } from "@/lib/claims";
+import { cleanFiles } from "@/lib/parse";
 import { checkRegulatedClaims, describeRegulated } from "@/lib/regulated";
 import type { ChatMessage, FileMap, Project } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
@@ -113,7 +114,16 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   useEffect(() => {
     // Projects live in localStorage, which is only readable after mount.
     const load = () => {
-      const p = getProject(id);
+      let p = getProject(id);
+      // Apps saved before model markup was stripped (e.g. a stray
+      // "</｜DSML｜ parameter>" line) are repaired when opened.
+      if (p) {
+        const cleaned = cleanFiles(p.files);
+        if (cleaned !== p.files) {
+          p = { ...p, files: cleaned };
+          saveProject(p);
+        }
+      }
       projectRef.current = p;
       setProject(p);
       if (p) setPreviewFiles(p.files);

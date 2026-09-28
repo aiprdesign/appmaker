@@ -1,5 +1,5 @@
 import { AuthError, createSession, sessionCookie } from "@/lib/server/auth";
-import { clearedOAuthCookie, finishGoogleSignIn, googleConfigured, siteOrigin, userForGoogle } from "@/lib/server/google";
+import { clearedOAuthCookie, finishGoogleSignIn, googleEnabled, siteOrigin, userForGoogle } from "@/lib/server/google";
 import { databaseConfigured } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     for (const c of extra) headers.append("set-cookie", c);
     return new Response(null, { status: 303, headers });
   };
-  if (!databaseConfigured() || !googleConfigured()) return back("/login?error=google-off");
+  if (!databaseConfigured() || !(await googleEnabled())) return back("/login?error=google-off");
   try {
     const google = await finishGoogleSignIn(req);
     const user = await userForGoogle(google.sub, google.email);
