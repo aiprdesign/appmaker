@@ -43,6 +43,23 @@ create table if not exists app_sessions (
   expires_at timestamptz not null
 );
 create index if not exists app_sessions_user on app_sessions(user_id);
+create table if not exists app_passkeys (
+  id text primary key,
+  user_id text not null references app_users(id) on delete cascade,
+  public_key text not null,
+  counter bigint not null default 0,
+  transports text not null default '',
+  name text not null default 'Passkey',
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+create index if not exists app_passkeys_user on app_passkeys(user_id);
+create table if not exists app_challenges (
+  id text primary key,
+  challenge text not null,
+  user_id text references app_users(id) on delete cascade,
+  expires_at timestamptz not null
+);
 create table if not exists app_projects (
   user_id text not null references app_users(id) on delete cascade,
   id text not null,

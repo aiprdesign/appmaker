@@ -231,7 +231,12 @@ export async function signIn(mode: "login" | "signup", email: string, password: 
   const res = await api(`/api/auth/${mode}`, { method: "POST", body: JSON.stringify({ email, password }) });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || "Something went wrong. Try again.");
-  set({ user: body.user, enabled: true });
+  await signedIn(body.user);
+}
+
+/** After any kind of sign-in: remember the user and merge this browser's apps into the account. */
+export async function signedIn(user: { email: string }): Promise<void> {
+  set({ user, enabled: true });
   // Apps made before signing in are added to the account.
   await syncNow();
 }

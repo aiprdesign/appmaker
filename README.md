@@ -245,6 +245,15 @@ How it works:
 - **Tables.** `app_users`, `app_sessions` and `app_projects` are created automatically on first use.
 - **Not included yet.** Password reset by email, which needs an email service.
 
+### Passkeys (Face ID, fingerprint or device passcode)
+
+Signed-in people can add a passkey from the account menu, or from the one-time "Skip the password next time" card on My apps. After that, **Sign in with a passkey** on the sign-in page uses Face ID, a fingerprint or the device passcode, with a small confetti celebration (skipped for people who prefer reduced motion). There's nothing to set up: passkeys work on any HTTPS site with the database on.
+
+- **Standard.** WebAuthn via [SimpleWebAuthn](https://simplewebauthn.dev). The device keeps the private key; the `app_passkeys` table stores only public keys, so its contents can't be used to sign in.
+- **Challenges.** Each sign-in or registration uses a one-time challenge that expires after 5 minutes, tied to the browser by a `SameSite=Strict` cookie.
+- **Syncing.** Passkeys sync across devices through iCloud Keychain and Google Password Manager.
+- **Management.** Passkeys are named after the device (iPhone, Mac, Android phone…), can be removed at any time, and are limited to 20 per account.
+
 ### Sign in with Google
 
 1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), set up the OAuth consent screen (External; app name, support email).

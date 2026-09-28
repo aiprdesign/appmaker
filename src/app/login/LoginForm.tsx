@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Loader2 } from "lucide-react";
 import { signIn, useCloud } from "@/lib/cloud";
+import { PasskeyCancelled, passkeysSupported, signInWithPasskey } from "@/lib/passkeys";
+import { celebrate } from "@/components/celebrate";
 
 const input = "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-violet-500/60";
 
@@ -15,6 +17,13 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [welcome, setWelcome] = useState<string | null>(null);
+  const canPasskey = useSyncExternalStore(
+    () => () => {},
+    () => passkeysSupported(),
+    () => false,
+  );
   const params = useSearchParams();
   const returned = params.get("error");
   const [error, setError] = useState<string | null>(
@@ -34,15 +43,36 @@ export function LoginForm() {
   }
   if (cloud.user) {
     return (
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">You&apos;re signed in</h1>
-        <p className="mt-2 text-sm text-muted">{cloud.user.email}</p>
+      <div className="text-center" role="status">
+        {welcome && (
+          <div className="mb-3 text-5xl motion-safe:animate-bounce" aria-hidden="true">
+            🎉
+          </div>
+        )}
+        <h1 className="text-2xl font-semibold tracking-tight">{welcome ? "Welcome back!" : "You're signed in"}</h1>
+        <p className="mt-2 text-sm text-muted">{welcome ? `Signed in with your passkey as ${cloud.user.email}` : cloud.user.email}</p>
         <Link href="/projects" className="mt-6 inline-block rounded-lg bg-white px-4 py-2 text-sm font-medium text-black">
           Go to my apps
         </Link>
       </div>
     );
   }
+
+  const passkey = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPasskeyBusy(true);
+    setError(null);
+    try {
+      await signInWithPasskey();
+      setWelcome("Welcome back!");
+      celebrate({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+      setTimeout(() => router.push("/projects"), 900);
+    } catch (err) {
+      if (!(err instanceof PasskeyCancelled)) setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,11 +108,30 @@ export function LoginForm() {
           </button>
         ))}
       </div>
+      {canPasskey && mode === "login" && (
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={passkey}
+            disabled={passkeyBusy || !!welcome}
+            className="group relative flex min-h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-70"
+          >
+            <span className="text-lg transition group-hover:-rotate-12 group-hover:scale-110 motion-reduce:transition-none" aria-hidden="true">
+              {welcome ? "🎉" : "🔑"}
+            </span>
+            {welcome ? welcome : passkeyBusy ? "Check your device…" : "Sign in with a passkey"}
+          </button>
+          <p className="mt-2 text-center text-[11px] text-muted">Face ID, your fingerprint or your device passcode. No password to remember ✨</p>
+          <div className="my-5 flex items-center gap-3 text-xs text-muted">
+            <span className="h-px flex-1 bg-line" /> {cloud.google ? "or" : "or with email"} <span className="h-px flex-1 bg-line" />
+          </div>
+        </div>
+      )}
       {cloud.google && (
         <>
           <a
             href="/api/auth/google/start"
-            className="mt-6 flex min-h-11 w-full items-center justify-center gap-3 rounded-lg border border-line bg-white text-sm font-medium text-neutral-800 hover:bg-neutral-100"
+            className={`${canPasskey && mode === "login" ? "" : "mt-6 "}flex min-h-11 w-full items-center justify-center gap-3 rounded-lg border border-line bg-white text-sm font-medium text-neutral-800 hover:bg-neutral-100`}
           >
             <svg aria-hidden="true" viewBox="0 0 48 48" className="h-5 w-5">
               <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />

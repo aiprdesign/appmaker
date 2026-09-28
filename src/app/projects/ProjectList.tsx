@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { AppIcon } from "@/components/builder/PublishPanel";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
+import { PasskeyNudge } from "@/components/Passkeys";
 import { deleteProject, listProjects } from "@/lib/storage";
 import type { Project } from "@/lib/types";
 
@@ -52,6 +53,7 @@ export function ProjectList() {
           {cloud.status === "syncing" ? "Loading apps from your account…" : `Saved to your account (${cloud.user.email}).`}
         </p>
       )}
+      <PasskeyNudge />
       {projects && projects.length === 0 && (
         <div className="mt-10 rounded-2xl border border-dashed border-line p-12 text-center text-muted">
           No apps yet. Describe one on the home page to get started.

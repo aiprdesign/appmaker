@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Cloud, CloudOff, Loader2, LogOut } from "lucide-react";
 import { signOut, useCloud, type SyncStatus } from "@/lib/cloud";
+import { PasskeyManager } from "./Passkeys";
 
 export function syncLabel(status: SyncStatus): string {
   switch (status) {
@@ -82,6 +83,7 @@ export function AccountButton() {
               </button>
             </p>
           )}
+          <PasskeyManager />
           <button
             onClick={() => leave()}
             disabled={busy}
