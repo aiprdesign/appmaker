@@ -91,6 +91,8 @@ test("connect Expo, set up Apple upload, build for the App Store and follow its 
   const upload = section.getByRole("checkbox", { name: /Upload to App Store Connect/ });
   await expect(upload).toBeDisabled();
   await section.getByRole("button", { name: /Apple setup/ }).click();
+  // Without an API key, the command-line route is offered as a fallback.
+  await section.getByText("No API key? Set up signing from the command line instead").click();
   await expect(section.getByText("npx eas-cli@latest credentials:configure-build --platform ios --profile production")).toBeVisible();
   await section.getByLabel("App Store Connect Apple ID").fill("6741234567");
   await section.getByLabel("Issuer ID").fill("57246542-96fe-1a63-e053-0824d011072a");
@@ -146,7 +148,67 @@ test("missing Apple signing opens the one-time setup with the fix", async ({ pag
   await section.getByRole("button", { name: "Build for iPhone" }).click();
   await expect(section.getByRole("alert")).toContainText("Apple signing isn't set up");
   await expect(section.getByRole("button", { name: /Apple setup/ })).toHaveAttribute("aria-expanded", "true");
-  await expect(section.getByText(/credentials:configure-build/)).toBeVisible();
+  await expect(section.getByText("b. App Store Connect API key (recommended)")).toBeVisible();
+  await expect(section.getByText("No API key? Set up signing from the command line instead")).toBeVisible();
+});
+
+test("hosted builds: no Expo account, Appmaker signs the iPhone app with the user's Apple API key", async ({ page }) => {
+  const builds: Record<string, unknown>[] = [];
+  const links: Record<string, unknown>[] = [];
+  const SIGNING = { issuerId: "57246542-96fe-1a63-e053-0824d011072a", certificateId: "CERT123456", p12: "MIIabc", password: "pw", expires: "2027-09-28T00:00:00.000Z" };
+  await page.route("**/api/eas/**", async (route) => {
+    const name = new URL(route.request().url()).pathname.split("/").pop()!;
+    if (route.request().method() === "GET") return json(route, { available: true, hosted: true });
+    const body = route.request().postDataJSON();
+    if (name === "link") {
+      links.push(body);
+      return json(route, { link: { ...LINK, owner: "appmaker-builds" } });
+    }
+    if (name === "build") {
+      builds.push(body);
+      return json(route, {
+        builds: [{ id: `${BUILD_ID.slice(0, -1)}${builds.length}`, target: "ios", status: "IN_QUEUE", createdAt: Date.now() + builds.length }],
+        ...(builds.length === 1 ? { signing: SIGNING } : {}),
+      });
+    }
+    return json(route, { builds: [] });
+  });
+  await openPublish(page);
+  const section = page.getByRole("region", { name: /Build & upload with Expo/ });
+  await expect(section.getByText(/no Mac, Xcode or Expo account needed/)).toBeVisible();
+  await expect(section.getByText("Expo builds are included")).toBeVisible();
+  await expect(section.getByLabel("Expo access token")).toBeHidden();
+
+  // iPhone builds wait for the Apple API key; there's no command-line fallback.
+  const build = section.getByRole("button", { name: "Build for iPhone" });
+  await expect(build).toBeDisabled();
+  await expect(section.getByText(/Add your App Store Connect API key in Apple setup/)).toBeVisible();
+  await section.getByRole("button", { name: /Apple setup/ }).click();
+  await expect(section.getByText("b. App Store Connect API key (required)")).toBeVisible();
+  await expect(section.getByText(/Set up signing from the command line/)).toHaveCount(0);
+  await section.getByLabel("Issuer ID").fill(SIGNING.issuerId);
+  await section.locator('input[type="file"]').setInputFiles({ name: "AuthKey_2X9R4HXF34.p8", mimeType: "text/plain", buffer: Buffer.from(P8) });
+  await expect(build).toBeEnabled();
+
+  await build.click();
+  await expect(section.getByRole("list", { name: "Builds" }).getByText("App Store build")).toHaveCount(1);
+  expect(links[0].token).toBeUndefined();
+  expect(builds[0].token).toBeUndefined();
+  expect(builds[0].signing).toBeUndefined();
+  expect((builds[0].ascKey as { issuerId: string }).issuerId).toBe(SIGNING.issuerId);
+  // Builds on the site's account aren't viewable on expo.dev by the user.
+  await expect(section.getByRole("link", { name: "View on expo.dev" })).toHaveCount(0);
+  await expect(section.getByText(/Signing certificate created by Appmaker/)).toBeVisible();
+
+  // The certificate Appmaker made is sent back on the next build (Apple allows only a few).
+  await build.click();
+  await expect(section.getByRole("list", { name: "Builds" }).getByText("App Store build")).toHaveCount(2);
+  expect(builds[1].signing).toEqual(SIGNING);
+  expect(links).toHaveLength(1);
+
+  // Users can still switch to their own Expo account.
+  await section.getByText("Use my own Expo account instead (optional)").click();
+  await expect(section.getByLabel("Expo access token")).toBeVisible();
 });
 
 test("Android test builds need no Apple setup, and servers without EAS say so", async ({ page }) => {

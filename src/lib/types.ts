@@ -74,6 +74,20 @@ export interface ExpoLink {
   projectId: string;
   owner: string;
   slug: string;
+  /** Linked on the site's Expo account (hosted builds) rather than the user's own. */
+  hosted?: boolean;
+}
+
+/** An Apple Distribution certificate Appmaker created, kept in the user's browser. */
+export interface AppleSigning {
+  /** Issuer ID of the key that created it: certificates belong to one Apple team. */
+  issuerId: string;
+  certificateId: string;
+  serialNumber?: string;
+  expires?: string;
+  /** Base64 .p12 with the certificate and its private key. */
+  p12: string;
+  password: string;
 }
 
 /** What a cloud build produces: an App Store build, a Play Store bundle or an installable APK. */

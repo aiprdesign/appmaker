@@ -23,6 +23,7 @@ import {
   checkAvailable,
   connectExpo,
   EasRequestError,
+  type EasServerInfo,
   fetchBuilds,
   isActive,
   linkToExpo,
@@ -137,7 +138,7 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
 export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }: Props) {
   const settings = useExpoSettings();
   const expo = project.expo ?? NO_EXPO;
-  const [available, setAvailable] = useState<boolean | null>(null);
+  const [server, setServer] = useState<EasServerInfo | null>(null);
   const [tokenDraft, setTokenDraft] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -154,13 +155,19 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
   }, [expo]);
 
   useEffect(() => {
-    checkAvailable().then(setAvailable);
+    checkAvailable().then(setServer);
   }, []);
 
+  const available = server?.available ?? null;
+  /** The user's own Expo token; without one, hosted servers use the site's account. */
   const token = settings.token;
+  const hosted = !token && !!server?.hosted;
+  const canUseExpo = !!token || hosted;
   const builds = expo.builds ?? [];
   const ascKey = settings.ascKey;
-  const canUpload = !!expo.ascAppId && !!ascKey;
+  const teamKey = !!ascKey?.p8 && !!ascKey.keyId && !!ascKey.issuerId;
+  const canUpload = !!expo.ascAppId && !!ascKey?.p8 && !!ascKey.keyId;
+  const signing = settings.appleSigning && settings.appleSigning.issuerId === ascKey?.issuerId ? settings.appleSigning : undefined;
   const hasCode = Object.keys(project.files).length > 0;
 
   const connect = async () => {
@@ -196,7 +203,7 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
 
   const refresh = useCallback(async () => {
     const ids = (expoRef.current.builds ?? []).filter(isActive).map((b) => b.id);
-    if (!token || !ids.length) return;
+    if (!canUseExpo || !ids.length) return;
     setRefreshing(true);
     try {
       mergeBuilds(await fetchBuilds(token, ids));
@@ -205,31 +212,37 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
     } finally {
       setRefreshing(false);
     }
-  }, [token, mergeBuilds]);
+  }, [token, canUseExpo, mergeBuilds]);
 
   const activeCount = builds.filter(isActive).length;
   useEffect(() => {
-    if (!token || !activeCount) return;
+    if (!canUseExpo || !activeCount) return;
     const t = setInterval(refresh, 20_000);
     return () => clearInterval(t);
-  }, [token, activeCount, refresh]);
+  }, [canUseExpo, activeCount, refresh]);
 
+  /** Links the app to Expo once, on whichever account builds run on now. */
   const ensureLink = async () => {
-    if (expoRef.current.link) return expoRef.current.link;
-    setPhase("Creating the app on your Expo account…");
-    const link = await linkToExpo(token!, project);
+    const current = expoRef.current.link;
+    if (current && !!current.hosted === hosted) return current;
+    setPhase(hosted ? "Setting up your app for building…" : "Creating the app on your Expo account…");
+    const link = await linkToExpo(token, project);
     onExpoChange({ ...expoRef.current, link });
     expoRef.current = { ...expoRef.current, link };
     return link;
   };
 
   const build = async () => {
-    if (!token) return;
+    if (!canUseExpo) return;
     setBuildError(null);
     try {
       const link = await ensureLink();
-      setPhase("Sending your app to Expo… this takes a minute or two.");
-      const started = await startCloudBuild({
+      setPhase(
+        target === "ios" && teamKey
+          ? "Preparing Apple signing and sending your app to Expo… this takes a minute or two."
+          : "Sending your app to Expo… this takes a minute or two.",
+      );
+      const result = await startCloudBuild({
         token,
         project,
         link,
@@ -237,12 +250,16 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
         submit: target === "ios" && submit && canUpload,
         ascAppId: expo.ascAppId,
         ascKey,
+        signing,
       });
-      mergeBuilds(started);
+      // Keep the certificate Appmaker made: Apple allows only a few per team.
+      if (result.signing) saveExpoSettings({ ...settings, appleSigning: result.signing });
+      mergeBuilds(result.builds);
     } catch (e) {
+      if (e instanceof EasRequestError && e.signing) saveExpoSettings({ ...settings, appleSigning: e.signing });
       const err = e instanceof EasRequestError ? { message: e.message, code: e.code } : { message: "The build couldn't start." };
       setBuildError(err);
-      if (err.code === "ios-credentials") setAppleOpen(true);
+      if (err.code === "ios-credentials" || err.code === "apple") setAppleOpen(true);
     } finally {
       setPhase(null);
     }
@@ -284,7 +301,63 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
     !hasCode && "Generate the app first.",
     !/^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*){2,}$/.test(project.listing.bundleId) && "Set a valid bundle ID in the store listing.",
     /^com\.appmaker\./.test(project.listing.bundleId) && "Change the bundle ID to your own (e.g. com.yourname.app) — it can't be changed after the first store build.",
+    target === "ios" && hosted && !teamKey && "Add your App Store Connect API key in Apple setup — Appmaker uses it to sign the app.",
   ].filter(Boolean) as string[];
+
+  const tokenForm = (
+    <div className="space-y-2">
+      <ol className="list-decimal space-y-0.5 pl-4 text-xs text-muted">
+        <li>
+          Sign in (or sign up free) at{" "}
+          <a href="https://expo.dev/login" target="_blank" rel="noreferrer" className={inlineLink}>
+            expo.dev
+          </a>
+          .
+        </li>
+        <li>Click your account name or picture, then open the account&apos;s Settings.</li>
+        <li>
+          Choose <strong className="text-foreground/90">Access tokens</strong> → Create token, name it “Appmaker” and copy it. The address
+          is <code className="font-mono text-foreground/90">expo.dev/accounts/your-username/settings/access-tokens</code>.
+        </li>
+        <li>
+          Paste it here — it stays in this browser.{" "}
+          <a href="https://docs.expo.dev/accounts/programmatic-access/" target="_blank" rel="noreferrer" className={inlineLink}>
+            Expo&apos;s guide
+          </a>
+        </li>
+      </ol>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          connect();
+        }}
+      >
+        <input
+          type="password"
+          autoComplete="off"
+          className={input}
+          placeholder="Expo access token"
+          aria-label="Expo access token"
+          value={tokenDraft}
+          onChange={(e) => setTokenDraft(e.target.value)}
+        />
+        <button
+          type="submit"
+          disabled={!tokenDraft.trim() || connecting}
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 text-sm font-medium text-black disabled:opacity-50"
+        >
+          {connecting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          Connect
+        </button>
+      </form>
+      {connectError && (
+        <p role="alert" className="text-xs text-rose-300">
+          {connectError}
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <section className="rounded-2xl border border-line bg-surface p-5" aria-labelledby="expo-build-title">
@@ -294,8 +367,9 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
             <Rocket className="h-4 w-4 text-violet-400" /> Build &amp; upload with Expo
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Expo builds the real iPhone and Android apps on its servers — no Mac or Xcode needed. The free Expo plan includes a
-            limited number of builds each month.
+            {server?.hosted
+              ? "Appmaker builds the real iPhone and Android apps on Expo's servers — no Mac, Xcode or Expo account needed."
+              : "Expo builds the real iPhone and Android apps on its servers — no Mac or Xcode needed. The free Expo plan includes a limited number of builds each month."}
           </p>
         </div>
       </div>
@@ -308,71 +382,32 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
       )}
 
       <ol className="mt-5 space-y-6">
-        <Step n={1} title="Connect your Expo account" done={!!token}>
-          {token ? (
+        {token ? (
+          <Step n={1} title="Connect your Expo account" done>
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="text-foreground/90">
                 Connected as <strong>{settings.accountName ?? "your Expo account"}</strong>
               </span>
               <button onClick={disconnect} className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted hover:text-foreground">
-                <LogOut className="h-3.5 w-3.5" /> Disconnect
+                <LogOut className="h-3.5 w-3.5" /> {server?.hosted ? "Use Appmaker's builds instead" : "Disconnect"}
               </button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <ol className="list-decimal space-y-0.5 pl-4 text-xs text-muted">
-                <li>
-                  Sign in (or sign up free) at{" "}
-                  <a href="https://expo.dev/login" target="_blank" rel="noreferrer" className={inlineLink}>
-                    expo.dev
-                  </a>
-                  .
-                </li>
-                <li>Click your account name or picture, then open the account&apos;s Settings.</li>
-                <li>
-                  Choose <strong className="text-foreground/90">Access tokens</strong> → Create token, name it “Appmaker” and copy it. The
-                  address is <code className="font-mono text-foreground/90">expo.dev/accounts/your-username/settings/access-tokens</code>.
-                </li>
-                <li>
-                  Paste it here — it stays in this browser.{" "}
-                  <a href="https://docs.expo.dev/accounts/programmatic-access/" target="_blank" rel="noreferrer" className={inlineLink}>
-                    Expo&apos;s guide
-                  </a>
-                </li>
-              </ol>
-              <form
-                className="flex gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  connect();
-                }}
-              >
-                <input
-                  type="password"
-                  autoComplete="off"
-                  className={input}
-                  placeholder="Expo access token"
-                  aria-label="Expo access token"
-                  value={tokenDraft}
-                  onChange={(e) => setTokenDraft(e.target.value)}
-                />
-                <button
-                  type="submit"
-                  disabled={!tokenDraft.trim() || connecting}
-                  className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 text-sm font-medium text-black disabled:opacity-50"
-                >
-                  {connecting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Connect
-                </button>
-              </form>
-              {connectError && (
-                <p role="alert" className="text-xs text-rose-300">
-                  {connectError}
-                </p>
-              )}
-            </div>
-          )}
-        </Step>
+          </Step>
+        ) : hosted ? (
+          <Step n={1} title="Expo builds are included" done>
+            <p className="text-xs text-muted">Builds run on Appmaker&apos;s Expo account — you don&apos;t need one.</p>
+            <details className="mt-2 text-xs">
+              <summary className="inline-flex min-h-8 cursor-pointer items-center text-muted hover:text-foreground">
+                Use my own Expo account instead (optional)
+              </summary>
+              <div className="mt-2">{tokenForm}</div>
+            </details>
+          </Step>
+        ) : (
+          <Step n={1} title="Connect your Expo account">
+            {tokenForm}
+          </Step>
+        )}
 
         <Step n={2} title="Choose what to build">
           <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Build type">
@@ -402,7 +437,9 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
               >
                 <span className="flex items-center gap-2">
                   <Apple className="h-4 w-4" /> Apple setup
-                  <span className="text-xs text-muted">{canUpload ? "· upload ready" : "· needed once per app"}</span>
+                  <span className="text-xs text-muted">
+                    {teamKey ? (canUpload ? "· ready, uploads on" : "· ready") : hosted ? "· needed for iPhone builds" : "· needed once"}
+                  </span>
                 </span>
                 <ChevronDown className={`h-4 w-4 text-muted transition ${appleOpen ? "rotate-180" : ""}`} />
               </button>
@@ -417,48 +454,18 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
                     . Approval can take a day or two.
                   </li>
                   <li>
-                    <div className="font-medium text-foreground/90">b. Apple signing (one time per app)</div>
-                    Apple requires you to sign in once to create the app&apos;s certificate. On any computer with Node.js (Windows is fine),
-                    download the project, unzip it and run this in its folder. Sign in to Expo and Apple when asked and accept the
-                    defaults.
-                    <div className="mt-2 space-y-2">
-                      <button
-                        onClick={downloadForSetup}
-                        disabled={busy || !hasCode}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-foreground hover:border-white/20 disabled:opacity-50"
-                      >
-                        <Download className="h-3.5 w-3.5" /> Download project{token && !expo.link ? " (links it to Expo)" : ""}
-                      </button>
-                      <CopyLine
-                        cmd={`cd ${slug} && npm install && npx eas-cli@latest credentials:configure-build --platform ios --profile production`}
-                      />
-                      {!token && <p>Connect Expo first so the downloaded project is linked to your account.</p>}
+                    <div className="font-medium text-foreground/90">
+                      b. App Store Connect API key {hosted ? "(required)" : "(recommended)"}
                     </div>
-                  </li>
-                  <li>
-                    <div className="font-medium text-foreground/90">c. Automatic upload to App Store Connect (optional)</div>
                     <p>
-                      In{" "}
-                      <a href="https://appstoreconnect.apple.com/apps" target="_blank" rel="noreferrer" className={inlineLink}>
-                        App Store Connect
-                      </a>{" "}
-                      create the app (Apps → + → New App) with bundle ID{" "}
-                      <code className="font-mono text-foreground/90">{project.listing.bundleId}</code>, then copy its Apple ID from App
-                      Information.
-                    </p>
-                    <label className="mt-2 block">
-                      <span className="mb-1 block text-foreground/90">App Store Connect Apple ID</span>
-                      <input
-                        className={`${input} font-mono`}
-                        inputMode="numeric"
-                        placeholder="6741234567"
-                        value={expo.ascAppId ?? ""}
-                        onChange={(e) => onExpoChange({ ...expo, ascAppId: e.target.value.replace(/\D/g, "") || undefined })}
-                      />
-                    </label>
-                    <p className="mt-3">
-                      Then create an API key under Users and Access → Integrations → App Store Connect API (access: App Manager) and
-                      download the .p8 file. The key stays in this browser and works for all your apps.
+                      Appmaker uses it to create your app&apos;s signing certificate and provisioning profile and to upload builds — no
+                      Apple sign-in or command line needed. In{" "}
+                      <a href="https://appstoreconnect.apple.com/access/integrations/api" target="_blank" rel="noreferrer" className={inlineLink}>
+                        App Store Connect → Users and Access → Integrations
+                      </a>
+                      , create a <strong className="text-foreground/90">Team key</strong> with <strong className="text-foreground/90">Admin</strong>{" "}
+                      access and download the .p8 file (Apple lets you download it once). The Issuer ID is shown above the list of keys. The key
+                      stays in this browser and works for all your apps.
                     </p>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
                       <label className="block">
@@ -490,7 +497,60 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
                         {keyError}
                       </p>
                     )}
+                    {signing && (
+                      <p className="mt-2 flex items-center gap-1.5 text-emerald-300">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Signing certificate created by Appmaker
+                        {signing.expires ? ` · valid until ${new Date(signing.expires).toLocaleDateString()}` : ""}
+                      </p>
+                    )}
                   </li>
+                  <li>
+                    <div className="font-medium text-foreground/90">c. Automatic upload to App Store Connect (optional)</div>
+                    <p>
+                      In{" "}
+                      <a href="https://appstoreconnect.apple.com/apps" target="_blank" rel="noreferrer" className={inlineLink}>
+                        App Store Connect
+                      </a>{" "}
+                      create the app (Apps → + → New App) with bundle ID{" "}
+                      <code className="font-mono text-foreground/90">{project.listing.bundleId}</code>, then copy its Apple ID from App
+                      Information.{teamKey ? "" : " Your first build registers the bundle ID, so it appears in the list."}
+                    </p>
+                    <label className="mt-2 block">
+                      <span className="mb-1 block text-foreground/90">App Store Connect Apple ID</span>
+                      <input
+                        className={`${input} font-mono`}
+                        inputMode="numeric"
+                        placeholder="6741234567"
+                        value={expo.ascAppId ?? ""}
+                        onChange={(e) => onExpoChange({ ...expo, ascAppId: e.target.value.replace(/\D/g, "") || undefined })}
+                      />
+                    </label>
+                  </li>
+                  {!hosted && !teamKey && (
+                    <li>
+                      <details>
+                        <summary className="inline-flex min-h-8 cursor-pointer items-center font-medium text-foreground/90">
+                          No API key? Set up signing from the command line instead
+                        </summary>
+                        <p className="mt-1">
+                          On any computer with Node.js (Windows is fine), download the project, unzip it and run this in its folder. Sign in
+                          to Expo and Apple when asked and accept the defaults.
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          <button
+                            onClick={downloadForSetup}
+                            disabled={busy || !hasCode}
+                            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-foreground hover:border-white/20 disabled:opacity-50"
+                          >
+                            <Download className="h-3.5 w-3.5" /> Download project{token && !expo.link ? " (links it to Expo)" : ""}
+                          </button>
+                          <CopyLine
+                            cmd={`cd ${slug} && npm install && npx eas-cli@latest credentials:configure-build --platform ios --profile production`}
+                          />
+                        </div>
+                      </details>
+                    </li>
+                  )}
                 </ol>
               )}
             </div>
@@ -532,13 +592,13 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
           {hasPreviewError && <p className="mb-3 text-xs text-amber-200/90">The preview shows an error — fix it first so the build doesn&apos;t crash.</p>}
           <button
             onClick={build}
-            disabled={!token || busy || blockers.length > 0 || available === false}
+            disabled={!canUseExpo || busy || blockers.length > 0 || available === false}
             className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 px-4 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
             {target === "ios" ? (submit && canUpload ? "Build & upload to App Store Connect" : "Build for iPhone") : target === "android" ? "Build for Google Play" : "Build Android test app"}
           </button>
-          {!token && <p className="mt-2 text-xs text-muted">Connect Expo to start a build.</p>}
+          {!canUseExpo && available !== false && <p className="mt-2 text-xs text-muted">Connect Expo to start a build.</p>}
           {phase && (
             <p role="status" className="mt-2 text-xs text-muted">
               {phase}
@@ -601,7 +661,11 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
                     <p className={`mt-2 text-xs ${sub.tone === "ok" ? "text-emerald-300" : sub.tone === "bad" ? "text-rose-300" : "text-muted"}`}>{sub.label}</p>
                   )}
                   {b.status === "FINISHED" && b.target === "android-apk" && (
-                    <p className="mt-2 text-xs text-muted">Open the Expo page on your Android phone to install it — it shows a QR code and install link.</p>
+                    <p className="mt-2 text-xs text-muted">
+                      {expo.link?.hosted
+                        ? "Open the download link on your Android phone to install it (allow installs from your browser when asked)."
+                        : "Open the Expo page on your Android phone to install it — it shows a QR code and install link."}
+                    </p>
                   )}
                   {b.status === "FINISHED" && b.target === "ios" && !b.submission && (
                     <p className="mt-2 text-xs text-muted">
@@ -618,7 +682,7 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
                         <Download className="h-3.5 w-3.5" /> Download {b.target === "ios" ? ".ipa" : b.target === "android" ? ".aab" : ".apk"}
                       </a>
                     )}
-                    {expo.link && (
+                    {expo.link && !expo.link.hosted && (
                       <a
                         href={buildPageUrl(expo.link, b.id)}
                         target="_blank"

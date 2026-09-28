@@ -1,5 +1,6 @@
 import type { BuildTarget, ExpoLink, Project, StoreListing } from "../types";
 import { isAllowedPath } from "../validate";
+import type { AppleSigning } from "../types";
 
 /**
  * Validation for what the browser sends to the cloud-build routes. The
@@ -119,6 +120,25 @@ export function parseAscKey(v: unknown): AscApiKey | undefined {
     throw new InputError("Choose the .p8 key file you downloaded from App Store Connect.");
   }
   return { keyId, issuerId, p8: `${p8}\n` };
+}
+
+/** A certificate Appmaker created on an earlier build, sent back by the browser. */
+export function parseSigning(v: unknown): AppleSigning | undefined {
+  if (v == null) return undefined;
+  const o = v as Record<string, unknown>;
+  const signing: AppleSigning = {
+    issuerId: str(o.issuerId, "signing", 40),
+    certificateId: str(o.certificateId, "signing", 40),
+    p12: str(o.p12, "signing", 20_000),
+    password: str(o.password, "signing", 100),
+    ...(o.serialNumber ? { serialNumber: str(o.serialNumber, "signing", 100) } : {}),
+    ...(o.expires ? { expires: str(o.expires, "signing", 40) } : {}),
+  };
+  if (!/^[A-Z0-9]{6,20}$/.test(signing.certificateId) || !/^[A-Za-z0-9+/=]+$/.test(signing.p12) || !signing.password) {
+    // A damaged saved certificate is dropped; a new one is created instead.
+    return undefined;
+  }
+  return signing;
 }
 
 export function parseBuildIds(v: unknown): string[] {

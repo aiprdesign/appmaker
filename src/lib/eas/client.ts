@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { renderIcon } from "../export";
-import type { BuildTarget, CloudBuild, ExpoLink, Project } from "../types";
+import type { AppleSigning, BuildTarget, CloudBuild, ExpoLink, Project } from "../types";
 
 /**
  * The user's Expo connection, kept in this browser only. The access token and
@@ -15,6 +15,11 @@ export interface ExpoSettings {
   accountName?: string;
   /** App Store Connect API key, for uploads to TestFlight / the App Store. */
   ascKey?: { keyId: string; issuerId: string; p8: string; fileName?: string };
+  /**
+   * The Apple Distribution certificate Appmaker created with that key. Apple
+   * allows only a few per team, so it is reused for every app and build.
+   */
+  appleSigning?: AppleSigning;
 }
 
 const KEY = "appmaker.expo.v1";
@@ -70,6 +75,8 @@ export class EasRequestError extends Error {
   constructor(
     message: string,
     public code?: string,
+    /** A certificate the server made before the request failed; keep it. */
+    public signing?: AppleSigning,
   ) {
     super(message);
   }
@@ -83,7 +90,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     throw new EasRequestError("Couldn't reach the server. Check your connection and try again.");
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new EasRequestError(data.error || `Request failed (HTTP ${res.status})`, data.code);
+  if (!res.ok) throw new EasRequestError(data.error || `Request failed (HTTP ${res.status})`, data.code, data.signing);
   return data as T;
 }
 
@@ -97,12 +104,19 @@ async function iconBase64(project: Project): Promise<string> {
 
 const projectBody = (p: Project) => ({ files: p.files, listing: p.listing });
 
-export async function checkAvailable(): Promise<boolean> {
+export interface EasServerInfo {
+  available: boolean;
+  /** Builds run on the site's Expo account: users don't need one. */
+  hosted: boolean;
+}
+
+export async function checkAvailable(): Promise<EasServerInfo> {
   try {
     const res = await fetch("/api/eas/account");
-    return !!(await res.json()).available;
+    const data = await res.json();
+    return { available: !!data.available, hosted: !!data.hosted };
   } catch {
-    return false;
+    return { available: false, hosted: false };
   }
 }
 
@@ -110,34 +124,36 @@ export function connectExpo(token: string) {
   return post<{ name: string; account: string; available: boolean }>("/api/eas/account", { token });
 }
 
-export async function linkToExpo(token: string, project: Project): Promise<ExpoLink> {
+/** Without a token, the server uses its own Expo account (hosted builds). */
+export async function linkToExpo(token: string | undefined, project: Project): Promise<ExpoLink> {
   const { link } = await post<{ link: ExpoLink }>("/api/eas/link", { token, project: projectBody(project), icon: await iconBase64(project) });
-  return link;
+  return { ...link, hosted: !token };
 }
 
 export async function startCloudBuild(opts: {
-  token: string;
+  token?: string;
   project: Project;
   link: ExpoLink;
   target: BuildTarget;
   submit: boolean;
   ascAppId?: string;
   ascKey?: ExpoSettings["ascKey"];
-}): Promise<CloudBuild[]> {
-  const { builds } = await post<{ builds: CloudBuild[] }>("/api/eas/build", {
+  signing?: AppleSigning;
+}): Promise<{ builds: CloudBuild[]; signing?: AppleSigning }> {
+  return post<{ builds: CloudBuild[]; signing?: AppleSigning }>("/api/eas/build", {
     token: opts.token,
+    signing: opts.signing,
     project: projectBody(opts.project),
     icon: await iconBase64(opts.project),
     link: opts.link,
     target: opts.target,
     submit: opts.submit,
     ascAppId: opts.ascAppId,
-    ascKey: opts.ascKey ? { keyId: opts.ascKey.keyId, issuerId: opts.ascKey.issuerId, p8: opts.ascKey.p8 } : undefined,
+    ascKey: opts.ascKey?.p8 ? { keyId: opts.ascKey.keyId, issuerId: opts.ascKey.issuerId, p8: opts.ascKey.p8 } : undefined,
   });
-  return builds;
 }
 
-export async function fetchBuilds(token: string, ids: string[]): Promise<CloudBuild[]> {
+export async function fetchBuilds(token: string | undefined, ids: string[]): Promise<CloudBuild[]> {
   const { builds } = await post<{ builds: CloudBuild[] }>("/api/eas/builds", { token, ids });
   return builds;
 }

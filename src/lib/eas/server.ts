@@ -4,8 +4,10 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { EXPO_DEPS, expoProjectFiles, ICON_PATH, type IosSubmitConfig } from "../expo-project";
+import { EXPO_DEPS, expoProjectFiles, ICON_PATH, usesPackage, type IosSubmitConfig } from "../expo-project";
 import type { BuildTarget, CloudBuild, ExpoLink, Project } from "../types";
+import { ensureSigning, type AppleSigning } from "./apple";
+import { EasError } from "./errors";
 import type { AscApiKey } from "./input";
 
 /**
@@ -18,16 +20,15 @@ import type { AscApiKey } from "./input";
  * to the EAS CLI / Expo API, and are never stored or logged.
  */
 
-export type EasErrorCode = "auth" | "setup" | "ios-credentials" | "failed";
+export { EasError, type EasErrorCode } from "./errors";
 
-export class EasError extends Error {
-  constructor(
-    message: string,
-    public status = 400,
-    public code: EasErrorCode = "failed",
-  ) {
-    super(message);
-  }
+/**
+ * Hosted builds: with EXPO_TOKEN set on the server, builds run on the site
+ * owner's Expo account and users never need one. A user may still connect
+ * their own token, which then takes precedence.
+ */
+export function hostedToken(): string | undefined {
+  return process.env.EXPO_TOKEN?.trim() || undefined;
 }
 
 const expoApi = () => (process.env.APPMAKER_EXPO_API_URL || "https://api.expo.dev").replace(/\/$/, "");
@@ -323,10 +324,17 @@ async function installDeps(): Promise<string> {
 
 const ASC_KEY_FILE = "asc-api-key.p8";
 
+/** Signing files for an iOS build with local credentials. */
+interface IosSigningFiles {
+  p12: Buffer;
+  password: string;
+  profile: Buffer;
+}
+
 async function withProjectDir<T>(
   project: Project,
   icon: Buffer,
-  options: { link?: ExpoLink; ios?: IosSubmitConfig; ascKey?: AscApiKey },
+  options: { link?: ExpoLink; ios?: IosSubmitConfig; ascKey?: AscApiKey; signing?: IosSigningFiles },
   run: (dir: string) => Promise<T>,
 ): Promise<T> {
   const modules = await ensureExpoDeps();
@@ -349,7 +357,24 @@ async function withProjectDir<T>(
         ...(options.ascKey.issuerId ? { ascApiKeyIssuerId: options.ascKey.issuerId } : {}),
       });
     }
-    const files = expoProjectFiles(project, { link: options.link, ios });
+    if (options.signing) {
+      // credentials.json and ios-certs/ are .gitignored: the CLI sends them to
+      // the build as secrets, not as part of the source archive.
+      await mkdir(path.join(dir, "ios-certs"), { recursive: true });
+      await writeFile(path.join(dir, "ios-certs", "dist.p12"), options.signing.p12, { mode: 0o600 });
+      await writeFile(path.join(dir, "ios-certs", "profile.mobileprovision"), options.signing.profile, { mode: 0o600 });
+      await writeFile(
+        path.join(dir, "credentials.json"),
+        JSON.stringify({
+          ios: {
+            provisioningProfilePath: "ios-certs/profile.mobileprovision",
+            distributionCertificate: { path: "ios-certs/dist.p12", password: options.signing.password },
+          },
+        }),
+        { mode: 0o600 },
+      );
+    }
+    const files = expoProjectFiles(project, { link: options.link, ios, localIosCredentials: !!options.signing });
     for (const [rel, content] of Object.entries(files)) {
       const file = path.join(dir, rel);
       if (!file.startsWith(dir + path.sep)) continue;
@@ -365,9 +390,9 @@ async function withProjectDir<T>(
   }
 }
 
-/** Creates the app's project on the user's Expo account. */
+/** Creates the app's project on the Expo account the token belongs to. */
 export async function linkProject(token: string, project: Project, icon: Buffer): Promise<ExpoLink> {
-  const { account } = await whoami(token);
+  const account = (token === hostedToken() && process.env.APPMAKER_EXPO_ACCOUNT?.trim()) || (await whoami(token)).account;
   return withProjectDir(project, icon, {}, async (dir) => {
     const out = await runEas(["init", "--non-interactive", "--force", "--json", "--account", account], { cwd: dir, token, timeoutMs: 3 * 60_000 });
     const res = parseJsonOutput<{ projectId?: string; owner?: string; slug?: string }>(out);
@@ -384,8 +409,19 @@ export interface BuildRequest {
   target: BuildTarget;
   /** iOS: upload to App Store Connect (TestFlight) as soon as the build finishes. */
   submit?: { ascAppId: string; ascKey: AscApiKey };
-  /** iOS: lets Expo refresh provisioning profiles without a person present. */
+  /**
+   * iOS: with a Team API key Appmaker creates the certificate and profile
+   * itself, so no one has to sign in to Apple or Expo.
+   */
   ascKey?: AscApiKey;
+  /** The distribution certificate from an earlier build, kept by the browser. */
+  signing?: AppleSigning;
+}
+
+export interface BuildResult {
+  builds: CloudBuild[];
+  /** A newly created certificate for the browser to keep for later builds. */
+  signing?: AppleSigning;
 }
 
 export function buildArgs(target: BuildTarget, submit: boolean): string[] {
@@ -404,20 +440,46 @@ export function buildArgs(target: BuildTarget, submit: boolean): string[] {
   ];
 }
 
-export async function startBuild(req: BuildRequest): Promise<CloudBuild[]> {
+export async function startBuild(req: BuildRequest): Promise<BuildResult> {
   const ascKey = req.submit?.ascKey ?? req.ascKey;
   const ios: IosSubmitConfig = req.submit ? { ascAppId: req.submit.ascAppId } : {};
-  return withProjectDir(req.project, req.icon, { link: req.link, ios, ascKey }, async (dir) => {
+  let signing: IosSigningFiles | undefined;
+  let newSigning: AppleSigning | undefined;
+  if (req.target === "ios" && ascKey?.issuerId) {
+    const result = await ensureSigning({
+      key: ascKey,
+      bundleId: req.project.listing.bundleId,
+      appName: req.project.listing.name,
+      push: usesPackage(req.project, "expo-notifications"),
+      signing: req.signing,
+    });
+    signing = { p12: Buffer.from(result.signing.p12, "base64"), password: result.signing.password, profile: result.profile };
+    if (result.created) newSigning = result.signing;
+  }
+  const secrets = [ascKey?.p8 ?? "", signing?.password ?? ""];
+  const building = withProjectDir(req.project, req.icon, { link: req.link, ios, ascKey, signing }, async (dir) => {
     const env: Record<string, string> = {};
     if (ascKey && req.target === "ios") {
       env.EXPO_ASC_API_KEY_PATH = path.join(dir, ASC_KEY_FILE);
       env.EXPO_ASC_KEY_ID = ascKey.keyId;
       if (ascKey.issuerId) env.EXPO_ASC_ISSUER_ID = ascKey.issuerId;
     }
-    const out = await runEas(buildArgs(req.target, !!req.submit), { cwd: dir, token: req.token, env, secrets: ascKey ? [ascKey.p8] : [] });
-    const builds = parseJsonOutput<RawBuild[] | RawBuild>(out);
-    const list = (Array.isArray(builds) ? builds : [builds]).filter((b) => b?.id);
+    const out = await runEas(buildArgs(req.target, !!req.submit), { cwd: dir, token: req.token, env, secrets });
+    const parsed = parseJsonOutput<RawBuild[] | RawBuild>(out);
+    const list = (Array.isArray(parsed) ? parsed : [parsed]).filter((b) => b?.id);
     if (!list.length) throw new EasError("Expo didn't return the build. Check expo.dev for its status.", 502);
     return list.map((b) => ({ ...toCloudBuild(b), target: req.target }));
   });
+  let builds: CloudBuild[];
+  try {
+    builds = await building;
+  } catch (e) {
+    // A certificate made for this build must still reach the browser, or the
+    // retry would make another one and run into Apple's per-team limit.
+    if (!newSigning) throw e;
+    const err = e instanceof EasError ? e : new EasError("Expo couldn't start the build. Try again.", 502);
+    err.data = { ...err.data, signing: newSigning };
+    throw err;
+  }
+  return { builds, ...(newSigning ? { signing: newSigning } : {}) };
 }

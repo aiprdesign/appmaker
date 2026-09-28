@@ -43,10 +43,13 @@ export function usedDependencies(project: Project): Record<string, string> {
   return deps;
 }
 
+export function usesPackage(project: Project, pkg: string): boolean {
+  return Object.values(project.files).some((code) => code.includes(`'${pkg}'`) || code.includes(`"${pkg}"`));
+}
+
 /** Native config some modules need; iOS rejects apps without permission texts. */
 function plugins(project: Project): unknown[] {
-  const code = Object.values(project.files).join("\n");
-  const uses = (pkg: string) => code.includes(`'${pkg}'`) || code.includes(`"${pkg}"`);
+  const uses = (pkg: string) => usesPackage(project, pkg);
   const name = project.listing.name || "This app";
   const list: unknown[] = [];
   if (uses("expo-notifications")) list.push("expo-notifications");
@@ -103,14 +106,15 @@ export interface IosSubmitConfig {
   ascApiKeyIssuerId?: string;
 }
 
-export function easJson(ios: IosSubmitConfig = {}) {
+/** eas.json. With localIosCredentials, iOS builds sign with Appmaker's credentials.json instead of certificates stored at Expo. */
+export function easJson(ios: IosSubmitConfig = {}, localIosCredentials = false) {
   const iosSubmit = Object.fromEntries(Object.entries(ios).filter(([, v]) => v));
   return {
     cli: { version: ">= 16.0.0", appVersionSource: "remote" },
     build: {
       development: { developmentClient: false, distribution: "internal" },
       preview: { distribution: "internal", android: { buildType: "apk" } },
-      production: { autoIncrement: true },
+      production: { autoIncrement: true, ...(localIosCredentials ? { ios: { credentialsSource: "local" } } : {}) },
     },
     submit: { production: Object.keys(iosSubmit).length ? { ios: iosSubmit } : {} },
   };
@@ -185,10 +189,13 @@ jobs:
       - run: eas build --platform all --profile production --non-interactive --auto-submit
 `;
 
-export const GITIGNORE = "node_modules/\n.expo/\ndist/\nweb-build/\n*.jks\n*.p8\n*.p12\n*.key\n*.mobileprovision\n";
+export const GITIGNORE = "node_modules/\n.expo/\ndist/\nweb-build/\n*.jks\n*.p8\n*.p12\n*.key\n*.mobileprovision\ncredentials.json\nios-certs/\n";
 
 /** Every text file of the Expo project, keyed by path. */
-export function expoProjectFiles(project: Project, options: { link?: ExpoLink; ios?: IosSubmitConfig } = {}): Record<string, string> {
+export function expoProjectFiles(
+  project: Project,
+  options: { link?: ExpoLink; ios?: IosSubmitConfig; localIosCredentials?: boolean } = {},
+): Record<string, string> {
   const slug = slugify(project.listing.name);
   const files: Record<string, string> = {
     "package.json": JSON.stringify(
@@ -211,7 +218,7 @@ export function expoProjectFiles(project: Project, options: { link?: ExpoLink; i
     ),
     "index.js": "import { registerRootComponent } from 'expo';\nimport App from './App';\n\nregisterRootComponent(App);\n",
     "app.json": JSON.stringify(appJson(project, options.link ?? project.expo?.link), null, 2),
-    "eas.json": JSON.stringify(easJson(options.ios ?? { ascAppId: project.expo?.ascAppId }), null, 2),
+    "eas.json": JSON.stringify(easJson(options.ios ?? { ascAppId: project.expo?.ascAppId }, options.localIosCredentials), null, 2),
     "babel.config.js": "module.exports = function (api) {\n  api.cache(true);\n  return { presets: ['babel-preset-expo'] };\n};\n",
     ".gitignore": GITIGNORE,
     "README.md": readme(project),

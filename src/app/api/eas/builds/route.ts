@@ -1,5 +1,5 @@
-import { parseBuildIds, parseToken } from "@/lib/eas/input";
-import { easErrorResponse, readJson } from "@/lib/eas/respond";
+import { parseBuildIds } from "@/lib/eas/input";
+import { easErrorResponse, readJson, resolveToken } from "@/lib/eas/respond";
 import { getBuilds } from "@/lib/eas/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -12,7 +12,8 @@ export async function POST(req: Request) {
   }
   try {
     const body = await readJson(req);
-    const builds = await getBuilds(parseToken(body.token), parseBuildIds(body.ids));
+    const { token } = resolveToken(body.token);
+    const builds = await getBuilds(token, parseBuildIds(body.ids));
     return Response.json({ builds });
   } catch (e) {
     return easErrorResponse(e);

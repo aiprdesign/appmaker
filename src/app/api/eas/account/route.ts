@@ -1,13 +1,17 @@
 import { parseToken } from "@/lib/eas/input";
 import { easErrorResponse, readJson } from "@/lib/eas/respond";
-import { easAvailable, ensureExpoDeps, whoami } from "@/lib/eas/server";
+import { easAvailable, ensureExpoDeps, hostedToken, whoami } from "@/lib/eas/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
-/** Whether this server can run cloud builds. */
+/** Whether this server can run cloud builds, and whether it runs them on its own Expo account. */
 export async function GET() {
-  return Response.json({ available: easAvailable() });
+  const available = easAvailable();
+  const hosted = available && !!hostedToken();
+  // Warm up the Expo packages builds need, so the first build starts sooner.
+  if (hosted) ensureExpoDeps().catch(() => {});
+  return Response.json({ available, hosted });
 }
 
 /** Checks an Expo access token and returns who it belongs to. */

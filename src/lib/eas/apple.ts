@@ -1,6 +1,7 @@
 import { createPrivateKey, createSign, randomBytes } from "node:crypto";
 import forge from "node-forge";
 import { EasError } from "./errors";
+import type { AppleSigning } from "../types";
 import type { AscApiKey } from "./input";
 
 /**
@@ -16,17 +17,7 @@ import type { AscApiKey } from "./input";
 
 const ascApi = () => (process.env.APPMAKER_ASC_API_URL || "https://api.appstoreconnect.apple.com").replace(/\/$/, "");
 
-/** A distribution certificate Appmaker created, kept in the user's browser. */
-export interface AppleSigning {
-  /** Issuer ID of the key that created it: certificates belong to one Apple team. */
-  issuerId: string;
-  certificateId: string;
-  serialNumber?: string;
-  expires?: string;
-  /** Base64 .p12 with the certificate and its private key. */
-  p12: string;
-  password: string;
-}
+export type { AppleSigning };
 
 export interface SigningResult {
   signing: AppleSigning;

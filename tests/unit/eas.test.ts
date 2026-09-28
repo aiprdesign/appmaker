@@ -7,7 +7,9 @@ import { appJson, easJson, expoProjectFiles } from "@/lib/expo-project";
 import { InputError, parseAscKey, parseIcon, parseLink, parseProject, parseToken } from "@/lib/eas/input";
 import { buildArgs, easFailure, getBuilds, linkProject, parseJsonOutput, startBuild, toCloudBuild, whoami } from "@/lib/eas/server";
 import { POST as buildRoute } from "@/app/api/eas/build/route";
-import { POST as accountRoute } from "@/app/api/eas/account/route";
+import { GET as accountGet, POST as accountRoute } from "@/app/api/eas/account/route";
+import { POST as linkRoute } from "@/app/api/eas/link/route";
+import { makeTeamKey, startFakeAsc } from "./fake-asc";
 import { emptyListing } from "@/lib/storage";
 import type { Project } from "@/lib/types";
 
@@ -129,6 +131,10 @@ const rec = {
   easJson: JSON.parse(read("eas.json")),
   files: fs.readdirSync(root, { recursive: true }).filter((f) => !String(f).startsWith("node_modules")).map(String).sort(),
   keyFile: read("asc-api-key.p8"),
+  credentialsJson: read("credentials.json"),
+  gitignore: read(".gitignore"),
+  profile: read("ios-certs/profile.mobileprovision"),
+  p12Size: (() => { try { return fs.statSync(path.join(root, "ios-certs/dist.p12")).size; } catch { return 0; } })(),
   ascEnv: process.env.EXPO_ASC_API_KEY_PATH || null,
   home: process.env.HOME,
 };
@@ -232,7 +238,7 @@ describe("cloud builds (fake Expo)", () => {
 
   it("starts an App Store build with automatic upload, keeping secrets out of the project and args", async () => {
     const link = { projectId: PROJECT_ID, owner: "alice", slug: "habit-hero" };
-    const builds = await startBuild({
+    const { builds, signing } = await startBuild({
       token: TOKEN,
       project: project(),
       icon: PNG,
@@ -241,8 +247,11 @@ describe("cloud builds (fake Expo)", () => {
       submit: { ascAppId: "6741234567", ascKey: { keyId: "2X9R4HXF34", issuerId: "", p8: `${P8}\n` } },
     });
     expect(builds).toEqual([expect.objectContaining({ id: BUILD_ID, target: "ios", status: "NEW", submission: { status: "AWAITING_BUILD" } })]);
+    // An individual key (no Issuer ID) can't sign, so Expo's stored credentials are used.
+    expect(signing).toBeUndefined();
 
     const [rec] = records();
+    expect(rec.credentialsJson).toBeNull();
     expect(rec.args).toContain("--auto-submit");
     expect(rec.args.join(" ")).not.toContain(TOKEN);
     expect(rec.token).toBe(TOKEN);
@@ -266,6 +275,53 @@ describe("cloud builds (fake Expo)", () => {
     await expect(
       startBuild({ token: TOKEN, project: p, icon: PNG, link: { projectId: PROJECT_ID, owner: "alice", slug: "habit-hero" }, target: "ios" }),
     ).rejects.toMatchObject({ code: "ios-credentials", status: 409 });
+  });
+
+  it("signs App Store builds itself with a Team API key: no Apple or Expo sign-in", async () => {
+    const teamKey = makeTeamKey();
+    const asc = await startFakeAsc(teamKey);
+    process.env.APPMAKER_ASC_API_URL = asc.url;
+    try {
+      const link = { projectId: PROJECT_ID, owner: "alice", slug: "habit-hero" };
+      const first = await startBuild({ token: TOKEN, project: project(), icon: PNG, link, target: "ios", ascKey: teamKey });
+      expect(first.signing).toMatchObject({ issuerId: teamKey.issuerId, certificateId: expect.any(String) });
+      const [rec] = records();
+      expect(rec.easJson.build.production.ios).toEqual({ credentialsSource: "local" });
+      const creds = JSON.parse(rec.credentialsJson);
+      expect(creds.ios.provisioningProfilePath).toBe("ios-certs/profile.mobileprovision");
+      expect(creds.ios.distributionCertificate.password).toBe(first.signing!.password);
+      expect(rec.profile).toMatch(/^PROFILE-/);
+      expect(rec.p12Size).toBeGreaterThan(500);
+      // Signing files never go into the uploaded source.
+      expect(rec.gitignore).toContain("credentials.json");
+      expect(rec.gitignore).toContain("ios-certs/");
+      // The app uses reminders, so push is enabled on the App ID.
+      expect(asc.state.bundleIds[0].capabilities).toContain("PUSH_NOTIFICATIONS");
+
+      // The next build reuses the saved certificate instead of making another.
+      writeFileSync(log, "");
+      const second = await startBuild({ token: TOKEN, project: project(), icon: PNG, link, target: "ios", ascKey: teamKey, signing: first.signing });
+      expect(second.signing).toBeUndefined();
+      expect(asc.state.certificates.size).toBe(1);
+      expect(JSON.parse(records()[0].credentialsJson).ios.distributionCertificate.password).toBe(first.signing!.password);
+      expect(readdirSync(process.env.APPMAKER_EAS_WORKDIR!)).toEqual([]);
+
+      // If Expo fails after a new certificate was made, the certificate still comes back.
+      const failing = project({ listing: { ...project().listing, bundleId: "com.acme.nocreds" } });
+      asc.state.certificates.clear();
+      const err = await startBuild({ token: TOKEN, project: failing, icon: PNG, link, target: "ios", ascKey: teamKey, signing: first.signing }).catch((e) => e);
+      expect(err.data.signing).toMatchObject({ issuerId: teamKey.issuerId });
+      expect(err.data.signing.certificateId).not.toBe(first.signing!.certificateId);
+      expect(readdirSync(process.env.APPMAKER_EAS_WORKDIR!)).toEqual([]);
+
+      // Android builds don't touch Apple at all.
+      asc.state.calls = [];
+      await startBuild({ token: TOKEN, project: project(), icon: PNG, link, target: "android-apk", ascKey: teamKey });
+      expect(asc.state.calls).toEqual([]);
+    } finally {
+      asc.close();
+      delete process.env.APPMAKER_ASC_API_URL;
+    }
   });
 
   it("reads build and upload status from Expo", async () => {
@@ -299,5 +355,57 @@ describe("cloud build routes", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ name: "alice", available: true });
     expect((await post(accountRoute, { token: "expo_wrong_token_123456" })).status).toBe(401);
+  });
+
+  it("needs a user token unless the site runs hosted builds", async () => {
+    expect(await (await accountGet()).json()).toEqual({ available: true, hosted: false });
+    const res = await post(linkRoute, { project: { files: { "App.js": "x" }, listing: project().listing }, icon: PNG.toString("base64") });
+    expect((await res.json()).error).toMatch(/Connect your Expo account/);
+  });
+});
+
+describe("hosted builds (site's Expo account)", () => {
+  const SITE_TOKEN = "expo_site_owner_token_987654";
+  const post = (handler: (r: Request) => Promise<Response>, body: unknown, ip: string) =>
+    handler(new Request("http://localhost/api/eas", { method: "POST", body: JSON.stringify(body), headers: { "x-forwarded-for": ip } }));
+  const app = { files: { "App.js": "export default () => null;" }, listing: project().listing };
+
+  beforeAll(() => {
+    process.env.EXPO_TOKEN = SITE_TOKEN;
+    process.env.APPMAKER_EXPO_ACCOUNT = "appmaker-builds";
+    process.env.APPMAKER_HOSTED_BUILD_LIMIT = "2";
+  });
+  afterAll(() => {
+    for (const k of ["EXPO_TOKEN", "APPMAKER_EXPO_ACCOUNT", "APPMAKER_HOSTED_BUILD_LIMIT"]) delete process.env[k];
+  });
+
+  it("builds on the site's account without the user having one", async () => {
+    expect(await (await accountGet()).json()).toEqual({ available: true, hosted: true });
+    const linked = await post(linkRoute, { project: app, icon: PNG.toString("base64") }, "10.1.1.1");
+    expect(linked.status).toBe(200);
+    const [init] = records();
+    expect(init.token).toBe(SITE_TOKEN);
+    expect(init.args).toEqual(expect.arrayContaining(["--account", "appmaker-builds"]));
+
+    const res = await post(buildRoute, { target: "android-apk", link: { projectId: PROJECT_ID, owner: "appmaker-builds", slug: "habit-hero" }, project: app, icon: PNG.toString("base64") }, "10.1.1.1");
+    expect(res.status).toBe(200);
+    expect((await res.json()).builds[0]).toMatchObject({ id: BUILD_ID, target: "android-apk" });
+  });
+
+  it("requires the user's Apple API key for iPhone builds, since no one can sign in", async () => {
+    const res = await post(buildRoute, { target: "ios", link: { projectId: PROJECT_ID, owner: "appmaker-builds", slug: "habit-hero" }, project: app, icon: PNG.toString("base64") }, "10.2.2.2");
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/App Store Connect API key/);
+  });
+
+  it("limits builds per person per day on the site's account", async () => {
+    const body = { target: "android-apk", link: { projectId: PROJECT_ID, owner: "appmaker-builds", slug: "habit-hero" }, project: app, icon: PNG.toString("base64") };
+    expect((await post(buildRoute, body, "10.3.3.3")).status).toBe(200);
+    expect((await post(buildRoute, body, "10.3.3.3")).status).toBe(200);
+    const third = await post(buildRoute, body, "10.3.3.3");
+    expect(third.status).toBe(429);
+    expect((await third.json()).error).toMatch(/today's build limit/);
+    // A user's own Expo account isn't held to the site's daily limit.
+    expect((await post(buildRoute, { ...body, token: TOKEN }, "10.3.3.3")).status).toBe(200);
   });
 });

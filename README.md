@@ -165,18 +165,29 @@ A full 100-app run makes 100–300 model calls (follow-ups and repairs included)
 
 The **Build & upload with Expo** section builds the real app on Expo's servers (EAS Build). No Mac or Xcode is needed.
 
-1. **Connect Expo.** Paste an access token. On expo.dev, open your account's Settings → Access tokens (`expo.dev/accounts/<username>/settings/access-tokens`) and create one ([Expo's guide](https://docs.expo.dev/accounts/programmatic-access/)). It is kept in the browser and sent only with build requests.
-2. **Choose a build.** The options are an iPhone App Store build (`.ipa`), an Android test app (`.apk` to install on a phone) or a Google Play build (`.aab`).
-3. **Build.** The first build creates the app's project on the user's Expo account (`eas init`). Status updates live, with download links and a link to the build on expo.dev.
+**Whose Expo account runs the builds**
 
-**iPhone / App Store.** You need the Apple Developer Program ($99/year), plus two one-time setup steps:
+- **Hosted (recommended for a SaaS).** Set `EXPO_TOKEN` on the server, for example in Railway → Variables. Builds then run on your Expo account and users never need one, like on the larger app builders. Use a robot user's token from an Expo organization, and optionally set `APPMAKER_EXPO_ACCOUNT` to that organization's name. Each person gets `APPMAKER_HOSTED_BUILD_LIMIT` builds per day (default 10), because builds on your account count towards your Expo plan.
+- **User's own account.** Without `EXPO_TOKEN`, each user connects their own Expo account with an access token (expo.dev → account Settings → Access tokens, [Expo's guide](https://docs.expo.dev/accounts/programmatic-access/)). On a hosted server users can still choose this under "Use my own Expo account instead". Their builds don't count towards the daily limit.
 
-- **Signing (once per app).** Apple requires an interactive sign-in to create the distribution certificate. The Publish tab gives a download and one command to run on any computer with Node.js: `npx eas-cli@latest credentials:configure-build --platform ios --profile production`. After that, Appmaker builds without prompts. If signing is missing, the build fails fast with a message that opens these steps.
-- **Automatic upload (optional).** Add the app's App Store Connect Apple ID and an App Store Connect API key (Key ID, Issuer ID and the `.p8` file). Each iOS build is then sent to App Store Connect when it finishes (`--auto-submit`), where it appears in TestFlight. Submitting for review stays a manual step in App Store Connect.
+**Steps**
+
+1. **Choose a build.** The options are an iPhone App Store build (`.ipa`), an Android test app (`.apk` to install on a phone) or a Google Play build (`.aab`).
+2. **Build.** The first build creates the app's project on Expo (`eas init`). Status updates live, with download links.
+
+**iPhone / App Store.** You need the Apple Developer Program ($99/year) and an **App Store Connect API key**: a Team key with Admin access, entered as its Key ID, Issuer ID and `.p8` file. With it, Appmaker does the Apple signing itself, and no one has to sign in to Apple or Expo:
+
+- It registers the bundle ID and turns on Push Notifications if the app uses reminders.
+- It creates an Apple Distribution certificate, once per Apple team. Apple allows only a few per team, so the certificate and its private key go back to the user's browser in a password-protected `.p12` and are reused for every later build and app. If the certificate is revoked, Appmaker creates a new one.
+- It creates an App Store provisioning profile, and reuses it until it becomes invalid.
+- It passes these files to EAS as local credentials (`credentials.json` and `credentialsSource: "local"`).
+- Once the app exists in App Store Connect, adding its Apple ID turns on automatic upload. Each iOS build is then sent to App Store Connect when it finishes (`--auto-submit`) and appears in TestFlight. Submitting for review stays a manual step in App Store Connect.
+
+When the builds run on the user's own Expo account, the API key is optional. Without it, the Publish tab offers the command-line route instead: `npx eas-cli@latest credentials:configure-build --platform ios --profile production`.
 
 **Google Play.** Google requires the first upload of a new app to be done by hand in Play Console, so Appmaker gives you the `.aab` to upload.
 
-**Server requirements.** The server runs `eas-cli` (a dependency) and installs the Expo SDK packages once, about 350 MB, to evaluate app config plugins. It needs a long-running Node server with `npm` and a writable temp folder. Railway, Render or a VPS all work; serverless hosts such as Vercel do not. Each build is written to a temporary folder that is deleted afterwards. The EAS CLI runs with a minimal environment (the user's token plus proxy settings), so the server's own API keys are never passed to it. The App Store Connect key is written with `0600` permissions and is never included in the uploaded source (it is `.gitignore`d).
+**Server requirements.** The server runs `eas-cli` (a dependency) and installs the Expo SDK packages once, about 350 MB, to evaluate app config plugins. It needs a long-running Node server with `npm` and a writable temp folder. Railway, Render or a VPS all work; serverless hosts such as Vercel do not. Each build is written to a temporary folder that is deleted afterwards. The EAS CLI runs with a minimal environment: only the Expo token and proxy settings, so the server's AI keys are never passed to it. The App Store Connect key, certificate and profile are written with `0600` permissions and are `.gitignore`d, so they never go into the uploaded source. The server stores none of them: they come from the user's browser with each build.
 
 ### By hand, from the exported zip
 
