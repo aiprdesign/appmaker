@@ -2,12 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { Agent, fetch as undiciFetch } from "undici";
 import { isPrivateHost, makeSafeLookup } from "../net-guard";
+import { ProviderHttpError, listReplicateModels, streamReplicate } from "./replicate";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER,
   PROVIDERS,
   getProvider,
   isValidModelId,
+  normalizeBaseURL,
   type AiChoice,
   type ApiFormat,
   type ProviderId,
@@ -105,14 +107,14 @@ export function resolveAi(choice: Partial<AiChoice> | undefined): ResolvedAi | n
     const ownerURL = process.env.CUSTOM_AI_BASE_URL?.trim();
     if (userURL) {
       if (!customAllowed()) throw new AiConfigError("Custom AI endpoints are disabled on this server.");
-      const baseURL = checkEndpoint(userURL);
+      const baseURL = checkEndpoint(normalizeBaseURL(userURL, apiFormat));
       // Never send the site owner's custom key to an address a user typed in.
-      const sameAsOwner = !!ownerURL && baseURL === ownerURL.replace(/\/$/, "");
+      const sameAsOwner = !!ownerURL && baseURL === normalizeBaseURL(ownerURL, apiFormat);
       const key = userKey || (sameAsOwner ? serverKey("custom") : undefined) || "none";
       return { provider, model, apiKey: key, baseURL, usingServerKey: !userKey && sameAsOwner, apiFormat, guarded: true };
     }
     if (ownerURL) {
-      return { provider, model, apiKey: userKey || serverKey("custom")!, baseURL: ownerURL, usingServerKey: !userKey, apiFormat };
+      return { provider, model, apiKey: userKey || serverKey("custom")!, baseURL: normalizeBaseURL(ownerURL, apiFormat), usingServerKey: !userKey, apiFormat };
     }
     throw new AiConfigError("Enter the base URL of the AI service in AI settings.");
   }
@@ -185,6 +187,10 @@ export async function streamGeneration({ ai, system, messages, signal, write }: 
     return "done";
   }
 
+  if (ai.provider === "replicate") {
+    return streamReplicate({ apiKey: ai.apiKey, baseURL: ai.baseURL!, model: ai.model, system, messages, signal, write });
+  }
+
   const info = getProvider(ai.provider)!;
   const client = openaiClient(ai);
   const stream = await client.chat.completions.create(
@@ -216,6 +222,7 @@ export async function listModels(ai: ResolvedAi): Promise<string[]> {
     for await (const m of client.models.list()) ids.push(m.id);
     return ids;
   }
+  if (ai.provider === "replicate") return listReplicateModels(ai.apiKey, ai.baseURL!);
   const client = openaiClient(ai);
   const ids: string[] = [];
   for await (const m of client.models.list()) ids.push(m.id.replace(/^models\//, ""));
@@ -231,12 +238,13 @@ export function aiErrorMessage(err: unknown, providerName = "the AI provider"): 
   if (cause?.code === "EBLOCKED" || cause?.cause?.code === "EBLOCKED") {
     return "That address points to a private network. Private endpoints only work on self-hosted installs.";
   }
-  const status = err instanceof Anthropic.APIError || err instanceof OpenAI.APIError ? err.status : undefined;
+  const status =
+    err instanceof Anthropic.APIError || err instanceof OpenAI.APIError || err instanceof ProviderHttpError ? err.status : undefined;
   if (status === 401 || status === 403) return `${providerName} rejected the API key. Check it in AI settings.`;
   if (status === 404) return `${providerName} doesn't recognise that model. Pick another in AI settings.`;
   if (status === 429) return `${providerName} is rate limiting or your credit ran out — wait a moment or check your account.`;
   if (status === 400) return `${providerName} rejected the request: ${(err as Error).message}`;
-  if (err instanceof Anthropic.APIError || err instanceof OpenAI.APIError) {
+  if (err instanceof Anthropic.APIError || err instanceof OpenAI.APIError || err instanceof ProviderHttpError) {
     return `${providerName} error (${status ?? "network"}): ${err.message}`;
   }
   return err instanceof Error ? err.message : "Unknown error";

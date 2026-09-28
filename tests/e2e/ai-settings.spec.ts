@@ -59,7 +59,8 @@ test("connect any AI service with a custom endpoint", async ({ page }) => {
     provider: "custom",
     model: "kimi-k2",
     apiKey: "my-key",
-    baseURL: "https://llm.example.com/v1",
+    // Switching to the Anthropic format trims /v1 (its client adds it).
+    baseURL: "https://llm.example.com",
     apiFormat: "anthropic",
   });
 });
@@ -72,4 +73,65 @@ test("the server refuses private-network endpoints with a clear message", async 
   await dialog.getByLabel("Base URL").fill("https://169.254.169.254/v1");
   await dialog.getByRole("button", { name: /Test & load models/ }).click();
   await expect(dialog.getByText(/private network/)).toBeVisible();
+});
+
+test("paste any key: provider, key check and model are set up automatically", async ({ page }) => {
+  let modelRequests = 0;
+  await page.route("**/api/ai/models", (route) => {
+    modelRequests++;
+    const body = route.request().postDataJSON();
+    const ok = body.provider === "openrouter" && body.apiKey === "sk-or-v1-0123456789abcdef";
+    return route.fulfill({
+      status: ok ? 200 : 400,
+      contentType: "application/json",
+      body: JSON.stringify(ok ? { models: ["anthropic/claude-opus-5", "meta-llama/llama-3.3-70b-instruct"] } : { error: "bad" }),
+    });
+  });
+  let sent: { ai?: Record<string, string> } = {};
+  await page.route("**/api/generate", async (route) => {
+    sent = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: "text/plain", body: "<summary>ok</summary>" });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "AI model settings" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Paste any API key").fill("sk-or-v1-0123456789abcdef");
+  await expect(dialog.getByText(/Recognised your OpenRouter key/)).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "OpenRouter" })).toBeVisible();
+  await expect(dialog.getByText("Connected — 2 models available.")).toBeVisible();
+  await expect(dialog.getByText(/OpenRouter is ready with openrouter\/auto — press Save/)).toBeVisible();
+  expect(modelRequests).toBe(1);
+  await dialog.getByRole("button", { name: "Save" }).click();
+
+  await page.getByLabel("Describe your app").fill("A habit tracker");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => sent.ai).toMatchObject({ provider: "openrouter", apiKey: "sk-or-v1-0123456789abcdef", model: "openrouter/auto" });
+});
+
+test("a key pasted under the wrong provider moves to the right one", async ({ page }) => {
+  await page.route("**/api/ai/models", (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"models":["gsk-model"]}' }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "AI model settings" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: /^OpenAI/ }).click();
+  await dialog.getByLabel("OpenAI API key").fill("gsk_0123456789abcdefghij");
+  await expect(dialog.getByRole("heading", { name: "Groq" })).toBeVisible();
+  await expect(dialog.getByLabel("Groq API key")).toHaveValue("gsk_0123456789abcdefghij");
+});
+
+test("custom: pick a known service or type just a domain", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "AI model settings" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: /Any other AI/ }).click();
+  await dialog.getByLabel("Fill from a known service").selectOption({ label: "Anthropic Claude" });
+  await expect(dialog.getByLabel("Base URL")).toHaveValue("https://api.anthropic.com");
+  await expect(dialog.getByLabel("API format")).toHaveValue("anthropic");
+  await dialog.getByLabel("Fill from a known service").selectOption({ label: "Together AI" });
+  await expect(dialog.getByLabel("API format")).toHaveValue("openai");
+
+  await dialog.getByLabel("Base URL").fill("llm.example.com");
+  await dialog.getByLabel("Base URL").blur();
+  await expect(dialog.getByLabel("Base URL")).toHaveValue("https://llm.example.com/v1");
 });

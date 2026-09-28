@@ -1,8 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, ChevronDown, Cpu, ExternalLink, Eye, EyeOff, KeyRound, Loader2, X } from "lucide-react";
-import { PROVIDERS, getProvider, modelLabel, type ProviderId, type ServerAiConfig } from "@/lib/ai/providers";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Cpu, ExternalLink, Eye, EyeOff, KeyRound, Loader2, Sparkles, X } from "lucide-react";
+import {
+  KNOWN_ENDPOINTS,
+  PROVIDERS,
+  detectApiFormat,
+  detectProviderFromKey,
+  getProvider,
+  modelLabel,
+  normalizeBaseURL,
+  type ApiFormat,
+  type ProviderId,
+  type ServerAiConfig,
+} from "@/lib/ai/providers";
 import { saveAiSettings, useAiSettings, type AiSettings } from "@/lib/ai/settings";
 
 let configPromise: Promise<ServerAiConfig> | null = null;
@@ -68,6 +79,8 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
   const [models, setModels] = useState<Partial<Record<ProviderId, string[]>>>({});
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
+  const [quickKey, setQuickKey] = useState("");
+  const [quickNote, setQuickNote] = useState<{ ok: boolean; message: string } | null>(null);
 
   const providerId: ProviderId = draft.provider ?? config?.defaultProvider ?? "anthropic";
   const provider = getProvider(providerId)!;
@@ -87,7 +100,8 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
     setDraft((d) => ({ ...d, provider: id, model: getProvider(id)!.models[0]?.id ?? "" }));
   };
 
-  const loadModels = async () => {
+  /** Tests the key, loads the provider's models and picks one if needed. */
+  const loadModels = async (target = { provider: providerId, apiKey: userKey, baseURL: draft.baseURL, apiFormat: draft.apiFormat }) => {
     setTesting(true);
     setTest(null);
     try {
@@ -95,20 +109,66 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          provider: providerId,
-          apiKey: userKey || undefined,
-          ...(providerId === "custom" ? { baseURL: draft.baseURL, apiFormat: draft.apiFormat ?? "openai" } : {}),
+          provider: target.provider,
+          apiKey: target.apiKey || undefined,
+          ...(target.provider === "custom" ? { baseURL: target.baseURL, apiFormat: target.apiFormat ?? "openai" } : {}),
         }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Couldn't reach the provider.");
-      setModels((m) => ({ ...m, [providerId]: body.models }));
-      setTest({ ok: true, message: `Connected — ${body.models.length} models available.` });
+      const ids: string[] = body.models ?? [];
+      setModels((m) => ({ ...m, [target.provider]: ids }));
+      setTest({ ok: true, message: `Connected — ${ids.length} models available.` });
+      // Pick a model automatically if none is chosen or the chosen one isn't offered.
+      setDraft((d) => {
+        if (d.provider !== target.provider || !ids.length) return d;
+        const suggested = getProvider(target.provider)!.models.map((m) => m.id);
+        if (d.model && (ids.includes(d.model) || suggested.includes(d.model))) return d;
+        const pick = suggested.find((id) => ids.includes(id)) ?? ids.find((id) => /instruct|chat|turbo|pro|large|max/i.test(id)) ?? ids[0];
+        return { ...d, model: pick };
+      });
     } catch (e) {
       setTest({ ok: false, message: (e as Error).message });
     } finally {
       setTesting(false);
     }
+  };
+
+  /** Puts a pasted key under the provider it belongs to and switches there. */
+  const applyKey = (key: string, fallback: ProviderId | null) => {
+    const detected = detectProviderFromKey(key);
+    const target = detected ?? fallback;
+    if (!target) return null;
+    setTest(null);
+    setDraft((d) => ({
+      ...d,
+      provider: target,
+      model: d.provider === target && d.model ? d.model : (getProvider(target)!.models[0]?.id ?? ""),
+      keys: { ...d.keys, [target]: key },
+    }));
+    return detected;
+  };
+
+  // Test the key and load models automatically shortly after it changes.
+  const initial = useRef(`${providerId}|${userKey}|${draft.baseURL ?? ""}|${draft.apiFormat ?? ""}`);
+  useEffect(() => {
+    const signature = `${providerId}|${userKey}|${draft.baseURL ?? ""}|${draft.apiFormat ?? ""}`;
+    if (signature === initial.current) return;
+    const ready = providerId === "custom" ? !!draft.baseURL && /\.[a-z]{2,}|localhost|\d+\.\d+/.test(draft.baseURL) : userKey.length >= 12;
+    if (!ready) return;
+    const t = setTimeout(() => {
+      initial.current = signature;
+      loadModels({ provider: providerId, apiKey: userKey, baseURL: draft.baseURL, apiFormat: draft.apiFormat });
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerId, userKey, draft.baseURL, draft.apiFormat]);
+
+  const setCustomURL = (url: string, format?: ApiFormat) => {
+    setTest(null);
+    // Known services and obvious hints ("anthropic" in the address) decide the format.
+    const known = KNOWN_ENDPOINTS.some((k) => normalizeBaseURL(url, k.apiFormat) === k.baseURL) || /anthropic|claude/i.test(url);
+    setDraft((d) => ({ ...d, provider: "custom", baseURL: url, apiFormat: format ?? (known ? detectApiFormat(url) : (d.apiFormat ?? "openai")) }));
   };
 
   const save = () => {
@@ -171,6 +231,45 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
           </nav>
 
           <div className="scrollbar-thin min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-3">
+              <label className="block">
+                <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium">
+                  <Sparkles className="h-3.5 w-3.5 text-violet-300" /> Quick setup — paste any API key
+                </span>
+                <input
+                  className={`${input} font-mono`}
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={quickKey}
+                  placeholder="sk-ant-…, sk-or-…, r8_…, hf_…, AIza…, gsk_…"
+                  aria-label="Paste any API key"
+                  onChange={(e) => {
+                    const key = e.target.value.trim();
+                    setQuickKey(key);
+                    if (!key) return setQuickNote(null);
+                    const detected = applyKey(key, null);
+                    setQuickNote(
+                      detected
+                        ? { ok: true, message: `Recognised your ${getProvider(detected)!.name} key — checking it and loading models…` }
+                        : key.length >= 12
+                          ? { ok: false, message: "Couldn't tell which service this key is for — pick the provider on the left and paste it there." }
+                          : null,
+                    );
+                  }}
+                />
+              </label>
+              {quickNote && (
+                <p className={`mt-1.5 text-[11px] ${quickNote.ok && test?.ok !== false ? "text-emerald-300" : "text-amber-300"}`}>
+                  {quickNote.ok && test?.ok
+                    ? `✓ ${provider.name} is ready with ${model || "a model"} — press Save.`
+                    : quickNote.ok && test && !test.ok
+                      ? `That ${provider.name} key didn't work: ${test.message}`
+                      : quickNote.message}
+                </p>
+              )}
+            </div>
+
             <div>
               <h3 className="font-medium">{provider.name}</h3>
               <p className="mt-0.5 text-sm text-muted">{provider.blurb}</p>
@@ -183,38 +282,75 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
             ) : (
               <>
                 {providerId === "custom" && (
-                  <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
+                  <div className="space-y-4">
                     <label className="block">
-                      <span className="mb-1.5 block text-xs font-medium">Base URL</span>
-                      <input
-                        className={`${input} font-mono`}
-                        value={draft.baseURL ?? ""}
-                        placeholder="https://api.example.com/v1"
-                        aria-label="Base URL"
-                        spellCheck={false}
-                        onChange={(e) => {
-                          setTest(null);
-                          setDraft((d) => ({ ...d, provider: "custom", baseURL: e.target.value.trim() }));
-                        }}
-                      />
-                      <span className="mt-1 block text-[11px] text-muted">From the service&apos;s API docs — usually ends in /v1.</span>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1.5 block text-xs font-medium">API format</span>
+                      <span className="mb-1.5 block text-xs font-medium">Fill from a known service</span>
                       <select
                         className={input}
-                        aria-label="API format"
-                        value={draft.apiFormat ?? "openai"}
+                        aria-label="Fill from a known service"
+                        value=""
                         onChange={(e) => {
-                          setTest(null);
-                          setDraft((d) => ({ ...d, provider: "custom", apiFormat: e.target.value as "openai" | "anthropic" }));
+                          const known = KNOWN_ENDPOINTS.find((k) => k.baseURL === e.target.value);
+                          if (known) setCustomURL(known.baseURL, known.apiFormat);
                         }}
                       >
-                        <option value="openai">OpenAI-compatible</option>
-                        <option value="anthropic">Anthropic-compatible</option>
+                        <option value="">Choose a service to fill in its address…</option>
+                        {KNOWN_ENDPOINTS.map((k) => (
+                          <option key={k.baseURL} value={k.baseURL}>
+                            {k.label}
+                          </option>
+                        ))}
                       </select>
-                      <span className="mt-1 block text-[11px] text-muted">Most services use OpenAI-compatible.</span>
                     </label>
+                    <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-medium">Base URL</span>
+                        <input
+                          className={`${input} font-mono`}
+                          value={draft.baseURL ?? ""}
+                          placeholder="https://api.example.com/v1"
+                          aria-label="Base URL"
+                          spellCheck={false}
+                          onChange={(e) => setCustomURL(e.target.value.trim())}
+                          onBlur={(e) => {
+                            // Fix up the address: add https://, and /v1 where the format needs it.
+                            const tidy = normalizeBaseURL(e.target.value, draft.apiFormat ?? detectApiFormat(e.target.value));
+                            if (tidy && tidy !== draft.baseURL) setCustomURL(tidy);
+                          }}
+                        />
+                        <span className="mt-1 block text-[11px] text-muted">
+                          {KNOWN_ENDPOINTS.find((k) => k.baseURL === draft.baseURL)?.needsEdit
+                            ? "Replace YOUR-RESOURCE with your Azure resource name."
+                            : KNOWN_ENDPOINTS.find((k) => k.baseURL === draft.baseURL)?.local
+                              ? "Local servers only work when Appmaker runs on your own computer."
+                              : (draft.apiFormat ?? "openai") === "openai"
+                                ? "Just the domain is fine — /v1 is added automatically."
+                                : "Just the domain is fine."}
+                        </span>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-medium">API format</span>
+                        <select
+                          className={input}
+                          aria-label="API format"
+                          value={draft.apiFormat ?? "openai"}
+                          onChange={(e) => {
+                            const format = e.target.value as ApiFormat;
+                            setTest(null);
+                            setDraft((d) => ({
+                              ...d,
+                              provider: "custom",
+                              apiFormat: format,
+                              baseURL: d.baseURL ? normalizeBaseURL(d.baseURL, format) : d.baseURL,
+                            }));
+                          }}
+                        >
+                          <option value="openai">OpenAI-compatible</option>
+                          <option value="anthropic">Anthropic-compatible</option>
+                        </select>
+                        <span className="mt-1 block text-[11px] text-muted">Detected automatically for known services.</span>
+                      </label>
+                    </div>
                   </div>
                 )}
 
@@ -238,8 +374,14 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                         value={userKey}
                         placeholder={hasServerKey ? "Optional — this site already has a key" : provider.keyPlaceholder}
                         onChange={(e) => {
-                          setTest(null);
-                          setDraft((d) => ({ ...d, keys: { ...d.keys, [providerId]: e.target.value.trim() } }));
+                          const key = e.target.value.trim();
+                          const detected = detectProviderFromKey(key);
+                          // A key that clearly belongs to another provider moves there automatically.
+                          if (detected && detected !== providerId && providerId !== "custom") applyKey(key, providerId);
+                          else {
+                            setTest(null);
+                            setDraft((d) => ({ ...d, provider: providerId, keys: { ...d.keys, [providerId]: key } }));
+                          }
                         }}
                         aria-label={`${provider.name} API key`}
                       />
@@ -254,7 +396,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                     </div>
                     <button
                       type="button"
-                      onClick={loadModels}
+                      onClick={() => loadModels()}
                       disabled={testing || (providerId === "custom" ? !draft.baseURL : !userKey && !hasServerKey)}
                       className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:border-white/20 disabled:opacity-40"
                     >

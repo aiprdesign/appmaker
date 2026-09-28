@@ -19,6 +19,14 @@ export type ProviderId =
   | "fireworks"
   | "perplexity"
   | "cerebras"
+  | "replicate"
+  | "huggingface"
+  | "cohere"
+  | "qwen"
+  | "moonshot"
+  | "nvidia"
+  | "sambanova"
+  | "deepinfra"
   | "custom";
 
 export interface ModelOption {
@@ -179,6 +187,92 @@ export const PROVIDERS: ProviderInfo[] = [
     models: [{ id: "llama-3.3-70b", label: "Llama 3.3 70B" }],
   },
   {
+    id: "replicate",
+    name: "Replicate",
+    envKey: "REPLICATE_API_TOKEN",
+    keyUrl: "https://replicate.com/account/api-tokens",
+    keyPlaceholder: "r8_…",
+    baseURL: "https://api.replicate.com/v1",
+    blurb: "Run thousands of community and open models with one token. Model IDs look like owner/name.",
+    models: [
+      { id: "meta/meta-llama-3-70b-instruct", label: "Llama 3 70B Instruct" },
+      { id: "deepseek-ai/deepseek-r1", label: "DeepSeek R1" },
+    ],
+  },
+  {
+    id: "huggingface",
+    name: "Hugging Face",
+    envKey: "HF_TOKEN",
+    keyUrl: "https://huggingface.co/settings/tokens",
+    keyPlaceholder: "hf_…",
+    baseURL: "https://router.huggingface.co/v1",
+    blurb: "Thousands of open models through Hugging Face Inference Providers.",
+    models: [{ id: "meta-llama/Llama-3.3-70B-Instruct", label: "Llama 3.3 70B Instruct" }],
+  },
+  {
+    id: "cohere",
+    name: "Cohere",
+    envKey: "COHERE_API_KEY",
+    keyUrl: "https://dashboard.cohere.com/api-keys",
+    keyPlaceholder: "…",
+    baseURL: "https://api.cohere.ai/compatibility/v1",
+    blurb: "Command models from Cohere.",
+    models: [{ id: "command-a-03-2025", label: "Command A" }],
+  },
+  {
+    id: "qwen",
+    name: "Alibaba Qwen",
+    envKey: "DASHSCOPE_API_KEY",
+    keyUrl: "https://bailian.console.alibabacloud.com/?apiKey=1",
+    keyPlaceholder: "sk-…",
+    baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    blurb: "Qwen models from Alibaba Cloud Model Studio (international).",
+    models: [
+      { id: "qwen-max", label: "Qwen Max" },
+      { id: "qwen-plus", label: "Qwen Plus", note: "Faster, cheaper" },
+    ],
+  },
+  {
+    id: "moonshot",
+    name: "Moonshot Kimi",
+    envKey: "MOONSHOT_API_KEY",
+    keyUrl: "https://platform.moonshot.ai/console/api-keys",
+    keyPlaceholder: "sk-…",
+    baseURL: "https://api.moonshot.ai/v1",
+    blurb: "Kimi models from Moonshot AI. Use “Test & load models” to pick one.",
+    models: [],
+  },
+  {
+    id: "nvidia",
+    name: "NVIDIA NIM",
+    envKey: "NVIDIA_API_KEY",
+    keyUrl: "https://build.nvidia.com",
+    keyPlaceholder: "nvapi-…",
+    baseURL: "https://integrate.api.nvidia.com/v1",
+    blurb: "Open models hosted by NVIDIA.",
+    models: [{ id: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B Instruct" }],
+  },
+  {
+    id: "sambanova",
+    name: "SambaNova",
+    envKey: "SAMBANOVA_API_KEY",
+    keyUrl: "https://cloud.sambanova.ai/apis",
+    keyPlaceholder: "…",
+    baseURL: "https://api.sambanova.ai/v1",
+    blurb: "Very fast open models on SambaNova Cloud.",
+    models: [{ id: "Meta-Llama-3.3-70B-Instruct", label: "Llama 3.3 70B Instruct" }],
+  },
+  {
+    id: "deepinfra",
+    name: "DeepInfra",
+    envKey: "DEEPINFRA_API_KEY",
+    keyUrl: "https://deepinfra.com/dash/api_keys",
+    keyPlaceholder: "…",
+    baseURL: "https://api.deepinfra.com/v1/openai",
+    blurb: "Low-cost hosting for popular open models.",
+    models: [{ id: "meta-llama/Llama-3.3-70B-Instruct", label: "Llama 3.3 70B Instruct" }],
+  },
+  {
     id: "custom",
     name: "Any other AI (custom)",
     envKey: "CUSTOM_AI_API_KEY",
@@ -227,4 +321,94 @@ export interface ServerAiConfig {
   /** Providers the site owner has configured a server-side key for. */
   serverKeys: ProviderId[];
   customEndpointsAllowed: boolean;
+}
+
+/** Endpoints users can pick in "Any other AI" instead of typing a URL. */
+export interface KnownEndpoint {
+  label: string;
+  baseURL: string;
+  apiFormat: ApiFormat;
+  /** Placeholder the user must replace, e.g. an Azure resource name. */
+  needsEdit?: boolean;
+  /** Only reachable on a self-hosted install (private address). */
+  local?: boolean;
+}
+
+const ENDPOINT_LIST: KnownEndpoint[] = [
+  ...PROVIDERS.filter((p) => p.baseURL && p.id !== "replicate" && p.id !== "custom").map((p) => ({
+    label: p.name,
+    baseURL: p.baseURL!.replace(/\/$/, ""),
+    apiFormat: "openai" as const,
+  })),
+  { label: "OpenAI", baseURL: "https://api.openai.com/v1", apiFormat: "openai" },
+  { label: "Anthropic Claude", baseURL: "https://api.anthropic.com", apiFormat: "anthropic" },
+  { label: "Azure OpenAI (replace YOUR-RESOURCE)", baseURL: "https://YOUR-RESOURCE.openai.azure.com/openai/v1", apiFormat: "openai", needsEdit: true },
+  { label: "Ollama (self-hosted)", baseURL: "http://localhost:11434/v1", apiFormat: "openai", local: true },
+  { label: "LM Studio (self-hosted)", baseURL: "http://localhost:1234/v1", apiFormat: "openai", local: true },
+  { label: "vLLM (self-hosted)", baseURL: "http://localhost:8000/v1", apiFormat: "openai", local: true },
+  { label: "LiteLLM proxy (self-hosted)", baseURL: "http://localhost:4000/v1", apiFormat: "openai", local: true },
+];
+
+export const KNOWN_ENDPOINTS: KnownEndpoint[] = ENDPOINT_LIST.sort(
+  (a, b) => Number(!!a.local) - Number(!!b.local) || a.label.localeCompare(b.label),
+);
+
+/** Picks the API format for a pasted URL: known endpoints first, then hints in the address. */
+export function detectApiFormat(url: string): ApiFormat {
+  const known = KNOWN_ENDPOINTS.find((e) => normalizeBaseURL(url, e.apiFormat) === e.baseURL);
+  if (known) return known.apiFormat;
+  return /anthropic|claude/i.test(url) ? "anthropic" : "openai";
+}
+
+/**
+ * Recognises a provider from the shape of its API key, so users can paste a
+ * key and have everything else filled in. Keys that several providers share
+ * (a bare "sk-…") are ambiguous and return null.
+ */
+const KEY_PREFIXES: [RegExp, ProviderId][] = [
+  [/^sk-ant-/, "anthropic"],
+  [/^sk-or-/, "openrouter"],
+  [/^sk-proj-|^sk-svcacct-|^sk-admin-/, "openai"],
+  [/^r8_/, "replicate"],
+  [/^hf_/, "huggingface"],
+  [/^AIza/, "gemini"],
+  [/^gsk_/, "groq"],
+  [/^xai-/, "xai"],
+  [/^pplx-/, "perplexity"],
+  [/^nvapi-/, "nvidia"],
+  [/^fw_/, "fireworks"],
+  [/^csk-/, "cerebras"],
+];
+
+export function detectProviderFromKey(key: string): ProviderId | null {
+  const k = key.trim();
+  if (k.length < 12) return null;
+  return KEY_PREFIXES.find(([re]) => re.test(k))?.[1] ?? null;
+}
+
+/**
+ * Tidies a base URL for the chosen API format. OpenAI-style clients expect the
+ * versioned root (…/v1); the Anthropic client adds /v1 itself, so a trailing
+ * /v1 would double up. Pure string work — safe to run in the browser too.
+ */
+export function normalizeBaseURL(raw: string, apiFormat: ApiFormat = "openai"): string {
+  let url = raw.trim().replace(/\/+$/, "");
+  if (!url) return url;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = `https://${url}`;
+  // Known services keep their documented address exactly (some, like
+  // Perplexity, don't use /v1).
+  if (ENDPOINT_LIST.some((e) => e.baseURL === url && e.apiFormat === apiFormat)) return url;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return raw.trim();
+  }
+  const path = parsed.pathname.replace(/\/+$/, "");
+  if (apiFormat === "anthropic") {
+    if (/\/v1$/.test(path)) url = url.replace(/\/v1$/, "");
+  } else if (path === "") {
+    url = `${url}/v1`;
+  }
+  return url;
 }

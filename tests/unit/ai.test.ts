@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { POST as generate } from "@/app/api/generate/route";
 import { POST as models } from "@/app/api/ai/models/route";
-import { PROVIDERS, isValidModelId } from "@/lib/ai/providers";
+import { KNOWN_ENDPOINTS, PROVIDERS, detectApiFormat, detectProviderFromKey, isValidModelId, normalizeBaseURL } from "@/lib/ai/providers";
 import { AiConfigError, aiErrorMessage, listModels, resolveAi, serverConfig, streamGeneration } from "@/lib/ai/server";
 import { makeSafeLookup } from "@/lib/net-guard";
 
@@ -170,7 +170,8 @@ describe("resolveAi", () => {
   it("lets users connect any public https endpoint", () => {
     clearKeys();
     const ai = resolveAi({ provider: "custom", model: "qwen-max", apiKey: "user", baseURL: "https://llm.example.com/v1/", apiFormat: "anthropic" });
-    expect(ai).toMatchObject({ provider: "custom", baseURL: "https://llm.example.com/v1", apiKey: "user", apiFormat: "anthropic", guarded: true, usingServerKey: false });
+    // Anthropic-style clients add /v1 themselves, so it's trimmed from the address.
+    expect(ai).toMatchObject({ provider: "custom", baseURL: "https://llm.example.com", apiKey: "user", apiFormat: "anthropic", guarded: true, usingServerKey: false });
     expect(resolveAi({ provider: "custom", model: "m", baseURL: "https://llm.example.com/v1" })).toMatchObject({ apiKey: "none", apiFormat: "openai" });
   });
 
@@ -355,5 +356,145 @@ describe("API routes", () => {
     const call = (body: unknown) => models(new Request("http://x/api/ai/models", { method: "POST", body: JSON.stringify(body) }));
     expect((await call({ provider: "nope" })).status).toBe(400);
     expect((await call({ provider: "openai" })).status).toBe(400);
+  });
+});
+
+describe("zero-effort setup helpers", () => {
+  it.each([
+    ["sk-ant-api03-abcdefghijk", "anthropic"],
+    ["sk-or-v1-abcdefghijklmn", "openrouter"],
+    ["sk-proj-abcdefghijklmnop", "openai"],
+    ["r8_abcdefghijklmnopqrst", "replicate"],
+    ["hf_abcdefghijklmnopqrst", "huggingface"],
+    ["AIzaSyAbcdefghijklmnop", "gemini"],
+    ["gsk_abcdefghijklmnopqrs", "groq"],
+    ["xai-abcdefghijklmnopqrs", "xai"],
+    ["pplx-abcdefghijklmnopqr", "perplexity"],
+    ["nvapi-abcdefghijklmnopq", "nvidia"],
+    ["fw_abcdefghijklmnopqrst", "fireworks"],
+    ["csk-abcdefghijklmnopqrs", "cerebras"],
+  ])("recognises %s as %s", (key, provider) => expect(detectProviderFromKey(key)).toBe(provider));
+
+  it("leaves ambiguous or short keys alone", () => {
+    expect(detectProviderFromKey("sk-abcdefghijklmnopqrst")).toBeNull();
+    expect(detectProviderFromKey("sk-ant-")).toBeNull();
+  });
+
+  it.each([
+    ["api.example.com", "openai", "https://api.example.com/v1"],
+    ["https://api.example.com/", "openai", "https://api.example.com/v1"],
+    ["https://api.example.com/v1/", "openai", "https://api.example.com/v1"],
+    ["https://api.example.com/custom/path", "openai", "https://api.example.com/custom/path"],
+    ["https://api.anthropic.com/v1", "anthropic", "https://api.anthropic.com"],
+    ["https://gateway.example.com/anthropic", "anthropic", "https://gateway.example.com/anthropic"],
+    ["localhost:11434", "openai", "https://localhost:11434/v1"],
+  ])("normalizes %s (%s) to %s", (input, format, expected) =>
+    expect(normalizeBaseURL(input, format as "openai" | "anthropic")).toBe(expected),
+  );
+
+  it("detects the API format of pasted addresses", () => {
+    expect(detectApiFormat("https://api.anthropic.com/v1")).toBe("anthropic");
+    expect(detectApiFormat("https://openrouter.ai/api/v1")).toBe("openai");
+    expect(detectApiFormat("https://my-proxy.example.com/claude")).toBe("anthropic");
+    expect(detectApiFormat("https://llm.example.com")).toBe("openai");
+  });
+
+  it("keeps known services' exact addresses", () => {
+    expect(normalizeBaseURL("https://api.perplexity.ai", "openai")).toBe("https://api.perplexity.ai");
+    expect(normalizeBaseURL("https://api.deepseek.com/", "openai")).toBe("https://api.deepseek.com");
+  });
+
+  it("offers valid, unique known endpoints", () => {
+    const urls = KNOWN_ENDPOINTS.map((e) => e.baseURL);
+    expect(new Set(urls).size).toBe(urls.length);
+    for (const e of KNOWN_ENDPOINTS) {
+      expect(() => new URL(e.baseURL)).not.toThrow();
+      expect(normalizeBaseURL(e.baseURL, e.apiFormat)).toBe(e.baseURL);
+    }
+    expect(KNOWN_ENDPOINTS.filter((e) => e.local).map((e) => e.label).join()).toMatch(/Ollama/);
+  });
+
+  it("uses the normalized address when resolving a custom endpoint", () => {
+    clearKeys();
+    expect(resolveAi({ provider: "custom", model: "m", baseURL: "llm.example.com" })).toMatchObject({ baseURL: "https://llm.example.com/v1" });
+    expect(resolveAi({ provider: "custom", model: "m", baseURL: "https://api.anthropic.com/v1", apiFormat: "anthropic" })).toMatchObject({
+      baseURL: "https://api.anthropic.com",
+    });
+  });
+});
+
+describe("Replicate", () => {
+  let replicate: http.Server;
+  let rbase = "";
+  const seen: { path: string; body: Record<string, unknown>; auth?: string }[] = [];
+  beforeAll(async () => {
+    replicate = http.createServer((req, res) => {
+      let raw = "";
+      req.on("data", (c) => (raw += c));
+      req.on("end", () => {
+        const body = raw ? JSON.parse(raw) : {};
+        seen.push({ path: req.url!, body, auth: req.headers.authorization });
+        const input = body.input as Record<string, unknown> | undefined;
+        if (req.url!.startsWith("/v1/models/strict/")) {
+          if (input && "system_prompt" in input) return res.writeHead(422, { "Content-Type": "application/json" }).end(JSON.stringify({ detail: "unexpected input" }));
+        }
+        if (req.url!.endsWith("/predictions")) {
+          res.writeHead(201, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ id: "p1", urls: { stream: `${rbase}/stream/p1` } }));
+        }
+        if (req.url === "/stream/p1") {
+          res.writeHead(200, { "Content-Type": "text/event-stream" });
+          res.write("event: output\ndata: <plan>Hi\n\n");
+          res.write("event: output\ndata: </plan>\n\n");
+          res.write("event: output\ndata: line one\ndata: line two\n\n");
+          return res.end("event: done\ndata: {}\n\n");
+        }
+        if (req.url === "/v1/collections/language-models") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ models: [{ owner: "meta", name: "llama" }, { owner: "acme", name: "chat" }] }));
+        }
+        res.writeHead(404).end();
+      });
+    });
+    await new Promise<void>((r) => replicate.listen(0, "127.0.0.1", r));
+    rbase = `http://127.0.0.1:${(replicate.address() as AddressInfo).port}`;
+  });
+  afterAll(() => replicate.close());
+
+  const replicateAi = (model: string) => ({ provider: "replicate" as const, model, apiKey: "r8_test", baseURL: `${rbase}/v1`, usingServerKey: false });
+
+  it("streams a model's output through predictions + SSE", async () => {
+    seen.length = 0;
+    const { out, outcome } = await run(replicateAi("meta/meta-llama-3-70b-instruct"));
+    expect(outcome).toBe("done");
+    expect(out).toBe("<plan>Hi</plan>line one\nline two");
+    expect(seen[0].path).toBe("/v1/models/meta/meta-llama-3-70b-instruct/predictions");
+    expect(seen[0].auth).toBe("Bearer r8_test");
+    expect(seen[0].body).toMatchObject({ stream: true, input: { system_prompt: "SYS", max_tokens: 16000 } });
+    expect((seen[0].body.input as { prompt: string }).prompt).toMatch(/User: build it\n\nAssistant:$/);
+  });
+
+  it("retries with a plain prompt when a model rejects extra inputs", async () => {
+    seen.length = 0;
+    const { out } = await run(replicateAi("strict/model"));
+    expect(out).toContain("<plan>Hi</plan>");
+    const retry = seen.filter((r) => r.path.endsWith("/predictions"))[1].body.input as Record<string, unknown>;
+    expect(Object.keys(retry)).toEqual(["prompt"]);
+    expect(retry.prompt).toMatch(/^SYS\n\nUser: build it/);
+  });
+
+  it("supports pinned versions and lists language models", async () => {
+    seen.length = 0;
+    await run(replicateAi("acme/chat:abc123"));
+    expect(seen[0].path).toBe("/v1/predictions");
+    expect(seen[0].body).toMatchObject({ version: "abc123" });
+    expect(await listModels(replicateAi("x"))).toEqual(["acme/chat", "meta/llama"]);
+  });
+
+  it("uses the site's REPLICATE_API_TOKEN", () => {
+    clearKeys();
+    process.env.REPLICATE_API_TOKEN = "r8_server";
+    expect(resolveAi({ provider: "replicate", model: "meta/meta-llama-3-70b-instruct" })).toMatchObject({ apiKey: "r8_server", usingServerKey: true });
+    delete process.env.REPLICATE_API_TOKEN;
   });
 });
