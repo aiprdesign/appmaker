@@ -114,6 +114,9 @@ export function replicateInputs(props: SchemaProps | null, system: string, messa
     if (Object.keys(input).length) list.push(input);
   }
   list.push({ prompt, system_prompt: system, max_tokens: maxTokens }, { prompt: folded });
+  // Without a schema, chat-style models (served by other providers behind
+  // Replicate) may only understand chat messages.
+  if (!props) list.push({ messages: [{ role: "system", content: system }, ...messages], max_tokens: maxTokens });
   const seen = new Set<string>();
   return list.filter((i) => !seen.has(JSON.stringify(i)) && seen.add(JSON.stringify(i)));
 }
@@ -141,7 +144,16 @@ export async function streamReplicate(o: Options): Promise<"done" | "length" | "
     } catch (e) {
       // The model failed before writing anything (often an input it can't
       // handle): try the next input shape rather than giving up.
-      if (e instanceof ProviderHttpError && e.status === 502 && !wrote && !last && !o.signal.aborted) continue;
+      if (e instanceof ProviderHttpError && e.status === 502 && !wrote && !o.signal.aborted) {
+        if (!last) continue;
+        if (inputs.length > 1) {
+          throw new ProviderHttpError(
+            `The model "${o.model}" failed on Replicate with every input format Appmaker tried (${inputs.length}), so it looks broken on Replicate's side right now. ` +
+              `Switch APPMAKER_MODEL to another model, such as meta/meta-llama-3-70b-instruct. Replicate said: ${e.message}`,
+            502,
+          );
+        }
+      }
       throw e;
     }
   }

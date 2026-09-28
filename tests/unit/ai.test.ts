@@ -451,7 +451,7 @@ describe("Replicate", () => {
         if (req.url!.endsWith("/predictions")) {
           res.writeHead(201, { "Content-Type": "application/json" });
           // Like Replicate's hosted DeepSeek R1: accepts the request, then fails on inputs it can't map.
-          const fails = req.url!.includes("/fragile/") && input && "system_prompt" in input;
+          const fails = (req.url!.includes("/fragile/") && input && "system_prompt" in input) || req.url!.includes("/broken/");
           return res.end(JSON.stringify({ id: "p1", urls: { stream: `${rbase}/stream/${fails ? "fail" : "p1"}` } }));
         }
         if (req.url === "/stream/fail") {
@@ -539,6 +539,17 @@ describe("Replicate", () => {
     expect(out).toBe("<plan>Hi</plan>line one\nline two");
     const inputs = seen.filter((r) => r.path.endsWith("/predictions")).map((r) => Object.keys(r.body.input as object));
     expect(inputs).toEqual([["prompt", "system_prompt", "max_tokens"], ["prompt"]]);
+  });
+
+  it("tries chat messages last, and says clearly when a model fails every way", async () => {
+    seen.length = 0;
+    await expect(run(replicateAi("broken/model"))).rejects.toThrow(/failed on Replicate with every input format Appmaker tried \(3\).*meta\/meta-llama-3-70b-instruct.*got null/);
+    const inputs = seen.filter((r) => r.path.endsWith("/predictions")).map((r) => r.body.input as Record<string, unknown>);
+    expect(inputs.map((i) => Object.keys(i))).toEqual([["prompt", "system_prompt", "max_tokens"], ["prompt"], ["messages", "max_tokens"]]);
+    expect(inputs[2].messages).toEqual([
+      { role: "system", content: "SYS" },
+      { role: "user", content: "build it" },
+    ]);
   });
 
   it("uses the site's REPLICATE_API_TOKEN", () => {
