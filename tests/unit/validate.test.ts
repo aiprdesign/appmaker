@@ -48,6 +48,12 @@ describe("validateApp", () => {
     expect(issues.map((i) => i.message).join("\n")).toMatch(/\.\/src\/Missing/);
   });
 
+  it("explains that apps can't include image files", () => {
+    const issues = validateApp({ "App.js": "import React from 'react';\nconst gold = require('./assets/gold.png');\nexport default () => null;" });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toMatch(/asset file '\.\/assets\/gold\.png'.*emoji/);
+  });
+
   it("detects side-effect imports without skipping later imports", () => {
     const issues = validateApp({ "App.js": "import './src/nope';\nimport React from 'react';\nexport default () => null;" });
     expect(issues).toHaveLength(1);

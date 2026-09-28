@@ -35,7 +35,7 @@ interface Captured {
   body: Record<string, unknown>;
 }
 let captured: Captured[] = [];
-let mode: "ok" | "length" | "unauthorized" = "ok";
+let mode: "ok" | "length" | "unauthorized" | "rate-once" | "rate-always" = "ok";
 
 const sse = (res: http.ServerResponse, events: [string | null, unknown][]) => {
   res.writeHead(200, { "Content-Type": "text/event-stream" });
@@ -48,6 +48,11 @@ const server = http.createServer((req, res) => {
   req.on("data", (c) => (raw += c));
   req.on("end", () => {
     captured.push({ path: req.url!, headers: req.headers, body: raw ? JSON.parse(raw) : {} });
+    if (mode === "rate-always" || mode === "rate-once") {
+      if (mode === "rate-once") mode = "ok";
+      res.writeHead(429, { "Content-Type": "application/json", "retry-after-ms": "10" });
+      return res.end(JSON.stringify({ error: { message: "deepseek/deepseek-chat is temporarily rate-limited upstream", code: 429 } }));
+    }
     if (mode === "unauthorized") {
       res.writeHead(401, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }));
@@ -308,6 +313,23 @@ describe("streamGeneration", () => {
     expect(aiErrorMessage(err, "Custom")).toMatch(/private network/);
     expect(captured).toHaveLength(0);
   });
+
+  it("waits and retries when a shared provider rate limits briefly", async () => {
+    mode = "rate-once";
+    captured.length = 0;
+    const { out } = await run({ provider: "openrouter", model: "deepseek/deepseek-chat", apiKey: "k", baseURL: `${base}/v1`, usingServerKey: false });
+    expect(out).toContain("<plan>");
+    expect(captured.filter((c) => c.path.includes("/chat/completions"))).toHaveLength(2);
+  });
+
+  it("explains a lasting rate limit with the provider's own reason", async () => {
+    mode = "rate-always";
+    const err = await run({ provider: "openrouter", model: "deepseek/deepseek-chat", apiKey: "k", baseURL: `${base}/v1`, usingServerKey: false }).catch((e) => e);
+    const msg = aiErrorMessage(err, "OpenRouter");
+    expect(msg).toMatch(/OpenRouter is rate limiting requests/);
+    expect(msg).toMatch(/temporarily rate-limited upstream/);
+    mode = "ok";
+  }, 30_000);
 
   it("turns provider errors into friendly messages", async () => {
     mode = "unauthorized";

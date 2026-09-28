@@ -29,6 +29,8 @@ export interface ValidationIssue {
   message: string;
 }
 
+const ASSET_FILE = /\.(png|jpe?g|gif|webp|svg|bmp|ttf|otf|woff2?|mp3|wav|m4a|aac|mp4|mov|lottie)$/i;
+
 const IMPORT_RE = /(?:\bimport\s*(?:[\w$*{}\s,]+?\s*from\s*)?|\bimport\s*\(\s*|\brequire\s*\(\s*)["']([^"']+)["']/g;
 
 const WEB_ONLY: [RegExp, string][] = [
@@ -86,7 +88,12 @@ export function validateApp(files: FileMap): ValidationIssue[] {
     for (const m of code.matchAll(IMPORT_RE)) {
       const spec = m[1];
       if (spec.startsWith(".")) {
-        if (!resolveRelative(path, spec, files)) issues.push({ file: path, message: `imports '${spec}', which doesn't exist` });
+        if (ASSET_FILE.test(spec)) {
+          issues.push({
+            file: path,
+            message: `loads the asset file '${spec}', but apps can't include image, font or sound files — replace it with an emoji, styled Views, or <Image source={{ uri: 'https://…' }} />`,
+          });
+        } else if (!resolveRelative(path, spec, files)) issues.push({ file: path, message: `imports '${spec}', which doesn't exist` });
       } else if (!(ALLOWED_PACKAGES as readonly string[]).includes(spec)) {
         issues.push({ file: path, message: `imports '${spec}', which isn't available (allowed: ${ALLOWED_PACKAGES.join(", ")})` });
       }

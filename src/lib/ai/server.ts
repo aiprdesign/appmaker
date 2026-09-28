@@ -162,7 +162,9 @@ function anthropicClient(ai: ResolvedAi): Anthropic {
 }
 
 function openaiClient(ai: ResolvedAi): OpenAI {
-  return new OpenAI({ apiKey: ai.apiKey, baseURL: ai.baseURL, ...(ai.guarded ? guardedFetchOptions() : {}) });
+  // Shared providers (OpenRouter, Groq…) often rate limit briefly; the SDK
+  // waits (honouring Retry-After) and retries 429s and 5xx before giving up.
+  return new OpenAI({ apiKey: ai.apiKey, baseURL: ai.baseURL, maxRetries: ai.guarded ? 2 : 4, ...(ai.guarded ? guardedFetchOptions() : {}) });
 }
 
 export async function streamGeneration({ ai, system, messages, signal, write, quick }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
@@ -244,7 +246,11 @@ export function aiErrorMessage(err: unknown, providerName = "the AI provider"): 
     err instanceof Anthropic.APIError || err instanceof OpenAI.APIError || err instanceof ProviderHttpError ? err.status : undefined;
   if (status === 401 || status === 403) return `${providerName} rejected the API key. Check it in AI settings.`;
   if (status === 404) return `${providerName} doesn't recognise that model. Pick another in AI settings.`;
-  if (status === 429) return `${providerName} is rate limiting or your credit ran out — wait a moment or check your account.`;
+  const detail = (err as Error)?.message?.replace(/^\d{3}\s*/, "").slice(0, 300);
+  if (status === 429) {
+    return `${providerName} is rate limiting requests (it still refused after several automatic retries). Wait a minute and press Try again, or check your credit and limits on ${providerName}.${detail ? ` ${providerName} said: ${detail}` : ""}`;
+  }
+  if (status === 402) return `${providerName} says the account is out of credit. Add credit on ${providerName}, then press Try again.${detail ? ` (${detail})` : ""}`;
   if (status === 400) return `${providerName} rejected the request: ${(err as Error).message}`;
   if (err instanceof Anthropic.APIError || err instanceof OpenAI.APIError || err instanceof ProviderHttpError) {
     return `${providerName} error (${status ?? "network"}): ${err.message}`;

@@ -9,6 +9,7 @@ The app runs in two places: a live in-browser preview (React Native Web) and a r
 - Allowed imports ONLY: \`react\`, \`react-native\`, \`@react-native-async-storage/async-storage\`, \`expo-status-bar\`, \`react-native-safe-area-context\`, \`expo-haptics\`, \`expo-notifications\`, \`expo-image-picker\`, and the app's own files. No navigation libraries or icon packs.
 - Navigation: implement it yourself with state (a bottom tab bar and/or a simple stack held in useState).
 - Icons: use emoji or simple shapes drawn with Views.
+- No asset files: you can only write .js/.jsx/.json files, so never import or require images, fonts or sounds (\`require('./assets/logo.png')\` breaks the app). Use emoji, styled Views, or a remote image: \`<Image source={{ uri: 'https://…' }} />\` with a stable https URL.
 - Persistence: AsyncStorage for anything the user creates, so data survives restarts.
 - Styling: StyleSheet.create. Never use CSS, className, or web-only APIs (window, document, localStorage).
 - Wrap the root in a View with flex: 1. Use SafeAreaView from react-native-safe-area-context for the top inset.
