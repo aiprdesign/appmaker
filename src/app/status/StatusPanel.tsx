@@ -182,6 +182,18 @@ export function StatusPanel() {
             </Row>
           ) : (
             <>
+              {env.host && (
+                <Row tone="ok" label="Running on">
+                  {env.host.platform} service <code className="font-mono text-foreground/90">{env.host.service ?? "?"}</code>, environment{" "}
+                  <code className="font-mono text-foreground/90">{env.host.environment ?? "?"}</code>
+                  {env.host.commit ? (
+                    <>
+                      , version <code className="font-mono text-foreground/90">{env.host.commit}</code>
+                    </>
+                  ) : null}
+                  . Your variables must be on this service and environment.
+                </Row>
+              )}
               {env.set.length ? (
                 <Row tone="ok" label="Settings found">
                   <span className="font-mono text-foreground/90">{env.set.join(", ")}</span>

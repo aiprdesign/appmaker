@@ -20,6 +20,8 @@ export interface EnvReport {
   /** Variables that look like a known setting but don't match it exactly. */
   nearMisses: { found: string; expected: string }[];
   demoForced: boolean;
+  /** Where this server runs, so an owner can match it with their host's dashboard. */
+  host?: { platform: "Railway"; service?: string; environment?: string; commit?: string };
 }
 
 const squash = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -42,5 +44,14 @@ export function envReport(env: Record<string, string | undefined> = process.env)
       });
     if (match) nearMisses.push({ found: name, expected: match });
   }
-  return { set, empty, nearMisses, demoForced: env.APPMAKER_DEMO === "1" };
+  const railway = env.RAILWAY_SERVICE_NAME || env.RAILWAY_ENVIRONMENT_NAME;
+  const host = railway
+    ? {
+        platform: "Railway" as const,
+        ...(env.RAILWAY_SERVICE_NAME ? { service: env.RAILWAY_SERVICE_NAME } : {}),
+        ...(env.RAILWAY_ENVIRONMENT_NAME ? { environment: env.RAILWAY_ENVIRONMENT_NAME } : {}),
+        ...(env.RAILWAY_GIT_COMMIT_SHA ? { commit: env.RAILWAY_GIT_COMMIT_SHA.slice(0, 7) } : {}),
+      }
+    : undefined;
+  return { set, empty, nearMisses, demoForced: env.APPMAKER_DEMO === "1", ...(host ? { host } : {}) };
 }

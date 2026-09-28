@@ -28,3 +28,11 @@ describe("server settings report", () => {
     expect(envReport({ APPMAKER_DEMO: "1" }).demoForced).toBe(true);
   });
 });
+
+describe("hosting details", () => {
+  it("names the Railway service and environment serving the site", () => {
+    const r = envReport({ RAILWAY_SERVICE_NAME: "appmaker", RAILWAY_ENVIRONMENT_NAME: "production", RAILWAY_GIT_COMMIT_SHA: "808ec82abcdef" });
+    expect(r.host).toEqual({ platform: "Railway", service: "appmaker", environment: "production", commit: "808ec82" });
+    expect(envReport({}).host).toBeUndefined();
+  });
+});
