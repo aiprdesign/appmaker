@@ -439,9 +439,24 @@ describe("Replicate", () => {
         if (req.url!.startsWith("/v1/models/strict/")) {
           if (input && "system_prompt" in input) return res.writeHead(422, { "Content-Type": "application/json" }).end(JSON.stringify({ detail: "unexpected input" }));
         }
+        const schema = (props: Record<string, unknown>) => ({ components: { schemas: { Input: { properties: props } } } });
+        if (req.method === "GET" && req.url === "/v1/models/deepseek-ai/deepseek-r1") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ latest_version: { openapi_schema: schema({ prompt: { type: "string" }, max_tokens: { type: "integer", maximum: 20000 } }) } }));
+        }
+        if (req.method === "GET" && req.url === "/v1/models/acme/chat-model") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ latest_version: { openapi_schema: schema({ messages: { type: "array" }, max_new_tokens: { type: "integer", maximum: 4096 } }) } }));
+        }
         if (req.url!.endsWith("/predictions")) {
           res.writeHead(201, { "Content-Type": "application/json" });
-          return res.end(JSON.stringify({ id: "p1", urls: { stream: `${rbase}/stream/p1` } }));
+          // Like Replicate's hosted DeepSeek R1: accepts the request, then fails on inputs it can't map.
+          const fails = req.url!.includes("/fragile/") && input && "system_prompt" in input;
+          return res.end(JSON.stringify({ id: "p1", urls: { stream: `${rbase}/stream/${fails ? "fail" : "p1"}` } }));
+        }
+        if (req.url === "/stream/fail") {
+          res.writeHead(200, { "Content-Type": "text/event-stream" });
+          return res.end(`event: error\ndata: ${JSON.stringify({ detail: 'text content parts must carry a string "text" (got null)' })}\n\n`);
         }
         if (req.url === "/stream/p1") {
           res.writeHead(200, { "Content-Type": "text/event-stream" });
@@ -469,10 +484,11 @@ describe("Replicate", () => {
     const { out, outcome } = await run(replicateAi("meta/meta-llama-3-70b-instruct"));
     expect(outcome).toBe("done");
     expect(out).toBe("<plan>Hi</plan>line one\nline two");
-    expect(seen[0].path).toBe("/v1/models/meta/meta-llama-3-70b-instruct/predictions");
-    expect(seen[0].auth).toBe("Bearer r8_test");
-    expect(seen[0].body).toMatchObject({ stream: true, input: { system_prompt: "SYS", max_tokens: 16000 } });
-    expect((seen[0].body.input as { prompt: string }).prompt).toMatch(/User: build it\n\nAssistant:$/);
+    const first = seen.filter((r) => r.path.endsWith("/predictions"))[0];
+    expect(first.path).toBe("/v1/models/meta/meta-llama-3-70b-instruct/predictions");
+    expect(first.auth).toBe("Bearer r8_test");
+    expect(first.body).toMatchObject({ stream: true, input: { system_prompt: "SYS", max_tokens: 16000 } });
+    expect((first.body.input as { prompt: string }).prompt).toMatch(/User: build it\n\nAssistant:$/);
   });
 
   it("retries with a plain prompt when a model rejects extra inputs", async () => {
@@ -487,9 +503,42 @@ describe("Replicate", () => {
   it("supports pinned versions and lists language models", async () => {
     seen.length = 0;
     await run(replicateAi("acme/chat:abc123"));
-    expect(seen[0].path).toBe("/v1/predictions");
-    expect(seen[0].body).toMatchObject({ version: "abc123" });
+    const first = seen.filter((r) => r.path.endsWith("/predictions"))[0];
+    expect(first.path).toBe("/v1/predictions");
+    expect(first.body).toMatchObject({ version: "abc123" });
+    expect(seen[0].path).toBe("/v1/models/acme/chat/versions/abc123");
     expect(await listModels(replicateAi("x"))).toEqual(["acme/chat", "meta/llama"]);
+  });
+
+  it("sends only the inputs a model's schema lists", async () => {
+    seen.length = 0;
+    const { out } = await run(replicateAi("deepseek-ai/deepseek-r1"));
+    expect(out).toContain("<plan>Hi</plan>");
+    const predictions = seen.filter((r) => r.path.endsWith("/predictions"));
+    expect(predictions).toHaveLength(1);
+    const input = predictions[0].body.input as Record<string, unknown>;
+    expect(Object.keys(input).sort()).toEqual(["max_tokens", "prompt"]);
+    expect(input.prompt).toMatch(/^SYS\n\nUser: build it/);
+  });
+
+  it("sends chat messages to models that take them, within their token limit", async () => {
+    seen.length = 0;
+    await run(replicateAi("acme/chat-model"));
+    const input = seen.filter((r) => r.path.endsWith("/predictions"))[0].body.input as Record<string, unknown>;
+    expect(input.messages).toEqual([
+      { role: "system", content: "SYS" },
+      { role: "user", content: "build it" },
+    ]);
+    expect(input.max_new_tokens).toBe(4096);
+  });
+
+  it("tries a plain prompt when a model fails after accepting the request", async () => {
+    seen.length = 0;
+    const { out, outcome } = await run(replicateAi("fragile/model"));
+    expect(outcome).toBe("done");
+    expect(out).toBe("<plan>Hi</plan>line one\nline two");
+    const inputs = seen.filter((r) => r.path.endsWith("/predictions")).map((r) => Object.keys(r.body.input as object));
+    expect(inputs).toEqual([["prompt", "system_prompt", "max_tokens"], ["prompt"]]);
   });
 
   it("uses the site's REPLICATE_API_TOKEN", () => {
