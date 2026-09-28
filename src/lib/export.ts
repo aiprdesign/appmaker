@@ -13,6 +13,8 @@ const EXPO_DEPS: Record<string, string> = {
   "@react-native-async-storage/async-storage": "2.2.0",
   "react-native-safe-area-context": "~5.7.0",
   "expo-haptics": "~57.0.3",
+  "expo-notifications": "~57.0.21",
+  "expo-image-picker": "~57.0.20",
 };
 
 export function slugify(name: string): string {
@@ -63,8 +65,28 @@ export function usedDependencies(project: Project): Record<string, string> {
   return deps;
 }
 
+/** Native config some modules need; iOS rejects apps without permission texts. */
+function plugins(project: Project): unknown[] {
+  const code = Object.values(project.files).join("\n");
+  const uses = (pkg: string) => code.includes(`'${pkg}'`) || code.includes(`"${pkg}"`);
+  const name = project.listing.name || "This app";
+  const list: unknown[] = [];
+  if (uses("expo-notifications")) list.push("expo-notifications");
+  if (uses("expo-image-picker")) {
+    list.push([
+      "expo-image-picker",
+      {
+        photosPermission: `${name} uses your photo library so you can add pictures.`,
+        cameraPermission: `${name} uses the camera so you can take pictures.`,
+      },
+    ]);
+  }
+  return list;
+}
+
 export function appJson(project: Project) {
   const l = project.listing;
+  const nativePlugins = plugins(project);
   return {
     expo: {
       name: l.name,
@@ -86,6 +108,7 @@ export function appJson(project: Project) {
         adaptiveIcon: { foregroundImage: "./assets/icon.png", backgroundColor: l.primaryColor },
       },
       web: { favicon: "./assets/icon.png" },
+      ...(nativePlugins.length ? { plugins: nativePlugins } : {}),
     },
   };
 }

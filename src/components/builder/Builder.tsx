@@ -426,6 +426,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             onOpenFile={openFile}
             onRestore={restore}
             latestVersionId={project.versions?.at(-1)?.id}
+            demoMode={demoMode}
           />
         </aside>
 

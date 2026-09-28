@@ -73,3 +73,24 @@ describe("validateApp", () => {
     expect(validateApp(readDir(path.join(process.cwd(), "demo-apps", demo)))).toEqual([]);
   });
 });
+
+describe("device features", () => {
+  it("allows notifications and the image picker", () => {
+    const app = `import * as Notifications from 'expo-notifications';\nimport * as ImagePicker from 'expo-image-picker';\nexport default function App() { return null; }`;
+    expect(validateApp({ "App.js": app })).toEqual([]);
+  });
+
+  it("flags insecure http requests and embedded secret keys", () => {
+    const messages = validateApp({
+      "App.js": `const API_KEY = "sk_live_abcdefghijklmnop1234";\nexport default function App() { fetch('http://api.example.com/data'); return null; }`,
+    }).map((i) => i.message);
+    expect(messages.join("\n")).toMatch(/insecure http/);
+    expect(messages.join("\n")).toMatch(/secret API key/);
+  });
+
+  it("allows https requests to public APIs", () => {
+    expect(
+      validateApp({ "App.js": "export default function App() { fetch('https://api.open-meteo.com/v1/forecast?latitude=1&longitude=2'); return null; }" }),
+    ).toEqual([]);
+  });
+});

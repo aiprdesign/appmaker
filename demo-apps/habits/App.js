@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import HabitRow from './src/components/HabitRow';
+import ReminderCard from './src/components/ReminderCard';
 import { loadHabits, saveHabits, todayKey, streakFor } from './src/storage';
 
 const ACCENT = '#6440F0';
@@ -120,6 +121,7 @@ export default function App() {
           {tab === 'stats' && (
             <>
               <Text style={styles.title}>Stats</Text>
+              <ReminderCard accent={ACCENT} />
               <View style={styles.statRow}>
                 <View style={styles.stat}>
                   <Text style={styles.statValue}>{best}🔥</Text>

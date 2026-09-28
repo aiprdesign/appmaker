@@ -13,6 +13,8 @@ export const ALLOWED_PACKAGES = [
   "expo-status-bar",
   "react-native-safe-area-context",
   "expo-haptics",
+  "expo-notifications",
+  "expo-image-picker",
 ] as const;
 
 const SOURCE_FILE = /^(App\.jsx?|src\/[A-Za-z0-9_\-/]+\.(jsx?|json))$/;
@@ -35,6 +37,11 @@ const WEB_ONLY: [RegExp, string][] = [
   [/\blocalStorage\./, "uses `localStorage`; use AsyncStorage instead"],
   [/\bclassName=/, "uses `className`; React Native uses the `style` prop"],
   [/<(div|span|p|button|img|input|h[1-6]|ul|li|a)[\s>]/, "renders HTML elements; use React Native components"],
+  [/fetch\(\s*[`'"]http:\/\//, "fetches over insecure http://; use https:// (iOS blocks plain http)"],
+  [
+    /\b(api[_-]?key|apikey|secret|access[_-]?token|client[_-]?secret)\b\s*[:=]\s*[`'"][A-Za-z0-9_\-.]{16,}[`'"]/i,
+    "contains what looks like a secret API key; apps are public, so use a keyless API instead",
+  ],
 ];
 
 function resolveRelative(from: string, spec: string, files: FileMap): boolean {

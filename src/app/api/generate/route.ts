@@ -123,9 +123,11 @@ export async function POST(req: Request) {
   if (!ai) {
     const text = demoResponse(prompt, isEdit, body.site);
     return textStream(null, async (write) => {
-      // Stream in chunks so the demo feels like live generation.
-      for (let i = 0; i < text.length; i += 400) {
-        write(text.slice(i, i + 400));
+      // Stream in chunks so the demo feels like live generation. Chunk by
+      // code point so emoji (surrogate pairs) are never split in half.
+      const chars = Array.from(text);
+      for (let i = 0; i < chars.length; i += 400) {
+        write(chars.slice(i, i + 400).join(""));
         await new Promise((r) => setTimeout(r, 25));
       }
     });

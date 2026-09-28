@@ -65,3 +65,23 @@ describe("export helpers", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("native features in the exported project", () => {
+  it("adds notifications and image picker with iOS permission texts", () => {
+    const p = project({
+      "App.js": "import * as Notifications from 'expo-notifications';\nimport * as ImagePicker from 'expo-image-picker';",
+    });
+    const deps = usedDependencies(p);
+    expect(deps["expo-notifications"]).toBe("~57.0.21");
+    expect(deps["expo-image-picker"]).toBe("~57.0.20");
+    const plugins = appJson(p).expo.plugins as unknown[];
+    expect(plugins).toContain("expo-notifications");
+    const picker = plugins.find((x) => Array.isArray(x) && x[0] === "expo-image-picker") as [string, Record<string, string>];
+    expect(picker[1].cameraPermission).toMatch(/camera/);
+    expect(picker[1].photosPermission).toMatch(/photo/);
+  });
+
+  it("adds no plugins for apps that don't use native features", () => {
+    expect(appJson(project({ "App.js": "export default () => null;" })).expo).not.toHaveProperty("plugins");
+  });
+});

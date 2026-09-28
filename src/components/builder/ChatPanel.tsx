@@ -29,6 +29,8 @@ interface Props {
   onOpenFile: (path: string) => void;
   onRestore: (versionId: string) => void;
   latestVersionId?: string;
+  /** Demo mode can't apply edits, so change suggestions are hidden. */
+  demoMode?: boolean;
 }
 
 /** Suggestions the AI listed at the end of its last reply ("- Add …"). */
@@ -104,7 +106,7 @@ function Progress({ live, startedAt }: { live: ParsedGeneration | null; startedA
 }
 
 export function ChatPanel(props: Props) {
-  const { source, messages, generating, live, onSend, onStop, hasApp, startedAt, interrupted, onRetry, onDismissInterrupted, onOpenFile, onRestore, latestVersionId } = props;
+  const { source, messages, generating, live, onSend, onStop, hasApp, startedAt, interrupted, onRetry, onDismissInterrupted, onOpenFile, onRestore, latestVersionId, demoMode } = props;
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -208,7 +210,7 @@ export function ChatPanel(props: Props) {
       </div>
 
       <div className="border-t border-line p-3">
-        {hasApp && !generating && (
+        {hasApp && !generating && !demoMode && (
           <div className="scrollbar-thin mb-2 flex gap-1.5 overflow-x-auto pb-1">
             {chips.map((s) => (
               <button

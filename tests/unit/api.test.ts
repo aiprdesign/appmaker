@@ -26,12 +26,23 @@ describe("POST /api/generate", () => {
     expect(text).toContain('<file path="App.js">');
     expect(text).toContain("</listing>");
     expect(text).toContain("Pocketwise");
+    // Emoji must survive chunked streaming intact.
+    expect(text).not.toContain("\uFFFD");
   });
 
   it("explains that demo mode cannot edit", async () => {
     const res = await call({ prompt: "add dark mode", files: { "App.js": "export default () => null;" } });
     expect(await res.text()).toMatch(/Demo mode/);
   });
+});
+
+it("never splits emoji across stream chunks", async () => {
+  for (const prompt of ["a habit tracker", "a workout app", "track my expenses", "a journal"]) {
+    const res = await call({ prompt });
+    const text = await res.text();
+    expect(text).not.toContain("\uFFFD");
+    expect(text).toMatch(/\p{Extended_Pictographic}/u);
+  }
 });
 
 describe("rateLimit", () => {

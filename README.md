@@ -19,6 +19,16 @@ The AI uses these to build an app that feels like the business's official app, w
 
 Limitations: the importer reads the HTML the server sends. Sites that load all their content with JavaScript, or that block bots, show a friendly error instead.
 
+## What generated apps can do
+
+Apps are self-contained Expo apps that save their data on the device. On top of screens, forms, lists, search, charts, animations and haptics, they can use:
+
+- **Reminders and notifications** (`expo-notifications`): daily, weekly, dated or interval reminders. In the preview, scheduling shows a confirmation banner, and reminders due during the session pop up on the phone screen.
+- **Photos and camera** (`expo-image-picker`): pick from the library or take a photo. In the preview this opens your computer's file picker, and large images are downscaled. The export adds the iOS permission texts Apple requires.
+- **Live internet data**: `fetch` from free, keyless public APIs such as Open-Meteo (weather), Frankfurter (currency), Wikipedia and Open Library. The quality checks reject `http://` requests and secret keys embedded in app code.
+
+Not yet supported: accounts and cloud sync, maps and GPS, payments, and audio and video.
+
 ## Quick start
 
 ```bash

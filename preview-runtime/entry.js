@@ -48,6 +48,194 @@ const Haptics = {
   NotificationFeedbackType: { Success: "success", Warning: "warning", Error: "error" },
 };
 
+// ---------------------------------------------------------------------------
+// expo-notifications (preview): scheduling is simulated. Reminders due within
+// the preview session appear as banners on the phone screen; longer schedules
+// (daily, weekly…) show a confirmation so the user can see they were set.
+// ---------------------------------------------------------------------------
+const TRIGGER = { CALENDAR: "calendar", DAILY: "daily", WEEKLY: "weekly", MONTHLY: "monthly", YEARLY: "yearly", DATE: "date", TIME_INTERVAL: "timeInterval" };
+const scheduled = new Map();
+const timers = new Map();
+const receivedListeners = new Set();
+let nextId = 1;
+
+function banner(title, body, kind) {
+  const el = document.createElement("div");
+  el.setAttribute("role", "status");
+  el.style.cssText =
+    "position:fixed;left:10px;right:10px;top:52px;z-index:99999;border-radius:18px;padding:10px 14px;" +
+    "font:13px -apple-system,BlinkMacSystemFont,Roboto,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.25);" +
+    "backdrop-filter:blur(12px);transition:opacity .3s,transform .3s;cursor:pointer;" +
+    (kind === "scheduled" ? "background:rgba(30,30,40,.92);color:#fff;" : "background:rgba(250,250,252,.96);color:#111;");
+  const t = document.createElement("div");
+  t.style.cssText = "font-weight:700;margin-bottom:2px";
+  t.textContent = title;
+  const b = document.createElement("div");
+  b.style.cssText = "opacity:.85";
+  b.textContent = body;
+  el.append(t, b);
+  el.onclick = () => el.remove();
+  document.body.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = "0";
+    el.style.transform = "translateY(-10px)";
+    setTimeout(() => el.remove(), 300);
+  }, 4500);
+}
+
+const pad = (n) => String(n).padStart(2, "0");
+const clock = (h, m) => `${((h + 11) % 12) + 1}:${pad(m || 0)} ${h < 12 ? "AM" : "PM"}`;
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function describeTrigger(trigger) {
+  if (!trigger) return "now";
+  switch (trigger.type) {
+    case TRIGGER.DAILY: return `Every day at ${clock(trigger.hour, trigger.minute)}`;
+    case TRIGGER.WEEKLY: return `Every ${DAYS[(trigger.weekday || 1) - 1]} at ${clock(trigger.hour, trigger.minute)}`;
+    case TRIGGER.MONTHLY: return `Monthly on day ${trigger.day} at ${clock(trigger.hour, trigger.minute)}`;
+    case TRIGGER.YEARLY: return `Yearly on ${trigger.month + 1}/${trigger.day} at ${clock(trigger.hour, trigger.minute)}`;
+    case TRIGGER.DATE: return `On ${new Date(trigger.date).toLocaleString()}`;
+    case TRIGGER.TIME_INTERVAL: return `${trigger.repeats ? "Every" : "In"} ${trigger.seconds} seconds`;
+    default: return "Scheduled";
+  }
+}
+
+function deliver(id) {
+  const n = scheduled.get(id);
+  if (!n) return;
+  banner(n.content.title || "Reminder", n.content.body || "", "notification");
+  receivedListeners.forEach((l) => {
+    try { l({ date: Date.now(), request: { identifier: id, content: n.content, trigger: n.trigger } }); } catch {
+      // A listener error must not break delivery to the others.
+    }
+  });
+}
+
+const PREVIEW_WINDOW_MS = 60 * 60 * 1000;
+const granted = { status: "granted", granted: true, canAskAgain: true, expires: "never", ios: { status: 2 } };
+
+const Notifications = {
+  SchedulableTriggerInputTypes: TRIGGER,
+  AndroidImportance: { MIN: 1, LOW: 2, DEFAULT: 3, HIGH: 4, MAX: 5 },
+  IosAuthorizationStatus: { NOT_DETERMINED: 0, DENIED: 1, AUTHORIZED: 2, PROVISIONAL: 3, EPHEMERAL: 4 },
+  requestPermissionsAsync: async () => granted,
+  getPermissionsAsync: async () => granted,
+  setNotificationHandler: () => {},
+  setNotificationChannelAsync: async () => null,
+  setBadgeCountAsync: async () => true,
+  getBadgeCountAsync: async () => 0,
+  dismissAllNotificationsAsync: async () => {},
+  addNotificationReceivedListener: (fn) => { receivedListeners.add(fn); return { remove: () => receivedListeners.delete(fn) }; },
+  addNotificationResponseReceivedListener: () => ({ remove: () => {} }),
+  useLastNotificationResponse: () => null,
+  getNextTriggerDateAsync: async () => null,
+  scheduleNotificationAsync: async ({ content = {}, trigger = null } = {}) => {
+    const id = `preview-${nextId++}`;
+    scheduled.set(id, { content, trigger });
+    if (!trigger) {
+      deliver(id);
+      return id;
+    }
+    let delay = null;
+    if (trigger.type === TRIGGER.TIME_INTERVAL) delay = (trigger.seconds || 0) * 1000;
+    if (trigger.type === TRIGGER.DATE) delay = new Date(trigger.date).getTime() - Date.now();
+    if (delay != null && delay >= 0 && delay <= PREVIEW_WINDOW_MS) {
+      const timer = trigger.repeats ? setInterval(() => deliver(id), Math.max(delay, 1000)) : setTimeout(() => deliver(id), delay);
+      timers.set(id, timer);
+      if (delay > 3000) banner("🔔 Reminder scheduled", `${describeTrigger(trigger)} — “${content.title || "Reminder"}”`, "scheduled");
+    } else {
+      banner("🔔 Reminder scheduled", `${describeTrigger(trigger)} — “${content.title || "Reminder"}”`, "scheduled");
+    }
+    return id;
+  },
+  cancelScheduledNotificationAsync: async (id) => {
+    clearTimeout(timers.get(id));
+    clearInterval(timers.get(id));
+    timers.delete(id);
+    scheduled.delete(id);
+  },
+  cancelAllScheduledNotificationsAsync: async () => {
+    timers.forEach((t) => { clearTimeout(t); clearInterval(t); });
+    timers.clear();
+    scheduled.clear();
+  },
+  getAllScheduledNotificationsAsync: async () =>
+    Array.from(scheduled, ([identifier, n]) => ({ identifier, content: n.content, trigger: n.trigger })),
+};
+
+// ---------------------------------------------------------------------------
+// expo-image-picker (preview): opens the computer's file picker. Photos are
+// downscaled so they don't fill up storage when the app saves them.
+// ---------------------------------------------------------------------------
+const MAX_SIDE = 1280;
+
+function readImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Couldn't read that image."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("That file isn't an image."));
+      img.onload = () => {
+        const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        let uri = reader.result;
+        if (scale < 1 || file.size > 600000) {
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          uri = canvas.toDataURL("image/jpeg", 0.8);
+        }
+        resolve({ uri, width: w, height: h, type: "image", mimeType: "image/jpeg", fileName: file.name, fileSize: file.size, assetId: null, base64: null, exif: null });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function pickImages(options, capture) {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    if (capture) input.setAttribute("capture", "environment");
+    if (options && options.allowsMultipleSelection) input.multiple = true;
+    input.style.display = "none";
+    let done = false;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      input.remove();
+      resolve(value);
+    };
+    input.addEventListener("change", () => {
+      const files = Array.from(input.files || []).slice(0, (options && options.selectionLimit) || 10);
+      if (!files.length) return finish({ canceled: true, assets: null });
+      Promise.all(files.map(readImage)).then((assets) => finish({ canceled: false, assets }), (e) => { done = true; input.remove(); reject(e); });
+    });
+    input.addEventListener("cancel", () => finish({ canceled: true, assets: null }));
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+const permissionHook = () => [granted, async () => granted, async () => granted];
+const ImagePicker = {
+  MediaTypeOptions: { All: "All", Images: "Images", Videos: "Videos" },
+  launchImageLibraryAsync: (options) => pickImages(options, false),
+  launchCameraAsync: (options) => pickImages(options, true),
+  requestMediaLibraryPermissionsAsync: async () => granted,
+  getMediaLibraryPermissionsAsync: async () => granted,
+  requestCameraPermissionsAsync: async () => granted,
+  getCameraPermissionsAsync: async () => granted,
+  useMediaLibraryPermissions: permissionHook,
+  useCameraPermissions: permissionHook,
+  getPendingResultAsync: async () => null,
+};
+
 function withDefault(mod, def) {
   return { __esModule: true, default: def, ...mod };
 }
@@ -65,5 +253,7 @@ window.__APPMAKER_RUNTIME__ = {
     "expo-status-bar": { __esModule: true, StatusBar },
     "react-native-safe-area-context": { __esModule: true, ...safeArea },
     "expo-haptics": withDefault(Haptics, Haptics),
+    "expo-notifications": withDefault(Notifications, Notifications),
+    "expo-image-picker": withDefault(ImagePicker, ImagePicker),
   },
 };
