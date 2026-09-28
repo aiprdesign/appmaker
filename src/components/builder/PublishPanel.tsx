@@ -6,6 +6,7 @@ import type { ExpoState, Project, StoreListing } from "@/lib/types";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
 import { checkClaims, DEFAULT_WORDING } from "@/lib/claims";
+import { checkRegulatedClaims } from "@/lib/regulated";
 
 const CATEGORIES = [
   "Books", "Business", "Education", "Entertainment", "Finance", "Food & Drink", "Games", "Graphics & Design",
@@ -102,6 +103,7 @@ export function PublishPanel({ project, onChange, onExpoChange, hasPreviewError 
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
 
   const claims = useMemo(() => checkClaims(project.files, l), [project.files, l]);
+  const regulated = useMemo(() => checkRegulatedClaims(project.files, l), [project.files, l]);
   const checks = [
     { ok: Object.keys(project.files).length > 0, label: "App code generated" },
     { ok: !hasPreviewError, label: "Preview runs without errors" },
@@ -118,6 +120,16 @@ export function PublishPanel({ project, onChange, onExpoChange, hasPreviewError 
     { ok: l.privacyNotes.trim().length > 0, label: "Privacy details provided" },
     { ok: isUrl(l.supportUrl), label: "Support page link", hint: "Apple requires a page where users can get help" },
     { ok: isUrl(l.privacyPolicyUrl), label: "Privacy policy link", hint: "Both stores require a hosted privacy policy" },
+    {
+      ok: regulated.length === 0,
+      label: "No health, medical or financial claims",
+      hint: regulated.length
+        ? `Found: ${regulated
+            .slice(0, 3)
+            .map((c) => (c.kind === "health disclaimer" ? `missing "not medical advice" line (${c.where.replace("Store listing: ", "listing ")})` : `“${c.phrase}”`))
+            .join(", ")}${regulated.length > 3 ? ` and ${regulated.length - 3} more` : ""}. Apple rejects apps that make medical claims.`
+        : undefined,
+    },
     ...((project.wording ?? DEFAULT_WORDING) === "claim-safe"
       ? [
           {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Code2, Download, Loader2, MessageSquare, RotateCw, Rocket, Smartphone, Wand2 } from "lucide-react";
+import { AlertTriangle, Code2, Download, Loader2, MessageSquare, RotateCw, Rocket, ShieldCheck, Smartphone, Wand2 } from "lucide-react";
 import { HistoryMenu } from "./HistoryMenu";
 import { SyncBadge } from "@/components/AccountButton";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
@@ -15,6 +15,7 @@ import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
 import { getProject, saveProject, uid, withVersion } from "@/lib/storage";
 import { describeIssues, isAllowedPath, validateApp, type ValidationIssue } from "@/lib/validate";
 import { checkClaims, DEFAULT_WORDING, describeClaims } from "@/lib/claims";
+import { checkRegulatedClaims, describeRegulated } from "@/lib/regulated";
 import type { ChatMessage, FileMap, Project } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
 import { CodePanel } from "./CodePanel";
@@ -38,6 +39,27 @@ export function friendlyError(message: string): string {
   return message;
 }
 
+/** Covers the phone while a new version is checked and fixed, so only a checked app is shown. */
+function ChecksOverlay({ generating }: { generating: boolean }) {
+  const checks = ["Quality: code that runs on iPhone and Android", "Claim-safe wording", "Health, medical & financial claims"];
+  return (
+    <div role="status" aria-live="polite" className="absolute inset-0 z-10 grid place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-8 text-neutral-700">
+      <div className="w-full max-w-[260px]">
+        <ShieldCheck className="mx-auto h-9 w-9 text-violet-500" />
+        <p className="mt-3 text-center text-sm font-semibold">{generating ? "Fixing what the checks found…" : "Running checks…"}</p>
+        <p className="mt-1 text-center text-xs text-neutral-500">Your app appears once it passes all three.</p>
+        <ul className="mt-4 space-y-2 text-xs">
+          {checks.map((c) => (
+            <li key={c} className="flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-violet-500" /> {c}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
   const cloud = useCloud();
@@ -47,6 +69,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [generating, setGenerating] = useState(false);
   const [live, setLive] = useState<ParsedGeneration | null>(null);
   const [previewFiles, setPreviewFiles] = useState<FileMap>({});
+  /** A new version is being checked (and fixed) before it's shown. */
+  const [checking, setChecking] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [previewError, setPreviewError] = useState<PreviewError | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -222,32 +246,43 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         ...(error && !wrote ? { error: true } : {}),
       };
       commit({ ...next, messages: [...base.messages, assistantMsg] });
-      setPreviewFiles(files);
-      setReloadKey((k) => k + 1);
       setLive(null);
       setGenerating(false);
       setStartedAt(null);
       setSelectedFile(files["App.js"] != null ? "App.js" : null);
       abortRef.current = null;
-      if (Object.keys(complete).length) setMobileView("app");
 
-      // Quality gate: statically check the app and let the AI repair it.
+      const reveal = () => {
+        setChecking(false);
+        setPreviewFiles(files);
+        setReloadKey((k) => k + 1);
+        if (Object.keys(files).length) setMobileView("app");
+      };
+
+      // The three checks run on every new version before it's shown:
+      // 1. quality (code that works in the preview and a real build),
+      // 2. claim-safe wording (unless the user chose standard wording),
+      // 3. health, medical and financial claims (always).
+      // Problems go back to the AI; the app appears once it's clean.
       const wroteFiles = Object.keys(complete).length > 0;
-      if (!wroteFiles || error || demoRef.current) return;
+      if (!wroteFiles || error || demoRef.current) return reveal();
       const issues = [...rejected, ...validateApp(files)];
-      // Claim-safe wording (on by default): marketing claims in the app's
-      // text or store listing are rewritten in the same repair pass.
       const claims = (next.wording ?? DEFAULT_WORDING) === "claim-safe" ? checkClaims(files, next.listing) : [];
-      if ((issues.length || claims.length) && fixBudget.current > 0) {
+      const regulated = checkRegulatedClaims(files, next.listing);
+      if ((issues.length || claims.length || regulated.length) && fixBudget.current > 0) {
         fixBudget.current -= 1;
+        setChecking(true);
         const parts = [
           issues.length && `Automatic quality check found ${issues.length} problem${issues.length === 1 ? "" : "s"}:\n${describeIssues(issues)}`,
           claims.length &&
             `Claim-safe wording is on. Rewrite these phrases as neutral, descriptive text (no superlatives, absolutes, speed promises or unsupported comparisons), in the app and in the listing:\n${describeClaims(claims)}`,
+          regulated.length &&
+            `Health, medical and financial claims check (always on). Remove or rewrite these so the app only describes tracking and information, and add the disclaimer where asked:\n${describeRegulated(regulated)}`,
         ].filter(Boolean);
         sendRef.current?.(`${parts.join("\n\n")}\n\nFix all of them.`, { autoFix: true });
         return;
       }
+      reveal();
       runtimeWatchUntil.current = Date.now() + RUNTIME_WATCH_MS;
     },
     [commit],
@@ -521,6 +556,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               )}
               <div className="relative min-h-0 flex-1 px-4 pb-4">
                 <PhoneFrame platform={platform}>
+                  {checking && <ChecksOverlay generating={generating} />}
                   {hasApp || Object.keys(previewFiles).length ? (
                     <Preview files={previewFiles} platform={platform} reloadKey={reloadKey} onError={onPreviewError} />
                   ) : (
@@ -531,7 +567,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                         ) : (
                           <Wand2 className="mx-auto h-8 w-8 text-violet-500" />
                         )}
-                        <p className="mt-4 text-sm">{generating ? "Designing your app…" : "Your app will appear here"}</p>
+                        <p className="mt-4 text-sm">{checking ? "Running checks…" : generating ? "Designing your app…" : "Your app will appear here"}</p>
                       </div>
                     </div>
                   )}

@@ -54,12 +54,12 @@ test("habit tracker: data persists and store listing is complete", async ({ page
 
   await page.getByRole("button", { name: "Publish" }).first().click();
   // Honest checklist: the default com.appmaker ID and missing store links aren't "ready".
-  await expect(page.getByText("9/12")).toBeVisible();
+  await expect(page.getByText("10/13")).toBeVisible();
   await expect(page.getByText("Also needed in the stores")).toBeVisible();
   await page.getByLabel("Bundle ID / package name").fill("com.janedoe.streakly");
   await page.getByLabel("Support page URL").fill("https://janedoe.com/support");
   await page.getByLabel("Privacy policy URL").fill("https://janedoe.com/privacy");
-  await expect(page.getByText("12/12")).toBeVisible();
+  await expect(page.getByText("13/13")).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download Expo project" }).click()]);
   expect(download.suggestedFilename()).toBe("streakly-expo.zip");
 });

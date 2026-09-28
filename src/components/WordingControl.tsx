@@ -86,6 +86,9 @@ export function WordingControl({ value, onChange }: { value: Wording; onChange: 
               </span>
             </button>
           ))}
+          <p className="mt-1 border-t border-line px-2 pb-1 pt-2 text-[11px] leading-snug text-muted">
+            Health, medical and financial claims are always checked, and health apps get a &quot;not medical advice&quot; line.
+          </p>
         </div>
       )}
     </div>

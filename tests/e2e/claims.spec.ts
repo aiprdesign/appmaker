@@ -74,3 +74,40 @@ test("standard wording skips the claim check, and the choice is remembered", asy
   await page.getByRole("button", { name: "Publish" }).first().click();
   await expect(page.getByText(/Found: “best” \(App\.js\), “#1” \(listing subtitle\)/)).toBeVisible();
 });
+
+test("a new version is shown only after all three checks pass", async ({ page }) => {
+  const bodies: Record<string, unknown>[] = [];
+  let releaseFix: () => void = () => {};
+  const fixCanFinish = new Promise<void>((r) => (releaseFix = r));
+  await page.route("**/api/generate", async (route: Route) => {
+    bodies.push(JSON.parse(route.request().postData() || "{}"));
+    if (bodies.length === 1) {
+      return route.fulfill({ status: 200, contentType: "text/plain", headers: { "X-Appmaker-Mode": "ai" }, body: reply("Cures insomnia. Clinically proven.", "Sleep tracker") });
+    }
+    await fixCanFinish;
+    await route.fulfill({
+      status: 200,
+      contentType: "text/plain",
+      headers: { "X-Appmaker-Mode": "ai" },
+      body: reply("Track how you slept. This app is not a medical device and does not provide medical advice.", "Sleep log"),
+    });
+  });
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("a sleep app");
+  await page.keyboard.press("Enter");
+
+  // While the fix runs, the phone shows the checks, never the unchecked app.
+  const overlay = page.getByRole("status").filter({ hasText: "Your app appears once it passes all three." });
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText("Health, medical & financial claims");
+  const preview = page.frameLocator('iframe[title="App preview"]');
+  await expect(preview.getByText(/Cures insomnia/)).toHaveCount(0);
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(String(bodies[1].prompt)).toMatch(/Health, medical and financial claims check \(always on\)/);
+  expect(String(bodies[1].prompt)).toMatch(/"Cures insomnia" \(disease claim\)/);
+  expect(String(bodies[1].prompt)).toMatch(/"Clinically proven" \(medical endorsement\)/);
+
+  releaseFix();
+  await expect(preview.getByText(/Track how you slept/)).toBeVisible({ timeout: 20_000 });
+  await expect(overlay).toHaveCount(0);
+});

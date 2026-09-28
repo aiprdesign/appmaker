@@ -93,6 +93,16 @@ demo-apps/                   Starter apps used in demo mode
 - **Preview sandbox.** `npm run dev` and `npm run build` first run `scripts/build-preview-runtime.mjs`. It bundles React, React Native Web and shims for `@react-native-async-storage/async-storage`, `expo-status-bar`, `react-native-safe-area-context` and `expo-haptics` into `public/preview/runtime.js`, and copies Babel standalone next to it. Because of this, previews don't depend on any third-party CDN. The iframe runs with `sandbox="allow-scripts"` and no same-origin access.
 - **Allowed imports.** Generated apps may import only those modules plus `react` and `react-native`, which keeps every app previewable and buildable with Expo.
 
+## Three checks before an app is shown
+
+Every new version of an app, whether a first build or a change, runs three automatic checks before it appears in the phone preview. Until then the phone shows "Running checks…".
+
+1. **Quality.** The code must run on iPhone and Android: allowed imports only, no web-only code, no asset files, and a valid entry point.
+2. **Claim-safe wording.** No marketing claims (see below). This is skipped if the app uses Standard wording.
+3. **Health, medical and financial claims.** Always on (`src/lib/regulated.ts`). The app can't say it diagnoses, treats, cures or prevents a disease, or use "clinically proven", "FDA approved", "doctor recommended", "burn fat", "detox", "boosts immunity" or "replaces your medication". Apps about symptoms, medication or vital signs must include a "not medical advice" line in the app and the store listing. No financial promises such as "guaranteed returns" or "risk-free".
+
+The AI is told these rules up front. Problems found afterwards go back to the AI in one repair pass. The app appears once all checks pass, or after two repair attempts, in which case anything left is listed in the Publish checklist.
+
 ## Claim-safe wording (on by default)
 
 The **Wording** control, next to the AI model button on the home page and in the chat, has two options:
