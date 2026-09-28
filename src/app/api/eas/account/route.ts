@@ -5,13 +5,27 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
-/** Whether this server can run cloud builds, and whether it runs them on its own Expo account. */
-export async function GET() {
+/**
+ * Whether this server can run cloud builds, and whether it runs them on its
+ * own Expo account. With ?check=1 (the status page), also confirms with Expo
+ * that the site's token works.
+ */
+export async function GET(req: Request) {
   const available = easAvailable();
-  const hosted = available && !!hostedToken();
+  const token = hostedToken();
+  const hosted = available && !!token;
   // Warm up the Expo packages builds need, so the first build starts sooner.
   if (hosted) ensureExpoDeps().catch(() => {});
-  return Response.json({ available, hosted });
+  if (!token || new URL(req.url).searchParams.get("check") !== "1") return Response.json({ available, hosted });
+  if (!rateLimit(`eas-check:${clientIp(req)}`, 20, 60 * 60 * 1000).ok) {
+    return Response.json({ available, hosted, error: "Too many checks. Try again later." });
+  }
+  try {
+    const who = await whoami(token);
+    return Response.json({ available, hosted, account: process.env.APPMAKER_EXPO_ACCOUNT?.trim() || who.account });
+  } catch (e) {
+    return Response.json({ available, hosted, error: e instanceof Error ? e.message : "Expo didn't accept the site's token." });
+  }
 }
 
 /** Checks an Expo access token and returns who it belongs to. */

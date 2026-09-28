@@ -49,6 +49,24 @@ export function useAiReady(): boolean | null {
   return userKey || config.serverKeys.length > 0;
 }
 
+export interface AiStatus {
+  provider: ProviderId;
+  model: string;
+  /** "site": the owner's key from the server; "yours": a key saved in this browser; "demo": none. */
+  source: "site" | "yours" | "demo";
+}
+
+/** Which AI new requests will use, and whose key pays for it. */
+export function useAiStatus(): AiStatus | null {
+  const settings = useAiSettings();
+  const config = useServerConfig();
+  const effective = useEffectiveModel();
+  if (!config || !effective) return null;
+  const own = !!settings.keys[effective.provider] || (effective.provider === "custom" && !!settings.baseURL);
+  const source = own ? "yours" : config.serverKeys.includes(effective.provider) ? "site" : "demo";
+  return { ...effective, source };
+}
+
 /** The provider and model that will actually be used. */
 export function useEffectiveModel(): { provider: ProviderId; model: string } | null {
   const settings = useAiSettings();

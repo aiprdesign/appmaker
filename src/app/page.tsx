@@ -276,7 +276,10 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-line py-8 text-center text-xs text-muted">
-        © {new Date().getFullYear()} Appmaker. Apple and App Store are trademarks of Apple Inc. Google Play is a trademark of Google LLC.
+        © {new Date().getFullYear()} Appmaker. Apple and App Store are trademarks of Apple Inc. Google Play is a trademark of Google LLC.{" "}
+        <Link href="/status" className="inline-block py-1 underline underline-offset-2 hover:text-foreground">
+          Status
+        </Link>
       </footer>
     </div>
   );

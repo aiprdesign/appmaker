@@ -358,7 +358,7 @@ describe("cloud build routes", () => {
   });
 
   it("needs a user token unless the site runs hosted builds", async () => {
-    expect(await (await accountGet()).json()).toEqual({ available: true, hosted: false });
+    expect(await (await accountGet(new Request("http://localhost/api/eas/account"))).json()).toEqual({ available: true, hosted: false });
     const res = await post(linkRoute, { project: { files: { "App.js": "x" }, listing: project().listing }, icon: PNG.toString("base64") });
     expect((await res.json()).error).toMatch(/Connect your Expo account/);
   });
@@ -380,7 +380,7 @@ describe("hosted builds (site's Expo account)", () => {
   });
 
   it("builds on the site's account without the user having one", async () => {
-    expect(await (await accountGet()).json()).toEqual({ available: true, hosted: true });
+    expect(await (await accountGet(new Request("http://localhost/api/eas/account"))).json()).toEqual({ available: true, hosted: true });
     const linked = await post(linkRoute, { project: app, icon: PNG.toString("base64") }, "10.1.1.1");
     expect(linked.status).toBe(200);
     const [init] = records();

@@ -6,7 +6,9 @@ import { ArrowUp, Globe, Loader2, Sparkles } from "lucide-react";
 import { createProject } from "@/lib/storage";
 import { TEMPLATES } from "@/lib/templates";
 import type { SiteSummary } from "@/lib/types";
-import { AiSettingsDialog, ModelButton, useAiReady } from "./AiSettings";
+import Link from "next/link";
+import { getProvider, modelLabel } from "@/lib/ai/providers";
+import { AiSettingsDialog, ModelButton, useAiReady, useAiStatus } from "./AiSettings";
 import { SiteCard } from "./SiteCard";
 
 /** A link typed into the prompt: an explicit URL, a www. host, or a common TLD (not "Node.js"). */
@@ -26,6 +28,7 @@ export function PromptBox() {
   const [importError, setImportError] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const aiReady = useAiReady();
+  const aiStatus = useAiStatus();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Template cards elsewhere on the page fill in the prompt for review
@@ -193,6 +196,19 @@ export function PromptBox() {
             Add an API key
           </button>{" "}
           to build anything you describe.
+        </p>
+      )}
+      {aiStatus && aiStatus.source !== "demo" && (
+        <p className="mt-3 flex flex-wrap items-center justify-center gap-x-1.5 text-xs text-muted" data-testid="ai-status">
+          <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden="true" />
+          <span className="text-emerald-300">{aiStatus.source === "site" ? "Native AI connected" : "Your AI key connected"}</span>
+          <span aria-hidden="true">·</span>
+          <span className="text-foreground/80">
+            {getProvider(aiStatus.provider)?.name ?? aiStatus.provider} · {modelLabel(aiStatus.provider, aiStatus.model)}
+          </span>
+          <Link href="/status" className="inline-block py-1 underline underline-offset-2 hover:text-foreground">
+            Status
+          </Link>
         </p>
       )}
       {settingsOpen && <AiSettingsDialog onClose={() => setSettingsOpen(false)} />}
