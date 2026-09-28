@@ -34,9 +34,9 @@ describe.skipIf(!DB)("accounts and cloud projects (PostgreSQL)", () => {
     delete process.env.DATABASE_URL;
   });
   beforeEach(async () => {
-    await query("delete from app_projects");
-    await query("delete from app_sessions");
-    await query("delete from app_users");
+    // Only this file's accounts (sessions and projects go with them): other
+    // test files use the same database at the same time.
+    await query("delete from app_users where email like '%@example.com'");
   });
 
   let n = 0;
@@ -55,14 +55,14 @@ describe.skipIf(!DB)("accounts and cloud projects (PostgreSQL)", () => {
     expect(setCookie).toMatch(/appmaker_session=[\w-]{40,}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=2592000/);
     const token = cookieOf(res).split("=")[1];
 
-    const [user] = await query<{ password_hash: string }>("select password_hash from app_users");
+    const [user] = await query<{ password_hash: string }>("select password_hash from app_users where email = 'ada@example.com'");
     expect(user.password_hash).toMatch(/^scrypt\$/);
     expect(user.password_hash).not.toContain("correct horse");
     const sessions = await query<{ token_hash: string }>("select token_hash from app_sessions");
     expect(sessions[0].token_hash).not.toBe(token);
 
     const who = await me(req("/api/auth/me", { cookie: cookieOf(res) }));
-    expect(await who.json()).toEqual({ enabled: true, user: { email: "ada@example.com" } });
+    expect(await who.json()).toMatchObject({ enabled: true, user: { email: "ada@example.com" } });
   });
 
   it("rejects duplicates, bad emails and short passwords", async () => {
@@ -146,12 +146,12 @@ describe.skipIf(!DB)("accounts and cloud projects (PostgreSQL)", () => {
     const ada = await account();
     const out = await logout(req("/api/auth/logout", { method: "POST", body: {}, cookie: ada }));
     expect(out.headers.get("set-cookie")).toMatch(/Max-Age=0/);
-    expect(await (await me(req("/api/auth/me", { cookie: ada }))).json()).toEqual({ enabled: true, user: null });
+    expect(await (await me(req("/api/auth/me", { cookie: ada }))).json()).toMatchObject({ enabled: true, user: null });
     expect((await list(req("/api/projects", { cookie: ada }))).status).toBe(401);
   });
 
   it("shows the database on the status page", async () => {
-    expect((await (await status()).json()).database).toEqual({ configured: true, ok: true });
+    expect((await (await status(req("/api/status"))).json()).database).toEqual({ configured: true, ok: true });
   });
 });
 
@@ -161,7 +161,7 @@ describe("without a database", () => {
     delete process.env.DATABASE_URL;
     expect(await (await me(req("/api/auth/me"))).json()).toEqual({ enabled: false, user: null });
     expect((await signup(req("/api/auth/signup", { method: "POST", body: { email: "a@example.com", password: "correct horse" } }))).status).toBe(404);
-    expect((await (await status()).json()).database).toEqual({ configured: false });
+    expect((await (await status(req("/api/status"))).json()).database).toEqual({ configured: false });
     if (saved) process.env.DATABASE_URL = saved;
   });
 });

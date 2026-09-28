@@ -243,7 +243,21 @@ How it works:
 - **Sign-out.** Removes the apps from that browser; they stay in the account. It refuses while changes are still unsaved, unless you choose "Sign out anyway".
 - **Limits.** Up to 500 apps per account, 4 MB each.
 - **Tables.** `app_users`, `app_sessions` and `app_projects` are created automatically on first use.
-- **Not included yet.** Password reset by email and Google sign-in need an email service or OAuth app.
+- **Not included yet.** Password reset by email, which needs an email service.
+
+### Sign in with Google
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), set up the OAuth consent screen (External; app name, support email).
+2. Go to **Credentials → Create credentials → OAuth client ID → Web application**.
+3. Under **Authorized redirect URIs**, add `https://<your-domain>/api/auth/google/callback`. `/status` shows the exact address.
+4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on the server and deploy. A **Continue with Google** button then appears on the sign-in page.
+
+How it works:
+
+- **Flow.** Authorization code with PKCE, with the state stored in a short-lived `httpOnly` cookie. Google's token is checked for audience, issuer, expiry and a verified email.
+- **Existing accounts.** A Google sign-in with the same address as an existing email account links to that account.
+- **Passwords.** Google-only accounts have no password.
+- **Custom domain.** If you use one, set `APP_URL` (for example `https://appmaker.com`) so the callback address is always right.
 
 Tests: set `TEST_DATABASE_URL` to run the account tests (`npm test`, `npm run test:e2e`). CI starts a PostgreSQL service for them.
 

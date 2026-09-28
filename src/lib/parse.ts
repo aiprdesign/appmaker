@@ -24,9 +24,22 @@ function tagBody(text: string, tag: string): string {
   return (close === -1 ? text.slice(start) : text.slice(start, close)).trim();
 }
 
+/**
+ * Some models leak their own control markup into the output: DeepSeek's
+ * "<｜DSML｜…>" / "<｜end▁of▁sentence｜>", ChatML "<|im_end|>", tool-call
+ * wrappers and "<think>" blocks. None of it is ever valid in a JS file.
+ */
+export function stripModelArtifacts(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/g, "")
+    .replace(/^[ \t]*<\/?\s*[｜|][^>\n]*[｜|][^>\n]*>[ \t]*\n?/gm, "")
+    .replace(/<\/?\s*[｜|][^>\n]*[｜|][^>\n]*>/g, "")
+    .replace(/^[ \t]*<\/?(?:function_calls|invoke|parameter|tool_call|antml:[a-z_]+)(?:\s[^>\n]*)?>[ \t]*\n?/gm, "");
+}
+
 function stripFence(code: string): string {
   // Models occasionally wrap file bodies in markdown fences; drop them.
-  return code
+  return stripModelArtifacts(code)
     .replace(/^\s*```[a-zA-Z]*\n/, "")
     .replace(/\n```\s*$/, "")
     .replace(/^\n/, "");

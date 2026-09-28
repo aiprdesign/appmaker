@@ -40,7 +40,9 @@ interface ExpoInfo {
 export function StatusPanel() {
   const ai = useAiStatus();
   const [expo, setExpo] = useState<ExpoInfo | null>(null);
-  const [env, setEnv] = useState<(EnvReport & { database?: { configured: boolean; ok?: boolean; error?: string } }) | null>(null);
+  const [env, setEnv] = useState<
+    (EnvReport & { database?: { configured: boolean; ok?: boolean; error?: string }; google?: { configured: boolean; redirectUri: string } }) | null
+  >(null);
   const [test, setTest] = useState<{ state: "idle" | "running" | "ok" | "error"; text?: string }>({ state: "idle" });
 
   useEffect(() => {
@@ -188,6 +190,12 @@ export function StatusPanel() {
           ) : (
             <Row tone="bad" label="Database not reachable">
               {env.database.error} Check <code className="font-mono">DATABASE_URL</code>.
+            </Row>
+          )}
+          {env?.database?.configured && env.google && (
+            <Row tone={env.google.configured ? "ok" : "warn"} label={env.google.configured ? "Sign in with Google: on" : "Sign in with Google: off"}>
+              {env.google.configured ? "Authorized redirect URI in Google Cloud must be " : "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to turn it on. Authorized redirect URI: "}
+              <code className="break-all font-mono text-foreground/90">{env.google.redirectUri}</code>
             </Row>
           )}
         </ul>

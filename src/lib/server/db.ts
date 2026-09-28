@@ -35,6 +35,7 @@ create table if not exists app_users (
   password_hash text not null,
   created_at timestamptz not null default now()
 );
+alter table app_users add column if not exists google_sub text unique;
 create table if not exists app_sessions (
   token_hash text primary key,
   user_id text not null references app_users(id) on delete cascade,

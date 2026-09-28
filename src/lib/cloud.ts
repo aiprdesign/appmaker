@@ -17,6 +17,8 @@ export interface CloudState {
   /** null until the server has answered; false when the site has no database. */
   enabled: boolean | null;
   user: { email: string } | null;
+  /** "Sign in with Google" is set up on this site. */
+  google?: boolean;
   status: SyncStatus;
   error?: string;
 }
@@ -218,8 +220,8 @@ export function startCloud(): void {
   window.addEventListener("online", () => state.user && void flush());
   void api("/api/auth/me")
     .then((r) => r.json())
-    .then((me: { enabled: boolean; user: { email: string } | null }) => {
-      set({ enabled: me.enabled, user: me.user });
+    .then((me: { enabled: boolean; google?: boolean; user: { email: string } | null }) => {
+      set({ enabled: me.enabled, google: !!me.google, user: me.user });
       if (me.user) void syncNow();
     })
     .catch(() => set({ enabled: false }));

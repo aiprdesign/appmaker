@@ -6,7 +6,7 @@ import { PROVIDERS } from "./ai/providers";
  * status page so a site owner can tell why a key "isn't working".
  */
 
-const OPTIONAL = ["DATABASE_URL", "APPMAKER_PROVIDER", "APPMAKER_MODEL", "EXPO_TOKEN", "APPMAKER_EXPO_ACCOUNT", "APPMAKER_DEMO", "CUSTOM_AI_BASE_URL"];
+const OPTIONAL = ["DATABASE_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "APP_URL", "APPMAKER_PROVIDER", "APPMAKER_MODEL", "EXPO_TOKEN", "APPMAKER_EXPO_ACCOUNT", "APPMAKER_DEMO", "CUSTOM_AI_BASE_URL"];
 
 export function knownSettings(): string[] {
   return [...new Set([...PROVIDERS.map((p) => p.envKey).filter((k): k is string => !!k), "ANTHROPIC_AUTH_TOKEN", ...OPTIONAL])];

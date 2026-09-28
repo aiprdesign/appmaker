@@ -49,3 +49,17 @@ describe("parseGeneration", () => {
     expect(p.plan).toBe("");
   });
 });
+
+describe("model artifacts", () => {
+  it("drops control markup some models leak into files", () => {
+    const raw = `<plan>x</plan>\n<file path="src/storage.js">\nexport function load() {\n  return 1;\n}\n</｜DSML｜ parameter>\n</file>\n<file path="App.js">\n<｜end▁of▁sentence｜>export default () => null;<|im_end|>\n</parameter>\n</file>`;
+    const parsed = parseGeneration(raw);
+    expect(parsed.files["src/storage.js"]).toBe("export function load() {\n  return 1;\n}\n");
+    expect(parsed.files["App.js"]).toBe("export default () => null;\n");
+  });
+
+  it("leaves real code that looks similar alone", () => {
+    const code = "const a = x || y;\nconst el = <View>{a | b}</View>;\nexport default () => el;";
+    expect(parseGeneration(`<file path="App.js">\n${code}\n</file>`).files["App.js"]).toBe(`${code}\n`);
+  });
+});
