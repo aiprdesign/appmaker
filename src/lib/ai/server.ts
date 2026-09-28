@@ -144,6 +144,8 @@ export interface GenerateArgs {
   messages: { role: "user" | "assistant"; content: string }[];
   signal: AbortSignal;
   write: (text: string) => void;
+  /** Quick check mode: a small output budget and low effort. */
+  quick?: boolean;
 }
 
 /** Streams the model's text through `write`. Returns why generation stopped. */
@@ -163,15 +165,15 @@ function openaiClient(ai: ResolvedAi): OpenAI {
   return new OpenAI({ apiKey: ai.apiKey, baseURL: ai.baseURL, ...(ai.guarded ? guardedFetchOptions() : {}) });
 }
 
-export async function streamGeneration({ ai, system, messages, signal, write }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
+export async function streamGeneration({ ai, system, messages, signal, write, quick }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
   if (speaksAnthropic(ai)) {
     const client = anthropicClient(ai);
     const modern = isModernClaude(ai.model);
     const stream = client.beta.messages.stream(
       {
         model: ai.model,
-        max_tokens: modern ? 64000 : 32000,
-        ...(modern ? { thinking: { type: "adaptive" as const }, output_config: { effort: "high" as const } } : {}),
+        max_tokens: quick ? 2048 : modern ? 64000 : 32000,
+        ...(modern ? { thinking: { type: "adaptive" as const }, output_config: { effort: quick ? ("low" as const) : ("high" as const) } } : {}),
         ...(ai.provider === "anthropic" && supportsFallbacks(ai.model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
         messages,
@@ -188,7 +190,7 @@ export async function streamGeneration({ ai, system, messages, signal, write }: 
   }
 
   if (ai.provider === "replicate") {
-    return streamReplicate({ apiKey: ai.apiKey, baseURL: ai.baseURL!, model: ai.model, system, messages, signal, write });
+    return streamReplicate({ apiKey: ai.apiKey, baseURL: ai.baseURL!, model: ai.model, system, messages, signal, write, ...(quick ? { maxTokens: 256 } : {}) });
   }
 
   const info = getProvider(ai.provider)!;
@@ -248,4 +250,25 @@ export function aiErrorMessage(err: unknown, providerName = "the AI provider"): 
     return `${providerName} error (${status ?? "network"}): ${err.message}`;
   }
   return err instanceof Error ? err.message : "Unknown error";
+}
+
+/**
+ * Sends a tiny request to check that a provider, key and model really work
+ * end to end (not just that the key can list models).
+ */
+export async function testModel(ai: ResolvedAi): Promise<{ reply: string; ms: number }> {
+  const started = Date.now();
+  let reply = "";
+  const outcome = await streamGeneration({
+    ai,
+    system: "You are a connection test. Reply with exactly the word: OK",
+    messages: [{ role: "user", content: "Connection test — reply with OK." }],
+    signal: AbortSignal.timeout(90_000),
+    write: (t) => (reply += t),
+    quick: true,
+  });
+  if (outcome === "refusal") throw new AiConfigError("The model declined the test request.");
+  if (!reply.trim() && outcome === "length") throw new AiConfigError("The model ran out of output tokens before replying — try another model.");
+  if (!reply.trim()) throw new AiConfigError("The model answered with an empty reply. It may not support chat — try another model.");
+  return { reply: reply.trim().slice(0, 200), ms: Date.now() - started };
 }

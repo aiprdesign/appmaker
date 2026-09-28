@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Cpu, ExternalLink, Eye, EyeOff, KeyRound, Loader2, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Cpu, ExternalLink, Eye, EyeOff, FlaskConical, KeyRound, Loader2, Plus, Save, Sparkles, Trash2, X } from "lucide-react";
+import { uid } from "@/lib/storage";
 import {
   KNOWN_ENDPOINTS,
   PROVIDERS,
@@ -14,7 +15,7 @@ import {
   type ProviderId,
   type ServerAiConfig,
 } from "@/lib/ai/providers";
-import { saveAiSettings, useAiSettings, type AiSettings } from "@/lib/ai/settings";
+import { saveAiSettings, useAiSettings, type AiSettings, type CustomConnection } from "@/lib/ai/settings";
 
 let configPromise: Promise<ServerAiConfig> | null = null;
 function loadServerConfig(): Promise<ServerAiConfig> {
@@ -80,6 +81,14 @@ export function ModelButton({ className = "" }: { className?: string }) {
   );
 }
 
+function hostOf(url: string): string {
+  try {
+    return new URL(normalizeBaseURL(url)).hostname;
+  } catch {
+    return "Custom AI";
+  }
+}
+
 const input =
   "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-violet-500/60 disabled:opacity-50";
 
@@ -92,6 +101,8 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
   const [quickKey, setQuickKey] = useState("");
+  const [modelTest, setModelTest] = useState<{ signature: string; running: boolean; ok?: boolean; message?: string } | null>(null);
+  const [connectionName, setConnectionName] = useState("");
   const [quickNote, setQuickNote] = useState<{ ok: boolean; message: string } | null>(null);
 
   const providerId: ProviderId = draft.provider ?? config?.defaultProvider ?? "anthropic";
@@ -109,8 +120,108 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
 
   const choose = (id: ProviderId) => {
     setTest(null);
-    setDraft((d) => ({ ...d, provider: id, model: getProvider(id)!.models[0]?.id ?? "" }));
+    setDraft((d) => ({
+      ...d,
+      provider: id,
+      model: d.customModels?.[id]?.[0] ?? getProvider(id)!.models[0]?.id ?? "",
+      ...(id === "custom" ? { connectionId: undefined } : {}),
+    }));
   };
+
+  const connections = draft.connections ?? [];
+  const activeConnection = providerId === "custom" ? connections.find((c) => c.id === draft.connectionId) : undefined;
+
+  /** Loads a saved custom connection into the custom provider fields. */
+  const openConnection = (c: CustomConnection) => {
+    setTest(null);
+    setConnectionName(c.name);
+    setDraft((d) => ({
+      ...d,
+      provider: "custom",
+      connectionId: c.id,
+      baseURL: c.baseURL,
+      apiFormat: c.apiFormat,
+      model: c.model ?? "",
+      keys: { ...d.keys, custom: c.apiKey ?? "" },
+    }));
+  };
+
+  /** The current custom fields as a connection (new, or updating the open one). */
+  const currentConnection = (d: AiSettings, name: string): CustomConnection | null => {
+    if (!d.baseURL) return null;
+    return {
+      id: d.connectionId ?? uid(),
+      name: name.trim() || hostOf(d.baseURL),
+      baseURL: d.baseURL,
+      apiFormat: d.apiFormat ?? "openai",
+      apiKey: d.keys.custom || undefined,
+      model: d.model || undefined,
+    };
+  };
+
+  const upsertConnection = (d: AiSettings, c: CustomConnection): AiSettings => ({
+    ...d,
+    connectionId: c.id,
+    connections: [...(d.connections ?? []).filter((x) => x.id !== c.id), c],
+  });
+
+  const saveConnection = () => {
+    setDraft((d) => {
+      const c = currentConnection(d, connectionName);
+      return c ? upsertConnection(d, c) : d;
+    });
+  };
+
+  const deleteConnection = (id: string) => {
+    setDraft((d) => ({
+      ...d,
+      connections: (d.connections ?? []).filter((c) => c.id !== id),
+      ...(d.connectionId === id ? { connectionId: undefined } : {}),
+    }));
+    setConnectionName("");
+  };
+
+  const myModels = draft.customModels?.[providerId] ?? [];
+  const addMyModel = (id: string) => {
+    const m = id.trim();
+    if (!m) return;
+    setDraft((d) => ({
+      ...d,
+      customModels: { ...d.customModels, [providerId]: [...(d.customModels?.[providerId] ?? []).filter((x) => x !== m), m] },
+    }));
+  };
+  const removeMyModel = (id: string) =>
+    setDraft((d) => ({ ...d, customModels: { ...d.customModels, [providerId]: (d.customModels?.[providerId] ?? []).filter((x) => x !== id) } }));
+
+  /** Sends a tiny real request to check the provider, key and model work. */
+  const testSignature = `${providerId}|${model}|${userKey}|${draft.baseURL ?? ""}|${draft.apiFormat ?? ""}`;
+  const runModelTest = async () => {
+    const signature = testSignature;
+    setModelTest({ signature, running: true });
+    try {
+      const res = await fetch("/api/ai/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: providerId,
+          model,
+          apiKey: userKey || undefined,
+          ...(providerId === "custom" ? { baseURL: draft.baseURL, apiFormat: draft.apiFormat ?? "openai" } : {}),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "The test request failed.");
+      setModelTest({
+        signature,
+        running: false,
+        ok: true,
+        message: `${body.model} replied in ${(body.ms / 1000).toFixed(1)}s: “${String(body.reply).slice(0, 60)}”`,
+      });
+    } catch (e) {
+      setModelTest({ signature, running: false, ok: false, message: (e as Error).message });
+    }
+  };
+  const shownTest = modelTest?.signature === testSignature ? modelTest : null;
 
   /** Tests the key, loads the provider's models and picks one if needed. */
   const loadModels = async (target = { provider: providerId, apiKey: userKey, baseURL: draft.baseURL, apiFormat: draft.apiFormat }) => {
@@ -184,12 +295,21 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
   };
 
   const save = () => {
-    saveAiSettings({ ...draft, provider: providerId, model });
+    let next: AiSettings = { ...draft, provider: providerId, model };
+    // Remember a model the user typed in, so it's in their list next time.
+    const known = getProvider(providerId)!.models.some((m) => m.id === model) || (next.customModels?.[providerId] ?? []).includes(model);
+    if (model && !known) next = { ...next, customModels: { ...next.customModels, [providerId]: [...(next.customModels?.[providerId] ?? []), model] } };
+    // Keep an open saved connection up to date with any edits.
+    if (providerId === "custom" && next.connectionId) {
+      const c = currentConnection(next, connectionName || activeConnection?.name || "");
+      if (c) next = upsertConnection(next, c);
+    }
+    saveAiSettings(next);
     onClose();
   };
 
   const reset = () => {
-    saveAiSettings({ keys: draft.keys });
+    saveAiSettings({ keys: draft.keys, customModels: draft.customModels, connections: draft.connections });
     onClose();
   };
 
@@ -232,7 +352,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                   key={p.id}
                   onClick={() => choose(p.id)}
                   className={`flex shrink-0 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm ${
-                    p.id === providerId ? "bg-surface-2 text-foreground" : "text-muted hover:bg-white/5"
+                    p.id === providerId && !(p.id === "custom" && activeConnection) ? "bg-surface-2 text-foreground" : "text-muted hover:bg-white/5"
                   }`}
                 >
                   <span className="truncate">{p.name}</span>
@@ -240,6 +360,21 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                 </button>
               );
             })}
+            {connections.length > 0 && (
+              <div className="hidden px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-muted sm:block">Your connections</div>
+            )}
+            {connections.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => openConnection(c)}
+                className={`flex shrink-0 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm ${
+                  activeConnection?.id === c.id ? "bg-surface-2 text-foreground" : "text-muted hover:bg-white/5"
+                }`}
+              >
+                <span className="truncate">{c.name}</span>
+                <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">Saved</span>
+              </button>
+            ))}
           </nav>
 
           <div className="scrollbar-thin min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
@@ -283,7 +418,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
             </div>
 
             <div>
-              <h3 className="font-medium">{provider.name}</h3>
+              <h3 className="font-medium">{activeConnection?.name ?? provider.name}</h3>
               <p className="mt-0.5 text-sm text-muted">{provider.blurb}</p>
             </div>
 
@@ -448,24 +583,118 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                       ))}
                     </div>
                   )}
-                  <input
-                    className={`${input} font-mono`}
-                    list="appmaker-model-options"
-                    value={model}
-                    placeholder="Type or pick any model ID"
-                    onChange={(e) => setDraft((d) => ({ ...d, provider: providerId, model: e.target.value.trim() }))}
-                    aria-label="Model ID"
-                  />
+                  {myModels.length > 0 && (
+                    <div className="mb-2">
+                      <div className="mb-1 text-[11px] font-medium text-muted">Your models</div>
+                      <ul aria-label="Your models" className="grid gap-1.5">
+                        {myModels.map((id) => (
+                          <li
+                            key={id}
+                            className={`flex items-center gap-1 rounded-lg border pr-1 text-sm ${model === id ? "border-violet-500/60 bg-violet-500/10" : "border-line"}`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setDraft((d) => ({ ...d, provider: providerId, model: id }))}
+                              className="min-h-9 flex-1 truncate px-3 text-left font-mono text-xs"
+                            >
+                              {id}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeMyModel(id)}
+                              aria-label={`Remove ${id} from your models`}
+                              className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted hover:bg-white/5 hover:text-rose-300"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      className={`${input} font-mono`}
+                      list="appmaker-model-options"
+                      value={model}
+                      placeholder="Type or pick any model ID"
+                      onChange={(e) => setDraft((d) => ({ ...d, provider: providerId, model: e.target.value.trim() }))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addMyModel(model);
+                        }
+                      }}
+                      aria-label="Model ID"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addMyModel(model)}
+                      disabled={!model || myModels.includes(model) || suggestions.some((m) => m.id === model)}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-line px-3 text-sm hover:border-white/20 disabled:opacity-40"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={runModelTest}
+                      disabled={!model || shownTest?.running}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 text-sm font-medium text-black hover:bg-white/90 disabled:opacity-40"
+                    >
+                      {shownTest?.running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
+                      Test model
+                    </button>
+                  </div>
+                  {shownTest && !shownTest.running && (
+                    <p role="status" className={`mt-2 flex items-start gap-1.5 text-xs ${shownTest.ok ? "text-emerald-300" : "text-rose-400"}`}>
+                      {shownTest.ok ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <X className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+                      <span>{shownTest.ok ? `Works! ${shownTest.message}` : `Test failed: ${shownTest.message}`}</span>
+                    </p>
+                  )}
+                  {shownTest?.running && <p role="status" className="mt-2 text-xs text-muted">Sending a tiny test request to {model}…</p>}
                   <datalist id="appmaker-model-options">
-                    {[...suggestions.map((m) => m.id), ...loaded].map((id) => (
+                    {[...new Set([...myModels, ...suggestions.map((m) => m.id), ...loaded])].map((id) => (
                       <option key={id} value={id} />
                     ))}
                   </datalist>
                   <p className="mt-1.5 text-[11px] text-muted">
                     {loaded.length
                       ? `${loaded.length} more models loaded from ${provider.name} — start typing to search.`
-                      : "Model lists change often: use “Test & load models” to see everything your key can use."}
+                      : "Type any model ID and press Add to keep it in your list. “Test model” sends a tiny real request to check it works."}
                   </p>
+
+                  {providerId === "custom" && draft.baseURL && (
+                    <div className="mt-5 rounded-xl border border-line p-3">
+                      <div className="text-xs font-medium">{activeConnection ? "Saved connection" : "Save this connection"}</div>
+                      <p className="mt-0.5 text-[11px] text-muted">Keeps the address, format, key and model under a name, listed with the providers.</p>
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          className={input}
+                          value={connectionName}
+                          placeholder={activeConnection?.name ?? "e.g. My Azure, Work gateway"}
+                          onChange={(e) => setConnectionName(e.target.value)}
+                          aria-label="Connection name"
+                        />
+                        <button
+                          type="button"
+                          onClick={saveConnection}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:border-white/20"
+                        >
+                          <Save className="h-3.5 w-3.5" /> {activeConnection ? "Update connection" : "Save connection"}
+                        </button>
+                        {activeConnection && (
+                          <button
+                            type="button"
+                            onClick={() => deleteConnection(activeConnection.id)}
+                            aria-label={`Delete ${activeConnection.name}`}
+                            className="grid w-10 shrink-0 place-items-center rounded-lg border border-line text-muted hover:border-rose-500/40 hover:text-rose-300"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}

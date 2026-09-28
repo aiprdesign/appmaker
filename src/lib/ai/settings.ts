@@ -16,6 +16,21 @@ export interface AiSettings {
   /** Custom provider: endpoint and the API it speaks. */
   baseURL?: string;
   apiFormat?: ApiFormat;
+  /** Model IDs the user added to a provider's list, by provider. */
+  customModels?: Partial<Record<ProviderId, string[]>>;
+  /** Named custom endpoints the user saved ("My Azure", "Work gateway"…). */
+  connections?: CustomConnection[];
+  /** Which saved connection the custom provider is using. */
+  connectionId?: string;
+}
+
+export interface CustomConnection {
+  id: string;
+  name: string;
+  baseURL: string;
+  apiFormat: ApiFormat;
+  apiKey?: string;
+  model?: string;
 }
 
 const KEY = "appmaker.ai.v1";
@@ -35,7 +50,7 @@ function read(): AiSettings {
     cachedRaw = raw;
     try {
       const parsed = raw ? JSON.parse(raw) : EMPTY;
-      cached = { ...EMPTY, ...parsed, keys: { ...(parsed.keys ?? {}) } };
+      cached = { ...EMPTY, ...parsed, keys: { ...(parsed.keys ?? {}) }, customModels: { ...(parsed.customModels ?? {}) }, connections: [...(parsed.connections ?? [])] };
     } catch {
       cached = EMPTY;
     }

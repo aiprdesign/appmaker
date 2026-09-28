@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { POST as generate } from "@/app/api/generate/route";
 import { POST as models } from "@/app/api/ai/models/route";
+import { POST as testRoute } from "@/app/api/ai/test/route";
 import { KNOWN_ENDPOINTS, PROVIDERS, detectApiFormat, detectProviderFromKey, isValidModelId, normalizeBaseURL } from "@/lib/ai/providers";
 import { AiConfigError, aiErrorMessage, listModels, resolveAi, serverConfig, streamGeneration } from "@/lib/ai/server";
 import { makeSafeLookup } from "@/lib/net-guard";
@@ -496,5 +497,41 @@ describe("Replicate", () => {
     process.env.REPLICATE_API_TOKEN = "r8_server";
     expect(resolveAi({ provider: "replicate", model: "meta/meta-llama-3-70b-instruct" })).toMatchObject({ apiKey: "r8_server", usingServerKey: true });
     delete process.env.REPLICATE_API_TOKEN;
+  });
+});
+
+describe("POST /api/ai/test", () => {
+  const call = (body: unknown) => testRoute(new Request("http://x/api/ai/test", { method: "POST", body: JSON.stringify(body) }));
+
+  it("validates input", async () => {
+    clearKeys();
+    expect((await call({ provider: "nope", model: "m" })).status).toBe(400);
+    expect((await call({ provider: "openai" })).status).toBe(400);
+    expect((await call({ provider: "custom", model: "m", baseURL: "https://x.example.com", apiFormat: "weird" })).status).toBe(400);
+  });
+
+  it("runs a tiny real request and reports the reply and timing", async () => {
+    clearKeys();
+    process.env.ANTHROPIC_BASE_URL = base;
+    const res = await call({ provider: "anthropic", model: "claude-sonnet-5", apiKey: "k" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ ok: true, model: "claude-sonnet-5", reply: "<plan>Hi</plan>" });
+    expect(body.ms).toBeGreaterThanOrEqual(0);
+    // Quick mode: small budget, low effort, not the full app-building request.
+    expect(captured.at(-1)!.body).toMatchObject({ max_tokens: 2048, output_config: { effort: "low" } });
+  });
+
+  it("works for OpenAI-compatible and custom endpoints", async () => {
+    process.env.APPMAKER_ALLOW_PRIVATE_ENDPOINTS = "1";
+    const res = await call({ provider: "custom", model: "my-model", baseURL: `${base}/v1`, apiKey: "u" });
+    expect((await res.json()).reply).toBe("<plan>Hello</plan>");
+  });
+
+  it("explains failures", async () => {
+    mode = "unauthorized";
+    const res = await call({ provider: "openai", model: "gpt-5.5", apiKey: "bad" });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toMatch(/OpenAI/);
   });
 });
