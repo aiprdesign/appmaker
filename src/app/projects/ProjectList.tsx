@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { AppIcon } from "@/components/builder/PublishPanel";
+import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { deleteProject, listProjects } from "@/lib/storage";
 import type { Project } from "@/lib/types";
 
@@ -17,9 +18,15 @@ function ago(ts: number): string {
 
 export function ProjectList() {
   const [projects, setProjects] = useState<Project[] | null>(null);
-  // Projects live in localStorage, which is only readable after mount.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setProjects(listProjects()), []);
+  const cloud = useCloud();
+  useEffect(() => {
+    // Projects live in localStorage, which is only readable after mount;
+    // account sync may bring in more.
+    const load = () => setProjects(listProjects());
+    load();
+    window.addEventListener(PROJECTS_CHANGED, load);
+    return () => window.removeEventListener(PROJECTS_CHANGED, load);
+  }, []);
 
   return (
     <>
@@ -32,6 +39,19 @@ export function ProjectList() {
           <Plus className="h-4 w-4" /> New app
         </Link>
       </div>
+      {cloud.enabled && !cloud.user && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/30 bg-violet-500/5 p-4 text-sm">
+          <span>These apps are saved in this browser only. Sign in to keep them in your account and open them on any device.</span>
+          <Link href="/login" className="inline-flex min-h-9 items-center rounded-lg bg-white px-3 text-sm font-medium text-black">
+            Sign in
+          </Link>
+        </div>
+      )}
+      {cloud.user && (
+        <p className="mt-3 text-xs text-muted" role="status">
+          {cloud.status === "syncing" ? "Loading apps from your account…" : `Saved to your account (${cloud.user.email}).`}
+        </p>
+      )}
       {projects && projects.length === 0 && (
         <div className="mt-10 rounded-2xl border border-dashed border-line p-12 text-center text-muted">
           No apps yet. Describe one on the home page to get started.

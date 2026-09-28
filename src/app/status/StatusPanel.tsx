@@ -40,14 +40,14 @@ interface ExpoInfo {
 export function StatusPanel() {
   const ai = useAiStatus();
   const [expo, setExpo] = useState<ExpoInfo | null>(null);
-  const [env, setEnv] = useState<EnvReport | null>(null);
+  const [env, setEnv] = useState<(EnvReport & { database?: { configured: boolean; ok?: boolean; error?: string } }) | null>(null);
   const [test, setTest] = useState<{ state: "idle" | "running" | "ok" | "error"; text?: string }>({ state: "idle" });
 
   useEffect(() => {
     fetch("/api/status")
       .then((r) => r.json())
       .then(setEnv)
-      .catch(() => setEnv({ set: [], empty: [], nearMisses: [], demoForced: false }));
+      .catch(() => setEnv({ set: [], empty: [], nearMisses: [], demoForced: false, database: { configured: false } }));
     fetch("/api/eas/account?check=1")
       .then((r) => r.json())
       .then(setExpo)
@@ -163,6 +163,32 @@ export function StatusPanel() {
                 </Row>
               )}
             </>
+          )}
+        </ul>
+      </section>
+
+      <section className="rounded-2xl border border-line bg-surface p-5" aria-labelledby="db-status-title">
+        <h2 id="db-status-title" className="font-semibold">
+          Accounts &amp; cloud saving
+        </h2>
+        <ul className="mt-2 divide-y divide-line">
+          {!env ? (
+            <Row tone="wait" label="Checking…">
+              Asking the database.
+            </Row>
+          ) : !env.database?.configured ? (
+            <Row tone="warn" label="Off — apps are saved in each browser only">
+              To let people sign in and keep their apps in an account, add a PostgreSQL database and set{" "}
+              <code className="font-mono">DATABASE_URL</code> on this service.
+            </Row>
+          ) : env.database.ok ? (
+            <Row tone="ok" label="Database connected">
+              People can create accounts, and their apps are saved to the database.
+            </Row>
+          ) : (
+            <Row tone="bad" label="Database not reachable">
+              {env.database.error} Check <code className="font-mono">DATABASE_URL</code>.
+            </Row>
           )}
         </ul>
       </section>

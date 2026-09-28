@@ -1,10 +1,20 @@
 import type { Project, SiteSummary, StoreListing } from "./types";
 
 /**
- * Projects are persisted in the browser's localStorage. Swap this module for
- * a database-backed API when adding accounts and cloud sync.
+ * Projects are kept in the browser's localStorage, the working copy the
+ * builder reads and writes instantly. When the user is signed in, the cloud
+ * sync (lib/cloud.ts) listens for changes and saves them to their account.
  */
 const KEY = "appmaker.projects.v1";
+
+type ChangeListener = (change: { type: "save"; project: Project } | { type: "delete"; id: string }) => void;
+const changeListeners = new Set<ChangeListener>();
+
+/** Lets cloud sync hear about local saves and deletions. */
+export function onProjectChange(listener: ChangeListener): () => void {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
 
 export function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -59,8 +69,17 @@ export function getProject(id: string): Project | null {
  * the project still couldn't be saved, so the UI can warn the user.
  */
 export function saveProject(project: Project): boolean {
+  const saved = { ...project, updatedAt: Math.max(Date.now(), project.updatedAt + 1) };
+  const ok = storeLocal(saved);
+  // Cloud sync gets the full project even if the browser had to trim it.
+  changeListeners.forEach((l) => l({ type: "save", project: saved }));
+  return ok;
+}
+
+/** Writes a project to the browser as-is (used by sync; doesn't notify). */
+export function storeLocal(project: Project): boolean {
   const all = readAll();
-  all[project.id] = { ...project, updatedAt: Date.now() };
+  all[project.id] = project;
   if (writeAll(all)) return true;
   const trim = (p: Project, keep: number) => (p.versions && p.versions.length > keep ? { ...p, versions: p.versions.slice(-keep) } : p);
   for (const keep of [10, 3, 1, 0]) {
@@ -72,6 +91,18 @@ export function saveProject(project: Project): boolean {
   return false;
 }
 
+/** Removes a project from the browser only (used by sync). */
+export function removeLocal(id: string) {
+  const all = readAll();
+  delete all[id];
+  writeAll(all);
+}
+
+/** Removes every project from this browser (on sign-out; they stay in the account). */
+export function clearLocalProjects() {
+  writeAll({});
+}
+
 /** Records the app's current state as a version. */
 export function withVersion(project: Project, label: string): { project: Project; versionId: string } {
   const version = { id: uid(), createdAt: Date.now(), label: label.slice(0, 120), files: project.files, listing: project.listing };
@@ -80,9 +111,8 @@ export function withVersion(project: Project, label: string): { project: Project
 }
 
 export function deleteProject(id: string) {
-  const all = readAll();
-  delete all[id];
-  writeAll(all);
+  removeLocal(id);
+  changeListeners.forEach((l) => l({ type: "delete", id }));
 }
 
 export function createProject(prompt: string, source?: SiteSummary): Project {

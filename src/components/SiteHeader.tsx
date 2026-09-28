@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountButton } from "./AccountButton";
 import { Logo } from "./Logo";
 
 export function SiteHeader() {
@@ -16,6 +17,7 @@ export function SiteHeader() {
           <Link href="/projects" className="rounded-lg px-3 py-1.5 text-sm text-muted hover:text-foreground">
             My apps
           </Link>
+          <AccountButton />
           <Link
             href="/#start"
             className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-white/90"

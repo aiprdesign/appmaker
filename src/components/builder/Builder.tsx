@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Code2, Download, Loader2, MessageSquare, RotateCw, Rocket, Smartphone, Wand2 } from "lucide-react";
 import { HistoryMenu } from "./HistoryMenu";
+import { SyncBadge } from "@/components/AccountButton";
+import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
 import { PhoneFrame } from "@/components/PhoneFrame";
@@ -37,6 +39,7 @@ export function friendlyError(message: string): string {
 
 export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
+  const cloud = useCloud();
   const [tab, setTab] = useState<Tab>("preview");
   const [mobileView, setMobileView] = useState<"chat" | "app">("chat");
   const [platform, setPlatform] = useState<"ios" | "android">("ios");
@@ -84,11 +87,19 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
 
   useEffect(() => {
     // Projects live in localStorage, which is only readable after mount.
-    const p = getProject(id);
-    projectRef.current = p;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setProject(p);
-    if (p) setPreviewFiles(p.files);
+    const load = () => {
+      const p = getProject(id);
+      projectRef.current = p;
+      setProject(p);
+      if (p) setPreviewFiles(p.files);
+    };
+    load();
+    // On a new device the project arrives from the account a moment later.
+    const onSync = () => {
+      if (!projectRef.current) load();
+    };
+    window.addEventListener(PROJECTS_CHANGED, onSync);
+    return () => window.removeEventListener(PROJECTS_CHANGED, onSync);
   }, [id]);
 
   // Debounce hand edits in the code tab into the preview.
@@ -313,13 +324,33 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     );
   }
   if (project === null) {
+    if (cloud.enabled === null || (cloud.user && cloud.status === "syncing")) {
+      return (
+        <div className="grid h-screen place-items-center text-center">
+          <p className="flex items-center gap-2 text-sm text-muted">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading your app…
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="grid h-screen place-items-center text-center">
-        <div>
-          <p className="text-muted">This project doesn&apos;t exist on this device.</p>
-          <Link href="/" className="mt-4 inline-block rounded-lg bg-white px-4 py-2 text-sm font-medium text-black">
-            Start a new app
-          </Link>
+        <div className="max-w-sm px-4">
+          <p className="text-muted">
+            {cloud.enabled && !cloud.user
+              ? "This app isn't on this device. If you saved it to your account, sign in to open it."
+              : "This app isn't on this device or in your account."}
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            {cloud.enabled && !cloud.user && (
+              <Link href="/login" className="inline-block rounded-lg bg-white px-4 py-2 text-sm font-medium text-black">
+                Sign in
+              </Link>
+            )}
+            <Link href="/" className="inline-block rounded-lg border border-line px-4 py-2 text-sm font-medium">
+              Start a new app
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -367,6 +398,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             </button>
           ))}
         </nav>
+        <SyncBadge />
         <HistoryMenu versions={project.versions ?? []} disabled={generating} onRestore={restore} />
         <button
           onClick={async () => downloadBlob(await exportProjectZip(project), `${slugify(project.listing.name)}-expo.zip`)}

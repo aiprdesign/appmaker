@@ -200,11 +200,32 @@ npx eas-cli@latest submit --platform all
 
 Publishing needs an Apple Developer account and a Google Play Console account.
 
+## Accounts and cloud saving
+
+Without a database, projects live in each visitor's browser (`localStorage`, about 5 MB). Add PostgreSQL to turn on accounts:
+
+1. In Railway, click **+ New → Database → PostgreSQL** in the same project.
+2. On the Appmaker service's **Variables** tab, add `DATABASE_URL` and choose **Add Reference → Postgres → DATABASE_URL**. Then deploy.
+3. `/status` shows **Database connected**, and a **Sign in** button appears in the header.
+
+How it works:
+
+- **Sign-in.** Email and password. Passwords are hashed with scrypt. Sessions are random tokens in an `httpOnly`, `SameSite=Lax` cookie, and only their SHA-256 hash is stored.
+- **Protection.** Sign-in is rate limited per address and per account. State-changing requests must come from the same site and be JSON.
+- **Saving.** The browser stays the working copy, so the builder is instant and works offline. Every change is saved to the account about 1.5 seconds later; unsaved changes are retried and survive a reload.
+- **Syncing.** On load, the account and the browser are merged: the newest copy of each project wins, and deletions carry over to other devices.
+- **First sign-in.** Apps made before signing in are added to the account.
+- **Sign-out.** Removes the apps from that browser; they stay in the account. It refuses while changes are still unsaved, unless you choose "Sign out anyway".
+- **Limits.** Up to 500 apps per account, 4 MB each.
+- **Tables.** `app_users`, `app_sessions` and `app_projects` are created automatically on first use.
+- **Not included yet.** Password reset by email and Google sign-in need an email service or OAuth app.
+
+Tests: set `TEST_DATABASE_URL` to run the account tests (`npm test`, `npm run test:e2e`). CI starts a PostgreSQL service for them.
+
 ## Roadmap / not yet implemented
 
 The UI is ready for a hosted SaaS, but these parts are not wired up yet:
 
-- **Accounts and cloud sync.** Projects are stored in the browser's localStorage. Replace `src/lib/storage.ts` with a database-backed API.
 - **Billing.** Pricing tiers are shown on the landing page, but there's no payment integration or usage metering yet.
 - **Store metadata upload.** Listing text and screenshots are still pasted into App Store Connect by hand; `eas metadata:push` could automate this.
 - **On-device preview.** A QR code for Expo Go (for example, through Expo Snack) is not included yet.

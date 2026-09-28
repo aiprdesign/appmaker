@@ -63,7 +63,7 @@ test("status page explains what's missing", async ({ page }) => {
   // The test server runs with APPMAKER_DEMO=1 and no AI keys.
   const vars = page.getByRole("region", { name: "Server settings (variables)" });
   await expect(vars.getByText("Demo mode is forced on")).toBeVisible();
-  await expect(vars.getByText("APPMAKER_DEMO", { exact: true })).toBeVisible();
+  await expect(vars.getByText(/(^|, )APPMAKER_DEMO(,|$)/)).toBeVisible();
 });
 
 test("an AI test failure is shown", async ({ page }) => {
