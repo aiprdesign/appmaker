@@ -5,7 +5,7 @@ Appmaker is a SaaS app builder in the spirit of Lovable, Bolt, v0 and Rork, focu
 1. **Generates a real Expo / React Native app.** Claude writes a multi-screen app with navigation, on-device persistence and seed content, streaming files as it goes.
 2. **Runs it live in a phone frame.** The code compiles in a sandboxed iframe on React Native Web, so you can tap through it in an iPhone or Android frame. Runtime errors show a **Fix with AI** button.
 3. **Lets you iterate by chat.** Ask for changes ("add dark mode", "add onboarding") and only the changed files are rewritten. You can also edit code by hand in the Code tab.
-4. **Gets it ready for the stores.** The Publish tab has an AI-written App Store / Google Play listing (name, subtitle, description, keywords, category, bundle ID, privacy), an icon generator (1024×1024 PNG), a launch checklist, and a one-click **Expo project export** with `app.json`, `eas.json`, the icon, and a GitHub Actions workflow that runs `eas build` and `eas submit`.
+4. **Gets it ready for the stores.** The Publish tab has an AI-written App Store / Google Play listing (name, subtitle, description, keywords, category, bundle ID, privacy), an icon generator (1024×1024 PNG), a launch checklist, **one-click cloud builds with Expo** (App Store upload included) and an **Expo project export** with `app.json`, `eas.json`, the icon, and a GitHub Actions workflow that runs `eas build` and `eas submit`.
 
 ## Build an app from a website
 
@@ -161,13 +161,30 @@ A full 100-app run makes 100–300 model calls (follow-ups and repairs included)
 
 ## Shipping a generated app
 
-From the exported zip:
+### One click, from the Publish tab (Expo cloud builds)
+
+The **Build & upload with Expo** section builds the real app on Expo's servers (EAS Build). No Mac or Xcode is needed.
+
+1. **Connect Expo.** Paste an access token from [expo.dev → Account settings → Access tokens](https://expo.dev/settings/access-tokens). It is kept in the browser and sent only with build requests.
+2. **Choose a build.** The options are an iPhone App Store build (`.ipa`), an Android test app (`.apk` to install on a phone) or a Google Play build (`.aab`).
+3. **Build.** The first build creates the app's project on the user's Expo account (`eas init`). Status updates live, with download links and a link to the build on expo.dev.
+
+**iPhone / App Store.** You need the Apple Developer Program ($99/year), plus two one-time setup steps:
+
+- **Signing (once per app).** Apple requires an interactive sign-in to create the distribution certificate. The Publish tab gives a download and one command to run on any computer with Node.js: `npx eas-cli@latest credentials:configure-build --platform ios --profile production`. After that, Appmaker builds without prompts. If signing is missing, the build fails fast with a message that opens these steps.
+- **Automatic upload (optional).** Add the app's App Store Connect Apple ID and an App Store Connect API key (Key ID, Issuer ID and the `.p8` file). Each iOS build is then sent to App Store Connect when it finishes (`--auto-submit`), where it appears in TestFlight. Submitting for review stays a manual step in App Store Connect.
+
+**Google Play.** Google requires the first upload of a new app to be done by hand in Play Console, so Appmaker gives you the `.aab` to upload.
+
+**Server requirements.** The server runs `eas-cli` (a dependency) and installs the Expo SDK packages once, about 350 MB, to evaluate app config plugins. It needs a long-running Node server with `npm` and a writable temp folder. Railway, Render or a VPS all work; serverless hosts such as Vercel do not. Each build is written to a temporary folder that is deleted afterwards. The EAS CLI runs with a minimal environment (the user's token plus proxy settings), so the server's own API keys are never passed to it. The App Store Connect key is written with `0600` permissions and is never included in the uploaded source (it is `.gitignore`d).
+
+### By hand, from the exported zip
 
 ```bash
 npm install && npx expo start            # try it on a phone with Expo Go
-npm install -g eas-cli && eas login && eas init
-eas build --platform all --profile production
-eas submit --platform all
+npx eas-cli@latest login && npx eas-cli@latest init
+npx eas-cli@latest build --platform all --profile production
+npx eas-cli@latest submit --platform all
 ```
 
 Publishing needs an Apple Developer account and a Google Play Console account.
@@ -178,5 +195,5 @@ The UI is ready for a hosted SaaS, but these parts are not wired up yet:
 
 - **Accounts and cloud sync.** Projects are stored in the browser's localStorage. Replace `src/lib/storage.ts` with a database-backed API.
 - **Billing.** Pricing tiers are shown on the landing page, but there's no payment integration or usage metering yet.
-- **Hosted builds.** Store builds currently run through the user's own EAS account from the exported project. A server-side EAS integration, using a stored Expo token, would enable one-click submission.
+- **Store metadata upload.** Listing text and screenshots are still pasted into App Store Connect by hand; `eas metadata:push` could automate this.
 - **On-device preview.** A QR code for Expo Go (for example, through Expo Snack) is not included yet.

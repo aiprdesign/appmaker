@@ -69,6 +69,41 @@ export interface SiteSummary {
   pages: SitePage[];
 }
 
+/** The Expo (EAS) project an app is linked to, created on its first cloud build. */
+export interface ExpoLink {
+  projectId: string;
+  owner: string;
+  slug: string;
+}
+
+/** What a cloud build produces: an App Store build, a Play Store bundle or an installable APK. */
+export type BuildTarget = "ios" | "android" | "android-apk";
+
+/** A build running (or finished) on Expo's servers. */
+export interface CloudBuild {
+  id: string;
+  target: BuildTarget;
+  /** EAS status: NEW, IN_QUEUE, IN_PROGRESS, FINISHED, ERRORED, CANCELED… */
+  status: string;
+  createdAt: number;
+  appVersion?: string;
+  buildNumber?: string;
+  /** Download link for the finished .ipa / .aab / .apk. */
+  artifactUrl?: string;
+  error?: string;
+  queuePosition?: number;
+  waitSeconds?: number;
+  /** Set when the build was sent to App Store Connect automatically. */
+  submission?: { status: string; error?: string };
+}
+
+export interface ExpoState {
+  link?: ExpoLink;
+  /** App Store Connect "Apple ID" of the app (a number), needed for uploads. */
+  ascAppId?: string;
+  builds?: CloudBuild[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -82,6 +117,8 @@ export interface Project {
   versions?: Version[];
   /** Set while a request runs; left behind if the page closed mid-build. */
   pending?: PendingRequest;
+  /** Cloud builds with Expo Application Services. */
+  expo?: ExpoState;
   createdAt: number;
   updatedAt: number;
 }

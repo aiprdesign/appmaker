@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Check, CircleAlert, Copy, Download, ImageDown, Loader2, Star } from "lucide-react";
-import type { Project, StoreListing } from "@/lib/types";
+import type { ExpoState, Project, StoreListing } from "@/lib/types";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
+import { ExpoBuild } from "./ExpoBuild";
 
 const CATEGORIES = [
   "Books", "Business", "Education", "Entertainment", "Finance", "Food & Drink", "Games", "Graphics & Design",
@@ -14,6 +15,7 @@ const CATEGORIES = [
 interface Props {
   project: Project;
   onChange: (listing: StoreListing) => void;
+  onExpoChange: (expo: ExpoState) => void;
   hasPreviewError: boolean;
 }
 
@@ -93,7 +95,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, onChange, hasPreviewError }: Props) {
+export function PublishPanel({ project, onChange, onExpoChange, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -124,10 +126,10 @@ export function PublishPanel({ project, onChange, hasPreviewError }: Props) {
     "App review — Apple and Google usually take 1–3 days",
   ];
 
-  const download = async () => {
+  const download = async (p: Project = project) => {
     setExporting(true);
     try {
-      downloadBlob(await exportProjectZip(project), `${slugify(l.name)}-expo.zip`);
+      downloadBlob(await exportProjectZip(p), `${slugify(p.listing.name)}-expo.zip`);
     } finally {
       setExporting(false);
     }
@@ -227,31 +229,32 @@ export function PublishPanel({ project, onChange, hasPreviewError }: Props) {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-line bg-surface p-5">
-            <h2 className="font-semibold">Build &amp; submit</h2>
-            <p className="mt-1 text-xs text-muted">
-              Download the project, then build with Expo Application Services. You&apos;ll need an Apple Developer account
-              ($99/yr) and a Google Play Console account ($25 once).
-            </p>
+          <ExpoBuild project={project} onExpoChange={onExpoChange} onDownload={download} hasPreviewError={hasPreviewError} />
+
+          <details className="group rounded-2xl border border-line bg-surface p-5">
+            <summary className="cursor-pointer list-none font-semibold">
+              Build it yourself (command line)
+              <span className="mt-1 block text-xs font-normal text-muted">Prefer your own computer or CI? Download the project and use the EAS CLI.</span>
+            </summary>
             <ol className="mt-4 space-y-3 text-sm">
               <li>
                 <div className="mb-1.5 text-muted">1. Install dependencies and try it on your phone with Expo Go</div>
                 <CopyCommand cmd={`cd ${slugify(l.name)} && npm install && npx expo start`} />
               </li>
               <li>
-                <div className="mb-1.5 text-muted">2. Link to your Expo account</div>
-                <CopyCommand cmd="npm install -g eas-cli && eas login && eas init" />
+                <div className="mb-1.5 text-muted">2. Log in to Expo{project.expo?.link ? " (the project is already linked)" : " and link the project"}</div>
+                <CopyCommand cmd={project.expo?.link ? "npx eas-cli@latest login" : "npx eas-cli@latest login && npx eas-cli@latest init"} />
               </li>
               <li>
                 <div className="mb-1.5 text-muted">3. Build store binaries for iOS and Android</div>
-                <CopyCommand cmd="eas build --platform all --profile production" />
+                <CopyCommand cmd="npx eas-cli@latest build --platform all --profile production" />
               </li>
               <li>
                 <div className="mb-1.5 text-muted">4. Submit to App Store Connect and Google Play</div>
-                <CopyCommand cmd="eas submit --platform all" />
+                <CopyCommand cmd="npx eas-cli@latest submit --platform all" />
               </li>
             </ol>
-          </section>
+          </details>
         </div>
 
         <aside className="space-y-6">
@@ -316,7 +319,7 @@ export function PublishPanel({ project, onChange, hasPreviewError }: Props) {
               </ul>
             </div>
             <button
-              onClick={download}
+              onClick={() => download()}
               disabled={exporting || !Object.keys(project.files).length}
               className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 py-2.5 text-sm font-medium text-white disabled:opacity-50"
             >

@@ -1,0 +1,423 @@
+import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { EXPO_DEPS, expoProjectFiles, ICON_PATH, type IosSubmitConfig } from "../expo-project";
+import type { BuildTarget, CloudBuild, ExpoLink, Project } from "../types";
+import type { AscApiKey } from "./input";
+
+/**
+ * Cloud builds with Expo Application Services (EAS). The server writes the
+ * app's Expo project to a temporary folder and runs the EAS CLI with the
+ * user's Expo access token; the build itself runs on Expo's servers. Build
+ * status is read straight from Expo's API.
+ *
+ * Tokens and App Store Connect keys come with each request, are only passed
+ * to the EAS CLI / Expo API, and are never stored or logged.
+ */
+
+export type EasErrorCode = "auth" | "setup" | "ios-credentials" | "failed";
+
+export class EasError extends Error {
+  constructor(
+    message: string,
+    public status = 400,
+    public code: EasErrorCode = "failed",
+  ) {
+    super(message);
+  }
+}
+
+const expoApi = () => (process.env.APPMAKER_EXPO_API_URL || "https://api.expo.dev").replace(/\/$/, "");
+const workRoot = () => process.env.APPMAKER_EAS_WORKDIR || path.join(os.tmpdir(), "appmaker-eas");
+
+function easCliPath(): string {
+  const cli = process.env.APPMAKER_EAS_CLI || path.join(/* turbopackIgnore: true */ process.cwd(), "node_modules", "eas-cli", "bin", "run");
+  if (!existsSync(cli)) {
+    throw new EasError("Cloud builds aren't set up on this server: the EAS CLI (eas-cli) isn't installed.", 501, "setup");
+  }
+  return cli;
+}
+
+/** True when this server can run cloud builds. */
+export function easAvailable(): boolean {
+  try {
+    easCliPath();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Expo API (status and account checks, no CLI needed)
+
+async function graphql<T>(token: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${expoApi()}/graphql`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ query, variables }),
+      signal: AbortSignal.timeout(20_000),
+      cache: "no-store",
+    });
+  } catch {
+    throw new EasError("Couldn't reach Expo. Check your connection and try again.", 502);
+  }
+  const body = (await res.json().catch(() => null)) as { data?: T; errors?: { message: string; extensions?: { errorCode?: string } }[] } | null;
+  const err = body?.errors?.[0];
+  if (res.status === 401 || res.status === 403 || /UNAUTHORIZED|UNAUTHENTICATED/i.test(err?.extensions?.errorCode ?? "")) {
+    throw new EasError("Expo didn't accept this access token. Create a new one at expo.dev and connect again.", 401, "auth");
+  }
+  if (err) throw new EasError(`Expo: ${err.message}`, 502);
+  if (!res.ok || !body?.data) throw new EasError(`Expo answered with an error (HTTP ${res.status}).`, 502);
+  return body.data;
+}
+
+export interface ExpoAccount {
+  /** The user's name, or the robot's for robot tokens. */
+  name: string;
+  /** The account new projects are created under. */
+  account: string;
+}
+
+export async function whoami(token: string): Promise<ExpoAccount> {
+  const data = await graphql<{
+    meActor: { __typename: string; username?: string; firstName?: string; accounts: { name: string }[] } | null;
+  }>(token, `query AppmakerWhoami { meActor { __typename ... on UserActor { username } ... on Robot { firstName } accounts { name } } }`);
+  const actor = data.meActor;
+  if (!actor) throw new EasError("Expo didn't accept this access token.", 401, "auth");
+  const account = actor.username ?? actor.accounts[0]?.name;
+  if (!account) throw new EasError("This Expo token has no account to build under.", 400, "auth");
+  return { name: actor.username ?? `${actor.firstName || "Robot"} (robot)`, account };
+}
+
+interface RawBuild {
+  id: string;
+  status: string;
+  platform: string;
+  buildProfile?: string | null;
+  appVersion?: string | null;
+  appBuildVersion?: string | null;
+  createdAt?: string;
+  queuePosition?: number | null;
+  estimatedWaitTimeLeftSeconds?: number | null;
+  error?: { message?: string | null } | null;
+  artifacts?: { buildUrl?: string | null; applicationArchiveUrl?: string | null } | null;
+  submissions?: { status: string; error?: { message?: string | null } | null }[] | null;
+}
+
+export function toCloudBuild(b: RawBuild): CloudBuild {
+  const target: BuildTarget = b.platform === "IOS" ? "ios" : b.buildProfile === "preview" ? "android-apk" : "android";
+  const submission = b.submissions?.at(-1);
+  return {
+    id: b.id,
+    target,
+    status: b.status,
+    createdAt: b.createdAt ? Date.parse(b.createdAt) : Date.now(),
+    ...(b.appVersion ? { appVersion: b.appVersion } : {}),
+    ...(b.appBuildVersion ? { buildNumber: b.appBuildVersion } : {}),
+    ...(b.artifacts?.applicationArchiveUrl || b.artifacts?.buildUrl
+      ? { artifactUrl: (b.artifacts.applicationArchiveUrl || b.artifacts.buildUrl)! }
+      : {}),
+    ...(b.error?.message ? { error: b.error.message } : {}),
+    ...(b.queuePosition != null ? { queuePosition: b.queuePosition } : {}),
+    ...(b.estimatedWaitTimeLeftSeconds != null ? { waitSeconds: b.estimatedWaitTimeLeftSeconds } : {}),
+    ...(submission ? { submission: { status: submission.status, ...(submission.error?.message ? { error: submission.error.message } : {}) } } : {}),
+  };
+}
+
+const BUILD_FIELDS = `id status platform buildProfile appVersion appBuildVersion createdAt queuePosition estimatedWaitTimeLeftSeconds
+  error { message } artifacts { buildUrl applicationArchiveUrl } submissions { id status error { message } }`;
+
+export async function getBuilds(token: string, ids: string[]): Promise<CloudBuild[]> {
+  return Promise.all(
+    ids.map(async (id) => {
+      const data = await graphql<{ builds: { byId: RawBuild } }>(
+        token,
+        `query AppmakerBuild($buildId: ID!) { builds { byId(buildId: $buildId) { ${BUILD_FIELDS} } } }`,
+        { buildId: id },
+      );
+      return toCloudBuild(data.builds.byId);
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EAS CLI
+
+/** Network settings child processes need to reach Expo and npm (proxies, CA certificates). */
+const NETWORK_VARS = [
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy",
+  "NODE_EXTRA_CA_CERTS",
+  "SSL_CERT_FILE",
+  "npm_config_registry",
+  "NPM_CONFIG_REGISTRY",
+];
+
+function baseEnv(home: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { NODE_ENV: "production", PATH: process.env.PATH ?? "", HOME: home, TMPDIR: os.tmpdir() };
+  for (const k of NETWORK_VARS) if (process.env[k]) env[k] = process.env[k]!;
+  return env;
+}
+
+function clean(output: string, secrets: string[]): string {
+  let text = output.replace(/\u001b\[[0-9;]*[A-Za-z]/g, "");
+  for (const s of secrets) if (s) text = text.split(s).join("•••");
+  return text;
+}
+
+/** Turns EAS CLI output into a message a person can act on. */
+export function easFailure(output: string): EasError {
+  if (/Credentials are not set up|MissingCredentialsNonInteractive/i.test(output)) {
+    return new EasError(
+      "Apple signing isn't set up for this app yet. Do the one-time Apple setup below, then build again.",
+      409,
+      "ios-credentials",
+    );
+  }
+  if (/InsufficientAuthenticationNonInteractive|authentication with an ASC API key is required/i.test(output)) {
+    return new EasError(
+      "Expo needs your App Store Connect API key to update this app's provisioning profile. Add the key under “Upload to App Store”, then build again.",
+      409,
+      "ios-credentials",
+    );
+  }
+  if (/not authorized|unauthorized|log in with|EXPO_TOKEN/i.test(output)) {
+    return new EasError("Expo didn't accept this access token. Create a new one at expo.dev and connect again.", 401, "auth");
+  }
+  const lines = output
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !/^at\s|^\s*[│┌└]|node_modules|DeprecationWarning|--trace-deprecation/.test(l) && !/^\{|^\[/.test(l));
+  const tail = lines.slice(-6).join("\n").slice(-700);
+  return new EasError(tail ? `Expo couldn't start the build:\n${tail}` : "Expo couldn't start the build.", 502);
+}
+
+interface RunOptions {
+  cwd: string;
+  token: string;
+  env?: Record<string, string>;
+  timeoutMs?: number;
+  secrets?: string[];
+}
+
+/** Runs the EAS CLI. Only the variables it needs are passed — never the server's own secrets. */
+function runEas(args: string[], { cwd, token, env = {}, timeoutMs = 10 * 60_000, secrets = [] }: RunOptions): Promise<string> {
+  const cli = easCliPath();
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [cli, ...args], {
+      cwd,
+      env: {
+        // A private home next to (not inside) the project, so nothing the CLI
+        // writes there is uploaded with the app or shared between users.
+        ...baseEnv(`${cwd}-home`),
+        EXPO_TOKEN: token,
+        EAS_NO_VCS: "1",
+        EAS_PROJECT_ROOT: cwd,
+        CI: "1",
+        NO_COLOR: "1",
+        FORCE_COLOR: "0",
+        EXPO_NO_TELEMETRY: "1",
+        NODE_NO_WARNINGS: "1",
+        EAS_BUILD_NO_EXPO_GO_WARNING: "true",
+        ...env,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => (stdout += d));
+    child.stderr.on("data", (d) => (stderr += d));
+    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      reject(new EasError(`Couldn't run the EAS CLI: ${e.message}`, 500, "setup"));
+    });
+    child.on("close", (code, signal) => {
+      clearTimeout(timer);
+      const all = [token, ...secrets];
+      if (code === 0) return resolve(clean(stdout, all));
+      if (signal === "SIGKILL") return reject(new EasError("Expo took too long to respond. Try again in a few minutes.", 504));
+      reject(easFailure(clean(`${stderr}\n${stdout}`, all)));
+    });
+  });
+}
+
+/** Reads the JSON the EAS CLI prints with --json (logs go to stderr). */
+export function parseJsonOutput<T>(stdout: string): T {
+  const text = stdout.trim();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const start = text.search(/^[[{]/m);
+    if (start >= 0) {
+      try {
+        return JSON.parse(text.slice(start)) as T;
+      } catch {
+        /* fall through */
+      }
+    }
+    throw new EasError("Expo returned an unexpected answer. Try again.", 502);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Expo packages for reading the app config
+//
+// The EAS CLI evaluates app.json and its config plugins (notifications,
+// image picker) locally, which needs the Expo packages installed. They are the
+// same for every app, so they're installed once and linked into each build.
+
+let depsInstall: Promise<string | null> | null = null;
+
+export function ensureExpoDeps(): Promise<string | null> {
+  if (process.env.APPMAKER_EAS_SKIP_DEPS === "1") return Promise.resolve(null);
+  depsInstall ??= installDeps().catch((e) => {
+    depsInstall = null;
+    throw e;
+  });
+  return depsInstall;
+}
+
+async function installDeps(): Promise<string> {
+  const hash = createHash("sha256").update(JSON.stringify(EXPO_DEPS)).digest("hex").slice(0, 12);
+  const dir = path.join(workRoot(), `expo-deps-${hash}`);
+  const modules = path.join(dir, "node_modules");
+  const marker = path.join(modules, ".appmaker-ready");
+  if (existsSync(marker)) return modules;
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, "package.json"), JSON.stringify({ private: true, dependencies: EXPO_DEPS }, null, 2));
+  await new Promise<void>((resolve, reject) => {
+    const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+    const child = spawn(npm, ["install", "--no-audit", "--no-fund", "--ignore-scripts", "--legacy-peer-deps", "--loglevel=error"], {
+      cwd: dir,
+      env: { ...baseEnv(dir), npm_config_cache: path.join(workRoot(), "npm-cache") },
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let err = "";
+    child.stderr.on("data", (d) => (err += d));
+    const timer = setTimeout(() => child.kill("SIGKILL"), 15 * 60_000);
+    child.on("error", (e) => reject(new EasError(`Couldn't install the Expo packages on the server: ${e.message}`, 500, "setup")));
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new EasError(`Couldn't install the Expo packages on the server: ${err.trim().split("\n").slice(-3).join(" ")}`, 500, "setup"));
+    });
+  });
+  await writeFile(marker, new Date().toISOString());
+  await rm(path.join(workRoot(), "npm-cache"), { recursive: true, force: true }).catch(() => {});
+  return modules;
+}
+
+// ---------------------------------------------------------------------------
+// Project folders
+
+const ASC_KEY_FILE = "asc-api-key.p8";
+
+async function withProjectDir<T>(
+  project: Project,
+  icon: Buffer,
+  options: { link?: ExpoLink; ios?: IosSubmitConfig; ascKey?: AscApiKey },
+  run: (dir: string) => Promise<T>,
+): Promise<T> {
+  const modules = await ensureExpoDeps();
+  await mkdir(workRoot(), { recursive: true });
+  const base = await mkdtemp(path.join(workRoot(), "build-"));
+  const dir = path.join(base, "app");
+  await mkdir(dir, { recursive: true });
+  await mkdir(`${dir}-home`, { recursive: true });
+  try {
+    const ios: IosSubmitConfig = { ...options.ios };
+    if (options.ascKey) {
+      // *.p8 is in .gitignore, so the key is used for the upload but never
+      // included in the source archive sent to the build server.
+      const keyPath = path.join(dir, ASC_KEY_FILE);
+      await writeFile(keyPath, options.ascKey.p8, { mode: 0o600 });
+      await chmod(keyPath, 0o600);
+      Object.assign(ios, {
+        ascApiKeyPath: `./${ASC_KEY_FILE}`,
+        ascApiKeyId: options.ascKey.keyId,
+        ...(options.ascKey.issuerId ? { ascApiKeyIssuerId: options.ascKey.issuerId } : {}),
+      });
+    }
+    const files = expoProjectFiles(project, { link: options.link, ios });
+    for (const [rel, content] of Object.entries(files)) {
+      const file = path.join(dir, rel);
+      if (!file.startsWith(dir + path.sep)) continue;
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(file, content);
+    }
+    await mkdir(path.join(dir, path.dirname(ICON_PATH)), { recursive: true });
+    await writeFile(path.join(dir, ICON_PATH), icon);
+    if (modules) await symlink(modules, path.join(dir, "node_modules"), "dir");
+    return await run(dir);
+  } finally {
+    await rm(base, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/** Creates the app's project on the user's Expo account. */
+export async function linkProject(token: string, project: Project, icon: Buffer): Promise<ExpoLink> {
+  const { account } = await whoami(token);
+  return withProjectDir(project, icon, {}, async (dir) => {
+    const out = await runEas(["init", "--non-interactive", "--force", "--json", "--account", account], { cwd: dir, token, timeoutMs: 3 * 60_000 });
+    const res = parseJsonOutput<{ projectId?: string; owner?: string; slug?: string }>(out);
+    if (!res.projectId || !res.owner || !res.slug) throw new EasError("Expo didn't return the new project. Try again.", 502);
+    return { projectId: res.projectId, owner: res.owner, slug: res.slug };
+  });
+}
+
+export interface BuildRequest {
+  token: string;
+  project: Project;
+  icon: Buffer;
+  link: ExpoLink;
+  target: BuildTarget;
+  /** iOS: upload to App Store Connect (TestFlight) as soon as the build finishes. */
+  submit?: { ascAppId: string; ascKey: AscApiKey };
+  /** iOS: lets Expo refresh provisioning profiles without a person present. */
+  ascKey?: AscApiKey;
+}
+
+export function buildArgs(target: BuildTarget, submit: boolean): string[] {
+  const platform = target === "ios" ? "ios" : "android";
+  const profile = target === "android-apk" ? "preview" : "production";
+  return [
+    "build",
+    "--platform",
+    platform,
+    "--profile",
+    profile,
+    "--non-interactive",
+    "--no-wait",
+    "--json",
+    ...(submit && target === "ios" ? ["--auto-submit"] : []),
+  ];
+}
+
+export async function startBuild(req: BuildRequest): Promise<CloudBuild[]> {
+  const ascKey = req.submit?.ascKey ?? req.ascKey;
+  const ios: IosSubmitConfig = req.submit ? { ascAppId: req.submit.ascAppId } : {};
+  return withProjectDir(req.project, req.icon, { link: req.link, ios, ascKey }, async (dir) => {
+    const env: Record<string, string> = {};
+    if (ascKey && req.target === "ios") {
+      env.EXPO_ASC_API_KEY_PATH = path.join(dir, ASC_KEY_FILE);
+      env.EXPO_ASC_KEY_ID = ascKey.keyId;
+      if (ascKey.issuerId) env.EXPO_ASC_ISSUER_ID = ascKey.issuerId;
+    }
+    const out = await runEas(buildArgs(req.target, !!req.submit), { cwd: dir, token: req.token, env, secrets: ascKey ? [ascKey.p8] : [] });
+    const builds = parseJsonOutput<RawBuild[] | RawBuild>(out);
+    const list = (Array.isArray(builds) ? builds : [builds]).filter((b) => b?.id);
+    if (!list.length) throw new EasError("Expo didn't return the build. Check expo.dev for its status.", 502);
+    return list.map((b) => ({ ...toCloudBuild(b), target: req.target }));
+  });
+}

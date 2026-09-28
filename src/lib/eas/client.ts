@@ -1,0 +1,154 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+import { renderIcon } from "../export";
+import type { BuildTarget, CloudBuild, ExpoLink, Project } from "../types";
+
+/**
+ * The user's Expo connection, kept in this browser only. The access token and
+ * App Store Connect key are sent with each build request; the server passes
+ * them to Expo and never stores them.
+ */
+export interface ExpoSettings {
+  token?: string;
+  /** Who the token belongs to, shown as "Connected as …". */
+  accountName?: string;
+  /** App Store Connect API key, for uploads to TestFlight / the App Store. */
+  ascKey?: { keyId: string; issuerId: string; p8: string; fileName?: string };
+}
+
+const KEY = "appmaker.expo.v1";
+const listeners = new Set<() => void>();
+let cachedRaw: string | null | undefined;
+let cached: ExpoSettings = {};
+
+function read(): ExpoSettings {
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(KEY);
+  } catch {
+    // Storage unavailable; keep what this page view has.
+    return cached;
+  }
+  if (raw !== cachedRaw) {
+    cachedRaw = raw;
+    try {
+      cached = raw ? (JSON.parse(raw) as ExpoSettings) : {};
+    } catch {
+      cached = {};
+    }
+  }
+  return cached;
+}
+
+export function saveExpoSettings(next: ExpoSettings) {
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(next));
+  } catch {
+    cachedRaw = undefined;
+    cached = next;
+  }
+  listeners.forEach((l) => l());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  const onStorage = (e: StorageEvent) => e.key === KEY && listener();
+  window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+const EMPTY: ExpoSettings = {};
+export function useExpoSettings(): ExpoSettings {
+  return useSyncExternalStore(subscribe, read, () => EMPTY);
+}
+
+export class EasRequestError extends Error {
+  constructor(
+    message: string,
+    public code?: string,
+  ) {
+    super(message);
+  }
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  } catch {
+    throw new EasRequestError("Couldn't reach the server. Check your connection and try again.");
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new EasRequestError(data.error || `Request failed (HTTP ${res.status})`, data.code);
+  return data as T;
+}
+
+async function iconBase64(project: Project): Promise<string> {
+  const blob = await renderIcon(project.listing);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+const projectBody = (p: Project) => ({ files: p.files, listing: p.listing });
+
+export async function checkAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/eas/account");
+    return !!(await res.json()).available;
+  } catch {
+    return false;
+  }
+}
+
+export function connectExpo(token: string) {
+  return post<{ name: string; account: string; available: boolean }>("/api/eas/account", { token });
+}
+
+export async function linkToExpo(token: string, project: Project): Promise<ExpoLink> {
+  const { link } = await post<{ link: ExpoLink }>("/api/eas/link", { token, project: projectBody(project), icon: await iconBase64(project) });
+  return link;
+}
+
+export async function startCloudBuild(opts: {
+  token: string;
+  project: Project;
+  link: ExpoLink;
+  target: BuildTarget;
+  submit: boolean;
+  ascAppId?: string;
+  ascKey?: ExpoSettings["ascKey"];
+}): Promise<CloudBuild[]> {
+  const { builds } = await post<{ builds: CloudBuild[] }>("/api/eas/build", {
+    token: opts.token,
+    project: projectBody(opts.project),
+    icon: await iconBase64(opts.project),
+    link: opts.link,
+    target: opts.target,
+    submit: opts.submit,
+    ascAppId: opts.ascAppId,
+    ascKey: opts.ascKey ? { keyId: opts.ascKey.keyId, issuerId: opts.ascKey.issuerId, p8: opts.ascKey.p8 } : undefined,
+  });
+  return builds;
+}
+
+export async function fetchBuilds(token: string, ids: string[]): Promise<CloudBuild[]> {
+  const { builds } = await post<{ builds: CloudBuild[] }>("/api/eas/builds", { token, ids });
+  return builds;
+}
+
+export const ACTIVE_STATUSES = ["NEW", "IN_QUEUE", "IN_PROGRESS", "PENDING_CANCEL"];
+export const ACTIVE_SUBMISSION = ["AWAITING_BUILD", "IN_QUEUE", "IN_PROGRESS"];
+
+export function isActive(b: CloudBuild): boolean {
+  return ACTIVE_STATUSES.includes(b.status) || (!!b.submission && ACTIVE_SUBMISSION.includes(b.submission.status));
+}
+
+export function buildPageUrl(link: ExpoLink, id: string): string {
+  return `https://expo.dev/accounts/${encodeURIComponent(link.owner)}/projects/${encodeURIComponent(link.slug)}/builds/${encodeURIComponent(id)}`;
+}

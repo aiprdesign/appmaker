@@ -515,6 +515,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               project={project}
               hasPreviewError={!!previewError}
               onChange={(listing) => commit({ ...project, listing, name: listing.name || project.name })}
+              onExpoChange={(expo) => commit({ ...(projectRef.current ?? project), expo })}
             />
           )}
         </main>
