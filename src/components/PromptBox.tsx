@@ -1,17 +1,19 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Globe, Loader2, Sparkles } from "lucide-react";
 import { createProject } from "@/lib/storage";
 import { TEMPLATES } from "@/lib/templates";
 import type { SiteSummary } from "@/lib/types";
-import { ModelButton } from "./AiSettings";
+import { AiSettingsDialog, ModelButton, useAiReady } from "./AiSettings";
 import { SiteCard } from "./SiteCard";
 
 /** A link typed into the prompt: an explicit URL, a www. host, or a common TLD (not "Node.js"). */
 const URL_IN_TEXT =
   /(?:https?:\/\/[^\s]+|\bwww\.[a-z0-9-]+\.[^\s]+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|app|dev|ai|shop|store|biz|info|me|us|uk|ca|au|de|fr|in|nl|es|it|nz|ie)\b(?:\/[^\s]*)?)/i;
+
+const MAX_PROMPT = 8000;
 
 export function PromptBox() {
   const router = useRouter();
@@ -23,8 +25,23 @@ export function PromptBox() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
+  const aiReady = useAiReady();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Template cards elsewhere on the page fill in the prompt for review
+  // instead of starting a (paid) build straight away.
+  useEffect(() => {
+    const onTemplate = (e: Event) => {
+      setValue((e as CustomEvent<string>).detail);
+      document.getElementById("start")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => ref.current?.focus(), 300);
+    };
+    window.addEventListener("appmaker:template", onTemplate);
+    return () => window.removeEventListener("appmaker:template", onTemplate);
+  }, []);
 
   const detected = !site && !showUrl ? URL_IN_TEXT.exec(value)?.[0] : undefined;
+  const tooLong = value.length > MAX_PROMPT;
 
   const importSite = async (address: string) => {
     if (!address.trim() || importing) return;
@@ -52,7 +69,7 @@ export function PromptBox() {
 
   const start = () => {
     const text = value.trim() || (site ? `Turn ${site.siteName} (${site.url}) into a mobile app for its customers.` : "");
-    if (!text || busy || importing) return;
+    if (!text || busy || importing || tooLong) return;
     setBusy(true);
     const project = createProject(text, site ?? undefined);
     router.push(`/build/${project.id}?auto=1`);
@@ -154,9 +171,14 @@ export function PromptBox() {
               <Sparkles className="h-3.5 w-3.5 text-violet-400" /> iOS + Android
             </span>
           </div>
+          {value.length > MAX_PROMPT * 0.8 && (
+            <span className={`ml-auto text-[11px] ${tooLong ? "text-rose-400" : "text-muted"}`}>
+              {value.length.toLocaleString()}/{MAX_PROMPT.toLocaleString()}
+            </span>
+          )}
           <button
             type="submit"
-            disabled={(!value.trim() && !site) || busy || importing}
+            disabled={(!value.trim() && !site) || busy || importing || tooLong}
             className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-pink-500 text-white transition disabled:opacity-40"
             aria-label="Build app"
           >
@@ -164,6 +186,16 @@ export function PromptBox() {
           </button>
         </div>
       </form>
+      {aiReady === false && (
+        <p className="mt-3 text-center text-xs text-amber-200/90">
+          Demo mode: no AI key is set up yet, so you&apos;ll get a sample app.{" "}
+          <button type="button" onClick={() => setSettingsOpen(true)} className="min-h-6 font-medium text-amber-100 underline underline-offset-2">
+            Add an API key
+          </button>{" "}
+          to build anything you describe.
+        </p>
+      )}
+      {settingsOpen && <AiSettingsDialog onClose={() => setSettingsOpen(false)} />}
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         {TEMPLATES.slice(0, 5).map((t) => (
           <button
@@ -183,15 +215,8 @@ export function PromptBox() {
 }
 
 export function TemplateButton({ prompt, children, className }: { prompt: string; children: React.ReactNode; className?: string }) {
-  const router = useRouter();
   return (
-    <button
-      className={className}
-      onClick={() => {
-        const project = createProject(prompt);
-        router.push(`/build/${project.id}?auto=1`);
-      }}
-    >
+    <button className={className} onClick={() => window.dispatchEvent(new CustomEvent("appmaker:template", { detail: prompt }))}>
       {children}
     </button>
   );

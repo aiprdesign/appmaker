@@ -17,6 +17,15 @@ interface Props {
   hasPreviewError: boolean;
 }
 
+function isUrl(value?: string): boolean {
+  if (!value) return false;
+  try {
+    return /^https?:$/.test(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 export function AppIcon({ listing, size = 64 }: { listing: StoreListing; size?: number }) {
   return (
     <div
@@ -97,9 +106,23 @@ export function PublishPanel({ project, onChange, hasPreviewError }: Props) {
     { ok: l.description.trim().length >= 100, label: "Description at least 100 characters" },
     { ok: l.keywords.trim().length > 0 && l.keywords.length <= 100, label: "Keywords set (≤ 100 characters)" },
     { ok: /^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*){2,}$/.test(l.bundleId), label: "Valid bundle identifier" },
+    {
+      ok: !/^com\.appmaker\./.test(l.bundleId),
+      label: "Bundle ID uses your own name (not com.appmaker…)",
+      hint: "It's permanent once published — use your company or name, e.g. com.yourname.app",
+    },
     { ok: l.privacyNotes.trim().length > 0, label: "Privacy details provided" },
+    { ok: isUrl(l.supportUrl), label: "Support page link", hint: "Apple requires a page where users can get help" },
+    { ok: isUrl(l.privacyPolicyUrl), label: "Privacy policy link", hint: "Both stores require a hosted privacy policy" },
   ];
   const ready = checks.filter((c) => c.ok).length;
+  // Things only the stores can take; listed so "ready" never overpromises.
+  const storeSteps = [
+    "Screenshots of your app (take them from the preview, 6.9\" iPhone size for Apple)",
+    "Age rating questionnaire (answered in App Store Connect / Play Console)",
+    "Apple Developer account ($99/yr) and Google Play Console account ($25 once)",
+    "App review — Apple and Google usually take 1–3 days",
+  ];
 
   const download = async () => {
     setExporting(true);
@@ -148,6 +171,24 @@ export function PublishPanel({ project, onChange, hasPreviewError }: Props) {
               </Field>
               <Field label="Bundle ID / package name" hint="Permanent once published, e.g. com.yourcompany.app">
                 <input className={`${input} font-mono`} value={l.bundleId} onChange={(e) => set("bundleId", e.target.value.toLowerCase())} />
+              </Field>
+              <Field label="Support page URL" hint="Where users can get help — a simple page or contact form is fine.">
+                <input
+                  className={input}
+                  type="url"
+                  placeholder="https://yourwebsite.com/support"
+                  value={l.supportUrl ?? ""}
+                  onChange={(e) => set("supportUrl", e.target.value.trim())}
+                />
+              </Field>
+              <Field label="Privacy policy URL" hint="A hosted privacy policy page (free generators exist).">
+                <input
+                  className={input}
+                  type="url"
+                  placeholder="https://yourwebsite.com/privacy"
+                  value={l.privacyPolicyUrl ?? ""}
+                  onChange={(e) => set("privacyPolicyUrl", e.target.value.trim())}
+                />
               </Field>
               <div className="sm:col-span-2">
                 <Field label="Privacy" hint="Summarize the data your app collects for the App Privacy section.">
@@ -237,7 +278,7 @@ export function PublishPanel({ project, onChange, hasPreviewError }: Props) {
 
           <section className="rounded-2xl border border-line bg-surface p-5">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Launch checklist</h2>
+              <h2 className="font-semibold">Ready to export</h2>
               <span className="text-xs text-muted">
                 {ready}/{checks.length}
               </span>
@@ -256,10 +297,24 @@ export function PublishPanel({ project, onChange, hasPreviewError }: Props) {
                   ) : (
                     <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
                   )}
-                  <span className={c.ok ? "text-foreground/90" : "text-muted"}>{c.label}</span>
+                  <span className={c.ok ? "text-foreground/90" : "text-muted"}>
+                    {c.label}
+                    {!c.ok && c.hint && <span className="mt-0.5 block text-[11px] text-muted">{c.hint}</span>}
+                  </span>
                 </li>
               ))}
             </ul>
+            <div className="mt-5 border-t border-line pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Also needed in the stores</h3>
+              <ul className="mt-2 space-y-1.5 text-xs text-muted">
+                {storeSteps.map((step) => (
+                  <li key={step} className="flex gap-2">
+                    <span aria-hidden="true">•</span>
+                    {step}
+                  </li>
+                ))}
+              </ul>
+            </div>
             <button
               onClick={download}
               disabled={exporting || !Object.keys(project.files).length}

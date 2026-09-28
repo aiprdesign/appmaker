@@ -53,12 +53,18 @@ test("habit tracker: data persists and store listing is complete", async ({ page
   await expect(app.getByText("Stretch")).toBeVisible();
 
   await page.getByRole("button", { name: "Publish" }).first().click();
-  await expect(page.getByText("8/8")).toBeVisible();
+  // Honest checklist: the default com.appmaker ID and missing store links aren't "ready".
+  await expect(page.getByText("8/11")).toBeVisible();
+  await expect(page.getByText("Also needed in the stores")).toBeVisible();
+  await page.getByLabel("Bundle ID / package name").fill("com.janedoe.streakly");
+  await page.getByLabel("Support page URL").fill("https://janedoe.com/support");
+  await page.getByLabel("Privacy policy URL").fill("https://janedoe.com/privacy");
+  await expect(page.getByText("11/11")).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download Expo project" }).click()]);
   expect(download.suggestedFilename()).toBe("streakly-expo.zip");
 });
 
-test("a crashing app shows the Fix with AI banner", async ({ page }) => {
+test("a crashing app shows the error banner", async ({ page }) => {
   const app = await buildApp(page, "A dream diary");
   await expect(app.getByText("Kicked off the project")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Code" }).click();
@@ -67,7 +73,9 @@ test("a crashing app shows the Fix with AI banner", async ({ page }) => {
     .fill("import { View } from 'react-native';\nexport default function App() { const x = undefined; return <View>{x.boom}</View>; }\n");
   await page.getByRole("button", { name: "Preview" }).click();
   await expect(page.getByText("The app hit an error")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "Fix with AI" })).toBeVisible();
+  // Demo mode can't edit apps, so it points to AI settings / History instead of a dead button.
+  await expect(page.getByRole("button", { name: "Fix with AI" })).toHaveCount(0);
+  await expect(page.getByText(/Automatic fixing needs an AI key/)).toBeVisible();
 });
 
 test("projects dashboard lists saved apps", async ({ page }) => {

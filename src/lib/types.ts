@@ -8,6 +8,10 @@ export interface ChatMessage {
   files?: string[];
   /** Set on messages the builder sent automatically to repair the app. */
   kind?: "auto-fix";
+  /** The request failed; the UI offers to try it again. */
+  error?: boolean;
+  /** Snapshot of the app right after this reply, for "restore". */
+  versionId?: string;
   createdAt: number;
 }
 
@@ -22,6 +26,26 @@ export interface StoreListing {
   primaryColor: string;
   iconEmoji: string;
   privacyNotes: string;
+  /** Required by the App Store: a page where users can get help. */
+  supportUrl?: string;
+  /** Required by both stores: a hosted privacy policy. */
+  privacyPolicyUrl?: string;
+}
+
+/** A saved state of the app the user can go back to. */
+export interface Version {
+  id: string;
+  createdAt: number;
+  /** What produced it, e.g. the request or "Restored an earlier version". */
+  label: string;
+  files: FileMap;
+  listing: StoreListing;
+}
+
+/** A request that was running when the page closed. */
+export interface PendingRequest {
+  prompt: string;
+  startedAt: number;
 }
 
 /** One page read during a website import. */
@@ -54,6 +78,10 @@ export interface Project {
   listing: StoreListing;
   /** Website the app is based on, if one was imported. */
   source?: SiteSummary;
+  /** Earlier states of the app, oldest first. */
+  versions?: Version[];
+  /** Set while a request runs; left behind if the page closed mid-build. */
+  pending?: PendingRequest;
   createdAt: number;
   updatedAt: number;
 }

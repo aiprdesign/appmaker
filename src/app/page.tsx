@@ -174,7 +174,7 @@ export default function Home() {
         <section id="templates" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
           <div className="flex flex-col items-center text-center">
             <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Start from a template</h2>
-            <p className="mt-3 text-muted">One click to generate. Then make it yours with chat.</p>
+            <p className="mt-3 text-muted">Pick one to start from — tweak the description, then build and refine it with chat.</p>
           </div>
           <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
             {TEMPLATES.map((t) => (

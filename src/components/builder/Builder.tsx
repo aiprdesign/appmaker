@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Code2, Download, Loader2, MessageSquare, RotateCw, Rocket, Smartphone, Wand2 } from "lucide-react";
+import { HistoryMenu } from "./HistoryMenu";
 import { Logo } from "@/components/Logo";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Preview, type PreviewError } from "@/components/Preview";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
 import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
-import { getProject, saveProject, uid } from "@/lib/storage";
+import { getProject, saveProject, uid, withVersion } from "@/lib/storage";
 import { describeIssues, isAllowedPath, validateApp, type ValidationIssue } from "@/lib/validate";
 import type { ChatMessage, FileMap, Project } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
@@ -23,6 +24,17 @@ const AUTO_FIX_BUDGET = 2;
 /** How long after a generation a preview crash counts as caused by it. */
 const RUNTIME_WATCH_MS = 8000;
 
+/** Turns network and API errors into something a non-developer can act on. */
+export function friendlyError(message: string): string {
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(message)) {
+    return "The connection dropped before the app was finished. Check your internet connection and try again.";
+  }
+  if (/prompt must be at most/i.test(message)) return "That request is too long. Shorten it to under 8,000 characters and try again.";
+  if (/too large to edit/i.test(message)) return "This app has grown too large to edit in one go. Try a smaller, more specific change.";
+  if (/request failed \(5\d\d\)/i.test(message)) return "Something went wrong on our side. Please try again in a moment.";
+  return message;
+}
+
 export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
   const [tab, setTab] = useState<Tab>("preview");
@@ -35,17 +47,39 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [previewError, setPreviewError] = useState<PreviewError | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const projectRef = useRef<Project | null>(null);
   const started = useRef(false);
   const fixBudget = useRef(AUTO_FIX_BUDGET);
   const runtimeWatchUntil = useRef(0);
   const demoRef = useRef(false);
+  const unloading = useRef(false);
 
   const commit = useCallback((next: Project) => {
     projectRef.current = next;
     setProject(next);
-    saveProject(next);
+    setSaveFailed(!saveProject(next));
+  }, []);
+
+  // Closing or reloading the page would lose a build in progress: ask first,
+  // and don't record the aborted request as a failure.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!abortRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    const onPageHide = () => {
+      unloading.current = true;
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onPageHide);
+    };
   }, []);
 
   useEffect(() => {
@@ -65,7 +99,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   }, [project, generating]);
 
   const send = useCallback(
-    async (text: string, opts: { autoFix?: boolean } = {}) => {
+    async (text: string, opts: { autoFix?: boolean; retry?: boolean } = {}) => {
       const current = projectRef.current;
       if (!current || abortRef.current) return;
       if (!opts.autoFix) fixBudget.current = AUTO_FIX_BUDGET;
@@ -77,8 +111,15 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         createdAt: Date.now(),
         ...(opts.autoFix ? { kind: "auto-fix" as const } : {}),
       };
-      const withUser = { ...current, messages: [...current.messages, userMsg] };
+      // A retry re-runs the last request without repeating it in the chat.
+      const startTime = Date.now();
+      const withUser = {
+        ...current,
+        messages: opts.retry ? current.messages : [...current.messages, userMsg],
+        pending: { prompt: text, startedAt: startTime },
+      };
       commit(withUser);
+      setStartedAt(startTime);
       setGenerating(true);
       setLive(null);
       setMobileView("chat");
@@ -96,7 +137,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             prompt: text,
             files: current.files,
             listing: Object.keys(current.files).length ? current.listing : undefined,
-            history: current.messages.map((m) => ({ role: m.role, content: m.content })),
+            history: current.messages.filter((m) => !m.error).map((m) => ({ role: m.role, content: m.content })),
             site: current.source,
             ai: aiChoiceFor(getAiSettings()),
           }),
@@ -123,12 +164,16 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           }
         }
       } catch (e) {
-        if ((e as Error).name !== "AbortError") error = (e as Error).message;
-        else error = "Stopped.";
+        if ((e as Error).name !== "AbortError") error = friendlyError((e as Error).message);
+        else error = "Stopped. Any finished files were kept — use History to go back if needed.";
       }
 
+      // The page is closing: leave `pending` in place so the request can be
+      // offered again when the project is reopened.
+      if (unloading.current) return;
+
       const streamError = /<error>([\s\S]*?)<\/error>/.exec(raw)?.[1];
-      if (streamError) error = streamError;
+      if (streamError) error = friendlyError(streamError);
       const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
       const base = projectRef.current ?? withUser;
       // Keep only files that finished streaming, and never accept paths
@@ -150,24 +195,26 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           .filter(Boolean)
           .join("\n\n") || "I couldn't produce an app for that. Try describing it differently.";
 
+      const wrote = Object.keys(complete).length > 0;
+      let next: Project = { ...base, name: listing.name || base.name, files, listing, pending: undefined };
+      let versionId: string | undefined;
+      if (wrote) ({ project: next, versionId } = withVersion(next, opts.autoFix ? "Automatic quality fix" : text));
       const assistantMsg: ChatMessage = {
         id: uid(),
         role: "assistant",
         content: reply,
         files: Object.keys(complete),
         createdAt: Date.now(),
+        ...(versionId ? { versionId } : {}),
+        ...(error && !wrote ? { error: true } : {}),
       };
-      commit({
-        ...base,
-        name: listing.name || base.name,
-        files,
-        listing,
-        messages: [...base.messages, assistantMsg],
-      });
+      commit({ ...next, messages: [...base.messages, assistantMsg] });
       setPreviewFiles(files);
       setReloadKey((k) => k + 1);
       setLive(null);
       setGenerating(false);
+      setStartedAt(null);
+      setSelectedFile(files["App.js"] != null ? "App.js" : null);
       abortRef.current = null;
       if (Object.keys(complete).length) setMobileView("app");
 
@@ -200,6 +247,49 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       send(project.prompt);
     }
   }, [project, autoStart, send]);
+
+  /** Re-runs the last request the user made (not an automatic fix). */
+  const retry = useCallback(() => {
+    const p = projectRef.current;
+    if (!p) return;
+    const last = p.pending?.prompt ?? [...p.messages].reverse().find((m) => m.role === "user" && m.kind !== "auto-fix")?.content;
+    if (last) send(last, { retry: true });
+  }, [send]);
+
+  /** Dismisses a request that was interrupted by closing the page. */
+  const dismissPending = useCallback(() => {
+    const p = projectRef.current;
+    if (p) commit({ ...p, pending: undefined });
+  }, [commit]);
+
+  /** Brings back an earlier version; the current state stays in History. */
+  const restore = useCallback(
+    (versionId: string) => {
+      const p = projectRef.current;
+      const v = p?.versions?.find((x) => x.id === versionId);
+      if (!p || !v || abortRef.current) return;
+      const when = new Date(v.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const restored = withVersion({ ...p, files: v.files, listing: v.listing, name: v.listing.name || p.name }, `Restored the version from ${when}`);
+      const note: ChatMessage = {
+        id: uid(),
+        role: "assistant",
+        content: `↩️ Restored the version from ${when} (“${v.label.slice(0, 60)}”). Your previous version is still in **History**.`,
+        createdAt: Date.now(),
+        versionId: restored.versionId,
+      };
+      commit({ ...restored.project, messages: [...p.messages, note] });
+      setPreviewFiles(v.files);
+      setReloadKey((k) => k + 1);
+      setSelectedFile("App.js");
+    },
+    [commit],
+  );
+
+  const openFile = useCallback((path: string) => {
+    setSelectedFile(path);
+    setTab("code");
+    setMobileView("app");
+  }, []);
 
   const onPreviewError = useCallback((err: PreviewError | null) => {
     setPreviewError(err);
@@ -277,6 +367,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             </button>
           ))}
         </nav>
+        <HistoryMenu versions={project.versions ?? []} disabled={generating} onRestore={restore} />
         <button
           onClick={async () => downloadBlob(await exportProjectZip(project), `${slugify(project.listing.name)}-expo.zip`)}
           disabled={!hasApp}
@@ -293,6 +384,13 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           <Rocket className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Publish</span>
         </button>
       </header>
+
+      {saveFailed && (
+        <div role="alert" className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          Your browser&apos;s storage is full, so recent changes may not be saved. Export the project to keep a copy, or delete old apps in My apps.
+        </div>
+      )}
 
       <div className="flex border-b border-line lg:hidden">
         {(["chat", "app"] as const).map((v) => (
@@ -321,6 +419,13 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             onSend={send}
             onStop={() => abortRef.current?.abort()}
             hasApp={hasApp}
+            startedAt={startedAt}
+            interrupted={!generating ? (project.pending ?? null) : null}
+            onRetry={retry}
+            onDismissInterrupted={dismissPending}
+            onOpenFile={openFile}
+            onRestore={restore}
+            latestVersionId={project.versions?.at(-1)?.id}
           />
         </aside>
 
@@ -346,7 +451,32 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 >
                   <RotateCw className="h-3.5 w-3.5" />
                 </button>
+                {generating && hasApp && (
+                  <span className="flex items-center gap-1.5 text-xs text-muted">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> Applying changes…
+                  </span>
+                )}
               </div>
+              {previewError && !generating && (
+                <div role="alert" className="mx-4 mb-2 flex items-start gap-3 rounded-xl border border-rose-500/30 bg-[#1a0d12] p-3 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-rose-200">The app hit an error</div>
+                    <div className="mt-0.5 line-clamp-2 font-mono text-xs text-rose-300/80">{previewError.message}</div>
+                    {demoMode && <div className="mt-1 text-xs text-rose-200/80">Automatic fixing needs an AI key — add one in AI settings, or undo the change in History.</div>}
+                  </div>
+                  {!demoMode && (
+                    <button
+                      onClick={() =>
+                        send(`The app crashes in the preview with this error:\n\n${previewError.message}\n\nPlease find the cause and fix it.`)
+                      }
+                      className="min-h-8 shrink-0 rounded-lg bg-rose-500 px-3 text-xs font-medium text-white hover:bg-rose-400"
+                    >
+                      Fix with AI
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="relative min-h-0 flex-1 px-4 pb-4">
                 <PhoneFrame platform={platform}>
                   {hasApp || Object.keys(previewFiles).length ? (
@@ -364,29 +494,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                     </div>
                   )}
                 </PhoneFrame>
-                {generating && hasApp && (
-                  <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-surface/90 px-3 py-1.5 text-xs backdrop-blur">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> Applying changes…
-                  </div>
-                )}
               </div>
-              {previewError && !generating && (
-                <div className="absolute inset-x-4 bottom-4 mx-auto flex max-w-lg items-start gap-3 rounded-xl border border-rose-500/30 bg-[#1a0d12]/95 p-3 text-sm backdrop-blur">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-rose-200">The app hit an error</div>
-                    <div className="mt-0.5 line-clamp-2 font-mono text-xs text-rose-300/80">{previewError.message}</div>
-                  </div>
-                  <button
-                    onClick={() =>
-                      send(`The app crashes in the preview with this error:\n\n${previewError.message}\n\nPlease find the cause and fix it.`)
-                    }
-                    className="shrink-0 rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-400"
-                  >
-                    Fix with AI
-                  </button>
-                </div>
-              )}
             </div>
           )}
 

@@ -136,6 +136,8 @@ Or push to GitHub and add an \`EXPO_TOKEN\` secret — the included workflow bui
 - **Keywords:** ${l.keywords}
 - **Bundle ID:** ${l.bundleId}
 - **Privacy:** ${l.privacyNotes}
+- **Support URL:** ${l.supportUrl || "(add in Appmaker's Publish tab)"}
+- **Privacy policy URL:** ${l.privacyPolicyUrl || "(add in Appmaker's Publish tab)"}
 
 ### Description
 

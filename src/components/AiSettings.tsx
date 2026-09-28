@@ -36,6 +36,18 @@ function useServerConfig(): ServerAiConfig | null {
   return config;
 }
 
+/**
+ * Whether a real AI will run: the site has a key, or the user added one.
+ * Null while the server config is loading.
+ */
+export function useAiReady(): boolean | null {
+  const settings = useAiSettings();
+  const config = useServerConfig();
+  if (!config) return null;
+  const userKey = Object.values(settings.keys).some(Boolean) || (settings.provider === "custom" && !!settings.baseURL);
+  return userKey || config.serverKeys.length > 0;
+}
+
 /** The provider and model that will actually be used. */
 export function useEffectiveModel(): { provider: ProviderId; model: string } | null {
   const settings = useAiSettings();

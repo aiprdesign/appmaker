@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { FileCode2 } from "lucide-react";
 import type { FileMap } from "@/lib/types";
 
@@ -15,6 +16,8 @@ interface Props {
 export function CodePanel({ files, selected, onSelect, onChange, readOnly, writing }: Props) {
   const paths = Object.keys(files).sort((a, b) => (a === "App.js" ? -1 : b === "App.js" ? 1 : a.localeCompare(b)));
   const current = selected && files[selected] != null ? selected : paths[0];
+  // After Esc, the next Tab moves focus out of the editor instead of indenting.
+  const escaped = useRef(false);
 
   if (!paths.length) {
     return <div className="grid h-full place-items-center text-sm text-muted">No files yet — describe your app to get started.</div>;
@@ -43,11 +46,30 @@ export function CodePanel({ files, selected, onSelect, onChange, readOnly, writi
         <textarea
           value={files[current] ?? ""}
           onChange={(e) => onChange(current, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              escaped.current = true;
+              return;
+            }
+            if (e.key === "Tab" && !escaped.current && !readOnly) {
+              e.preventDefault();
+              const el = e.currentTarget;
+              const { selectionStart: start, selectionEnd: end, value } = el;
+              const next = `${value.slice(0, start)}  ${value.slice(end)}`;
+              onChange(current, next);
+              requestAnimationFrame(() => el.setSelectionRange(start + 2, start + 2));
+            }
+            escaped.current = false;
+          }}
+          aria-describedby="code-editor-hint"
           readOnly={readOnly}
           spellCheck={false}
           className="scrollbar-thin h-full w-full resize-none bg-[#0b0b10] p-4 font-mono text-[12.5px] leading-relaxed text-[#d8d6e6] outline-none"
           aria-label={`Source of ${current}`}
         />
+        <span id="code-editor-hint" className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-muted">
+          Tab indents · Esc then Tab to leave
+        </span>
         {readOnly && (
           <span className="absolute right-3 top-3 rounded-md bg-violet-500/20 px-2 py-0.5 text-[11px] text-violet-300">
             AI is writing…
