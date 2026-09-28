@@ -7,7 +7,7 @@ test("imports a website and builds a branded app from it", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Import website" }).click();
+  await page.getByRole("tab", { name: "From a website" }).click();
   await page.getByLabel("Website address").fill(SITE);
   await page.getByRole("button", { name: "Import", exact: true }).click();
 
@@ -39,8 +39,23 @@ test("offers to import a link typed into the prompt", async ({ page }) => {
 
 test("shows a friendly error for a site that can't be read", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Import website" }).click();
+  await page.getByRole("tab", { name: "From a website" }).click();
   await page.getByLabel("Website address").fill("http://localhost:3200/missing");
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(page.getByText(/HTTP 404/)).toBeVisible({ timeout: 20_000 });
+});
+
+test("the home page offers 'From a website' as a way to start", async ({ page }) => {
+  await page.goto("/");
+  const idea = page.getByRole("tab", { name: "Describe an idea" });
+  const website = page.getByRole("tab", { name: "From a website" });
+  await expect(idea).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("Website address")).toHaveCount(0);
+  await website.click();
+  await expect(website).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("Website address")).toBeFocused();
+  await expect(page.getByText(/reads your site.s pages, brand colours and content/)).toBeVisible();
+  await expect(page.getByLabel("Describe your app")).toHaveAttribute("placeholder", /Optional: what should the app do/);
+  await idea.click();
+  await expect(page.getByLabel("Website address")).toHaveCount(0);
 });

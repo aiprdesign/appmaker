@@ -116,7 +116,7 @@ export default function Home() {
             Turn a prompt into an <span className="text-gradient">App Store app</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-muted md:text-lg">
-            Describe your idea. Appmaker designs and codes a native iOS &amp; Android app, lets you test it live, and
+            Describe your idea or paste your website. Appmaker designs and codes a native iOS &amp; Android app, lets you test it live, and
             packages it for the App Store and Google Play.
           </p>
           <div className="mt-10">

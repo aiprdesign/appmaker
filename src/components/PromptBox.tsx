@@ -80,6 +80,35 @@ export function PromptBox() {
 
   return (
     <div id="start" className="mx-auto w-full max-w-2xl">
+      <div role="tablist" aria-label="How do you want to start?" className="mb-3 flex justify-center gap-1">
+        {[
+          { key: false, label: "Describe an idea", icon: Sparkles },
+          { key: true, label: "From a website", icon: Globe },
+        ].map((t) => {
+          const selected = (showUrl || !!site) === t.key;
+          return (
+            <button
+              key={t.label}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => {
+                setShowUrl(t.key);
+                setImportError("");
+                if (!t.key) {
+                  setSite(null);
+                  setTimeout(() => ref.current?.focus(), 0);
+                }
+              }}
+              className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-4 text-sm transition ${
+                selected ? "bg-white font-medium text-black" : "text-muted hover:bg-white/5 hover:text-foreground"
+              }`}
+            >
+              <t.icon className="h-4 w-4" /> {t.label}
+            </button>
+          );
+        })}
+      </div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -92,32 +121,14 @@ export function PromptBox() {
             <SiteCard site={site} onRemove={() => setSite(null)} />
           </div>
         )}
-        <textarea
-          ref={ref}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              start();
-            }
-          }}
-          rows={3}
-          placeholder={
-            site
-              ? `What should the ${site.siteName} app do? (optional — press Enter to let AI decide)`
-              : "Describe your app idea — e.g. a habit tracker with streaks and weekly stats…"
-          }
-          className="w-full resize-none bg-transparent px-2 py-1 text-base text-foreground outline-none placeholder:text-muted/70"
-          aria-label="Describe your app"
-        />
-
         {showUrl && !site && (
-          <div className="mb-1 mt-1 px-1">
+          <div className="mb-2 px-1">
             <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2/60 px-2 py-1.5 focus-within:border-violet-500/60">
               <Globe className="h-4 w-4 shrink-0 text-muted" />
               <input
                 autoFocus
+                type="url"
+                inputMode="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => {
@@ -140,9 +151,37 @@ export function PromptBox() {
                 {importing ? "Reading site…" : "Import"}
               </button>
             </div>
-            {importError && <p className="mt-1.5 px-1 text-xs text-rose-400">{importError}</p>}
+            {importError ? (
+              <p className="mt-1.5 px-1 text-xs text-rose-400">{importError}</p>
+            ) : (
+              <p className="mt-1.5 px-1 text-xs text-muted">
+                Appmaker reads your site&apos;s pages, brand colours and content, then builds an app for your customers.
+              </p>
+            )}
           </div>
         )}
+
+        <textarea
+          ref={ref}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              start();
+            }
+          }}
+          rows={3}
+          placeholder={
+            site
+              ? `What should the ${site.siteName} app do? (optional — press Enter to let AI decide)`
+              : showUrl
+                ? "Optional: what should the app do? e.g. bookings, the menu, a loyalty card…"
+                : "Describe your app idea — e.g. a habit tracker with streaks and weekly stats…"
+          }
+          className="w-full resize-none bg-transparent px-2 py-1 text-base text-foreground outline-none placeholder:text-muted/70"
+          aria-label="Describe your app"
+        />
 
         {detected && (
           <button
@@ -158,17 +197,6 @@ export function PromptBox() {
 
         <div className="flex items-center justify-between gap-2 pt-1">
           <div className="flex items-center gap-1">
-            {!site && (
-              <button
-                type="button"
-                onClick={() => setShowUrl((v) => !v)}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs ${
-                  showUrl ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
-                }`}
-              >
-                <Globe className="h-3.5 w-3.5" /> Import website
-              </button>
-            )}
             <ModelButton />
             <span className="hidden items-center gap-1.5 px-2 text-xs text-muted md:flex">
               <Sparkles className="h-3.5 w-3.5 text-violet-400" /> iOS + Android
