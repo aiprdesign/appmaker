@@ -60,6 +60,10 @@ test("status page explains what's missing", async ({ page }) => {
   await expect(page.getByText("Demo mode — no AI connected")).toBeVisible();
   await expect(page.getByText("Expo token not working")).toBeVisible();
   await expect(page.getByText(/Check EXPO_TOKEN/)).toBeVisible();
+  // The test server runs with APPMAKER_DEMO=1 and no AI keys.
+  const vars = page.getByRole("region", { name: "Server settings (variables)" });
+  await expect(vars.getByText("Demo mode is forced on")).toBeVisible();
+  await expect(vars.getByText("APPMAKER_DEMO", { exact: true })).toBeVisible();
 });
 
 test("an AI test failure is shown", async ({ page }) => {

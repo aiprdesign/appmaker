@@ -106,7 +106,11 @@ function readDir(root: string, rel = ""): FileMap {
 
 export function demoResponse(prompt: string, isEdit: boolean, site?: SiteSummary): string {
   if (isEdit) {
-    return `<plan>Demo mode can't edit apps.</plan>\n<summary>Demo mode is active because no \`ANTHROPIC_API_KEY\` is configured, so I can only generate starter apps — not apply edits like "${prompt.slice(0, 80)}". Add an API key to your environment to unlock full AI editing.</summary>`;
+    const why =
+      process.env.APPMAKER_DEMO === "1"
+        ? "the server has `APPMAKER_DEMO=1` set"
+        : "the server can't see any AI key (for example `REPLICATE_API_TOKEN` or `ANTHROPIC_API_KEY`)";
+    return `<plan>Demo mode can't edit apps.</plan>\n<summary>Demo mode is active because ${why}, so I can only make starter apps — not apply changes like "${prompt.slice(0, 80)}". The site owner can open **/status** to see which settings the server can see. You can also add your own key in the AI model settings.</summary>`;
   }
   const demo = DEMOS.find((d) => d.match.test(prompt));
   const root = path.join(process.cwd(), "demo-apps", demo?.dir ?? "journal");

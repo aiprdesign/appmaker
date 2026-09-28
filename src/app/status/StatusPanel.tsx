@@ -6,6 +6,7 @@ import { CheckCircle2, CircleAlert, CircleDashed, Loader2, Play, XCircle } from 
 import { useAiStatus } from "@/components/AiSettings";
 import { getProvider, modelLabel } from "@/lib/ai/providers";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
+import type { EnvReport } from "@/lib/env-check";
 
 type Tone = "ok" | "warn" | "bad" | "wait";
 
@@ -39,9 +40,14 @@ interface ExpoInfo {
 export function StatusPanel() {
   const ai = useAiStatus();
   const [expo, setExpo] = useState<ExpoInfo | null>(null);
+  const [env, setEnv] = useState<EnvReport | null>(null);
   const [test, setTest] = useState<{ state: "idle" | "running" | "ok" | "error"; text?: string }>({ state: "idle" });
 
   useEffect(() => {
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then(setEnv)
+      .catch(() => setEnv({ set: [], empty: [], nearMisses: [], demoForced: false }));
     fetch("/api/eas/account?check=1")
       .then((r) => r.json())
       .then(setExpo)
@@ -154,6 +160,52 @@ export function StatusPanel() {
                 <Row tone="warn" label="No site Expo account">
                   Users connect their own Expo account in the Publish tab. To include builds for everyone, add{" "}
                   <code className="font-mono">EXPO_TOKEN</code> to the server&apos;s variables and redeploy.
+                </Row>
+              )}
+            </>
+          )}
+        </ul>
+      </section>
+
+      <section className="rounded-2xl border border-line bg-surface p-5" aria-labelledby="env-status-title">
+        <h2 id="env-status-title" className="font-semibold">
+          Server settings (variables)
+        </h2>
+        <p className="mt-1 text-xs text-muted">
+          Names of the settings this server can see. Values are never shown. If one you added is missing, it isn&apos;t reaching the app: check its
+          spelling, that it&apos;s on the right service, and that you deployed after adding it.
+        </p>
+        <ul className="mt-2 divide-y divide-line">
+          {!env ? (
+            <Row tone="wait" label="Checking…">
+              Reading the server&apos;s settings.
+            </Row>
+          ) : (
+            <>
+              {env.set.length ? (
+                <Row tone="ok" label="Settings found">
+                  <span className="font-mono text-foreground/90">{env.set.join(", ")}</span>
+                </Row>
+              ) : (
+                <Row tone="bad" label="No Appmaker settings found">
+                  The server sees none of Appmaker&apos;s variables, such as <code className="font-mono">REPLICATE_API_TOKEN</code>,{" "}
+                  <code className="font-mono">ANTHROPIC_API_KEY</code> or <code className="font-mono">EXPO_TOKEN</code>.
+                </Row>
+              )}
+              {env.empty.length > 0 && (
+                <Row tone="warn" label="Set but empty">
+                  <span className="font-mono">{env.empty.join(", ")}</span> — paste the value again.
+                </Row>
+              )}
+              {env.nearMisses.map((m) => (
+                <Row key={m.found} tone="warn" label="Name looks misspelled">
+                  Found <code className="font-mono text-foreground/90">{m.found}</code> — rename it to{" "}
+                  <code className="font-mono text-foreground/90">{m.expected}</code>.
+                </Row>
+              ))}
+              {env.demoForced && (
+                <Row tone="warn" label="Demo mode is forced on">
+                  <code className="font-mono">APPMAKER_DEMO=1</code> is set, so the AI keys are ignored. Delete that variable.
                 </Row>
               )}
             </>
