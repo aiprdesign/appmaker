@@ -3,7 +3,7 @@ import { aiErrorMessage, AiConfigError, resolveAi, streamGeneration, type Resolv
 import { demoResponse } from "@/lib/demo";
 import { buildUserMessage, systemPrompt } from "@/lib/prompt";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { isAllowedPath } from "@/lib/validate";
+import { APP_MAX_BYTES, APP_MAX_FILES, isAllowedPath } from "@/lib/validate";
 import type { FileMap, SiteSummary, StoreListing } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -15,8 +15,8 @@ const HOURLY_LIMIT = Number(process.env.APPMAKER_RATE_LIMIT) || 30;
 const BYOK_HOURLY_LIMIT = Number(process.env.APPMAKER_BYOK_RATE_LIMIT) || 300;
 
 const MAX_PROMPT_CHARS = 8_000;
-const MAX_FILES = 60;
-const MAX_FILES_BYTES = 600_000;
+const MAX_FILES = APP_MAX_FILES;
+const MAX_FILES_BYTES = APP_MAX_BYTES;
 const MAX_HISTORY_CHARS = 4_000;
 
 interface GenerateRequest {

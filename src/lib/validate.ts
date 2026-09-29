@@ -17,6 +17,10 @@ export const ALLOWED_PACKAGES = [
   "expo-image-picker",
 ] as const;
 
+/** Size limits for an app, so the AI can read all of it when editing. */
+export const APP_MAX_FILES = 60;
+export const APP_MAX_BYTES = 600_000;
+
 const SOURCE_FILE = /^(App\.jsx?|src\/[A-Za-z0-9_\-/]+\.(jsx?|json))$/;
 
 /** Paths the model may write: App.js(x) and source files under src/. */

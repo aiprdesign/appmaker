@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Globe, Loader2, Sparkles } from "lucide-react";
+import { ArrowUp, Globe, Loader2, Sparkles, Upload } from "lucide-react";
 import { createProject } from "@/lib/storage";
 import { TEMPLATES } from "@/lib/templates";
 import type { SiteSummary } from "@/lib/types";
@@ -10,6 +10,7 @@ import Link from "next/link";
 import { getProvider, modelLabel } from "@/lib/ai/providers";
 import { AiSettingsDialog, ModelButton, useAiReady, useAiStatus } from "./AiSettings";
 import { SiteCard } from "./SiteCard";
+import { UploadApp } from "./UploadApp";
 import { defaultWording, rememberWording, WordingControl } from "./WordingControl";
 import { DEFAULT_WORDING, type Wording } from "@/lib/claims";
 import { useFeatures } from "@/lib/use-features";
@@ -29,6 +30,7 @@ export function PromptBox() {
   const [site, setSite] = useState<SiteSummary | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
+  const [uploading, setUploading] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
   const aiReady = useAiReady();
   const aiStatus = useAiStatus();
@@ -88,12 +90,14 @@ export function PromptBox() {
 
   return (
     <div id="start" className="mx-auto w-full max-w-2xl">
-      <div role="tablist" aria-label="How do you want to start?" className="mb-3 flex justify-center gap-1">
+      <div role="tablist" aria-label="How do you want to start?" className="mb-3 flex flex-wrap justify-center gap-1">
         {[
-          { key: false, label: "Describe an idea", icon: Sparkles },
-          ...(features.websiteImport ? [{ key: true, label: "From a website", icon: Globe }] : []),
+          { key: "idea" as const, label: "Describe an idea", icon: Sparkles },
+          ...(features.websiteImport ? [{ key: "website" as const, label: "From a website", icon: Globe }] : []),
+          ...(features.appUpload ? [{ key: "upload" as const, label: "Upload an app", icon: Upload }] : []),
         ].map((t) => {
-          const selected = (showUrl || !!site) === t.key;
+          const current = uploading ? "upload" : showUrl || site ? "website" : "idea";
+          const selected = current === t.key;
           return (
             <button
               key={t.label}
@@ -101,12 +105,11 @@ export function PromptBox() {
               role="tab"
               aria-selected={selected}
               onClick={() => {
-                setShowUrl(t.key);
+                setUploading(t.key === "upload");
+                setShowUrl(t.key === "website");
                 setImportError("");
-                if (!t.key) {
-                  setSite(null);
-                  setTimeout(() => ref.current?.focus(), 0);
-                }
+                if (t.key !== "website") setSite(null);
+                if (t.key === "idea") setTimeout(() => ref.current?.focus(), 0);
               }}
               className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-4 text-sm transition ${
                 selected ? "bg-white font-medium text-black" : "text-muted hover:bg-white/5 hover:text-foreground"
@@ -117,121 +120,125 @@ export function PromptBox() {
           );
         })}
       </div>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          start();
-        }}
-        className="gradient-border rounded-2xl p-3 shadow-2xl shadow-violet-900/30 focus-within:ring-2 focus-within:ring-violet-400/70"
-      >
-        {site && (
-          <div className="mb-2">
-            <SiteCard site={site} onRemove={() => setSite(null)} />
-          </div>
-        )}
-        {showUrl && !site && (
-          <div className="mb-2 px-1">
-            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2/60 px-2 py-1.5 focus-within:border-violet-500/60">
-              <Globe className="h-4 w-4 shrink-0 text-muted" />
-              <input
-                autoFocus
-                type="url"
-                inputMode="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    importSite(url);
-                  }
-                }}
-                placeholder="yourwebsite.com"
-                className="h-8 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
-                aria-label="Website address"
-              />
-              <button
-                type="button"
-                onClick={() => importSite(url)}
-                disabled={!url.trim() || importing}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-black disabled:opacity-40"
-              >
-                {importing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {importing ? "Reading site…" : "Import"}
-              </button>
-            </div>
-            {importError ? (
-              <p className="mt-1.5 px-1 text-xs text-rose-400">{importError}</p>
-            ) : (
-              <p className="mt-1.5 px-1 text-xs text-muted">
-                Appmaker reads your site&apos;s pages, brand colours and content, then builds an app for your customers.
-              </p>
-            )}
-          </div>
-        )}
-
-        <textarea
-          ref={ref}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              start();
-            }
+      {uploading ? (
+        <UploadApp wording={wording} />
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            start();
           }}
-          rows={3}
-          placeholder={
-            site
-              ? `What should the ${site.siteName} app do? (optional — press Enter to let AI decide)`
-              : showUrl
-                ? "Optional: what should the app do? e.g. bookings, the menu, a loyalty card…"
-                : "Describe your app idea — e.g. a habit tracker with streaks and weekly stats…"
-          }
-          className="w-full resize-none bg-transparent px-2 py-1 text-base text-foreground outline-none placeholder:text-muted/70"
-          aria-label="Describe your app"
-        />
-
-        {detected && (
-          <button
-            type="button"
-            onClick={() => importSite(detected)}
-            disabled={importing}
-            className="mb-1 ml-1 inline-flex items-center gap-1.5 rounded-full border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-xs text-violet-200 hover:bg-violet-500/20"
-          >
-            {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
-            {importing ? "Reading site…" : `Use content from ${detected.replace(/^https?:\/\//, "").split("/")[0]}`}
-          </button>
-        )}
-
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <div className="flex items-center gap-1">
-            <ModelButton />
-            <WordingControl
-              value={wording}
-              onChange={(w) => {
-                setWording(w);
-                rememberWording(w);
-              }}
-            />
-            <span className="hidden items-center gap-1.5 px-2 text-xs text-muted md:flex">
-              <Sparkles className="h-3.5 w-3.5 text-violet-400" /> iOS + Android
-            </span>
-          </div>
-          {value.length > MAX_PROMPT * 0.8 && (
-            <span className={`ml-auto text-[11px] ${tooLong ? "text-rose-400" : "text-muted"}`}>
-              {value.length.toLocaleString()}/{MAX_PROMPT.toLocaleString()}
-            </span>
+          className="gradient-border rounded-2xl p-3 shadow-2xl shadow-violet-900/30 focus-within:ring-2 focus-within:ring-violet-400/70"
+        >
+          {site && (
+            <div className="mb-2">
+              <SiteCard site={site} onRemove={() => setSite(null)} />
+            </div>
           )}
-          <button
-            type="submit"
-            disabled={(!value.trim() && !site) || busy || importing || tooLong}
-            className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-pink-500 text-white transition disabled:opacity-40"
-            aria-label="Build app"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </button>
-        </div>
-      </form>
+          {showUrl && !site && (
+            <div className="mb-2 px-1">
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2/60 px-2 py-1.5 focus-within:border-violet-500/60">
+                <Globe className="h-4 w-4 shrink-0 text-muted" />
+                <input
+                  autoFocus
+                  type="url"
+                  inputMode="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      importSite(url);
+                    }
+                  }}
+                  placeholder="yourwebsite.com"
+                  className="h-8 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
+                  aria-label="Website address"
+                />
+                <button
+                  type="button"
+                  onClick={() => importSite(url)}
+                  disabled={!url.trim() || importing}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-black disabled:opacity-40"
+                >
+                  {importing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {importing ? "Reading site…" : "Import"}
+                </button>
+              </div>
+              {importError ? (
+                <p className="mt-1.5 px-1 text-xs text-rose-400">{importError}</p>
+              ) : (
+                <p className="mt-1.5 px-1 text-xs text-muted">
+                  Appmaker reads your site&apos;s pages, brand colours and content, then builds an app for your customers.
+                </p>
+              )}
+            </div>
+          )}
+
+          <textarea
+            ref={ref}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                start();
+              }
+            }}
+            rows={3}
+            placeholder={
+              site
+                ? `What should the ${site.siteName} app do? (optional — press Enter to let AI decide)`
+                : showUrl
+                  ? "Optional: what should the app do? e.g. bookings, the menu, a loyalty card…"
+                  : "Describe your app idea — e.g. a habit tracker with streaks and weekly stats…"
+            }
+            className="w-full resize-none bg-transparent px-2 py-1 text-base text-foreground outline-none placeholder:text-muted/70"
+            aria-label="Describe your app"
+          />
+
+          {detected && (
+            <button
+              type="button"
+              onClick={() => importSite(detected)}
+              disabled={importing}
+              className="mb-1 ml-1 inline-flex items-center gap-1.5 rounded-full border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-xs text-violet-200 hover:bg-violet-500/20"
+            >
+              {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+              {importing ? "Reading site…" : `Use content from ${detected.replace(/^https?:\/\//, "").split("/")[0]}`}
+            </button>
+          )}
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex items-center gap-1">
+              <ModelButton />
+              <WordingControl
+                value={wording}
+                onChange={(w) => {
+                  setWording(w);
+                  rememberWording(w);
+                }}
+              />
+              <span className="hidden items-center gap-1.5 px-2 text-xs text-muted md:flex">
+                <Sparkles className="h-3.5 w-3.5 text-violet-400" /> iOS + Android
+              </span>
+            </div>
+            {value.length > MAX_PROMPT * 0.8 && (
+              <span className={`ml-auto text-[11px] ${tooLong ? "text-rose-400" : "text-muted"}`}>
+                {value.length.toLocaleString()}/{MAX_PROMPT.toLocaleString()}
+              </span>
+            )}
+            <button
+              type="submit"
+              disabled={(!value.trim() && !site) || busy || importing || tooLong}
+              className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-pink-500 text-white transition disabled:opacity-40"
+              aria-label="Build app"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+          </div>
+        </form>
+      )}
       {aiReady === false && (
         <p className="mt-3 text-center text-xs text-amber-200/90">
           Demo mode: no AI key is set up yet, so you&apos;ll get a sample app.{" "}
@@ -255,7 +262,7 @@ export function PromptBox() {
         </p>
       )}
       {settingsOpen && <AiSettingsDialog onClose={() => setSettingsOpen(false)} />}
-      <div className="mt-4 flex flex-wrap justify-center gap-2">
+      <div className={`mt-4 flex-wrap justify-center gap-2 ${uploading ? "hidden" : "flex"}`}>
         {TEMPLATES.slice(0, 5).map((t) => (
           <button
             key={t.title}

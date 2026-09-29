@@ -19,6 +19,18 @@ The AI uses these to build an app that feels like the business's official app, w
 
 Limitations: the importer reads the HTML the server sends. Sites that load all their content with JavaScript, or that block bots, show a friendly error instead.
 
+## Upload an app you already have
+
+The **Upload an app** tab on the home page brings an existing Expo or React Native app into Appmaker, so you can keep building it with the AI or edit the code by hand. Upload a .zip of the project, choose the project folder, or pick its files.
+
+- **What's kept:** the app's source files. TypeScript (`.ts`, `.tsx`) is converted to JavaScript in the browser. Folders such as `components/` move under `src/`, and their imports are rewritten to match. The name, bundle ID and color come from `app.json`.
+- **What's left out:** `node_modules`, the `ios` and `android` folders, config files, tests, and images, fonts and other media. The upload screen lists every file it leaves out and why.
+- **Apps that need changes:** Appmaker runs every upload through the same automatic check as generated apps. If the app uses packages Appmaker can't run yet (for example React Navigation or Expo Router), or images that were left out, the screen says so. By default the AI fixes these as soon as the app opens, keeping what it does and how it looks. You can turn that off and fix things yourself.
+- **Size:** up to 60 source files and 600 KB of code, so the AI can read all of it when editing.
+- **Round trip:** apps downloaded from Appmaker include `appmaker.json` with the full store listing, so uploading one brings everything back.
+- **Privacy:** everything is read in the browser. Nothing is uploaded to the server until you ask the AI for a change.
+- **Admin:** the tab can be switched off in /admin (**Upload an app**).
+
 ## What generated apps can do
 
 Apps are self-contained Expo apps that save their data on the device. On top of screens, forms, lists, search, charts, animations and haptics, they can use:

@@ -8,6 +8,7 @@ export const FEATURES = {
   passkeys: { label: "Passkeys", description: "Sign in with Face ID, a fingerprint or the device passcode.", default: true },
   signups: { label: "New account sign-ups", description: "Lets new people create accounts. Existing accounts can always sign in.", default: true },
   websiteImport: { label: "Build from a website", description: "The “From a website” tab on the home page.", default: true },
+  appUpload: { label: "Upload an app", description: "The “Upload an app” tab on the home page, for editing an existing Expo or React Native app.", default: true },
   cloudBuilds: { label: "Expo cloud builds", description: "“Build & upload with Expo” in the Publish tab.", default: true },
   publicStatus: { label: "Public status page", description: "Anyone can open /status. When off, only a signed-in admin can.", default: true },
 } as const;

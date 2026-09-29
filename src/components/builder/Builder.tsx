@@ -306,7 +306,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   useEffect(() => {
     if (!project || started.current) return;
     started.current = true;
-    if (autoStart && project.messages.length === 0 && project.prompt) {
+    // Uploaded apps start with a summary from the assistant, then the fix request.
+    if (autoStart && !project.messages.some((m) => m.role === "user") && project.prompt) {
       window.history.replaceState(null, "", `/build/${project.id}`);
       send(project.prompt);
     }
