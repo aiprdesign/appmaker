@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Code2, Download, Loader2, MessageSquare, RotateCw, Rocket, ShieldCheck, Smartphone, Wand2 } from "lucide-react";
 import { HistoryMenu } from "./HistoryMenu";
+import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
@@ -419,7 +420,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-3">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 sm:gap-3">
         <Logo href="/projects" />
         <span className="hidden text-line sm:inline">/</span>
         <div className="hidden min-w-0 items-center gap-2 sm:flex">
@@ -441,7 +442,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 setTab(t.key);
                 setMobileView("app");
               }}
-              className={`flex min-h-8 items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium ${
+              className={`flex min-h-8 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium sm:px-3 ${
                 tab === t.key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
               }`}
             >
@@ -451,6 +452,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           ))}
         </nav>
         <SyncBadge />
+        <DeviceMenu project={project} disabled={!Object.keys(project.files).length || generating || checking} />
         <HistoryMenu versions={project.versions ?? []} disabled={generating} onRestore={restore} />
         <button
           onClick={async () => downloadBlob(await exportProjectZip(project), `${slugify(project.listing.name)}-expo.zip`)}

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { BuildTarget, CloudBuild, ExpoState, Project } from "@/lib/types";
 import { slugify } from "@/lib/expo-project";
+import { QrCode } from "@/components/QrCode";
 import {
   buildPageUrl,
   checkAvailable,
@@ -671,6 +672,15 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
                         ? "Open the download link on your Android phone to install it (allow installs from your browser when asked)."
                         : "Open the Expo page on your Android phone to install it — it shows a QR code and install link."}
                     </p>
+                  )}
+                  {b.status === "FINISHED" && b.target === "android-apk" && b.artifactUrl && (
+                    <div className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-surface-2 p-3">
+                      <QrCode value={b.artifactUrl} size={112} label="QR code to install this build on an Android phone" />
+                      <p className="text-xs text-muted">
+                        Scan with your Android phone&apos;s camera to download and install the real app. iPhones install through TestFlight
+                        instead — build for the App Store with automatic upload on.
+                      </p>
+                    </div>
                   )}
                   {b.status === "FINISHED" && b.target === "ios" && !b.submission && (
                     <p className="mt-2 text-xs text-muted">

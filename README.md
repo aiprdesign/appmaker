@@ -199,6 +199,17 @@ A full 100-app run makes 100–300 model calls (follow-ups and repairs included)
 - **Website import is protected against SSRF.** Only `http`/`https` on standard ports is allowed. Each connection, including every redirect, is checked when DNS resolves, and refused if it points at a private, loopback, link-local or cloud-metadata address. Page size, redirects and response time are all capped.
 - Imported website text is fenced as reference data, and the model is told to ignore any instructions inside it (prompt-injection defence).
 
+## Test on a real iPhone, Android or your own phone
+
+The builder's **Test on a device** menu opens the app in [Expo Snack](https://snack.expo.dev) in a new tab:
+
+- **iPhone emulator** and **Android emulator** run the app on real iOS and Android emulators, streamed into the browser. There can be a short queue.
+- **Your own phone** shows a QR code. Scan it with the free Expo Go app to run the app on your phone.
+
+Snack picks the Expo SDK version it supports, which can be older than the SDK the builds use. If a package is not supported there yet, test with a build instead. Opening Snack shares the app's code with Expo.
+
+To install the real app, use a build from the Publish tab. A finished **Android — test app** build shows a QR code: scan it with the phone's camera to download and install the app. iPhones install through TestFlight: build for the App Store with automatic upload on.
+
 ## Shipping a generated app
 
 ### One click, from the Publish tab (Expo cloud builds)
