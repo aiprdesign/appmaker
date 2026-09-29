@@ -21,7 +21,7 @@ export default defineConfig({
       timeout: 240_000,
       reuseExistingServer: false,
       // With TEST_DATABASE_URL set, accounts and cloud saving are on (and tested).
-      env: { APPMAKER_DEMO: "1", APPMAKER_ALLOW_PRIVATE_URLS: "1", ...(process.env.TEST_DATABASE_URL ? { DATABASE_URL: process.env.TEST_DATABASE_URL } : {}) },
+      env: { APPMAKER_DEMO: "1", APPMAKER_ALLOW_PRIVATE_URLS: "1", ADMIN_PASSWORD: "e2e-admin-password", ...(process.env.TEST_DATABASE_URL ? { DATABASE_URL: process.env.TEST_DATABASE_URL } : {}) },
     },
     {
       command: "node tests/fixtures/site-server.mjs",

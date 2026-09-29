@@ -92,7 +92,12 @@ export function LoginForm() {
     <div>
       <h1 className="text-2xl font-semibold tracking-tight">{mode === "login" ? "Sign in" : "Create your account"}</h1>
       <p className="mt-2 text-sm text-muted">Save your apps to your account and open them on any device. Apps you already made in this browser are added.</p>
-      <div className="mt-6 grid grid-cols-2 rounded-lg border border-line p-1 text-sm" role="tablist" aria-label="Sign in or create account">
+      {cloud.signups === false && <p className="mt-2 text-xs text-amber-200">New sign-ups are paused. Existing accounts can sign in.</p>}
+      <div
+        className={`mt-6 grid-cols-2 rounded-lg border border-line p-1 text-sm ${cloud.signups === false ? "hidden" : "grid"}`}
+        role="tablist"
+        aria-label="Sign in or create account"
+      >
         {(["login", "signup"] as const).map((m) => (
           <button
             key={m}
@@ -108,7 +113,7 @@ export function LoginForm() {
           </button>
         ))}
       </div>
-      {canPasskey && mode === "login" && (
+      {canPasskey && cloud.passkeys && mode === "login" && (
         <div className="mt-6">
           <button
             type="button"
@@ -131,7 +136,7 @@ export function LoginForm() {
         <>
           <a
             href="/api/auth/google/start"
-            className={`${canPasskey && mode === "login" ? "" : "mt-6 "}flex min-h-11 w-full items-center justify-center gap-3 rounded-lg border border-line bg-white text-sm font-medium text-neutral-800 hover:bg-neutral-100`}
+            className={`${canPasskey && cloud.passkeys && mode === "login" ? "" : "mt-6 "}flex min-h-11 w-full items-center justify-center gap-3 rounded-lg border border-line bg-white text-sm font-medium text-neutral-800 hover:bg-neutral-100`}
           >
             <svg aria-hidden="true" viewBox="0 0 48 48" className="h-5 w-5">
               <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />

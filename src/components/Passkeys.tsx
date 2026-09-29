@@ -58,7 +58,8 @@ function useAddPasskey(onAdded: () => void) {
 
 /** The passkey section of the account menu. */
 export function PasskeyManager() {
-  const supported = useSupported();
+  const cloud = useCloud();
+  const supported = useSupported() && cloud.passkeys !== false;
   const { list, reload } = usePasskeys(supported);
   const { add, busy, message } = useAddPasskey(reload);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -120,7 +121,7 @@ export function PasskeyManager() {
 export function PasskeyNudge() {
   const cloud = useCloud();
   const supported = useSupported();
-  const on = supported && !!cloud.user;
+  const on = supported && !!cloud.user && cloud.passkeys !== false;
   const { list, reload } = usePasskeys(on);
   const { add, busy, message } = useAddPasskey(reload);
   const [dismissed, setDismissed] = useState(true);

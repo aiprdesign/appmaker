@@ -19,6 +19,9 @@ export interface CloudState {
   user: { email: string } | null;
   /** "Sign in with Google" is set up on this site. */
   google?: boolean;
+  /** Passkeys and new sign-ups, as switched in /admin. */
+  passkeys?: boolean;
+  signups?: boolean;
   status: SyncStatus;
   error?: string;
 }
@@ -220,8 +223,8 @@ export function startCloud(): void {
   window.addEventListener("online", () => state.user && void flush());
   void api("/api/auth/me")
     .then((r) => r.json())
-    .then((me: { enabled: boolean; google?: boolean; user: { email: string } | null }) => {
-      set({ enabled: me.enabled, google: !!me.google, user: me.user });
+    .then((me: { enabled: boolean; google?: boolean; passkeys?: boolean; signups?: boolean; user: { email: string } | null }) => {
+      set({ enabled: me.enabled, google: !!me.google, passkeys: me.passkeys !== false, signups: me.signups !== false, user: me.user });
       if (me.user) void syncNow();
     })
     .catch(() => set({ enabled: false }));

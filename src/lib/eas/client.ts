@@ -106,6 +106,8 @@ const projectBody = (p: Project) => ({ files: p.files, listing: p.listing });
 
 export interface EasServerInfo {
   available: boolean;
+  /** Switched off by the site owner in /admin. */
+  off?: boolean;
   /** Builds run on the site's Expo account: users don't need one. */
   hosted: boolean;
 }
@@ -114,7 +116,7 @@ export async function checkAvailable(): Promise<EasServerInfo> {
   try {
     const res = await fetch("/api/eas/account");
     const data = await res.json();
-    return { available: !!data.available, hosted: !!data.hosted };
+    return { available: !!data.available, hosted: !!data.hosted, off: !!data.off };
   } catch {
     return { available: false, hosted: false };
   }

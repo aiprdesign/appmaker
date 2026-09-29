@@ -93,6 +93,20 @@ demo-apps/                   Starter apps used in demo mode
 - **Preview sandbox.** `npm run dev` and `npm run build` first run `scripts/build-preview-runtime.mjs`. It bundles React, React Native Web and shims for `@react-native-async-storage/async-storage`, `expo-status-bar`, `react-native-safe-area-context` and `expo-haptics` into `public/preview/runtime.js`, and copies Babel standalone next to it. Because of this, previews don't depend on any third-party CDN. The iframe runs with `sandbox="allow-scripts"` and no same-origin access.
 - **Allowed imports.** Generated apps may import only those modules plus `react` and `react-native`, which keeps every app previewable and buildable with Expo.
 
+## Admin dashboard
+
+Set `ADMIN_PASSWORD` on the server, then open `/admin`. To change the password, edit the variable and redeploy; this signs everyone out of admin. Admin sign-in is limited to 5 attempts per 15 minutes, and the admin cookie is signed, `httpOnly`, `SameSite=Strict` and lasts 12 hours.
+
+- **Overview.** Members, new and active this week, apps saved in accounts, and how many members use passkeys or Google, plus a 14-day sign-ups chart with a table view.
+- **Members.** Search by email and see when each member joined, when they were last active, how they sign in and how many apps they have. You can sign a member out everywhere, or delete them together with their apps (you type their email to confirm).
+- **Settings.** Switches saved in the database, applied within seconds with no redeploy, and enforced on the server:
+  - **Sign in with Google:** off by default.
+  - **Passkeys.**
+  - **New account sign-ups.**
+  - **Build from a website.**
+  - **Expo cloud builds.**
+  - **Public status page:** when off, `/status` is visible only to a signed-in admin.
+
 ## Three checks before an app is shown
 
 Every new version of an app, whether a first build or a change, runs three automatic checks before it appears in the phone preview. Until then the phone shows "Running checks…".

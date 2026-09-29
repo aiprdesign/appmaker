@@ -12,6 +12,7 @@ import { AiSettingsDialog, ModelButton, useAiReady, useAiStatus } from "./AiSett
 import { SiteCard } from "./SiteCard";
 import { defaultWording, rememberWording, WordingControl } from "./WordingControl";
 import { DEFAULT_WORDING, type Wording } from "@/lib/claims";
+import { useFeatures } from "@/lib/use-features";
 
 /** A link typed into the prompt: an explicit URL, a www. host, or a common TLD (not "Node.js"). */
 const URL_IN_TEXT =
@@ -31,6 +32,7 @@ export function PromptBox() {
   const ref = useRef<HTMLTextAreaElement>(null);
   const aiReady = useAiReady();
   const aiStatus = useAiStatus();
+  const features = useFeatures();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [wording, setWording] = useState<Wording>(DEFAULT_WORDING);
   // The last choice is remembered in this browser (readable after mount).
@@ -49,7 +51,7 @@ export function PromptBox() {
     return () => window.removeEventListener("appmaker:template", onTemplate);
   }, []);
 
-  const detected = !site && !showUrl ? URL_IN_TEXT.exec(value)?.[0] : undefined;
+  const detected = !site && !showUrl && features.websiteImport ? URL_IN_TEXT.exec(value)?.[0] : undefined;
   const tooLong = value.length > MAX_PROMPT;
 
   const importSite = async (address: string) => {
@@ -89,7 +91,7 @@ export function PromptBox() {
       <div role="tablist" aria-label="How do you want to start?" className="mb-3 flex justify-center gap-1">
         {[
           { key: false, label: "Describe an idea", icon: Sparkles },
-          { key: true, label: "From a website", icon: Globe },
+          ...(features.websiteImport ? [{ key: true, label: "From a website", icon: Globe }] : []),
         ].map((t) => {
           const selected = (showUrl || !!site) === t.key;
           return (

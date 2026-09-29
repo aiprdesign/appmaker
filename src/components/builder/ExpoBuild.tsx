@@ -374,7 +374,12 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
         </div>
       </div>
 
-      {available === false && (
+      {server?.off && (
+        <div role="status" className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-100/90">
+          Cloud builds are turned off on this site. Use “Build it yourself” below to build from the downloaded project.
+        </div>
+      )}
+      {available === false && !server?.off && (
         <div role="status" className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-100/90">
           Cloud builds aren&apos;t enabled on this server (the EAS CLI isn&apos;t installed). Run Appmaker on a server such as Railway
           with <code className="font-mono">npm install</code>, or use “Build it yourself” below.

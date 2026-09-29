@@ -40,6 +40,7 @@ interface ExpoInfo {
 export function StatusPanel() {
   const ai = useAiStatus();
   const [expo, setExpo] = useState<ExpoInfo | null>(null);
+  const [privateStatus, setPrivateStatus] = useState(false);
   const [env, setEnv] = useState<
     (EnvReport & { database?: { configured: boolean; ok?: boolean; error?: string }; google?: { configured: boolean; redirectUri: string } }) | null
   >(null);
@@ -48,7 +49,7 @@ export function StatusPanel() {
   useEffect(() => {
     fetch("/api/status")
       .then((r) => r.json())
-      .then(setEnv)
+      .then((data) => (data.private ? setPrivateStatus(true) : setEnv(data)))
       .catch(() => setEnv({ set: [], empty: [], nearMisses: [], demoForced: false, database: { configured: false } }));
     fetch("/api/eas/account?check=1")
       .then((r) => r.json())
@@ -69,6 +70,15 @@ export function StatusPanel() {
       setTest({ state: "error", text: e instanceof Error ? e.message : "The test failed." });
     }
   };
+
+  if (privateStatus) {
+    return (
+      <div className="mx-auto max-w-md text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">Status is private</h1>
+        <p className="mt-2 text-sm text-muted">The site owner can see it after signing in at /admin.</p>
+      </div>
+    );
+  }
 
   const providerName = ai ? (getProvider(ai.provider)?.name ?? ai.provider) : "";
 
