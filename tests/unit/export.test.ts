@@ -2,7 +2,6 @@ import JSZip from "jszip";
 import { describe, expect, it, vi } from "vitest";
 import { appJson, exportProjectZip, shade, slugify, usedDependencies } from "@/lib/export";
 import { emptyListing } from "@/lib/storage";
-import { importApp } from "@/lib/import-app";
 import type { Project } from "@/lib/types";
 
 function project(files: Record<string, string>): Project {
@@ -63,32 +62,6 @@ describe("export helpers", () => {
     const pkg = JSON.parse(await zip.file("my-cool-app/package.json")!.async("string"));
     expect(pkg.main).toBe("index.js");
     expect(pkg.dependencies.expo).toBeTruthy();
-    vi.unstubAllGlobals();
-  });
-
-  it("round-trips: an exported zip uploads back with the same code and store listing", async () => {
-    vi.stubGlobal("document", {
-      createElement: () => ({
-        getContext: () => ({ createLinearGradient: () => ({ addColorStop() {} }), fillRect() {}, fillText() {} }),
-        toBlob: (cb: (b: Blob) => void) => cb(new Blob(["png"])),
-      }),
-    });
-    const original = project({ "App.js": "import { t } from './src/theme';\nexport default () => null;", "src/theme.js": "export const t = 1;" });
-    original.listing = { ...original.listing, subtitle: "Track daily habits", keywords: "habits,streaks", category: "Health & Fitness", primaryColor: "#123456" };
-    const zip = await JSZip.loadAsync(await (await exportProjectZip(original)).arrayBuffer());
-    const entries = await Promise.all(
-      Object.values(zip.files)
-        .filter((f) => !f.dir)
-        .map(async (f) => ({ path: f.name, text: f.name.endsWith(".png") ? null : await f.async("string") })),
-    );
-    const uploaded = importApp(entries, () => {
-      throw new Error("no TypeScript here");
-    });
-    expect(uploaded.files).toEqual(original.files);
-    expect(uploaded.listing).toEqual(original.listing);
-    expect(uploaded.issues).toEqual([]);
-    // Only the generated icon is left out; config files are recreated by Appmaker.
-    expect(uploaded.skipped.map((s) => s.path)).toEqual(["assets/icon.png"]);
     vi.unstubAllGlobals();
   });
 });

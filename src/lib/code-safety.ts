@@ -1,11 +1,11 @@
 import type { FileMap } from "./types";
 
 /**
- * Safety check for app code, whoever wrote it (an upload, the AI or a hand
+ * Safety check for app code, whoever wrote it (the AI or a hand
  * edit). It blocks code that can't be reviewed or that hides what it does:
  * running code from text, obfuscated or minified code, crypto miners, data
  * sent to chat bots, and imports that reach outside the app. Anything found
- * here stops uploads and cloud builds; in the builder the AI removes it.
+ * here stops cloud builds and phone previews; in the builder the AI removes it.
  *
  * Pattern checks can't prove code is harmless, so they're one layer: apps
  * also run in a sandboxed preview, and server-side bundling is confined to
@@ -55,8 +55,7 @@ function obfuscation(code: string): string | null {
   if (/(["'`])[A-Za-z0-9+/=_-]{5000,}\1/.test(code)) return "contains a large block of encoded data, so it can't be checked";
   const readable = code.replace(IMAGE_DATA, '""');
   const longest = readable.split("\n").reduce((n, l) => Math.max(n, l.length), 0);
-  if (longest > 3000)
-    return `has a line of ${longest.toLocaleString("en-US")} characters: minified or bundled code can't be checked, so upload the original source`;
+  if (longest > 3000) return `has a line of ${longest.toLocaleString("en-US")} characters: minified or bundled code can't be checked, so use readable source`;
   if ((readable.match(/\b_0x[0-9a-f]{4,}\b/gi) ?? []).length > 5) return "looks obfuscated (hidden on purpose), so it can't be checked";
   if ((readable.match(/\\x[0-9a-f]{2}/gi) ?? []).length > 40) return "hides text in escape codes, so it can't be checked";
   if (/String\.fromCharCode\s*\(\s*(\d+\s*,\s*){9,}/.test(readable)) return "hides text in character codes, so it can't be checked";

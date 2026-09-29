@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { checkCodeSafety } from "@/lib/code-safety";
 import { CONTAINED_METRO_CONFIG, expoProjectFiles } from "@/lib/expo-project";
 import { InputError, parseProject } from "@/lib/eas/input";
-import { babelStripTypes, importApp } from "@/lib/import-app";
 import { emptyListing } from "@/lib/storage";
 import { SAFETY_PREFIX, validateApp } from "@/lib/validate";
 
@@ -68,48 +67,6 @@ describe("code safety check", () => {
     expect(() => parseProject({ files: { "App.js": APP }, listing })).not.toThrow();
     expect(() => parseProject({ files: { "App.js": `${APP}\nconst c = require('../../build-x/app/credentials.json');` }, listing })).toThrow(InputError);
     expect(() => parseProject({ files: { "App.js": `${APP}\neval('1');` }, listing })).toThrow(/won't build/);
-  });
-});
-
-describe("uploads", () => {
-  const strip = babelStripTypes(require("@babel/standalone"));
-
-  it("an upload with unsafe code is refused", () => {
-    const app = importApp(
-      [
-        { path: "App.js", text: APP },
-        { path: "lib/loader.js", text: "export const run = (code) => eval(code);" },
-      ],
-      strip,
-    );
-    expect(app.unsafe).toEqual([{ file: "src/lib/loader.js", message: expect.stringMatching(/eval/) }]);
-    expect(app.issues.some((i) => i.message.startsWith(SAFETY_PREFIX))).toBe(false);
-  });
-
-  it("only accepts valid store listing values from appmaker.json", () => {
-    const listing = {
-      name: "Streaks",
-      bundleId: "not a bundle id",
-      primaryColor: "red; background:url(x)",
-      supportUrl: "javascript:alert(1)",
-      privacyPolicyUrl: "https://example.com/privacy",
-      iconEmoji: "<img>",
-      admin: "yes",
-    };
-    const app = importApp(
-      [
-        { path: "App.js", text: APP },
-        { path: "appmaker.json", text: JSON.stringify({ listing }) },
-      ],
-      strip,
-    );
-    expect(app.listing.name).toBe("Streaks");
-    expect(app.listing.bundleId).toBe(emptyListing().bundleId);
-    expect(app.listing.primaryColor).toBe(emptyListing().primaryColor);
-    expect(app.listing.supportUrl).toBeUndefined();
-    expect(app.listing.privacyPolicyUrl).toBe("https://example.com/privacy");
-    expect(app.listing.iconEmoji).toBe(emptyListing().iconEmoji);
-    expect(app.listing).not.toHaveProperty("admin");
   });
 });
 

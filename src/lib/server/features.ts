@@ -51,7 +51,6 @@ const OFF_MESSAGES: Record<FeatureKey, string> = {
   passkeys: "Passkeys are turned off on this site.",
   signups: "New sign-ups are paused on this site. Existing accounts can still sign in.",
   websiteImport: "Building from a website is turned off on this site.",
-  appUpload: "Uploading apps is turned off on this site.",
   cloudBuilds: "Cloud builds are turned off on this site. Download the project to build it yourself.",
   publicStatus: "The status page is private.",
 };

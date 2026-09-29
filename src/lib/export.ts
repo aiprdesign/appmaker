@@ -37,8 +37,6 @@ export async function exportProjectZip(project: Project): Promise<Blob> {
   const zip = new JSZip();
   const root = zip.folder(slugify(project.listing.name))!;
   for (const [path, content] of Object.entries(expoProjectFiles(project))) root.file(path, content);
-  // Lets Appmaker restore the full store listing when this zip is uploaded again.
-  root.file("appmaker.json", JSON.stringify({ app: "appmaker", listing: project.listing }, null, 2));
   root.file(ICON_PATH, await renderIcon(project.listing));
   return zip.generateAsync({ type: "blob" });
 }

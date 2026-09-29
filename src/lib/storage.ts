@@ -115,7 +115,7 @@ export function deleteProject(id: string) {
   changeListeners.forEach((l) => l({ type: "delete", id }));
 }
 
-export function createProject(prompt: string, source?: SiteSummary, wording?: Project["wording"], extra: Partial<Project> = {}): Project {
+export function createProject(prompt: string, source?: SiteSummary, wording?: Project["wording"]): Project {
   const now = Date.now();
   const project: Project = {
     id: uid(),
@@ -128,7 +128,6 @@ export function createProject(prompt: string, source?: SiteSummary, wording?: Pr
     ...(source ? { source } : {}),
     createdAt: now,
     updatedAt: now,
-    ...extra,
   };
   saveProject(project);
   return project;
