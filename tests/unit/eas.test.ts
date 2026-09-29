@@ -359,6 +359,8 @@ describe("phone previews with Expo Go (EAS Update)", () => {
     expect(rec.appJson.expo.updates).toEqual({ url: `https://u.expo.dev/${PROJECT_ID}` });
     expect(rec.appJson.expo.extra.eas.projectId).toBe(PROJECT_ID);
     expect(rec.packageJson.dependencies["expo-updates"]).toMatch(/^~57\./);
+    // Bundled on this server, so Metro is confined to the app's folder.
+    expect(rec.files).toContain("metro.config.js");
   });
 
   it("keeps store builds and the download free of Expo Go settings", () => {

@@ -205,7 +205,18 @@ A full 100-app run makes 100–300 model calls (follow-ups and repairs included)
 ## Security
 
 - The API validates and size-limits every request, and rate-limits AI generations per IP. The limiter is in memory; use a shared store such as Redis when running multiple instances.
-- The preview runs in an iframe with `sandbox="allow-scripts"` and no same-origin access. The builder only accepts messages from its own preview frame.
+- The preview runs in an iframe with `sandbox="allow-scripts allow-modals"`: no same-origin access (so no cookies, saved keys or page access), no form submission, no popups and no navigating the page. The builder only accepts messages from its own preview frame.
+- **App code safety check** (`src/lib/code-safety.ts`). Every app is checked, whoever wrote the code (an upload, the AI or a hand edit). The check blocks:
+  - code built from text: `eval`, `new Function` and string timers;
+  - WebAssembly and background workers;
+  - obfuscated or minified code, and large encoded blobs (images embedded as `data:image` are allowed);
+  - crypto-mining code, and data sent to Telegram bots or Discord webhooks;
+  - `require.context` and computed `require()`/`import()` paths;
+  - imports that reach outside the app: absolute paths, URLs, or `../` past the project.
+
+  Uploads with any of these are refused. In the builder, the check is part of the automatic quality check, so the AI removes them. On the server, Expo builds and phone previews refuse them. Admins see a warning on the member's app, and its preview stays paused until they choose to run it.
+- **Bundling on the server is confined.** Phone previews are bundled on Appmaker's server, so that project gets a Metro config that refuses any file outside the app folder and the installed packages. Other builds' signing files and the server's own files can't end up in a bundle, even if the pattern check misses something. Store builds are bundled on Expo's servers.
+- Uploads are read in the browser, with limits on files, unpacked size and file size, so a "zip bomb" can't freeze the tab. Store listing values from an uploaded `appmaker.json` are checked like any other listing: a valid bundle ID and color, and https links only.
 - Security headers are set in `next.config.ts`: `nosniff`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` and HSTS.
 - The API key stays on the server and is never sent to the browser.
 - **Website import is protected against SSRF.** Only `http`/`https` on standard ports is allowed. Each connection, including every redirect, is checked when DNS resolves, and refused if it points at a private, loopback, link-local or cloud-metadata address. Page size, redirects and response time are all capped.

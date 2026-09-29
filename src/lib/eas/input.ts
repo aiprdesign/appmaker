@@ -1,3 +1,4 @@
+import { checkCodeSafety, describeSafety } from "../code-safety";
 import type { BuildTarget, ExpoLink, Project, StoreListing } from "../types";
 import { isAllowedPath } from "../validate";
 import type { AppleSigning } from "../types";
@@ -62,6 +63,12 @@ export function parseProject(v: unknown): Project {
   }
   if (!files["App.js"] && !files["App.jsx"]) throw new InputError("The app has no code yet.");
   if (Object.keys(files).length > MAX_FILES || size > MAX_CODE) throw new InputError("The app is too large to build.");
+  // Builds and previews run on the site's accounts, and previews are bundled
+  // on this server: code that hides what it does is never sent.
+  const unsafe = checkCodeSafety(files);
+  if (unsafe.length) {
+    throw new InputError(`The app has code Appmaker won't build. Ask the AI to remove it, then try again:\n${describeSafety(unsafe.slice(0, 5))}`);
+  }
 
   const l = (o.listing ?? {}) as Record<string, unknown>;
   const listing: StoreListing = {

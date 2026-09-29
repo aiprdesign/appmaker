@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Eye, Loader2, Search, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Eye, Loader2, Play, Search, ShieldAlert, Trash2, X } from "lucide-react";
+import { checkCodeSafety } from "@/lib/code-safety";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Preview } from "@/components/Preview";
 import { AppIcon } from "@/components/builder/PublishPanel";
@@ -77,7 +78,12 @@ export function AppsTab({ member, clearMember }: { member: { id: string; email: 
         <label className="relative min-w-0 flex-1">
           <span className="sr-only">Search apps by name, owner or idea</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <input className={`${input} pl-9`} placeholder="Search by app name, owner or idea" value={q} onChange={(e) => (setQ(e.target.value), setQuery(e.target.value.trim()))} />
+          <input
+            className={`${input} pl-9`}
+            placeholder="Search by app name, owner or idea"
+            value={q}
+            onChange={(e) => (setQ(e.target.value), setQuery(e.target.value.trim()))}
+          />
         </label>
         {member && (
           <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 py-1 pl-3 pr-1 text-xs">
@@ -124,7 +130,11 @@ export function AppsTab({ member, clearMember }: { member: { id: string; email: 
                   >
                     <Eye className="h-3.5 w-3.5" /> View
                   </button>
-                  <button onClick={() => remove(a)} className="grid h-8 w-8 place-items-center rounded-lg text-rose-300 hover:bg-rose-500/10" aria-label={`Delete ${a.name}`}>
+                  <button
+                    onClick={() => remove(a)}
+                    className="grid h-8 w-8 place-items-center rounded-lg text-rose-300 hover:bg-rose-500/10"
+                    aria-label={`Delete ${a.name}`}
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </span>
@@ -164,9 +174,16 @@ function AppViewer({ app, onClose, onDelete }: { app: AppSummary; onClose: () =>
   }, [onClose]);
 
   const listing = project?.listing ?? emptyListing(app.name);
+  const unsafe = useMemo(() => (project ? checkCodeSafety(project.files) : []), [project]);
+  const [runAnyway, setRunAnyway] = useState(false);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label={`App: ${app.name}`} className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-line bg-background shadow-2xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`App: ${app.name}`}
+        className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-line bg-background shadow-2xl"
+      >
         <div className="flex items-center gap-3 border-b border-line px-4 py-3">
           <AppIcon listing={{ ...listing, iconEmoji: listing.iconEmoji || app.iconEmoji }} size={36} />
           <div className="min-w-0 flex-1">
@@ -189,95 +206,130 @@ function AppViewer({ app, onClose, onDelete }: { app: AppSummary; onClose: () =>
         ) : !project ? (
           <Loader2 className="m-10 h-5 w-5 animate-spin text-muted" aria-label="Loading" />
         ) : (
-          <div className="grid min-h-0 flex-1 gap-0 md:grid-cols-[340px_1fr]">
-            <div className="h-[520px] border-b border-line p-4 md:h-auto md:min-h-[560px] md:border-b-0 md:border-r">
-              <PhoneFrame platform="ios">
-                {Object.keys(project.files).length ? (
-                  <Preview files={project.files} platform="ios" reloadKey={0} />
-                ) : (
-                  <div className="grid h-full place-items-center p-6 text-center text-sm text-neutral-500">No code yet</div>
-                )}
-              </PhoneFrame>
-            </div>
-            <div className="flex min-h-0 flex-col">
-              <div role="tablist" aria-label="App details" className="flex gap-1 border-b border-line px-3">
-                {(["listing", "code", "chat"] as const).map((t) => (
-                  <button
-                    key={t}
-                    role="tab"
-                    aria-selected={tab === t}
-                    onClick={() => setTab(t)}
-                    className={`min-h-10 border-b-2 px-3 text-sm ${tab === t ? "border-violet-400 font-medium" : "border-transparent text-muted hover:text-foreground"}`}
-                  >
-                    {t === "listing" ? "Store listing" : t === "code" ? `Code (${Object.keys(project.files).length})` : `Conversation (${project.messages?.length ?? 0})`}
-                  </button>
-                ))}
+          <>
+            {unsafe.length > 0 && (
+              <div role="alert" className="border-b border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+                <p className="flex items-center gap-1.5 font-medium">
+                  <ShieldAlert className="h-4 w-4 shrink-0" /> The safety check found code that hides what it does or reaches outside the app. Builds of this
+                  app are blocked.
+                </p>
+                <ul className="mt-1 list-disc pl-5 text-rose-100/80">
+                  {unsafe.slice(0, 6).map((f, n) => (
+                    <li key={n}>
+                      <code className="font-mono">{f.file}</code> {f.message}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4 text-sm">
-                {tab === "listing" && (
-                  <dl className="grid gap-3">
-                    {project.prompt && (
+            )}
+            <div className="grid min-h-0 flex-1 gap-0 md:grid-cols-[340px_1fr]">
+              <div className="h-[520px] border-b border-line p-4 md:h-auto md:min-h-[560px] md:border-b-0 md:border-r">
+                <PhoneFrame platform="ios">
+                  {Object.keys(project.files).length && unsafe.length && !runAnyway ? (
+                    <div className="grid h-full place-items-center p-6 text-center text-sm text-neutral-600">
                       <div>
-                        <dt className="text-xs text-muted">Original idea</dt>
-                        <dd className="mt-0.5 whitespace-pre-wrap">{project.prompt}</dd>
-                      </div>
-                    )}
-                    {(
-                      [
-                        ["Name", listing.name],
-                        ["Subtitle", listing.subtitle],
-                        ["Category", listing.category],
-                        ["Bundle ID", listing.bundleId],
-                        ["Keywords", listing.keywords],
-                        ["Description", listing.description],
-                        ["Privacy", listing.privacyNotes],
-                        ["Wording", project.wording === "standard" ? "Standard" : "Claim-safe"],
-                      ] as const
-                    ).map(([k, v]) =>
-                      v ? (
-                        <div key={k}>
-                          <dt className="text-xs text-muted">{k}</dt>
-                          <dd className="mt-0.5 whitespace-pre-wrap break-words">{v}</dd>
-                        </div>
-                      ) : null,
-                    )}
-                  </dl>
-                )}
-                {tab === "code" && (
-                  <div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {Object.keys(project.files).map((f) => (
+                        <p>Preview paused because of the safety check.</p>
                         <button
-                          key={f}
-                          onClick={() => setFile(f)}
-                          aria-pressed={file === f}
-                          className={`min-h-7 rounded-md border px-2 font-mono text-[11px] ${file === f ? "border-violet-500/60 bg-violet-500/10" : "border-line text-muted hover:text-foreground"}`}
+                          onClick={() => setRunAnyway(true)}
+                          className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-neutral-300 px-3 text-xs text-neutral-800"
                         >
-                          {f}
+                          <Play className="h-3.5 w-3.5" /> Run it in the sandbox anyway
                         </button>
-                      ))}
+                      </div>
                     </div>
-                    {file && (
-                      <pre className="mt-3 overflow-x-auto rounded-lg border border-line bg-[#0b0b10] p-3 font-mono text-[12px] leading-relaxed text-[#d8d6e6]">
-                        {project.files[file]}
-                      </pre>
-                    )}
-                  </div>
-                )}
-                {tab === "chat" && (
-                  <ol className="space-y-3">
-                    {(project.messages ?? []).map((m) => (
-                      <li key={m.id} className={m.role === "user" ? "ml-8 rounded-xl bg-surface-2 px-3 py-2" : "text-foreground/90"}>
-                        <div className="mb-0.5 text-[11px] text-muted">{m.role === "user" ? (m.kind === "auto-fix" ? "Automatic check" : "Member") : "Appmaker"}</div>
-                        <div className="whitespace-pre-wrap break-words text-sm">{m.content}</div>
-                      </li>
-                    ))}
-                    {!project.messages?.length && <li className="text-muted">No conversation saved.</li>}
-                  </ol>
-                )}
+                  ) : Object.keys(project.files).length ? (
+                    <Preview files={project.files} platform="ios" reloadKey={0} />
+                  ) : (
+                    <div className="grid h-full place-items-center p-6 text-center text-sm text-neutral-500">No code yet</div>
+                  )}
+                </PhoneFrame>
+              </div>
+              <div className="flex min-h-0 flex-col">
+                <div role="tablist" aria-label="App details" className="flex gap-1 border-b border-line px-3">
+                  {(["listing", "code", "chat"] as const).map((t) => (
+                    <button
+                      key={t}
+                      role="tab"
+                      aria-selected={tab === t}
+                      onClick={() => setTab(t)}
+                      className={`min-h-10 border-b-2 px-3 text-sm ${tab === t ? "border-violet-400 font-medium" : "border-transparent text-muted hover:text-foreground"}`}
+                    >
+                      {t === "listing"
+                        ? "Store listing"
+                        : t === "code"
+                          ? `Code (${Object.keys(project.files).length})`
+                          : `Conversation (${project.messages?.length ?? 0})`}
+                    </button>
+                  ))}
+                </div>
+                <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4 text-sm">
+                  {tab === "listing" && (
+                    <dl className="grid gap-3">
+                      {project.prompt && (
+                        <div>
+                          <dt className="text-xs text-muted">Original idea</dt>
+                          <dd className="mt-0.5 whitespace-pre-wrap">{project.prompt}</dd>
+                        </div>
+                      )}
+                      {(
+                        [
+                          ["Name", listing.name],
+                          ["Subtitle", listing.subtitle],
+                          ["Category", listing.category],
+                          ["Bundle ID", listing.bundleId],
+                          ["Keywords", listing.keywords],
+                          ["Description", listing.description],
+                          ["Privacy", listing.privacyNotes],
+                          ["Wording", project.wording === "standard" ? "Standard" : "Claim-safe"],
+                        ] as const
+                      ).map(([k, v]) =>
+                        v ? (
+                          <div key={k}>
+                            <dt className="text-xs text-muted">{k}</dt>
+                            <dd className="mt-0.5 whitespace-pre-wrap break-words">{v}</dd>
+                          </div>
+                        ) : null,
+                      )}
+                    </dl>
+                  )}
+                  {tab === "code" && (
+                    <div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.keys(project.files).map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setFile(f)}
+                            aria-pressed={file === f}
+                            className={`min-h-7 rounded-md border px-2 font-mono text-[11px] ${file === f ? "border-violet-500/60 bg-violet-500/10" : "border-line text-muted hover:text-foreground"}`}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+                      {file && (
+                        <pre className="mt-3 overflow-x-auto rounded-lg border border-line bg-[#0b0b10] p-3 font-mono text-[12px] leading-relaxed text-[#d8d6e6]">
+                          {project.files[file]}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                  {tab === "chat" && (
+                    <ol className="space-y-3">
+                      {(project.messages ?? []).map((m) => (
+                        <li key={m.id} className={m.role === "user" ? "ml-8 rounded-xl bg-surface-2 px-3 py-2" : "text-foreground/90"}>
+                          <div className="mb-0.5 text-[11px] text-muted">
+                            {m.role === "user" ? (m.kind === "auto-fix" ? "Automatic check" : "Member") : "Appmaker"}
+                          </div>
+                          <div className="whitespace-pre-wrap break-words text-sm">{m.content}</div>
+                        </li>
+                      ))}
+                      {!project.messages?.length && <li className="text-muted">No conversation saved.</li>}
+                    </ol>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

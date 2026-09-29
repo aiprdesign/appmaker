@@ -206,6 +206,36 @@ jobs:
       - run: eas build --platform all --profile production --non-interactive --auto-submit
 `;
 
+/**
+ * Metro config for bundling on Appmaker's server (Expo Go previews): the
+ * bundler may only read the app's own folder and the installed packages, so
+ * an import like "../../other-build/credentials.json" can't pull in files
+ * from elsewhere on the server.
+ */
+export const CONTAINED_METRO_CONFIG = `const fs = require("fs");
+const path = require("path");
+const { getDefaultConfig } = require("expo/metro-config");
+
+const config = getDefaultConfig(__dirname);
+const root = fs.realpathSync(__dirname);
+const packages = fs.realpathSync(path.join(__dirname, "node_modules"));
+const inside = (file) => {
+  const real = fs.existsSync(file) ? fs.realpathSync(file) : path.resolve(file);
+  return [root, packages].some((dir) => real === dir || real.startsWith(dir + path.sep));
+};
+
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const result = context.resolveRequest(context, moduleName, platform);
+  const files = result.type === "sourceFile" ? [result.filePath] : result.type === "assetFiles" ? result.filePaths : [];
+  for (const file of files) {
+    if (!inside(file)) throw new Error("Blocked import outside the app: " + moduleName);
+  }
+  return result;
+};
+
+module.exports = config;
+`;
+
 export const GITIGNORE = "node_modules/\n.expo/\ndist/\nweb-build/\n*.jks\n*.p8\n*.p12\n*.key\n*.mobileprovision\ncredentials.json\nios-certs/\n";
 
 /** Every text file of the Expo project, keyed by path. */
@@ -240,6 +270,7 @@ export function expoProjectFiles(
     ".gitignore": GITIGNORE,
     "README.md": readme(project),
     ".github/workflows/eas.yml": WORKFLOW,
+    ...(options.expoGo ? { "metro.config.js": CONTAINED_METRO_CONFIG } : {}),
   };
   for (const [path, code] of Object.entries(project.files)) {
     if (isAllowedPath(path)) files[path] = code;

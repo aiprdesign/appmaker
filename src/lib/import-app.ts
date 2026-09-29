@@ -1,6 +1,7 @@
 import { emptyListing } from "./storage";
 import type { FileMap, StoreListing } from "./types";
-import { APP_MAX_BYTES, APP_MAX_FILES, isAllowedPath, validateApp, type ValidationIssue } from "./validate";
+import { checkCodeSafety, type SafetyFinding } from "./code-safety";
+import { APP_MAX_BYTES, APP_MAX_FILES, isAllowedPath, SAFETY_PREFIX, validateApp, type ValidationIssue } from "./validate";
 
 /**
  * Turns an uploaded app (an Expo / React Native project as a .zip, a folder,
@@ -27,6 +28,8 @@ export interface ImportedApp {
   converted: string[];
   /** Things to fix before the app runs in Appmaker (the AI can fix them). */
   issues: ValidationIssue[];
+  /** Code the safety check blocks; an upload with any can't be opened. */
+  unsafe: SafetyFinding[];
   /** Notes about the whole app, e.g. that it uses Expo Router. */
   notes: string[];
 }
@@ -110,6 +113,24 @@ function targetPath(path: string): string {
   return safe.startsWith("src/") ? `${safe}${ext}` : `src/${safe}${ext}`;
 }
 
+const anyText = () => true;
+const httpsUrl = (v: string) => v === "" || /^https:\/\/[^\s"'<>]+$/i.test(v);
+
+/** Store listing fields accepted from an uploaded appmaker.json, with their checks. */
+const LISTING_FIELDS: Record<string, { max: number; valid: (v: string) => boolean }> = {
+  name: { max: 60, valid: (v) => v.length > 0 },
+  subtitle: { max: 200, valid: anyText },
+  description: { max: 8000, valid: anyText },
+  keywords: { max: 400, valid: anyText },
+  category: { max: 60, valid: anyText },
+  bundleId: { max: 155, valid: (v) => /^[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z0-9-]+)+$/.test(v) },
+  primaryColor: { max: 7, valid: (v) => /^#[0-9a-f]{6}$/i.test(v) },
+  iconEmoji: { max: 16, valid: (v) => v.length > 0 && !/[<>]/.test(v) },
+  privacyNotes: { max: 2000, valid: anyText },
+  supportUrl: { max: 500, valid: httpsUrl },
+  privacyPolicyUrl: { max: 500, valid: httpsUrl },
+};
+
 function readListing(entries: Map<string, string | null>, fallbackName: string): StoreListing {
   const listing: StoreListing = emptyListing(fallbackName);
   const json = (p: string) => {
@@ -122,7 +143,7 @@ function readListing(entries: Map<string, string | null>, fallbackName: string):
   };
   const expo = json("app.json")?.expo;
   if (expo && typeof expo === "object") {
-    if (typeof expo.name === "string" && expo.name.trim()) listing.name = expo.name.trim().slice(0, 30);
+    if (typeof expo.name === "string" && expo.name.trim()) listing.name = expo.name.trim().slice(0, 60);
     const bundleId = expo.ios?.bundleIdentifier ?? expo.android?.package;
     if (typeof bundleId === "string" && /^[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z0-9-]+)+$/.test(bundleId)) listing.bundleId = bundleId;
     const color = expo.splash?.backgroundColor ?? expo.android?.adaptiveIcon?.backgroundColor;
@@ -131,8 +152,12 @@ function readListing(entries: Map<string, string | null>, fallbackName: string):
   // Apps downloaded from Appmaker carry their full store listing.
   const saved = json("appmaker.json")?.listing;
   if (saved && typeof saved === "object") {
+    const fields = listing as unknown as Record<string, string>;
     for (const [k, v] of Object.entries(saved as Record<string, unknown>)) {
-      if (k in listing && typeof v === "string") (listing as unknown as Record<string, string>)[k] = v.slice(0, 4000);
+      const check = LISTING_FIELDS[k];
+      if (typeof v !== "string" || !check) continue;
+      const value = v.trim().slice(0, check.max);
+      if (check.valid(value)) fields[k] = value;
     }
   }
   return listing;
@@ -246,7 +271,16 @@ export function importApp(uploaded: UploadEntry[], stripTypes: StripTypes, fallb
   for (const p of Object.keys(files)) if (!isAllowedPath(p)) delete files[p];
 
   const listing = readListing(entries, fallbackName);
-  return { files, listing, skipped, converted, issues: validateApp(files), notes };
+  const checks = validateApp(files);
+  return {
+    files,
+    listing,
+    skipped,
+    converted,
+    issues: checks.filter((i) => !i.message.startsWith(SAFETY_PREFIX)),
+    unsafe: checkCodeSafety(files),
+    notes,
+  };
 }
 
 /** A request for the AI that makes an uploaded app work in Appmaker. */

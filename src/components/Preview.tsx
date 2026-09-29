@@ -50,7 +50,7 @@ export function Preview({ files, platform, reloadKey, onError }: Props) {
       ref={frame}
       title="App preview"
       srcDoc={html}
-      sandbox="allow-scripts allow-forms allow-modals"
+      sandbox="allow-scripts allow-modals"
       className="h-full w-full border-0 bg-white"
     />
   );

@@ -34,6 +34,7 @@ The app runs in two places: a live in-browser preview (React Native Web) and a r
 **Live data from the internet** — use the built-in \`fetch\` with https only.
 - Only use free public APIs that need no key and allow browser requests, e.g. Open-Meteo weather \`https://api.open-meteo.com/v1/forecast?latitude=..&longitude=..&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto\` with geocoding \`https://geocoding-api.open-meteo.com/v1/search?name=..&count=5\`; currency rates \`https://api.frankfurter.app/latest?from=USD\`; Wikipedia summaries \`https://en.wikipedia.org/api/rest_v1/page/summary/{title}\`; books \`https://openlibrary.org/search.json?q=..\`.
 - Never put API keys or secrets in the app — the code ships to every user's phone.
+- Write plain, readable code: no eval(), new Function(), code in strings, WebAssembly, background workers, obfuscated or minified code, large encoded blobs, or imports that go outside the app (absolute paths, "../" past the project, require.context). Uploaded apps that contain these must have them removed.
 - Always show a loading state, a friendly error with a Retry button, and cache the last good result in AsyncStorage so the app still shows something offline.
 - Images returned by these APIs may be shown with \`<Image source={{ uri }} />\`; otherwise use emoji and shapes.
 

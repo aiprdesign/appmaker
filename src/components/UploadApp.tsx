@@ -2,13 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, FileCode2, FolderUp, Loader2, Upload, Wand2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileCode2, FolderUp, Loader2, ShieldAlert, Upload, Wand2 } from "lucide-react";
 import JSZip from "jszip";
 import { babelStripTypes, fixRequest, ImportError, importApp, loadBabel, type ImportedApp, type UploadEntry } from "@/lib/import-app";
 import { createProject, saveProject, uid, withVersion } from "@/lib/storage";
 import type { Wording } from "@/lib/claims";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
+/** Zip limits, so a small "zip bomb" can't expand into gigabytes and freeze the tab. */
+const MAX_ZIP_ENTRIES = 5000;
+const MAX_ENTRY_BYTES = 2_000_000;
+const MAX_UNZIPPED_BYTES = 30_000_000;
 const TEXT_FILE = /\.(jsx?|tsx?|mjs|cjs|json|md|txt|ya?ml|lock|gitignore|env|html|css)$|(^|\/)[^./]+$/i;
 
 /** Reads a .zip, a folder or loose files into paths and text (null for binary files). */
@@ -25,12 +29,25 @@ async function readUpload(list: File[]): Promise<UploadEntry[]> {
       } catch {
         throw new ImportError(`${file.name} isn't a zip file that can be opened.`);
       }
-      for (const item of Object.values(zip.files)) {
-        if (item.dir || /(^|\/)node_modules\//.test(item.name)) continue;
-        entries.push({ path: item.name, text: TEXT_FILE.test(item.name) ? await item.async("string") : null });
+      const items = Object.values(zip.files).filter((item) => !item.dir && !/(^|\/)node_modules\//.test(item.name));
+      if (items.length > MAX_ZIP_ENTRIES) throw new ImportError(`${file.name} has too many files. Leave out node_modules, ios and android, then try again.`);
+      let unzipped = 0;
+      for (const item of items) {
+        // JSZip knows each file's unpacked size from the zip's directory before unpacking it.
+        const size = (item as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0;
+        unzipped += size;
+        if (unzipped > MAX_UNZIPPED_BYTES)
+          throw new ImportError(`${file.name} unpacks to more than 30 MB. Leave out node_modules, ios, android and media, then try again.`);
+        if (!TEXT_FILE.test(item.name) || size > MAX_ENTRY_BYTES) {
+          entries.push({ path: item.name, text: null });
+          continue;
+        }
+        const text = await item.async("string");
+        if (text.length > MAX_ENTRY_BYTES) throw new ImportError(`${item.name} in ${file.name} is too large to be app code.`);
+        entries.push({ path: item.name, text });
       }
     } else if (!/(^|\/)node_modules\//.test(path)) {
-      entries.push({ path, text: TEXT_FILE.test(path) ? await file.text() : null });
+      entries.push({ path, text: TEXT_FILE.test(path) && file.size <= MAX_ENTRY_BYTES ? await file.text() : null });
     }
   }
   return entries;
@@ -78,7 +95,7 @@ export function UploadApp({ wording }: { wording: Wording }) {
   };
 
   const open = () => {
-    if (!app) return;
+    if (!app || app.unsafe.length) return;
     const count = Object.keys(app.files).length;
     const lines = [
       `Uploaded **${app.listing.name}**: ${count} file${count === 1 ? "" : "s"}.`,
@@ -212,7 +229,21 @@ export function UploadApp({ wording }: { wording: Wording }) {
             </p>
           ))}
 
-          {app.issues.length > 0 ? (
+          {app.unsafe.length > 0 ? (
+            <div role="alert" className="rounded-lg bg-rose-500/10 p-3 text-xs text-rose-100">
+              <p className="flex items-center gap-1.5 font-medium">
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> This upload can&apos;t be used: it has code that hides what it does or reaches outside the app
+              </p>
+              <ul className="mt-1 max-h-28 list-disc space-y-0.5 overflow-y-auto pl-5 text-rose-100/80">
+                {app.unsafe.slice(0, 12).map((f, n) => (
+                  <li key={n}>
+                    <code className="font-mono">{f.file}</code> {f.message}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-rose-100/80">Remove it from the app&apos;s source and upload again. Appmaker only accepts readable app code.</p>
+            </div>
+          ) : app.issues.length > 0 ? (
             <div className="rounded-lg bg-amber-500/10 p-3 text-xs text-amber-100">
               <p className="flex items-center gap-1.5 font-medium">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {app.issues.length} thing{app.issues.length === 1 ? "" : "s"} to fix before it runs in
@@ -234,13 +265,15 @@ export function UploadApp({ wording }: { wording: Wording }) {
             <p className="text-xs text-emerald-300">Passed the automatic check: it should run as-is.</p>
           )}
 
-          <button
-            type="button"
-            onClick={open}
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-4 text-sm font-medium text-white"
-          >
-            <Wand2 className="h-4 w-4" /> {app.issues.length && autoFix ? "Open and fix with AI" : "Open in the builder"}
-          </button>
+          {app.unsafe.length === 0 && (
+            <button
+              type="button"
+              onClick={open}
+              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-4 text-sm font-medium text-white"
+            >
+              <Wand2 className="h-4 w-4" /> {app.issues.length && autoFix ? "Open and fix with AI" : "Open in the builder"}
+            </button>
+          )}
         </div>
       )}
     </div>

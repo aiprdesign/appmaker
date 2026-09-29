@@ -1,3 +1,4 @@
+import { checkCodeSafety } from "./code-safety";
 import type { FileMap } from "./types";
 
 /**
@@ -27,6 +28,9 @@ const SOURCE_FILE = /^(App\.jsx?|src\/[A-Za-z0-9_\-/]+\.(jsx?|json))$/;
 export function isAllowedPath(path: string): boolean {
   return SOURCE_FILE.test(path) && !path.split("/").some((seg) => seg === ".." || seg === ".");
 }
+
+/** Marks issues from the code safety check (see code-safety.ts). */
+export const SAFETY_PREFIX = "safety: ";
 
 export interface ValidationIssue {
   file: string;
@@ -106,6 +110,7 @@ export function validateApp(files: FileMap): ValidationIssue[] {
       if (re.test(code)) issues.push({ file: path, message });
     }
   }
+  for (const f of checkCodeSafety(files)) issues.push({ file: f.file, message: `${SAFETY_PREFIX}${f.message}` });
   return issues;
 }
 
