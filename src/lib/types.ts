@@ -111,8 +111,21 @@ export interface CloudBuild {
   submission?: { status: string; error?: string };
 }
 
+/** The app published for Expo Go (EAS Update), opened by scanning a QR code. */
+export interface PhonePreview {
+  groupId: string;
+  /** exp:// link that Expo Go opens. */
+  url: string;
+  platforms: string[];
+  publishedAt: number;
+  /** Fingerprint of the app it was published from (see previewSource). */
+  source?: string;
+}
+
 export interface ExpoState {
   link?: ExpoLink;
+  /** The latest preview published for Expo Go. */
+  phone?: PhonePreview;
   /** App Store Connect "Apple ID" of the app (a number), needed for uploads. */
   ascAppId?: string;
   builds?: CloudBuild[];

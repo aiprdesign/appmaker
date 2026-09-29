@@ -201,14 +201,17 @@ A full 100-app run makes 100–300 model calls (follow-ups and repairs included)
 
 ## Test on a real iPhone, Android or your own phone
 
-The builder's **Test on a device** menu opens the app in [Expo Snack](https://snack.expo.dev) in a new tab:
+The builder's **Test on a device** menu has two ways to try an app before building it:
 
-- **iPhone emulator** and **Android emulator** run the app on real iOS and Android emulators, streamed into the browser. There can be a short queue.
-- **Your own phone** shows a QR code. Scan it with the free Expo Go app to run the app on your phone.
+- **Your phone (Expo Go)**, the main option. Appmaker publishes the app with [EAS Update](https://docs.expo.dev/eas-update/introduction/) and shows a QR code. Install the free Expo Go app, then scan the code: with the Camera app on iPhone, or from inside Expo Go on Android. The app runs on Expo SDK 57, the same version as the App Store and Google Play builds, and no build is needed. Publishing takes about a minute. The QR code is saved with the app and says when the app has changed since.
+  - It uses the same Expo account as cloud builds: the site's `EXPO_TOKEN`, or the user's own Expo account if they connected one. It counts toward the same daily limit (`APPMAKER_HOSTED_BUILD_LIMIT`). The admin "Cloud builds" switch turns it off too.
+  - On the server, the update is published with runtime version `exposdk:57.0.0` on the `expo-go` branch, and the QR code opens `exp://u.expo.dev/update/<update group ID>`. `expo-updates` is added only for this. Store builds and the downloaded project don't include it.
+  - How to check it on your deployment: open an app, choose **Test on a device → Your phone (Expo Go)**, make the QR code and scan it. If Expo Go can't open it, check that the Expo Go on the phone supports SDK 57.
+- **iPhone emulator** and **Android emulator** open the app in [Expo Snack](https://snack.expo.dev) in a new tab. These are real emulators, streamed into the browser, with a short queue at times. Snack can use an older Expo SDK, so some features may behave differently there.
 
-Snack picks the Expo SDK version it supports, which can be older than the SDK the builds use. If a package is not supported there yet, test with a build instead. Opening Snack shares the app's code with Expo.
+To install the finished app itself, use a build from the Publish tab. A finished **Android — test app** build shows a QR code: scan it with the phone's camera to download and install the app. iPhones install through TestFlight: build for the App Store with automatic upload on.
 
-To install the real app, use a build from the Publish tab. A finished **Android — test app** build shows a QR code: scan it with the phone's camera to download and install the app. iPhones install through TestFlight: build for the App Store with automatic upload on.
+Both the Expo Go preview and Snack send the app's code to Expo.
 
 ## Shipping a generated app
 

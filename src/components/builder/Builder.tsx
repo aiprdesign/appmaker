@@ -452,7 +452,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           ))}
         </nav>
         <SyncBadge />
-        <DeviceMenu project={project} disabled={!Object.keys(project.files).length || generating || checking} />
+        <DeviceMenu
+          project={project}
+          disabled={!Object.keys(project.files).length || generating || checking}
+          onExpoChange={(expo) => commit({ ...(projectRef.current ?? project), expo })}
+        />
         <HistoryMenu versions={project.versions ?? []} disabled={generating} onRestore={restore} />
         <button
           onClick={async () => downloadBlob(await exportProjectZip(project), `${slugify(project.listing.name)}-expo.zip`)}

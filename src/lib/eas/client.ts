@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { renderIcon } from "../export";
-import type { AppleSigning, BuildTarget, CloudBuild, ExpoLink, Project } from "../types";
+import type { AppleSigning, BuildTarget, CloudBuild, ExpoLink, PhonePreview, Project } from "../types";
 
 /**
  * The user's Expo connection, kept in this browser only. The access token and
@@ -153,6 +153,25 @@ export async function startCloudBuild(opts: {
     ascAppId: opts.ascAppId,
     ascKey: opts.ascKey?.p8 ? { keyId: opts.ascKey.keyId, issuerId: opts.ascKey.issuerId, p8: opts.ascKey.p8 } : undefined,
   });
+}
+
+/** A short fingerprint of what the phone preview shows, to tell when it's out of date. */
+export function previewSource(project: Project): string {
+  const text = JSON.stringify([project.files, project.listing.name, project.listing.primaryColor, project.listing.iconEmoji]);
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = (h * 33) ^ text.charCodeAt(i);
+  return `${(h >>> 0).toString(36)}-${text.length}`;
+}
+
+/** Publishes the app for Expo Go (EAS Update); the result's url goes in the QR code. */
+export async function publishForPhone(token: string | undefined, project: Project, link: ExpoLink): Promise<PhonePreview> {
+  const { preview } = await post<{ preview: PhonePreview }>("/api/eas/update", {
+    token,
+    project: projectBody(project),
+    icon: await iconBase64(project),
+    link,
+  });
+  return { ...preview, source: previewSource(project) };
 }
 
 export async function fetchBuilds(token: string | undefined, ids: string[]): Promise<CloudBuild[]> {

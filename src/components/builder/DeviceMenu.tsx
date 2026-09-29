@@ -3,22 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Apple, ExternalLink, QrCode, Smartphone, TabletSmartphone } from "lucide-react";
 import { openInSnack, type SnackPlatform } from "@/lib/snack";
-import type { Project } from "@/lib/types";
+import type { ExpoState, Project } from "@/lib/types";
+import { PhonePreview } from "./PhonePreview";
 
-const OPTIONS: { platform: SnackPlatform; label: string; detail: string; icon: typeof Apple }[] = [
+const SNACK_OPTIONS: { platform: SnackPlatform; label: string; detail: string; icon: typeof Apple }[] = [
   { platform: "ios", label: "iPhone emulator", detail: "A real iOS simulator, streamed into your browser", icon: Apple },
   { platform: "android", label: "Android emulator", detail: "A real Android emulator, streamed into your browser", icon: Smartphone },
-  {
-    platform: "mydevice",
-    label: "Your own phone",
-    detail: "Install the free Expo Go app, then scan the QR code Snack shows",
-    icon: QrCode,
-  },
 ];
 
-/** Runs the app in Expo Snack: cloud emulators, or on the person's own phone with Expo Go. */
-export function DeviceMenu({ project, disabled }: { project: Project; disabled?: boolean }) {
+/**
+ * Testing on devices: the person's own phone with Expo Go (published by
+ * Appmaker, same Expo SDK as the store builds), or Expo Snack's emulators.
+ */
+export function DeviceMenu({ project, disabled, onExpoChange }: { project: Project; disabled?: boolean; onExpoChange: (expo: ExpoState) => void }) {
   const [open, setOpen] = useState(false);
+  const [phone, setPhone] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -45,8 +44,24 @@ export function DeviceMenu({ project, disabled }: { project: Project; disabled?:
       </button>
       {open && (
         <div role="menu" aria-label="Test on a device" className="fixed inset-x-3 top-14 z-40 rounded-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-10 sm:w-80 border border-line bg-surface p-2 shadow-xl">
-          <p className="px-2 pb-2 pt-1 text-[11px] text-muted">Opens your app in Expo Snack, in a new tab. Snack shares the code with Expo to run it.</p>
-          {OPTIONS.map((o) => (
+          <button
+            role="menuitem"
+            onClick={() => {
+              setPhone(true);
+              setOpen(false);
+            }}
+            className="flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-white/5"
+          >
+            <QrCode className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+            <span className="min-w-0 flex-1">
+              <span className="text-sm font-medium">Your phone (Expo Go)</span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-muted">Scan a QR code to run the real app, on the same Expo version as your store builds</span>
+            </span>
+          </button>
+          <p className="mt-1 border-t border-line px-2 pb-1 pt-2 text-[11px] text-muted">
+            Quick look in Expo Snack (new tab). Snack may use an older Expo version, so some features can differ.
+          </p>
+          {SNACK_OPTIONS.map((o) => (
             <button
               key={o.platform}
               role="menuitem"
@@ -66,10 +81,11 @@ export function DeviceMenu({ project, disabled }: { project: Project; disabled?:
             </button>
           ))}
           <p className="border-t border-line px-2 pb-1 pt-2 text-[11px] leading-snug text-muted">
-            Emulators can have a short queue. To install the finished app itself, use a build in the Publish tab: Android builds have a QR code to install.
+            To install the finished app itself, use a build in the Publish tab: Android builds have a QR code to install.
           </p>
         </div>
       )}
+      {phone && <PhonePreview project={project} onExpoChange={onExpoChange} onClose={() => setPhone(false)} />}
     </div>
   );
 }

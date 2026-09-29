@@ -5,7 +5,8 @@ import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { appJson, easJson, expoProjectFiles } from "@/lib/expo-project";
 import { InputError, parseAscKey, parseIcon, parseLink, parseProject, parseToken } from "@/lib/eas/input";
-import { buildArgs, easFailure, getBuilds, linkProject, parseJsonOutput, startBuild, toCloudBuild, whoami } from "@/lib/eas/server";
+import { buildArgs, easFailure, getBuilds, linkProject, parseJsonOutput, publishUpdate, startBuild, toCloudBuild, updateArgs, whoami } from "@/lib/eas/server";
+import { POST as updateRoute } from "@/app/api/eas/update/route";
 import { POST as buildRoute } from "@/app/api/eas/build/route";
 import { GET as accountGet, POST as accountRoute } from "@/app/api/eas/account/route";
 import { POST as linkRoute } from "@/app/api/eas/link/route";
@@ -129,6 +130,7 @@ const rec = {
   root,
   appJson: JSON.parse(read("app.json")),
   easJson: JSON.parse(read("eas.json")),
+  packageJson: JSON.parse(read("package.json")),
   files: fs.readdirSync(root, { recursive: true }).filter((f) => !String(f).startsWith("node_modules")).map(String).sort(),
   keyFile: read("asc-api-key.p8"),
   credentialsJson: read("credentials.json"),
@@ -142,6 +144,15 @@ fs.appendFileSync(${JSON.stringify(logFile)}, JSON.stringify(rec) + "\\n");
 if (args.includes("--simulate-failure")) process.exit(1);
 if (args[0] === "init") {
   console.log(JSON.stringify({ status: "created", projectId: "${PROJECT_ID}", owner: "alice", slug: rec.appJson.expo.slug }));
+} else if (args[0] === "update") {
+  if (rec.appJson.expo.name === "Broken") {
+    console.error("SyntaxError: App.js: Unexpected token (3:4)");
+    process.exit(1);
+  }
+  const group = "7a1b2c3d-0000-4000-8000-00000000abcd";
+  const base = { createdAt: new Date().toISOString(), group, branch: "expo-go", message: "Appmaker preview", runtimeVersion: rec.appJson.expo.runtimeVersion, manifestPermalink: "https://u.expo.dev/x", isRollBackToEmbedded: false, gitCommitHash: null };
+  console.error("Exporting...");
+  console.log(JSON.stringify([{ ...base, id: "u-android", platform: "android" }, { ...base, id: "u-ios", platform: "ios" }]));
 } else if (args[0] === "build") {
   if (rec.appJson.expo.ios.bundleIdentifier === "com.acme.nocreds") {
     console.error("Distribution Certificate is not validated for non-interactive builds.");
@@ -327,6 +338,52 @@ describe("cloud builds (fake Expo)", () => {
   it("reads build and upload status from Expo", async () => {
     const [b] = await getBuilds(TOKEN, [BUILD_ID]);
     expect(b).toMatchObject({ status: "FINISHED", target: "ios", artifactUrl: "https://expo.dev/artifacts/eas/app.ipa", submission: { status: "FINISHED" } });
+  });
+});
+
+describe("phone previews with Expo Go (EAS Update)", () => {
+  const link = { projectId: PROJECT_ID, owner: "alice", slug: "habit-hero" };
+
+  it("publishes an update for Expo Go's SDK and returns the link for the QR code", async () => {
+    const preview = await publishUpdate({ token: TOKEN, project: project(), icon: PNG, link });
+    expect(preview).toMatchObject({
+      groupId: "7a1b2c3d-0000-4000-8000-00000000abcd",
+      url: "exp://u.expo.dev/update/7a1b2c3d-0000-4000-8000-00000000abcd",
+      platforms: ["android", "ios"],
+    });
+    const [rec] = records();
+    expect(rec.args).toEqual(updateArgs());
+    expect(rec.args).toEqual(expect.arrayContaining(["update", "--branch", "expo-go", "--platform", "all", "--non-interactive", "--json"]));
+    expect(rec.token).toBe(TOKEN);
+    expect(rec.appJson.expo.runtimeVersion).toBe("exposdk:57.0.0");
+    expect(rec.appJson.expo.updates).toEqual({ url: `https://u.expo.dev/${PROJECT_ID}` });
+    expect(rec.appJson.expo.extra.eas.projectId).toBe(PROJECT_ID);
+    expect(rec.packageJson.dependencies["expo-updates"]).toMatch(/^~57\./);
+  });
+
+  it("keeps store builds and the download free of Expo Go settings", () => {
+    const files = expoProjectFiles(project(), { link });
+    expect(JSON.parse(files["app.json"]).expo).not.toHaveProperty("runtimeVersion");
+    expect(JSON.parse(files["app.json"]).expo).not.toHaveProperty("updates");
+    expect(JSON.parse(files["package.json"]).dependencies).not.toHaveProperty("expo-updates");
+  });
+
+  it("explains a failed publish", async () => {
+    const broken = project({ listing: { ...project().listing, name: "Broken" } });
+    await expect(publishUpdate({ token: TOKEN, project: broken, icon: PNG, link })).rejects.toMatchObject({
+      status: 502,
+      message: expect.stringMatching(/Expo couldn't publish the preview:[\s\S]*Unexpected token/),
+    });
+  });
+
+  it("the route needs a link and an Expo account", async () => {
+    const call = (body: unknown) => updateRoute(new Request("http://localhost/api/eas/update", { method: "POST", body: JSON.stringify(body) }));
+    const app = { files: project().files, listing: project().listing };
+    expect((await call({ token: TOKEN, project: app, icon: PNG.toString("base64") })).status).toBe(400);
+    expect((await call({ link, project: app, icon: PNG.toString("base64") })).status).toBe(400);
+    const ok = await call({ token: TOKEN, link, project: app, icon: PNG.toString("base64") });
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).preview.url).toMatch(/^exp:\/\/u\.expo\.dev\/update\//);
   });
 });
 

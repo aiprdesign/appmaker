@@ -20,7 +20,19 @@ export const EXPO_DEPS: Record<string, string> = {
   "expo-haptics": "~57.0.3",
   "expo-notifications": "~57.0.21",
   "expo-image-picker": "~57.0.20",
+  // Not imported by apps: installed on the server so previews can be
+  // published with EAS Update for Expo Go.
+  "expo-updates": "~57.0.24",
 };
+
+/** The Expo SDK the apps target, as Expo Go names it (e.g. "57.0.0"). */
+export const EXPO_SDK = `${EXPO_DEPS.expo.replace(/^\D*/, "").split(".")[0]}.0.0`;
+
+/**
+ * Runtime version of updates Expo Go can open: Expo Go runs any update made
+ * for its own SDK, with no build of the app needed.
+ */
+export const EXPO_GO_RUNTIME = `exposdk:${EXPO_SDK}`;
 
 export const ICON_PATH = "assets/icon.png";
 
@@ -37,6 +49,7 @@ export function usedDependencies(project: Project): Record<string, string> {
   const code = Object.values(project.files).join("\n");
   const deps: Record<string, string> = {};
   for (const [name, version] of Object.entries(EXPO_DEPS)) {
+    if (name === "expo-updates") continue;
     const always = ["expo", "react", "react-dom", "react-native", "react-native-web", "expo-status-bar"].includes(name);
     if (always || code.includes(`'${name}'`) || code.includes(`"${name}"`)) deps[name] = version;
   }
@@ -65,8 +78,11 @@ function plugins(project: Project): unknown[] {
   return list;
 }
 
-/** app.json; once linked to Expo, the project ID, owner and slug must stay fixed. */
-export function appJson(project: Project, link: ExpoLink | undefined = project.expo?.link) {
+/**
+ * app.json; once linked to Expo, the project ID, owner and slug must stay fixed.
+ * With expoGo, it's set up to publish an update that Expo Go can open.
+ */
+export function appJson(project: Project, link: ExpoLink | undefined = project.expo?.link, { expoGo = false } = {}) {
   const l = project.listing;
   const nativePlugins = plugins(project);
   return {
@@ -93,6 +109,7 @@ export function appJson(project: Project, link: ExpoLink | undefined = project.e
       web: { favicon: `./${ICON_PATH}` },
       ...(nativePlugins.length ? { plugins: nativePlugins } : {}),
       ...(link ? { extra: { eas: { projectId: link.projectId } } } : {}),
+      ...(expoGo && link ? { runtimeVersion: EXPO_GO_RUNTIME, updates: { url: `https://u.expo.dev/${link.projectId}` } } : {}),
     },
   };
 }
@@ -194,7 +211,7 @@ export const GITIGNORE = "node_modules/\n.expo/\ndist/\nweb-build/\n*.jks\n*.p8\
 /** Every text file of the Expo project, keyed by path. */
 export function expoProjectFiles(
   project: Project,
-  options: { link?: ExpoLink; ios?: IosSubmitConfig; localIosCredentials?: boolean } = {},
+  options: { link?: ExpoLink; ios?: IosSubmitConfig; localIosCredentials?: boolean; expoGo?: boolean } = {},
 ): Record<string, string> {
   const slug = slugify(project.listing.name);
   const files: Record<string, string> = {
@@ -210,14 +227,14 @@ export function expoProjectFiles(
           android: "expo start --android",
           web: "expo start --web",
         },
-        dependencies: usedDependencies(project),
+        dependencies: { ...usedDependencies(project), ...(options.expoGo ? { "expo-updates": EXPO_DEPS["expo-updates"] } : {}) },
         devDependencies: { "@babel/core": "^7.25.0" },
       },
       null,
       2,
     ),
     "index.js": "import { registerRootComponent } from 'expo';\nimport App from './App';\n\nregisterRootComponent(App);\n",
-    "app.json": JSON.stringify(appJson(project, options.link ?? project.expo?.link), null, 2),
+    "app.json": JSON.stringify(appJson(project, options.link ?? project.expo?.link, { expoGo: options.expoGo }), null, 2),
     "eas.json": JSON.stringify(easJson(options.ios ?? { ascAppId: project.expo?.ascAppId }, options.localIosCredentials), null, 2),
     "babel.config.js": "module.exports = function (api) {\n  api.cache(true);\n  return { presets: ['babel-preset-expo'] };\n};\n",
     ".gitignore": GITIGNORE,

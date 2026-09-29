@@ -4,8 +4,8 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { EXPO_DEPS, expoProjectFiles, ICON_PATH, usesPackage, type IosSubmitConfig } from "../expo-project";
-import type { BuildTarget, CloudBuild, ExpoLink, Project } from "../types";
+import { EXPO_DEPS, EXPO_GO_RUNTIME, expoProjectFiles, ICON_PATH, usesPackage, type IosSubmitConfig } from "../expo-project";
+import type { BuildTarget, CloudBuild, ExpoLink, PhonePreview, Project } from "../types";
 import { ensureSigning, type AppleSigning } from "./apple";
 import { EasError } from "./errors";
 import type { AscApiKey } from "./input";
@@ -177,7 +177,7 @@ function clean(output: string, secrets: string[]): string {
 }
 
 /** Turns EAS CLI output into a message a person can act on. */
-export function easFailure(output: string): EasError {
+export function easFailure(output: string, action = "start the build"): EasError {
   if (/Credentials are not set up|MissingCredentialsNonInteractive/i.test(output)) {
     return new EasError(
       "Apple signing isn't set up for this app yet. Do the one-time Apple setup below, then build again.",
@@ -200,7 +200,7 @@ export function easFailure(output: string): EasError {
     .map((l) => l.trim())
     .filter((l) => l && !/^at\s|^\s*[│┌└]|node_modules|DeprecationWarning|--trace-deprecation/.test(l) && !/^\{|^\[/.test(l));
   const tail = lines.slice(-6).join("\n").slice(-700);
-  return new EasError(tail ? `Expo couldn't start the build:\n${tail}` : "Expo couldn't start the build.", 502);
+  return new EasError(tail ? `Expo couldn't ${action}:\n${tail}` : `Expo couldn't ${action}.`, 502);
 }
 
 interface RunOptions {
@@ -209,10 +209,12 @@ interface RunOptions {
   env?: Record<string, string>;
   timeoutMs?: number;
   secrets?: string[];
+  /** What failed, for the error message ("start the build"). */
+  action?: string;
 }
 
 /** Runs the EAS CLI. Only the variables it needs are passed — never the server's own secrets. */
-function runEas(args: string[], { cwd, token, env = {}, timeoutMs = 10 * 60_000, secrets = [] }: RunOptions): Promise<string> {
+function runEas(args: string[], { cwd, token, env = {}, timeoutMs = 10 * 60_000, secrets = [], action }: RunOptions): Promise<string> {
   const cli = easCliPath();
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...args], {
@@ -248,7 +250,7 @@ function runEas(args: string[], { cwd, token, env = {}, timeoutMs = 10 * 60_000,
       const all = [token, ...secrets];
       if (code === 0) return resolve(clean(stdout, all));
       if (signal === "SIGKILL") return reject(new EasError("Expo took too long to respond. Try again in a few minutes.", 504));
-      reject(easFailure(clean(`${stderr}\n${stdout}`, all)));
+      reject(easFailure(clean(`${stderr}\n${stdout}`, all), action));
     });
   });
 }
@@ -334,7 +336,7 @@ interface IosSigningFiles {
 async function withProjectDir<T>(
   project: Project,
   icon: Buffer,
-  options: { link?: ExpoLink; ios?: IosSubmitConfig; ascKey?: AscApiKey; signing?: IosSigningFiles },
+  options: { link?: ExpoLink; ios?: IosSubmitConfig; ascKey?: AscApiKey; signing?: IosSigningFiles; expoGo?: boolean },
   run: (dir: string) => Promise<T>,
 ): Promise<T> {
   const modules = await ensureExpoDeps();
@@ -374,7 +376,7 @@ async function withProjectDir<T>(
         { mode: 0o600 },
       );
     }
-    const files = expoProjectFiles(project, { link: options.link, ios, localIosCredentials: !!options.signing });
+    const files = expoProjectFiles(project, { link: options.link, ios, localIosCredentials: !!options.signing, expoGo: options.expoGo });
     for (const [rel, content] of Object.entries(files)) {
       const file = path.join(dir, rel);
       if (!file.startsWith(dir + path.sep)) continue;
@@ -482,4 +484,45 @@ export async function startBuild(req: BuildRequest): Promise<BuildResult> {
     throw err;
   }
   return { builds, ...(newSigning ? { signing: newSigning } : {}) };
+}
+
+// ---------------------------------------------------------------------------
+// Previews on a phone with Expo Go (EAS Update)
+
+/** The link Expo Go opens for an update group; shown as a QR code. */
+export function expoGoUrl(groupId: string): string {
+  return `exp://u.expo.dev/update/${encodeURIComponent(groupId)}`;
+}
+
+export function updateArgs(): string[] {
+  return ["update", "--branch", "expo-go", "--message", "Appmaker preview", "--platform", "all", "--non-interactive", "--json"];
+}
+
+interface RawUpdate {
+  id?: string;
+  group?: string;
+  platform?: string;
+  runtimeVersion?: string;
+  createdAt?: string;
+}
+
+/**
+ * Publishes the app's JavaScript as an EAS Update made for Expo Go's SDK.
+ * Scanning the QR code opens it in Expo Go on the same Expo SDK as the store
+ * builds, with no build needed. Takes about a minute (Expo bundles the app).
+ */
+export async function publishUpdate(req: { token: string; project: Project; icon: Buffer; link: ExpoLink }): Promise<PhonePreview> {
+  return withProjectDir(req.project, req.icon, { link: req.link, expoGo: true }, async (dir) => {
+    const out = await runEas(updateArgs(), { cwd: dir, token: req.token, timeoutMs: 4.5 * 60_000, action: "publish the preview" });
+    const updates = parseJsonOutput<RawUpdate[] | RawUpdate>(out);
+    const list = (Array.isArray(updates) ? updates : [updates]).filter((u) => u?.group);
+    const group = list.find((u) => u.runtimeVersion === EXPO_GO_RUNTIME)?.group ?? list[0]?.group;
+    if (!group) throw new EasError("Expo didn't return the published preview. Try again.", 502);
+    return {
+      groupId: group,
+      url: expoGoUrl(group),
+      platforms: list.filter((u) => u.group === group && u.platform).map((u) => u.platform!),
+      publishedAt: Date.now(),
+    };
+  });
 }
