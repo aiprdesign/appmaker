@@ -5,6 +5,8 @@ import { GET as overview } from "@/app/api/admin/overview/route";
 import { GET as members } from "@/app/api/admin/members/route";
 import { DELETE as deleteMember, POST as memberAction } from "@/app/api/admin/members/[id]/route";
 import { GET as publicFeatures } from "@/app/api/features/route";
+import { GET as adminApps } from "@/app/api/admin/apps/route";
+import { DELETE as adminDeleteApp, GET as adminApp } from "@/app/api/admin/apps/[userId]/[id]/route";
 import { POST as signup } from "@/app/api/auth/signup/route";
 import { GET as me } from "@/app/api/auth/me/route";
 import { POST as passkeyOptions } from "@/app/api/auth/passkey/login/options/route";
@@ -50,6 +52,7 @@ describe.skipIf(!DB)("admin dashboard (PostgreSQL)", () => {
     admin = cookie(res);
   });
   beforeEach(async () => {
+    await query("delete from app_users where email like '%@admin-test.example'");
     await query("delete from app_settings where key like 'feature.%'");
     clearFeatureCache();
   });
@@ -100,6 +103,39 @@ describe.skipIf(!DB)("admin dashboard (PostgreSQL)", () => {
     expect(await (await publicFeatures()).json()).toMatchObject({ signups: false, passkeys: false, websiteImport: false, cloudBuilds: false, publicStatus: false });
     expect((await putFeature(req("/api/admin/features", { method: "PUT", body: { key: "signups", on: true } }))).status).toBe(401);
     expect((await setSwitch("nonsense", true)).status).toBe(400);
+  });
+
+  it("lists, searches, opens and deletes apps", async () => {
+    const make = async (email: string) => cookie(await signup(req("/api/auth/signup", { method: "POST", body: { email, password: "correct horse" } })));
+    const cy = await make("cy@admin-test.example");
+    const dee = await make("dee@admin-test.example");
+    const save = (c: string, id: string, name: string, prompt: string) =>
+      putProject(
+        req(`/api/projects/${id}`, { method: "PUT", body: { project: { id, name, prompt, files: { "App.js": "export default () => null;", "src/a.js": "x" }, listing: { name, iconEmoji: "🧘", primaryColor: "#123456" }, createdAt: 1, updatedAt: Date.now() } }, cookie: c }),
+        { params: Promise.resolve({ id }) },
+      );
+    await save(cy, "cyapp0001", "Calm Breaths", "a breathing app");
+    await save(dee, "deeapp001", "Recipe Box", "a recipe book");
+
+    const all = await (await adminApps(req("/api/admin/apps?q=admin-test", { cookie: admin }))).json();
+    expect(all.total).toBe(2);
+    const calm = all.apps.find((a: { name: string }) => a.name === "Calm Breaths");
+    expect(calm).toMatchObject({ owner: "cy@admin-test.example", iconEmoji: "🧘", primaryColor: "#123456", prompt: "a breathing app", files: 2 });
+    expect((await (await adminApps(req("/api/admin/apps?q=recipe", { cookie: admin }))).json()).apps.map((a: { name: string }) => a.name)).toContain("Recipe Box");
+    const onlyCy = await (await adminApps(req(`/api/admin/apps?user=${calm.userId}`, { cookie: admin }))).json();
+    expect(onlyCy.apps.map((a: { name: string }) => a.name)).toEqual(["Calm Breaths"]);
+    expect((await adminApps(req("/api/admin/apps"))).status).toBe(401);
+
+    const ctx = { params: Promise.resolve({ userId: calm.userId, id: "cyapp0001" }) };
+    const detail = await (await adminApp(req(`/api/admin/apps/${calm.userId}/cyapp0001`, { cookie: admin }), ctx)).json();
+    expect(detail).toMatchObject({ owner: "cy@admin-test.example", project: { files: { "App.js": "export default () => null;" } } });
+    expect((await adminApp(req(`/api/admin/apps/${calm.userId}/cyapp0001`), { params: Promise.resolve({ userId: calm.userId, id: "cyapp0001" }) })).status).toBe(401);
+
+    expect((await adminDeleteApp(req(`/api/admin/apps/${calm.userId}/cyapp0001`, { method: "DELETE", cookie: admin }), { params: Promise.resolve({ userId: calm.userId, id: "cyapp0001" }) })).status).toBe(200);
+    expect((await (await adminApps(req("/api/admin/apps?q=admin-test", { cookie: admin }))).json()).total).toBe(1);
+    // The owner's devices see the deletion on their next sync.
+    const [row] = await query<{ deleted_at: string | null }>("select deleted_at from app_projects where id = 'cyapp0001'");
+    expect(row.deleted_at).not.toBeNull();
   });
 
   it("shows members and the numbers", async () => {

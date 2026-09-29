@@ -99,6 +99,7 @@ Set `ADMIN_PASSWORD` on the server, then open `/admin`. To change the password, 
 
 - **Overview.** Members, new and active this week, apps saved in accounts, and how many members use passkeys or Google, plus a 14-day sign-ups chart with a table view.
 - **Members.** Search by email and see when each member joined, when they were last active, how they sign in and how many apps they have. You can sign a member out everywhere, or delete them together with their apps (you type their email to confirm).
+- **Apps.** Every app saved in an account, with its icon, owner and original idea. Search by app name, owner or idea, or click a member's app count to see just their apps. **View** opens the app read-only: a live phone preview (in the same sandbox as the builder), the store listing, the code and the conversation. Admins can also delete an app; it disappears from the owner's devices on their next sync.
 - **Settings.** Switches saved in the database, applied within seconds with no redeploy, and enforced on the server:
   - **Sign in with Google:** off by default.
   - **Passkeys.**

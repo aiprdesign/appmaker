@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, LogOut, Search, ShieldCheck } from "lucide-react";
 import { FEATURES, FEATURE_KEYS, type FeatureKey, type Features } from "@/lib/features";
+import { AppsTab } from "./AppsTab";
 
-type Tab = "overview" | "members" | "settings";
+type Tab = "overview" | "members" | "apps" | "settings";
 
 interface Overview {
   members: number;
@@ -49,6 +50,7 @@ export function AdminApp() {
   const [features, setFeatures] = useState<Features | null>(null);
   const [meta, setMeta] = useState<{ database: boolean; googleKeys: boolean }>({ database: false, googleKeys: false });
   const [tab, setTab] = useState<Tab>("overview");
+  const [appsOf, setAppsOf] = useState<{ id: string; email: string } | null>(null);
 
   const load = useCallback(async () => {
     const { status, data } = await api<{ features: Features; database: boolean; googleKeys: boolean }>("/api/admin/features");
@@ -102,7 +104,7 @@ export function AdminApp() {
         </p>
       )}
       <div role="tablist" aria-label="Admin sections" className="mt-6 flex gap-1 border-b border-line">
-        {(["overview", "members", "settings"] as Tab[]).map((t) => (
+        {(["overview", "members", "apps", "settings"] as Tab[]).map((t) => (
           <button
             key={t}
             role="tab"
@@ -116,7 +118,16 @@ export function AdminApp() {
       </div>
       <div className="mt-6">
         {tab === "overview" && (meta.database ? <OverviewTab /> : null)}
-        {tab === "members" && (meta.database ? <MembersTab /> : null)}
+        {tab === "members" &&
+          (meta.database ? (
+            <MembersTab
+              showApps={(m) => {
+                setAppsOf(m);
+                setTab("apps");
+              }}
+            />
+          ) : null)}
+        {tab === "apps" && (meta.database ? <AppsTab member={appsOf} clearMember={() => setAppsOf(null)} /> : null)}
         {tab === "settings" && features && <SettingsTab features={features} setFeatures={setFeatures} meta={meta} />}
       </div>
     </div>
@@ -293,7 +304,7 @@ function SignupsChart({ days }: { days: { day: string; count: number }[] }) {
   );
 }
 
-function MembersTab() {
+function MembersTab({ showApps }: { showApps: (m: { id: string; email: string }) => void }) {
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [list, setList] = useState<Member[] | null>(null);
@@ -377,7 +388,19 @@ function MembersTab() {
                       {m.passkeys > 0 && <span className="rounded-full bg-surface-2 px-2 py-0.5">🔑 {m.passkeys} passkey{m.passkeys === 1 ? "" : "s"}</span>}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{m.apps}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {m.apps > 0 ? (
+                      <button
+                        onClick={() => showApps({ id: m.id, email: m.email })}
+                        className="min-h-8 rounded-lg px-2 underline underline-offset-2 hover:bg-white/5"
+                        aria-label={`Show ${m.email}'s ${m.apps} apps`}
+                      >
+                        {m.apps}
+                      </button>
+                    ) : (
+                      0
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
                       <button

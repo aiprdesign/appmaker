@@ -114,3 +114,82 @@ export async function deleteMember(id: string): Promise<boolean> {
   const rows = await query("delete from app_users where id = $1 returning id", [id]);
   return rows.length > 0;
 }
+
+export interface AppSummary {
+  id: string;
+  userId: string;
+  owner: string;
+  name: string;
+  iconEmoji: string;
+  primaryColor: string;
+  prompt: string;
+  files: number;
+  createdAt: number | null;
+  updatedAt: number;
+}
+
+/** Apps saved in accounts (not deleted), newest edit first. */
+export async function apps(search: string, userId: string | null, offset: number, limit = 50): Promise<{ apps: AppSummary[]; total: number }> {
+  const like = `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const rows = await query<{
+    id: string;
+    user_id: string;
+    email: string;
+    name: string;
+    icon: string | null;
+    color: string | null;
+    prompt: string | null;
+    files: string;
+    created: string | null;
+    updated_at: string;
+    total: string;
+  }>(
+    `select a.id, a.user_id, u.email, a.name,
+            a.data->'listing'->>'iconEmoji' icon, a.data->'listing'->>'primaryColor' color,
+            left(a.data->>'prompt', 300) prompt,
+            (select count(*) from jsonb_object_keys(coalesce(a.data->'files', '{}'::jsonb))) files,
+            a.data->>'createdAt' created, a.updated_at,
+            count(*) over () total
+       from app_projects a join app_users u on u.id = a.user_id
+      where a.deleted_at is null
+        and ($3::text is null or a.user_id = $3)
+        and (a.name ilike $1 or u.email ilike $1 or a.data->>'prompt' ilike $1)
+      order by a.updated_at desc
+      limit $2 offset $4`,
+    [like, limit, userId, offset],
+  );
+  return {
+    total: Number(rows[0]?.total ?? 0),
+    apps: rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      owner: r.email,
+      name: r.name || "Untitled app",
+      iconEmoji: r.icon || "✨",
+      primaryColor: /^#[0-9a-f]{6}$/i.test(r.color ?? "") ? r.color! : "#6D5DFB",
+      prompt: r.prompt ?? "",
+      files: Number(r.files),
+      createdAt: r.created ? Number(r.created) : null,
+      updatedAt: Number(r.updated_at),
+    })),
+  };
+}
+
+/** One app's saved data (code, listing, conversation), for viewing. */
+export async function appDetail(userId: string, id: string): Promise<unknown | null> {
+  const rows = await query<{ data: unknown; email: string }>(
+    "select a.data, u.email from app_projects a join app_users u on u.id = a.user_id where a.user_id = $1 and a.id = $2 and a.deleted_at is null",
+    [userId, id],
+  );
+  return rows[0] ? { project: rows[0].data, owner: rows[0].email } : null;
+}
+
+/** Removes an app from its owner's account (their devices delete it on next sync). */
+export async function deleteApp(userId: string, id: string): Promise<boolean> {
+  const now = Date.now();
+  const rows = await query(
+    "update app_projects set data = null, size = 0, deleted_at = $3, updated_at = greatest(updated_at, $3) where user_id = $1 and id = $2 and deleted_at is null returning id",
+    [userId, id, now],
+  );
+  return rows.length > 0;
+}

@@ -65,3 +65,48 @@ test("admin: password, overview, members and switches", async ({ page, browser }
   await expect(page.getByLabel("Admin password")).toBeVisible();
   await visitor.close();
 });
+
+test("admin sees and opens the apps members made", async ({ page, browser }) => {
+  const email = `maker-${Date.now()}@example.com`;
+  const member = await browser.newContext();
+  const mp = await member.newPage();
+  await mp.goto("/login");
+  await mp.getByRole("tab", { name: "Create account" }).click();
+  await mp.getByLabel("Email").fill(email);
+  await mp.getByLabel("Password").fill("correct horse battery");
+  await mp.getByRole("button", { name: "Create account" }).last().click();
+  await expect(mp).toHaveURL(/\/projects$/);
+  // Build an app (demo mode makes a sample habit tracker) and let it sync.
+  await mp.goto("/");
+  await mp.getByLabel("Describe your app").fill("A habit tracker");
+  await mp.keyboard.press("Enter");
+  await expect(mp.frameLocator('iframe[title="App preview"]').getByText(/habit/i).first()).toBeVisible({ timeout: 30_000 });
+  await expect(mp.getByRole("status", { name: "Saved to your account" })).toBeVisible({ timeout: 15_000 });
+
+  await adminSignIn(page);
+  // From the member's row to their apps.
+  await page.getByRole("tab", { name: "members" }).click();
+  await page.getByLabel("Search members by email").fill(email);
+  await page.getByRole("button", { name: `Show ${email}'s 1 apps` }).click();
+  await expect(page.getByRole("tab", { name: "apps" })).toHaveAttribute("aria-selected", "true");
+  const card = page.getByRole("list", { name: "Apps" }).getByRole("listitem");
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText(email);
+
+  // View it: live preview, listing and code, read-only.
+  await card.getByRole("button", { name: /^View / }).click();
+  const viewer = page.getByRole("dialog");
+  await expect(viewer.frameLocator('iframe[title="App preview"]').getByText(/habit/i).first()).toBeVisible({ timeout: 20_000 });
+  await expect(viewer.getByText("Original idea")).toBeVisible();
+  await viewer.getByRole("tab", { name: /Code/ }).click();
+  await expect(viewer.getByRole("button", { name: "App.js" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(viewer).toHaveCount(0);
+
+  // Delete it.
+  page.once("dialog", (d) => d.accept());
+  await card.getByRole("button", { name: /^Delete / }).click();
+  await expect(page.getByText(/^Deleted “/)).toBeVisible();
+  await expect(page.getByRole("list", { name: "Apps" })).toHaveCount(0);
+  await member.close();
+});
