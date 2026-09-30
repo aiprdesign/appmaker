@@ -146,5 +146,5 @@ export function demoResponse(prompt: string, isEdit: boolean, site?: SiteSummary
     .join("\n");
   return `<plan>Building "${listing.name}" — a ${listing.category.toLowerCase()} app with tabbed navigation and on-device storage.</plan>\n${body}\n<listing>${JSON.stringify(
     listing,
-  )}</listing>\n<summary>Here's **${listing.name}**, a starter app generated in demo mode (no \`ANTHROPIC_API_KEY\` configured). Try it in the preview — data persists between reloads.\n\n- Add an API key to generate fully custom apps from any prompt\n- Open the **Publish** tab to review the App Store listing\n- Download the Expo project to build for iOS and Android</summary>`;
+  )}</listing>\n<summary>Here's **${listing.name}**, a starter app generated in demo mode (no AI key is set up on this site yet). Try it in the preview — data persists between reloads.\n\n- Add an AI key (the site owner can do this in the server settings) to build anything you describe\n- Open the **Publish** tab to review the App Store listing\n- Download the Expo project to build for iOS and Android</summary>`;
 }

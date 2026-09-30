@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { AppIcon } from "@/components/builder/PublishPanel";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { PasskeyNudge } from "@/components/Passkeys";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { deleteProject, listProjects } from "@/lib/storage";
 import type { Project } from "@/lib/types";
 
@@ -19,7 +20,9 @@ function ago(ts: number): string {
 
 export function ProjectList() {
   const [projects, setProjects] = useState<Project[] | null>(null);
+  const [removing, setRemoving] = useState<Project | null>(null);
   const cloud = useCloud();
+  const cloudNote = cloud.user ? " from your account and every device" : " from this browser";
   useEffect(() => {
     // Projects live in localStorage, which is only readable after mount;
     // account sync may bring in more.
@@ -74,12 +77,9 @@ export function ProjectList() {
             </div>
             <p className="mt-4 line-clamp-2 text-sm text-muted">{p.prompt}</p>
             <button
-              onClick={() => {
-                if (!confirm(`Delete "${p.name}"? This can't be undone.`)) return;
-                deleteProject(p.id);
-                setProjects(listProjects());
-              }}
-              className="absolute right-3 top-3 z-10 hidden rounded-md p-1.5 text-muted hover:bg-white/5 hover:text-rose-400 group-hover:block"
+              onClick={() => setRemoving(p)}
+              // Always visible on touch screens; on hover or keyboard focus with a mouse.
+              className="absolute right-2 top-2 z-10 grid h-9 w-9 place-items-center rounded-md text-muted hover:bg-white/5 hover:text-rose-400 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
               aria-label={`Delete ${p.name}`}
             >
               <Trash2 className="h-4 w-4" />
@@ -87,6 +87,24 @@ export function ProjectList() {
           </div>
         ))}
       </div>
+      {removing && (
+        <ConfirmDialog
+          danger
+          title="Delete this app?"
+          body={
+            <>
+              <span className="text-foreground">“{removing.name}”</span> and its history will be deleted{cloudNote}. This can&apos;t be undone.
+            </>
+          }
+          confirmLabel="Delete app"
+          onConfirm={() => {
+            deleteProject(removing.id);
+            setProjects(listProjects());
+            setRemoving(null);
+          }}
+          onCancel={() => setRemoving(null)}
+        />
+      )}
     </>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, Loader2, Play, Search, ShieldAlert, Trash2, X } from "lucide-react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { checkCodeSafety } from "@/lib/code-safety";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Preview } from "@/components/Preview";
@@ -62,8 +63,10 @@ export function AppsTab({ member, clearMember }: { member: { id: string; email: 
     return () => clearTimeout(t);
   }, [query, load]);
 
-  const remove = async (app: AppSummary) => {
-    if (!confirm(`Delete “${app.name}” from ${app.owner}'s account? It disappears from their devices too. This can't be undone.`)) return;
+  const [removing, setRemoving] = useState<AppSummary | null>(null);
+  const remove = (app: AppSummary) => setRemoving(app);
+  const doRemove = async (app: AppSummary) => {
+    setRemoving(null);
     const res = await fetch(`/api/admin/apps/${app.userId}/${app.id}`, { method: "DELETE", credentials: "same-origin" });
     setNote(res.ok ? `Deleted “${app.name}”.` : "Couldn't delete that app.");
     if (res.ok) {
@@ -149,6 +152,21 @@ export function AppsTab({ member, clearMember }: { member: { id: string; email: 
         </button>
       )}
       {viewing && <AppViewer app={viewing} onClose={() => setViewing(null)} onDelete={() => remove(viewing)} />}
+      {removing && (
+        <ConfirmDialog
+          danger
+          title="Delete this app?"
+          body={
+            <>
+              <span className="text-foreground">“{removing.name}”</span> will be deleted from {removing.owner}&apos;s account and disappear from their devices. This can&apos;t
+              be undone.
+            </>
+          }
+          confirmLabel="Delete app"
+          onConfirm={() => doRemove(removing)}
+          onCancel={() => setRemoving(null)}
+        />
+      )}
     </div>
   );
 }

@@ -108,8 +108,8 @@ test("admin sees and opens the apps members made", async ({ page, browser }) => 
   await expect(viewer).toHaveCount(0);
 
   // Delete it.
-  page.once("dialog", (d) => d.accept());
   await card.getByRole("button", { name: /^Delete / }).click();
+  await page.getByRole("alertdialog", { name: "Delete this app?" }).getByRole("button", { name: "Delete app" }).click();
   await expect(page.getByText(/^Deleted “/)).toBeVisible();
   await expect(page.getByRole("list", { name: "Apps" })).toHaveCount(0);
   await member.close();

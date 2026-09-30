@@ -42,9 +42,11 @@ test("sign up, apps sync to the account and open on another device", async ({ pa
 
   // Deleting on one device removes it on the other after sync.
   await phone.goto("/projects");
-  phone.once("dialog", (d) => d.accept());
   await phone.getByRole("link", { name: /^Open / }).hover();
   await phone.getByRole("button", { name: /Delete/ }).click();
+  const confirm = phone.getByRole("alertdialog", { name: "Delete this app?" });
+  await expect(confirm).toContainText("from your account and every device");
+  await confirm.getByRole("button", { name: "Delete app" }).click();
   await expect(phone.getByText("No apps yet")).toBeVisible();
   await page.waitForTimeout(500);
   await page.reload();

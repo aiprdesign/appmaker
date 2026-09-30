@@ -16,13 +16,13 @@ export function SiteHeader() {
           <Link href="/#faq" className="hover:text-foreground">FAQ</Link>
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/projects" className="rounded-lg px-3 py-1.5 text-sm text-muted hover:text-foreground">
+          <Link href="/projects" className="hidden whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted hover:text-foreground sm:inline-block">
             My apps
           </Link>
           <AccountButton />
           <Link
             href="/#start"
-            className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-white/90"
+            className="whitespace-nowrap rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-white/90"
           >
             Start building
           </Link>

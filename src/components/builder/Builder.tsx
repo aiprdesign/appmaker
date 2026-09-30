@@ -453,13 +453,13 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   return (
     <div className="flex h-dvh flex-col">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 sm:gap-3">
-        <Logo href="/projects" />
+        <Logo href="/projects" compact />
         <span className="hidden text-line sm:inline">/</span>
         <div className="hidden min-w-0 items-center gap-2 sm:flex">
           <AppIcon listing={project.listing} icon={project.icon} size={22} />
           <span className="truncate text-sm font-medium">{project.name}</span>
           {demoMode && (
-            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300" title="Set ANTHROPIC_API_KEY to enable AI generation">
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300" title="No AI key is set up yet, so you get sample apps. The site owner can add one in the server settings.">
               Demo mode
             </span>
           )}
@@ -483,7 +483,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             </button>
           ))}
         </nav>
-        <SyncBadge />
+        <span className="hidden sm:contents">
+          <SyncBadge />
+        </span>
         <DeviceMenu
           project={project}
           disabled={!Object.keys(project.files).length || generating || checking}

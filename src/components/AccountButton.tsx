@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Cloud, CloudOff, Loader2, LogOut } from "lucide-react";
+import { Cloud, CloudOff, LayoutGrid, Loader2, LogOut } from "lucide-react";
 import { signOut, useCloud, type SyncStatus } from "@/lib/cloud";
 import { PasskeyManager } from "./Passkeys";
 
@@ -44,7 +44,7 @@ export function AccountButton() {
   if (!cloud.enabled) return null;
   if (!cloud.user) {
     return (
-      <Link href="/login" className="rounded-lg px-3 py-1.5 text-sm text-muted hover:text-foreground">
+      <Link href="/login" className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted hover:text-foreground">
         Sign in
       </Link>
     );
@@ -83,6 +83,13 @@ export function AccountButton() {
               </button>
             </p>
           )}
+          <Link
+            href="/projects"
+            onClick={() => setOpen(false)}
+            className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-black"
+          >
+            <LayoutGrid className="h-4 w-4" /> My apps
+          </Link>
           <PasskeyManager />
           <button
             onClick={() => leave()}
