@@ -84,6 +84,17 @@ create table if not exists app_store_pages (
   updated_at timestamptz not null default now(),
   unique (user_id, project_id)
 );
+create table if not exists app_live_sites (
+  id text primary key,
+  user_id text not null references app_users(id) on delete cascade,
+  project_id text not null,
+  url text not null,
+  content jsonb,
+  fetched_at timestamptz,
+  error text,
+  created_at timestamptz not null default now(),
+  unique (user_id, project_id)
+);
 `;
 
 /** Creates the tables on first use. */

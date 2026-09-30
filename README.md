@@ -21,6 +21,9 @@ Limitations: the importer reads the HTML the server sends. Sites that load all t
 
 ## Apps for businesses
 
+- **Live updates from the website** (Publish tab, for apps made with URL to App). When the business changes its website (photos, prices, new dishes or products, hours, offers), the app shows it within a day, with no new build or store review.
+  - How it works: each website app includes `src/live.js`, written by Appmaker. It fetches `/api/live/<id>`, keeps an offline copy, and merges the latest content over what the app was built with. The website wins for photos, contact details, hours, prices and offers. The app keeps its own wording, and new priced items are added under their section.
+  - Light on the server: no scheduled jobs, AI calls or stored images. A site is re-read only when an app asks for its content and the saved copy is over 24 hours old. This happens in the background, one read at a time, while the saved copy is returned immediately. Responses can be cached for an hour. If a read fails, the last good content stays.
 - **Hosted support page and privacy policy** (Publish tab → **Support page & privacy policy**). Apple requires a support page, and both stores require a privacy policy. For signed-in users, Appmaker writes both and hosts them at `/legal/<id>/support` and `/legal/<id>/privacy`, then fills in both links in the store listing.
   - The privacy policy is written from what the app's code does: data saved on the device, notifications, camera and photos, the web services it contacts, and links it opens. The name and contact email are pre-filled from the website or the account.
   - When the app or the details change, the box offers "Update the pages", and the links stay the same.

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Check, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import type { AppIconImage, ExpoState, Project, StoreListing, StorePagesState } from "@/lib/types";
 import { StorePages } from "./StorePages";
+import { LiveUpdates } from "./LiveUpdates";
 import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
@@ -22,6 +23,7 @@ interface Props {
   onExpoChange: (expo: ExpoState) => void;
   onIconChange: (icon: AppIconImage | undefined) => void;
   onStorePagesChange: (next: { listing: StoreListing; storePages: StorePagesState }) => void;
+  onLiveChange: (live: Project["live"], files: Project["files"]) => void;
   hasPreviewError: boolean;
 }
 
@@ -189,7 +191,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, onChange, onExpoChange, onIconChange, onStorePagesChange, hasPreviewError }: Props) {
+export function PublishPanel({ project, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -319,6 +321,8 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
               </div>
             </div>
           </section>
+
+          <LiveUpdates project={project} onChange={onLiveChange} />
 
           <StorePages project={project} onChange={onStorePagesChange} />
 

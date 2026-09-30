@@ -6,6 +6,7 @@ import { AlertTriangle, Code2, Download, Loader2, MessageSquare, RotateCw, Rocke
 import { HistoryMenu } from "./HistoryMenu";
 import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
+import { LIVE_FILE, liveModule } from "@/lib/live";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
@@ -245,6 +246,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       }
       const files: FileMap = { ...base.files, ...complete };
       for (const p of parsed.deleted) if (isAllowedPath(p)) delete files[p];
+      // Website apps always carry Appmaker's live-content file, whatever the AI wrote.
+      if (base.source) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
 
       const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && isAllowedPath(p)) && continueBudget.current > 0 && !demoRef.current;
@@ -640,6 +643,10 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               onExpoChange={(expo) => commit({ ...(projectRef.current ?? project), expo })}
               onIconChange={(icon) => commit({ ...(projectRef.current ?? project), icon })}
               onStorePagesChange={({ listing, storePages }) => commit({ ...(projectRef.current ?? project), listing, storePages })}
+              onLiveChange={(live, files) => {
+                commit({ ...(projectRef.current ?? project), live, files });
+                setPreviewFiles(files);
+              }}
             />
           )}
         </main>

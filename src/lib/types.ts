@@ -185,6 +185,8 @@ export interface Project {
   pending?: PendingRequest;
   /** Cloud builds with Expo Application Services. */
   expo?: ExpoState;
+  /** Live updates from the business's website (see src/lib/live.ts). */
+  live?: { id: string; url: string; feedUrl: string; fetchedAt: string | null; error?: string | null };
   /** Hosted support page and privacy policy (see src/lib/store-pages.ts). */
   storePages?: StorePagesState;
   /** The business's logo as the app icon; without it, the icon is drawn from the emoji. */
