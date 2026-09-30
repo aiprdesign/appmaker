@@ -250,3 +250,55 @@ export function privacySections(): LegalSection[] {
     },
   ];
 }
+
+export function accessibilitySections(): LegalSection[] {
+  return [
+    {
+      heading: "Our commitment",
+      paragraphs: [
+        "{{company}} wants Appmaker to be usable by everyone, including people who use screen readers, keyboards, larger text or reduced motion. We aim to meet the Web Content Accessibility Guidelines (WCAG) 2.1 at level AA.",
+      ],
+    },
+    {
+      heading: "What we do",
+      paragraphs: ["On this website:"],
+      bullets: [
+        "pages can be used with a keyboard, with a visible focus outline;",
+        "buttons and form fields have labels for screen readers, and pages use headings and landmarks;",
+        "text and controls meet WCAG AA contrast, and nothing depends on color alone;",
+        "text can be enlarged with your browser's zoom or the accessibility menu, and pages adapt to phones;",
+        "animations stop when your device asks for reduced motion;",
+        "the accessibility menu (the round button in the corner) offers larger text, higher contrast, less motion, underlined links and wider text spacing, and remembers your choice;",
+        "we check key pages with automated accessibility tests (axe).",
+      ],
+      after: [
+        "In the apps Appmaker makes: every app follows the phone's light or dark mode, its colors are checked for WCAG AA contrast, its text follows the phone's text-size setting, and it's built with screen-reader labels and roles. After each build Appmaker checks contrast, text size, button size, layout and missing screen-reader labels, and asks the AI to fix what it finds.",
+      ],
+    },
+    {
+      heading: "Known limitations",
+      paragraphs: ["Some parts are harder to use, and we're working on them:"],
+      bullets: [
+        "the live app preview is a simulated phone: screen readers can read it, but it doesn't behave exactly like VoiceOver or TalkBack on a real phone (test on your phone with Expo Go for that);",
+        "the code editor is a plain text area without code navigation for screen readers;",
+        "pages from other services, such as Stripe's checkout, follow their own accessibility standards.",
+      ],
+    },
+    {
+      heading: "Apps you publish",
+      paragraphs: [
+        "You're responsible for the accessibility of the apps you publish. Appmaker helps, but test your app with VoiceOver (iPhone) and TalkBack (Android), and with larger text, before you publish. Appmaker adds an accessibility section with your contact email to each app's support page.",
+      ],
+    },
+    {
+      heading: "Feedback and help",
+      paragraphs: [
+        "If something is hard to use, or you need information in another format, email {{email}}. Tell us the page and what happened. We aim to reply within 5 working days.",
+      ],
+    },
+    {
+      heading: "About this statement",
+      paragraphs: ["This statement was last reviewed on the date at the top. {{company}}, {{address}}."],
+    },
+  ];
+}

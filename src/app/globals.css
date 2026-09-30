@@ -227,3 +227,36 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .lift:hover { transform: none; }
 }
+
+/* Accessibility menu (src/components/AccessibilityMenu.tsx). */
+html.a11y-text-lg {
+  font-size: 112.5%;
+}
+html.a11y-text-xl {
+  font-size: 125%;
+}
+html.a11y-contrast {
+  --muted: #dcdbe6;
+  --border: #6a6a80;
+  --foreground: #ffffff;
+}
+html.a11y-contrast .text-muted\/70,
+html.a11y-contrast .placeholder\:text-muted\/70::placeholder {
+  color: #dcdbe6;
+}
+html.a11y-motion *,
+html.a11y-motion *::before,
+html.a11y-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+html.a11y-links a {
+  text-decoration: underline !important;
+  text-underline-offset: 2px;
+}
+html.a11y-spacing body {
+  letter-spacing: 0.04em;
+  word-spacing: 0.12em;
+  line-height: 1.6;
+}

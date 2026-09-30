@@ -228,5 +228,57 @@ export function supportSections(c: StorePageContent): PageSection[] {
         "The app isn't working as expected. Update it to the latest version from the App Store or Google Play, then restart it. If the problem continues, email us.",
       ],
     },
+    {
+      heading: "Accessibility",
+      paragraphs: [
+        `We want ${c.appName} to be usable by everyone. It's designed to work with VoiceOver and TalkBack, to follow your device's text size and light or dark mode, and to meet WCAG 2.1 AA color contrast.`,
+        `If anything in the app is hard to use, email ${c.email} and tell us what happened and which device you use. We'll help and work on a fix.`,
+      ],
+    },
+  ];
+}
+
+/** Terms of use for the app: a plain starting point the owner should read (and have checked) before publishing. */
+export function termsSections(c: StorePageContent): PageSection[] {
+  const f = c.facts;
+  return [
+    {
+      heading: "About these terms",
+      paragraphs: [
+        `These terms apply to ${c.appName} ("the app"), provided by ${c.developer}. By using the app you agree to them. On iPhone and iPad, Apple's standard licence agreement for apps also applies.`,
+      ],
+    },
+    {
+      heading: "Using the app",
+      paragraphs: [
+        "You may use the app for your own personal, lawful purposes. Don't misuse it: don't try to break it, copy it, or use it to harm others.",
+        "We work to keep the information in the app accurate and up to date, but details such as prices, opening hours and availability can change. If something matters to you, check with us.",
+      ],
+    },
+    ...(f.bookings
+      ? [
+          {
+            heading: "Bookings",
+            paragraphs: [
+              "When you book a time in the app, it's reserved for you straight away. To change or cancel a booking, please contact us. We may need to change or cancel a booking in exceptional cases; if so, we'll contact you using the details you gave.",
+            ],
+          },
+        ]
+      : []),
+    {
+      heading: "Your information",
+      paragraphs: ["How the app handles your information is explained in our privacy policy."],
+    },
+    {
+      heading: "The app itself",
+      paragraphs: [
+        "The app, its name and its content belong to us or our licensors. We may update the app or change or stop features. We aim to keep it available, but can't promise it will always work without interruption.",
+        "To the extent the law allows, the app is provided \"as is\" and we aren't liable for indirect losses from using it. Nothing in these terms affects your rights as a consumer that can't be limited by law.",
+      ],
+    },
+    {
+      heading: "Changes and contact",
+      paragraphs: [`We may update these terms; the date at the top shows the current version. Questions: ${c.email}.`],
+    },
   ];
 }

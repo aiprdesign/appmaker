@@ -13,6 +13,7 @@ const PROBLEMS: QualityEvent[] = [
   "text-size",
   "overflow",
   "touch",
+  "label",
   "cutoff",
   "unfixed:checks",
   "check:claims",
@@ -75,7 +76,7 @@ export function QualityTab() {
             value: pct(
               count("check:code") +
                 count("crash") +
-                problems.filter((p) => ["layout", "contrast", "text-size", "overflow", "touch"].includes(p.event)).reduce((n, p) => n + p.total, 0),
+                problems.filter((p) => ["layout", "contrast", "text-size", "overflow", "touch", "label"].includes(p.event)).reduce((n, p) => n + p.total, 0),
               builds,
             ),
           },

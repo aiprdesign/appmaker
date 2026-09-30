@@ -6,8 +6,8 @@ import type { FileMap } from "./types";
  * wired together with a tiny CommonJS loader; `react-native` resolves to
  * React Native Web from the self-hosted runtime in /public/preview.
  */
-export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android"): string {
-  const payload = JSON.stringify({ files, platform }).replace(/</g, "\\u003c");
+export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android", scheme?: "light" | "dark"): string {
+  const payload = JSON.stringify({ files, platform, scheme: scheme ?? null }).replace(/</g, "\\u003c");
   return `<!doctype html>
 <html>
 <head>
@@ -15,7 +15,7 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   html, body, #root { height: 100%; margin: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, "Segoe UI", sans-serif; background: #fff; overflow: hidden; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, "Segoe UI", sans-serif; background: ${scheme === "dark" ? "#0B0B10" : "#fff"}; overflow: hidden; }
   #root { display: flex; }
   #root > div { flex: 1; }
   ::-webkit-scrollbar { display: none; }
@@ -28,6 +28,7 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
 <script>
 (function () {
   var payload = ${payload};
+  if (payload.scheme) window.__APPMAKER_SCHEME__ = payload.scheme;
   var files = payload.files;
   var post = function (msg) { parent.postMessage(Object.assign({ source: "appmaker-preview" }, msg), "*"); };
   var reported = false;
@@ -177,13 +178,14 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
         while (el) { var c = parse(getComputedStyle(el).backgroundColor); if (c.a > 0.5) return c; el = el.parentElement; }
         return { r: 255, g: 255, b: 255 };
       };
-      var textEls = 0, low = [], tiny = [], overflow = 0, buttons = 0, small = [];
+      var textEls = 0, low = [], tiny = [], overflow = 0, buttons = 0, small = [], unlabeled = 0;
       Array.prototype.forEach.call(root.querySelectorAll("*"), function (el) {
         var r = el.getBoundingClientRect();
         var style = getComputedStyle(el);
         if (r.width === 0 || r.height === 0 || style.visibility === "hidden" || Number(style.opacity) < 0.1 || r.bottom < 0 || r.top > window.innerHeight) return;
         if (style.cursor === "pointer" && !(el.parentElement && getComputedStyle(el.parentElement).cursor === "pointer")) {
           buttons++;
+          if (!(el.innerText || "").trim() && !el.getAttribute("aria-label") && !el.querySelector("[aria-label]")) unlabeled++;
           if (r.width < 40 || r.height < 40) small.push('"' + (el.innerText || el.getAttribute("aria-label") || "icon").trim().slice(0, 20) + '" ' + Math.round(r.width) + "×" + Math.round(r.height));
         }
         if (r.right > vw + 2 || r.left < -2) {
@@ -211,6 +213,7 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
       if (low.length > Math.max(1, textEls * 0.05)) out.push({ kind: "contrast", message: "Text is hard to read (below WCAG AA contrast): " + low.slice(0, 3).join(", ") + "." });
       if (tiny.length) out.push({ kind: "text-size", message: "Text smaller than 11pt: " + tiny.slice(0, 3).join(", ") + "." });
       if (overflow) out.push({ kind: "overflow", message: overflow + " element" + (overflow === 1 ? " is" : "s are") + " wider than the screen and cut off." });
+      if (unlabeled) out.push({ kind: "label", message: unlabeled + " button" + (unlabeled === 1 ? " has" : "s have") + " no label for screen readers (icon-only buttons need an accessibilityLabel)." });
       if (buttons && small.length > buttons * 0.1) out.push({ kind: "touch", message: "Buttons smaller than 44pt, hard to tap: " + small.slice(0, 3).join(", ") + "." });
       return out;
     };

@@ -21,9 +21,13 @@ for (const primary of [...PALETTES.map((p) => p.primary), "#FFFF00", "#00FFFF", 
 }
 
 describe("app design", () => {
-  it("keeps every color scheme readable in light and dark mode", () => {
+  it("keeps every color scheme readable in light and dark mode (WCAG 2.1 AA)", () => {
     for (const d of designs) {
       const { colors } = themeFor(d);
+      // The brand color is used as small text (links, tab labels, chips) on every background.
+      for (const bg of [colors.background, colors.surface, colors.primarySoft]) expect(contrast(colors.primary, bg), `${d.primary} ${d.mode} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      // Outlines of inputs and controls (1.4.11 non-text contrast).
+      for (const bg of [colors.background, colors.surface]) expect(contrast(colors.outline, bg), `${d.primary} ${d.mode} outline`).toBeGreaterThanOrEqual(3);
       const label = `${d.primary} ${d.mode}`;
       expect(contrast(colors.text, colors.background), label).toBeGreaterThanOrEqual(4.5);
       expect(contrast(colors.text, colors.surface), label).toBeGreaterThanOrEqual(4.5);
@@ -49,6 +53,17 @@ describe("app design", () => {
     expect(themeFor({ ...base, cards: "outlined" }).card).toMatchObject({ borderWidth: 1 });
     expect(themeFor({ ...base, cards: "flat" }).card).not.toHaveProperty("boxShadow");
     expect(themeFor({ ...base, headings: "light" }).font.heading).toBe("600");
+    expect(defaultDesign().mode).toBe("auto");
+  });
+
+  it("in auto mode, the theme file follows the phone's light or dark setting", () => {
+    const file = themeModule(defaultDesign({ primaryColor: "#0369A1" }));
+    expect(file).toContain("import { Appearance } from 'react-native';");
+    expect(file).toContain("Appearance.getColorScheme() === 'dark'");
+    expect(file).toContain(themeFor(defaultDesign({ primaryColor: "#0369A1" }), "dark").colors.background);
+    expect(themeModule({ ...defaultDesign(), mode: "dark" })).not.toContain("Appearance");
+    expect(checkCodeSafety({ "App.js": APP, [THEME_FILE]: file })).toEqual([]);
+    expect(validateApp({ "App.js": APP, [THEME_FILE]: file })).toEqual([]);
   });
 
   it("writes a theme file that passes the code checks", () => {

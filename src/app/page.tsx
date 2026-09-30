@@ -272,6 +272,10 @@ export default function Home() {
           Privacy
         </Link>{" "}
         ·{" "}
+        <Link href="/accessibility" className="inline-block py-1 underline underline-offset-2 hover:text-foreground">
+          Accessibility
+        </Link>{" "}
+        ·{" "}
         <Link href="/status" className="inline-block py-1 underline underline-offset-2 hover:text-foreground">
           Status
         </Link>

@@ -29,7 +29,7 @@ const HEX = /^#[0-9a-f]{6}$/i;
 
 export function defaultDesign(listing?: Pick<StoreListing, "primaryColor">): AppDesign {
   const primary = listing && HEX.test(listing.primaryColor) ? listing.primaryColor : PALETTES[0].primary;
-  return { primary, mode: "light", corners: "rounded", cards: "raised", headings: "bold" };
+  return { primary, mode: "auto", corners: "rounded", cards: "raised", headings: "bold" };
 }
 
 function rgb(hex: string): [number, number, number] {
@@ -80,7 +80,10 @@ export interface Theme {
     surface: string;
     text: string;
     muted: string;
+    /** Dividers and card edges (decorative). */
     border: string;
+    /** Outlines of inputs and controls: at least 3:1 (WCAG 1.4.11). */
+    outline: string;
     success: string;
     danger: string;
   };
@@ -89,34 +92,55 @@ export interface Theme {
   card: Record<string, unknown>;
 }
 
-export function themeFor(design: AppDesign): Theme {
-  const dark = design.mode === "dark";
+/**
+ * The palette for one mode, meeting WCAG 2.1 AA: text, muted text and the
+ * brand color used as text reach 4.5:1 on every background they sit on
+ * (background, cards and tinted chips); outlines of controls reach 3:1.
+ */
+export function themeFor(design: AppDesign, forMode?: "light" | "dark"): Theme {
+  const mode = forMode ?? (design.mode === "dark" ? "dark" : "light");
+  const dark = mode === "dark";
   const background = dark ? "#0B0B10" : "#F7F7FA";
   const surface = dark ? "#16161F" : "#FFFFFF";
   const text = dark ? "#F5F5F7" : "#111827";
   const base = HEX.test(design.primary) ? design.primary : PALETTES[0].primary;
-  // Buttons and links in the brand color stay readable on the background.
-  const primary = readableOn(base, dark ? surface : background, 3);
+  // A soft tint of the brand color for chips and selected rows (text stays readable on it).
+  let soft = dark ? 0.75 : 0.88;
+  let primarySoft = mix(base, surface, soft);
+  for (let i = 0; i < 10 && contrast(text, primarySoft) < 4.5; i++) {
+    soft = Math.min(0.97, soft + 0.03);
+    primarySoft = mix(base, surface, soft);
+  }
+  // The brand color is used for links, tab labels and chips: readable as small
+  // text on the background, on cards and on its own tint.
+  let primary = base;
+  for (let i = 0; i < 4; i++) for (const bg of [background, surface, primarySoft]) primary = readableOn(primary, bg, 4.5);
   const onPrimary = contrast("#FFFFFF", primary) >= 4.5 ? "#FFFFFF" : "#111111";
   const border = dark ? "#2A2A38" : "#E5E7EB";
+  const outline = dark ? "#6B6B80" : "#8A8F98";
   const radius = { ...CORNERS[design.corners], pill: 999 };
   const card =
     design.cards === "flat"
       ? { backgroundColor: surface, borderRadius: radius.lg }
       : design.cards === "outlined"
         ? { backgroundColor: surface, borderRadius: radius.lg, borderWidth: 1, borderColor: border }
-        : { backgroundColor: surface, borderRadius: radius.lg, boxShadow: dark ? "0px 4px 12px rgba(0, 0, 0, 0.4)" : "0px 4px 12px rgba(17, 24, 39, 0.08)" };
+        : {
+            backgroundColor: surface,
+            borderRadius: radius.lg,
+            boxShadow: dark ? "0px 4px 12px rgba(0, 0, 0, 0.4)" : "0px 4px 12px rgba(17, 24, 39, 0.08)",
+          };
   return {
-    mode: design.mode,
+    mode,
     colors: {
       primary,
       onPrimary,
-      primarySoft: mix(primary, dark ? "#16161F" : "#FFFFFF", dark ? 0.75 : 0.88),
+      primarySoft,
       background,
       surface,
       text,
       muted: dark ? "#A1A1AA" : "#5F6B7A",
       border,
+      outline,
       success: dark ? "#34D399" : "#047857",
       danger: dark ? "#F87171" : "#B91C1C",
     },
@@ -126,16 +150,35 @@ export function themeFor(design: AppDesign): Theme {
   };
 }
 
-/** src/theme.js: the design every screen reads. Written by Appmaker from the Design tab. */
+/**
+ * src/theme.js: the design every screen reads. Written by Appmaker from the
+ * Design tab. In "auto" mode it follows the phone's light or dark setting
+ * when the app starts (the preview can show either).
+ */
 export function themeModule(design: AppDesign): string {
-  const t = themeFor(design);
+  const light = themeFor(design, "light");
+  const dark = themeFor(design, "dark");
+  const one = (t: Theme) => `{ colors: ${JSON.stringify(t.colors)}, card: ${JSON.stringify(t.card)} }`;
+  const pick =
+    design.mode === "auto"
+      ? `// Follows the phone's light or dark setting.
+import { Appearance } from 'react-native';
+
+const light = ${one(light)};
+const dark = ${one(dark)};
+
+export const mode = Appearance.getColorScheme() === 'dark' ? 'dark' : 'light';
+const current = mode === 'dark' ? dark : light;`
+      : `const current = ${one(design.mode === "dark" ? dark : light)};
+
+export const mode = ${JSON.stringify(design.mode)};`;
   return `// The app's design: colors, corners, card style and fonts.
 // Written by Appmaker from the Design tab — change the design there, not here.
-export const mode = ${JSON.stringify(t.mode)};
-export const colors = ${JSON.stringify(t.colors, null, 2)};
-export const radius = ${JSON.stringify(t.radius)};
-export const font = ${JSON.stringify(t.font)};
-export const card = ${JSON.stringify(t.card)};
+${pick}
+export const colors = current.colors;
+export const card = current.card;
+export const radius = ${JSON.stringify(light.radius)};
+export const font = ${JSON.stringify(light.font)};
 
 const theme = { mode, colors, radius, font, card };
 export default theme;

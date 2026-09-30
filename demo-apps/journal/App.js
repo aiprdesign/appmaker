@@ -45,7 +45,7 @@ export default function App() {
   return (
     <View style={styles.root}>
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-      <SafeAreaView style={{ flex: 1 }}>
+      <SafeAreaView edges={['top']} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content}>
           {tab === 'feed' ? (
             <>

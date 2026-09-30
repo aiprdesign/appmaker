@@ -20,6 +20,7 @@ export const QUALITY_EVENTS = {
   "text-size": "Text smaller than 11pt",
   overflow: "Content wider than the screen",
   touch: "Buttons too small to tap",
+  label: "Buttons without a screen-reader label",
   "screen:clean": "Passed every check in the preview",
   "unfixed:checks": "Problems left after automatic fixes",
   "feedback:up": "👍 from users",
@@ -67,6 +68,7 @@ const FIXES: Record<string, string> = {
   "text-size": "use at least 11pt for all text, 13pt or more for body text",
   overflow: "use flexWrap, flex: 1 or percentage widths instead of fixed widths; put wide rows in a horizontal ScrollView",
   touch: "give every tappable element at least 44×44pt, including icon-only buttons (use padding or minWidth/minHeight)",
+  label: "give every icon-only button an accessibilityLabel that says what it does, and accessibilityRole=\"button\" (or \"tab\", \"switch\", \"link\")",
 };
 
 /** A clear request for the AI to fix what the preview's quality check found. */

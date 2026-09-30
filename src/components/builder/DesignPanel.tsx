@@ -137,10 +137,12 @@ export function DesignPanel({
           value={design.mode}
           onChange={(mode) => set({ mode })}
           options={[
+            { value: "auto", label: "Auto" },
             { value: "light", label: "Light" },
             { value: "dark", label: "Dark" },
           ]}
         />
+        {design.mode === "auto" && <p className="-mt-3 text-[11px] text-muted">Follows the phone&apos;s light or dark setting. Use the sun/moon button to preview both.</p>}
         <Segment
           label="Corners"
           value={design.corners}

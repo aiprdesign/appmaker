@@ -187,6 +187,10 @@ export async function gradeApp(browser: Browser, files: FileMap, listing: Partia
       await page.waitForFunction(() => (window as unknown as { __layoutIssue?: string | null }).__layoutIssue !== undefined, null, { timeout: 5000 }).catch(() => {});
       const layout = await page.evaluate(() => (window as unknown as { __layoutIssue?: string | null }).__layoutIssue ?? null);
       add("fills-screen", "Fills the screen, with the tab bar at the bottom", !layout, false, 6, layout ?? undefined);
+      const labels = await page.evaluate(
+        () => ((window as unknown as { __screenIssues?: { kind: string; message: string }[] }).__screenIssues ?? []).find((i) => i.kind === "label")?.message ?? null,
+      );
+      add("a11y-labels", "Buttons have labels for screen readers", !labels, false, 4, labels ?? undefined);
 
       const targets = await tappables(page);
       const buttons = targets.filter((t) => !t.input);

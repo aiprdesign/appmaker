@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Code2, Coins, Download, Loader2, MessageSquare, Palette, RotateCw, Rocket, ShieldCheck, Smartphone, Wand2 } from "lucide-react";
+import { AlertTriangle, Code2, Coins, Download, Loader2, MessageSquare, Moon, Palette, Sun, RotateCw, Rocket, ShieldCheck, Smartphone, Wand2 } from "lucide-react";
 import { HistoryMenu } from "./HistoryMenu";
 import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
+import { AccessibilityMenu } from "@/components/AccessibilityMenu";
 import { LIVE_FILE, liveModule } from "@/lib/live";
 import { defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
 import { BOOKING_FILE, bookingModule } from "@/lib/booking";
@@ -81,6 +82,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [platform, setPlatform] = useState<"ios" | "android">("ios");
   const [generating, setGenerating] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
+  const [scheme, setScheme] = useState<"light" | "dark">("light");
   // Free apps show "Made with Appmaker" in their settings (only when the site takes payments).
   const plan = usePlan();
   const branded = locked(plan);
@@ -514,6 +516,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
 
   // A design change rewrites src/theme.js and shows straight away: no AI, no credits.
   const changeDesign = (design: AppDesign) => {
+    if (design.mode !== "auto") setScheme(design.mode);
     const current = projectRef.current ?? project;
     const files = { ...current.files, [THEME_FILE]: themeModule(design) };
     commit({ ...current, design, files, listing: { ...current.listing, primaryColor: design.primary } });
@@ -563,6 +566,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         <span className="hidden sm:contents">
           <SyncBadge />
         </span>
+        <AccessibilityMenu inline />
         <DeviceMenu
           project={project}
           disabled={!Object.keys(project.files).length || generating || checking}
@@ -572,7 +576,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         <button
           onClick={async () => downloadBlob(await exportProjectZip(project), `${slugify(project.listing.name)}-expo.zip`)}
           disabled={!hasApp}
-          className="hidden items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-white/20 disabled:opacity-40 md:flex"
+          className="hidden items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-white/20 disabled:opacity-40 lg:flex"
         >
           <Download className="h-3.5 w-3.5" /> Export
         </button>
@@ -671,6 +675,17 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 </button>
                 {hasApp && (
                   <button
+                    onClick={() => setScheme((m) => (m === "dark" ? "light" : "dark"))}
+                    aria-pressed={scheme === "dark"}
+                    aria-label="Preview in dark mode"
+                    title={scheme === "dark" ? "Showing dark mode. Show light mode" : "Show dark mode"}
+                    className={`grid h-7 w-7 place-items-center rounded-lg border ${scheme === "dark" ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"}`}
+                  >
+                    {scheme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+                {hasApp && (
+                  <button
                     onClick={() => setDesignOpen((o) => !o)}
                     aria-pressed={designOpen}
                     className={`flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
@@ -734,7 +749,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 <PhoneFrame platform={platform}>
                   {checking && <ChecksOverlay generating={generating} />}
                   {hasApp || Object.keys(previewFiles).length ? (
-                    <Preview files={previewFiles} platform={platform} reloadKey={reloadKey} onError={onPreviewError} onQualityIssues={onQualityIssues} />
+                    <Preview files={previewFiles} platform={platform} reloadKey={reloadKey} onError={onPreviewError} onQualityIssues={onQualityIssues} scheme={scheme} />
                   ) : (
                     <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-500">
                       <div>

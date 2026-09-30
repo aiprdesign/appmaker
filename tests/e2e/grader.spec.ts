@@ -87,6 +87,7 @@ const BROKEN: [string, string, Parameters<typeof app>[0], Partial<typeof LISTING
   ["overflows the screen", "fits-screen", { body: "<Text style={s.title}>Wide</Text><View style={{ width: 700, height: 40, backgroundColor: '#1D4ED8' }} /><Text style={s.item}>{tab}</Text>" }],
   ["doesn't fill the screen", "fills-screen", { styles: "root: { height: 520, backgroundColor: '#FFFFFF' }," }],
   ["has its tab bar floating above the bottom", "fills-screen", { styles: "tabs: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#E5E7EB', marginBottom: 280 }," }],
+  ["has icon buttons without screen-reader labels", "a11y-labels", { body: "<Text style={s.title}>Icons</Text>{[1,2,3].map((n) => <TouchableOpacity key={n} style={{ width: 48, height: 48, backgroundColor: '#1D4ED8', margin: 4 }} onPress={() => setTab('list')} />)}<Text style={s.item}>{tab}</Text>" }],
   ["contains lorem ipsum", "content", { body: "<Text style={s.title}>Lorem ipsum dolor</Text><Text style={s.item}>{tab}</Text>" }],
   ["forgets data when reopened", "persists", { save: "setItems(next);" }],
   ["has a Save button that does nothing", "adds", { save: "" }],

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { CloudSync } from "@/components/CloudSync";
+import { AccessibilityMenu } from "@/components/AccessibilityMenu";
+import { A11Y_BOOT } from "@/lib/a11y";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,11 +23,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* Applies the accessibility menu's settings before the page paints. */}
+        <script dangerouslySetInnerHTML={{ __html: A11Y_BOOT }} />
+      </head>
       {/* Browser extensions often inject attributes into <body>; don't flag those as hydration errors. */}
       <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
         <CloudSync />
         {children}
+        <AccessibilityMenu />
       </body>
     </html>
   );

@@ -13,13 +13,13 @@ test("the Design panel restyles the app instantly and the change is kept", async
   await expect(app.getByText("Kicked off the project")).toBeVisible({ timeout: 30_000 });
   // The preview restarts the app on a change, so this reads the first screen: the selected tab's label.
   const tabColor = () => app.getByText("Entries", { exact: true }).evaluate((el) => getComputedStyle(el).color);
-  await expect.poll(tabColor).toBe("rgb(37, 99, 235)");
+  await expect.poll(tabColor).toBe("rgb(33, 87, 207)");
 
   await page.getByRole("button", { name: "Design" }).click();
   const panel = page.getByRole("region", { name: "Design" });
   await expect(panel.getByRole("button", { name: "Make this app customizable" })).toHaveCount(0);
   await panel.getByRole("button", { name: "Forest" }).click();
-  await expect.poll(tabColor, { timeout: 10_000 }).toBe("rgb(21, 128, 61)");
+  await expect.poll(tabColor, { timeout: 10_000 }).toBe("rgb(18, 113, 54)");
 
   await panel.getByRole("radio", { name: "Dark" }).click();
   await expect.poll(() => app.getByText("Kicked off the project").evaluate((el) => getComputedStyle(el).color), { timeout: 10_000 }).toBe("rgb(245, 245, 247)");
@@ -29,7 +29,7 @@ test("the Design panel restyles the app instantly and the change is kept", async
   await page.getByRole("button", { name: "Code" }).click();
   await page.getByRole("main").getByRole("button", { name: "src/theme.js" }).click();
   await expect(page.getByLabel("Source of src/theme.js")).toHaveValue(/export const mode = "dark"/);
-  await expect(page.getByLabel("Source of src/theme.js")).toHaveValue(/#15803D/i);
+  await expect(page.getByLabel("Source of src/theme.js")).toHaveValue(/"primary":"#60a87b"/i);
 });
 
 test("apps made before design settings offer to become customizable", async ({ page }) => {

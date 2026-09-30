@@ -11,7 +11,15 @@ export default function HabitRow({ habit, done, streak, accent, onToggle, onDele
         <Text style={[styles.name, done && styles.nameDone]}>{habit.name}</Text>
         <Text style={styles.meta}>{streak > 0 ? `🔥 ${streak}-day streak` : 'Start your streak today'}</Text>
       </View>
-      <TouchableOpacity onLongPress={onDelete} onPress={onToggle} style={[styles.check, done && { backgroundColor: accent, borderColor: accent }]}>
+      <TouchableOpacity
+        onLongPress={onDelete}
+        onPress={onToggle}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: done }}
+        accessibilityLabel={`${habit.name}, done today`}
+        accessibilityHint="Long-press to delete"
+        style={[styles.check, done && { backgroundColor: accent, borderColor: accent }]}
+      >
         {done && <Text style={styles.tick}>✓</Text>}
       </TouchableOpacity>
     </View>
@@ -24,6 +32,6 @@ const styles = StyleSheet.create({
   name: { fontSize: 16, fontWeight: '600', color: '#16141F' },
   nameDone: { color: '#625F73', textDecorationLine: 'line-through' },
   meta: { fontSize: 13, color: '#625F73', marginTop: 2 },
-  check: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#D5D1E3', alignItems: 'center', justifyContent: 'center' },
+  check: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#8A8F98', alignItems: 'center', justifyContent: 'center' },
   tick: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });

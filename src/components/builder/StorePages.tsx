@@ -70,11 +70,11 @@ export function StorePages({ project, onChange }: { project: Project; onChange: 
   return (
     <section className="rounded-2xl border border-line bg-surface p-5" aria-labelledby="store-pages-title">
       <h2 id="store-pages-title" className="flex items-center gap-2 font-semibold">
-        <FileText className="h-4 w-4 text-violet-300" /> Support page &amp; privacy policy
+        <FileText className="h-4 w-4 text-violet-300" /> Support page, privacy policy &amp; terms
       </h2>
       <p className="mt-1 text-sm text-muted">
-        Apple requires a support page, and both stores require a privacy policy. Appmaker writes and hosts both for this app, based on what its code does, and
-        fills in the links below.
+        Apple requires a support page, and both stores require a privacy policy. Appmaker writes and hosts them for this app, based on what its code does, plus
+        terms of use, and fills in the links in your listing.
       </p>
 
       {cloud.enabled === false ? (
@@ -105,8 +105,9 @@ export function StorePages({ project, onChange }: { project: Project; onChange: 
             </label>
           </div>
           <p className="text-xs text-muted">
-            The privacy policy covers {covers.length ? covers.join(", ") : "an app that doesn't collect or store personal information"}. It&apos;s a starting
-            point, not legal advice: read it before you publish.
+            The privacy policy covers {covers.length ? covers.join(", ") : "an app that doesn't collect or store personal information"}. The support page
+            includes an accessibility section with your email. These pages are a starting point, not legal advice: read them, and have them checked if
+            you&apos;re unsure, before you publish.
           </p>
           {error && (
             <p role="alert" className="text-xs text-rose-300">
@@ -121,7 +122,7 @@ export function StorePages({ project, onChange }: { project: Project; onChange: 
                 className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-white px-3 text-sm font-medium text-black disabled:opacity-60"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <RefreshCw className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-                {saved ? "Update the pages" : "Create support & privacy pages"}
+                {saved ? "Update the pages" : "Create support, privacy & terms pages"}
               </button>
             )}
             {saved && upToDate && (
@@ -148,6 +149,16 @@ export function StorePages({ project, onChange }: { project: Project; onChange: 
                 className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs text-muted underline-offset-2 hover:text-foreground hover:underline"
               >
                 Privacy policy <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {saved && project.storePages && (
+              <a
+                href={`/legal/${project.storePages.id}/terms`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs text-muted underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Terms of use <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>

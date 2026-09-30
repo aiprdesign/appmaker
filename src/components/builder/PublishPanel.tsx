@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Check, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import type { AppIconImage, ExpoState, Project, StoreListing, StorePagesState } from "@/lib/types";
 import { StorePages } from "./StorePages";
+import { PublishGuide } from "./PublishGuide";
 import { LiveUpdates } from "./LiveUpdates";
 import { Bookings } from "./Bookings";
 import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
@@ -265,6 +266,8 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
     <div className="scrollbar-thin h-full overflow-y-auto">
       <div className="mx-auto grid max-w-5xl gap-6 p-5 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
+          <PublishGuide project={project} />
+
           <section className="rounded-2xl border border-line bg-surface p-5">
             <h2 className="font-semibold">Store listing</h2>
             <p className="mt-1 text-xs text-muted">Used for App Store Connect and Google Play Console. Written by AI — edit freely.</p>
@@ -300,7 +303,7 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
               <Field label="Bundle ID / package name" hint="Permanent once published, e.g. com.yourcompany.app">
                 <input className={`${input} font-mono`} value={l.bundleId} onChange={(e) => set("bundleId", e.target.value.toLowerCase())} />
               </Field>
-              <Field label="Support page URL" hint="Where users can get help. Appmaker can create and host it for you: see Support page & privacy policy below.">
+              <Field label="Support page URL" hint="Where users can get help. Appmaker can create and host it for you: see “Support page, privacy policy & terms” below.">
                 <input
                   className={input}
                   type="url"

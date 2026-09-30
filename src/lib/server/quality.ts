@@ -35,7 +35,7 @@ export async function qualityReport(days = 30): Promise<QualityReport> {
     `select model,
             sum(count) filter (where event in ('build:new', 'build:edit')) builds,
             sum(count) filter (where event = 'screen:clean') clean,
-            sum(count) filter (where event in ('check:code', 'crash', 'layout', 'contrast', 'text-size', 'overflow', 'touch')) problems
+            sum(count) filter (where event in ('check:code', 'crash', 'layout', 'contrast', 'text-size', 'overflow', 'touch', 'label')) problems
        from app_quality where day > current_date - $1::int
       group by model order by 2 desc nulls last limit 10`,
     [days],

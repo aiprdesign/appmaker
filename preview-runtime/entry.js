@@ -294,6 +294,12 @@ for (const name of Object.keys(lucide)) {
 }
 Object.defineProperty(LucideModule, "createLucideIcon", { enumerable: true, get: () => () => () => null });
 
+// Light or dark: the preview can show either (the sun/moon button), and
+// otherwise follows the browser, like a phone follows its setting.
+const colorScheme = () => window.__APPMAKER_SCHEME__ || RNW.Appearance.getColorScheme() || "light";
+const Appearance = { ...RNW.Appearance, getColorScheme: colorScheme };
+const useColorScheme = () => colorScheme();
+
 function withDefault(mod, def) {
   return { __esModule: true, default: def, ...mod };
 }
@@ -305,7 +311,7 @@ window.__APPMAKER_RUNTIME__ = {
     react: withDefault(React, React),
     "react/jsx-runtime": JSXRuntime,
     "react/jsx-dev-runtime": JSXRuntime,
-    "react-native": withDefault(RNW, RNW),
+    "react-native": withDefault({ ...RNW, Appearance, useColorScheme }, RNW),
     "react-native-web": withDefault(RNW, RNW),
     "@react-native-async-storage/async-storage": withDefault({ AsyncStorage }, AsyncStorage),
     "expo-status-bar": { __esModule: true, StatusBar },

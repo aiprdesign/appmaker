@@ -19,11 +19,11 @@ test("creates the support page and privacy policy, links them in the listing, an
   await expect(page.frameLocator('iframe[title="App preview"]').getByText(/habit/i).first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Publish" }).first().click();
 
-  const box = page.getByRole("region", { name: /Support page & privacy policy/ });
+  const box = page.getByRole("region", { name: /Support page, privacy policy & terms/ });
   await expect(box.getByLabel("Contact email for customers")).toHaveValue(email);
   await box.getByLabel("Business or developer name").fill("Habit Co");
   await expect(box.getByText(/The privacy policy covers/)).toContainText("data saved on the device");
-  await box.getByRole("button", { name: "Create support & privacy pages" }).click();
+  await box.getByRole("button", { name: "Create support, privacy & terms pages" }).click();
   await expect(box.getByText("Up to date, and linked in the listing")).toBeVisible();
 
   const privacyUrl = await page.getByLabel("Privacy policy URL").inputValue();

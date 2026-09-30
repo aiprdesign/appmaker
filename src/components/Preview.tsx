@@ -5,7 +5,7 @@ import { buildPreviewHtml } from "@/lib/preview";
 import type { FileMap } from "@/lib/types";
 
 export interface QualityIssue {
-  kind: "layout" | "contrast" | "text-size" | "overflow" | "touch";
+  kind: "layout" | "contrast" | "text-size" | "overflow" | "touch" | "label";
   message: string;
 }
 
@@ -22,11 +22,13 @@ interface Props {
   onError?: (err: PreviewError | null) => void;
   /** Problems the preview's quality check found on the first screen (layout, contrast, text size, overflow, small buttons). */
   onQualityIssues?: (issues: QualityIssue[]) => void;
+  /** Show the app in light or dark mode (apps in "auto" follow this, like a phone's setting). */
+  scheme?: "light" | "dark";
 }
 
 const noopSubscribe = () => () => {};
 
-export function Preview({ files, platform, reloadKey, onError, onQualityIssues }: Props) {
+export function Preview({ files, platform, reloadKey, onError, onQualityIssues, scheme }: Props) {
   const origin = useSyncExternalStore(
     noopSubscribe,
     () => window.location.origin,
@@ -35,8 +37,8 @@ export function Preview({ files, platform, reloadKey, onError, onQualityIssues }
 
   const frame = useRef<HTMLIFrameElement>(null);
   const html = useMemo(
-    () => (origin && Object.keys(files).length ? buildPreviewHtml(files, origin, platform) : ""),
-    [files, origin, platform],
+    () => (origin && Object.keys(files).length ? buildPreviewHtml(files, origin, platform, scheme) : ""),
+    [files, origin, platform, scheme],
   );
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function Preview({ files, platform, reloadKey, onError, onQualityIssues }
       if (e.source !== frame.current?.contentWindow || e.data?.source !== "appmaker-preview") return;
       if (e.data.type === "error") onError?.({ message: e.data.message, stack: e.data.stack });
       if (e.data.type === "quality" && Array.isArray(e.data.issues)) {
-        const kinds = ["layout", "contrast", "text-size", "overflow", "touch"];
+        const kinds = ["layout", "contrast", "text-size", "overflow", "touch", "label"];
         const issues = (e.data.issues as { kind?: unknown; message?: unknown }[])
           .filter((i) => typeof i?.message === "string" && kinds.includes(i.kind as string))
           .slice(0, 5)
