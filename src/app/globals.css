@@ -99,3 +99,24 @@ body {
 .prose-chat ul { list-style: disc; padding-left: 1.1rem; margin-top: 0.4rem; }
 .prose-chat li + li { margin-top: 0.2rem; }
 .prose-chat code { background: #1d1d29; padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
+
+/* Home page concept graphic: dots flowing along the connectors, and a gently floating center. */
+@keyframes flow {
+  from { background-position: 0 0; }
+  to { background-position: 24px 0; }
+}
+.flow-line {
+  background-image: radial-gradient(circle, rgba(196, 181, 253, 0.9) 1.5px, transparent 2px);
+  background-size: 12px 4px;
+  background-repeat: repeat-x;
+  background-position: 0 center;
+  animation: flow 1.2s linear infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.float { animation: float 4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .flow-line, .float { animation: none; }
+}

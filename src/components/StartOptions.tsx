@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Check, Globe, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUp, Check, Globe, Smartphone, Sparkles } from "lucide-react";
 import { useFeatures } from "@/lib/use-features";
 import { StartButton } from "./PromptBox";
 
@@ -46,11 +46,17 @@ export function StartOptions() {
       <div className={`mt-10 grid gap-4 ${options.length > 1 ? "md:grid-cols-2" : "mx-auto max-w-xl"}`}>
         {options.map((o) => (
           <div key={o.mode} className="flex flex-col rounded-2xl border border-line bg-surface p-6">
-            <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-500/15 text-violet-300">
-                <o.icon className="h-5 w-5" />
-              </span>
-              <h3 className="text-xl font-semibold">{o.title}</h3>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2" aria-hidden="true">
+                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-900/40">
+                  <o.icon className="h-8 w-8" />
+                </span>
+                <ArrowRight className="h-5 w-5 text-muted" />
+                <span className="grid h-16 w-11 place-items-center rounded-xl border-2 border-white/20 bg-surface-2 text-violet-200">
+                  <Smartphone className="h-6 w-6" />
+                </span>
+              </div>
+              <h3 className="text-2xl font-semibold">{o.title}</h3>
             </div>
             <p className="mt-3 text-sm text-foreground/90">{o.lead}</p>
             <p className="mt-3 rounded-lg border border-line bg-surface-2/60 px-3 py-2 text-sm text-muted">{o.example}</p>
