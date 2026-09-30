@@ -136,8 +136,8 @@ export function ChatPanel(props: Props) {
   const lastMessage = messages.at(-1);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div ref={scroller} className="scrollbar-thin flex-1 space-y-4 overflow-y-auto p-4">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div ref={scroller} className="scrollbar-thin relative min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {source && <SiteCard site={source} />}
         {messages.map((m) =>
           m.kind === "auto-fix" ? (
@@ -222,13 +222,13 @@ export function ChatPanel(props: Props) {
 
       <div className="border-t border-line p-3">
         {hasApp && !generating && !demoMode && (
-          <div className="scrollbar-thin mb-2 flex gap-1.5 overflow-x-auto pb-1">
-            {chips.map((s) => (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {chips.slice(0, 4).map((s) => (
               <button
                 key={s}
                 onClick={() => onSend(s)}
                 title={s}
-                className="min-h-7 max-w-[260px] shrink-0 truncate rounded-full border border-line px-2.5 text-[11px] text-muted hover:border-white/20 hover:text-foreground"
+                className="min-h-7 max-w-full truncate rounded-full border border-line px-2.5 text-[11px] text-muted hover:border-white/20 hover:text-foreground"
               >
                 {s}
               </button>

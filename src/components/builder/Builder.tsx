@@ -610,7 +610,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
 
       <div className="flex min-h-0 flex-1">
         <aside
-          className={`${mobileView === "chat" ? "flex" : "hidden"} w-full flex-col border-line lg:flex lg:w-[400px] lg:shrink-0 lg:border-r`}
+          className={`${mobileView === "chat" ? "flex" : "hidden"} min-h-0 w-full flex-col border-line lg:flex lg:w-[400px] lg:shrink-0 lg:border-r`}
         >
           {plan?.enabled && plan.plan !== "guest" && typeof plan.balance === "number" && plan.balance <= 3 && (
             <div role="status" className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
