@@ -24,7 +24,7 @@ const SCREENS: Screen[] = [
   { name: "home", open: async (page) => void (await page.goto("/")) },
   { name: "home: website import open", open: async (page) => {
       await page.goto("/");
-      await page.getByRole("tab", { name: "From a website" }).click();
+      await page.getByRole("tab", { name: "URL to App" }).click();
     } },
   { name: "home: AI settings dialog", open: async (page) => {
       await page.goto("/");

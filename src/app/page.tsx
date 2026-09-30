@@ -15,13 +15,14 @@ import {
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PromptBox, TemplateButton } from "@/components/PromptBox";
+import { StartOptions } from "@/components/StartOptions";
 import { BUSINESS_TEMPLATES, TEMPLATES } from "@/lib/templates";
 
 const STEPS = [
   {
     icon: MessageSquareText,
-    title: "Describe it",
-    body: "Tell Appmaker what you want in plain English — screens, features, vibe. No code, no drag-and-drop.",
+    title: "Describe it or paste a URL",
+    body: "Tell Appmaker what you want in plain English, or paste your website and it reads your brand, content and contact details. No code, no drag-and-drop.",
   },
   {
     icon: Smartphone,
@@ -40,7 +41,7 @@ const FEATURES = [
   { icon: Zap, title: "Instant live preview", body: "Every change runs in a device frame in under a second. Tap, type and test." },
   { icon: Code2, title: "You own the code", body: "Clean Expo + React Native source. Edit it here or take it anywhere." },
   { icon: Store, title: "Store listing studio", body: "Name, subtitle, keywords, description and category written for ASO." },
-  { icon: Palette, title: "Icon generator", body: "Generate a 1024×1024 app icon from your brand color and emoji." },
+  { icon: Palette, title: "Your logo as the icon", body: "Upload your logo for a store-ready 1024×1024 icon, or generate one from your brand color and an emoji." },
   { icon: ShieldCheck, title: "Review-ready defaults", body: "Bundle IDs, privacy notes, build numbers and EAS config set up for you." },
 ];
 
@@ -81,7 +82,7 @@ const FAQ = [
   },
   {
     q: "How do I publish to the App Store and Google Play?",
-    a: "Open the Publish tab, polish your listing and icon, then download the project. Run `eas build` and `eas submit` (or push to GitHub with the included workflow). You'll need an Apple Developer ($99/yr) and Google Play Console ($25 one-time) account.",
+    a: "Open the Publish tab, polish your listing and icon, and build in the cloud: no Mac or Xcode needed. iPhone builds can upload straight to App Store Connect. You can also download the project and build it yourself. You'll need an Apple Developer ($99/yr) and Google Play Console ($25 one-time) account.",
   },
   {
     q: "Can I keep editing after the first version?",
@@ -138,6 +139,9 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Two ways to start */}
+        <StartOptions />
+
         {/* How it works */}
         <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
           <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">From idea to store in three steps</h2>
@@ -176,7 +180,7 @@ export default function Home() {
             <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">An app for your business</h2>
             <p className="mt-3 max-w-2xl text-muted">
               Pick your kind of business, fill in the [bracketed] details, and get an app with your menu or services, opening hours and one-tap call,
-              directions and booking. Or use “From a website” above and Appmaker fills them in for you.
+              directions and booking. Or use URL to App above and Appmaker fills them in from your website.
             </p>
           </div>
           <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">

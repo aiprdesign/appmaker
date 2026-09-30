@@ -53,12 +53,14 @@ test("admin: password, overview, members and switches", async ({ page, browser }
   await websiteSwitch.click();
   await expect(websiteSwitch).toHaveAttribute("aria-checked", "false");
   await vp.goto("/");
-  await expect(vp.getByRole("tab", { name: "Describe an idea" })).toBeVisible();
-  await expect(vp.getByRole("tab", { name: "From a website" })).toHaveCount(0);
+  await expect(vp.getByRole("tab", { name: "Prompt to App" })).toBeVisible();
+  await expect(vp.getByRole("tab", { name: "URL to App" })).toHaveCount(0);
+  await expect(vp.getByRole("button", { name: /Try URL to App/ })).toHaveCount(0);
+  await expect(vp.getByRole("button", { name: /Try Prompt to App/ })).toBeVisible();
   await websiteSwitch.click();
   await expect(websiteSwitch).toHaveAttribute("aria-checked", "true");
   await vp.reload();
-  await expect(vp.getByRole("tab", { name: "From a website" })).toBeVisible();
+  await expect(vp.getByRole("tab", { name: "URL to App" })).toBeVisible();
 
   // Signing out of admin locks it again.
   await page.getByRole("button", { name: "Sign out of admin" }).click();

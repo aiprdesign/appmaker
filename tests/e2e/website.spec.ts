@@ -7,7 +7,7 @@ test("imports a website and builds a branded app from it", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("/");
-  await page.getByRole("tab", { name: "From a website" }).click();
+  await page.getByRole("tab", { name: "URL to App" }).click();
   await page.getByLabel("Website address").fill(SITE);
   await page.getByRole("button", { name: "Import", exact: true }).click();
 
@@ -42,16 +42,16 @@ test("offers to import a link typed into the prompt", async ({ page }) => {
 
 test("shows a friendly error for a site that can't be read", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("tab", { name: "From a website" }).click();
+  await page.getByRole("tab", { name: "URL to App" }).click();
   await page.getByLabel("Website address").fill("http://localhost:3200/missing");
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(page.getByText(/HTTP 404/)).toBeVisible({ timeout: 20_000 });
 });
 
-test("the home page offers 'From a website' as a way to start", async ({ page }) => {
+test("the home page offers 'URL to App' as a way to start", async ({ page }) => {
   await page.goto("/");
-  const idea = page.getByRole("tab", { name: "Describe an idea" });
-  const website = page.getByRole("tab", { name: "From a website" });
+  const idea = page.getByRole("tab", { name: "Prompt to App" });
+  const website = page.getByRole("tab", { name: "URL to App" });
   await expect(idea).toHaveAttribute("aria-selected", "true");
   await expect(page.getByLabel("Website address")).toHaveCount(0);
   await website.click();
@@ -61,4 +61,31 @@ test("the home page offers 'From a website' as a way to start", async ({ page })
   await expect(page.getByLabel("Describe your app")).toHaveAttribute("placeholder", /Optional: what should the app do/);
   await idea.click();
   await expect(page.getByLabel("Website address")).toHaveCount(0);
+});
+
+test("the Prompt to App and URL to App cards open the prompt box in that mode", async ({ page }) => {
+  await page.goto("/");
+  const ways = page.getByRole("region", { name: "Two ways to make your app" });
+  await expect(ways.getByRole("heading", { name: "Prompt to App" })).toBeVisible();
+  await expect(ways.getByRole("heading", { name: "URL to App" })).toBeVisible();
+
+  await ways.getByRole("button", { name: /Try URL to App/ }).click();
+  await expect(page.getByRole("tab", { name: "URL to App" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("Website address")).toBeFocused();
+
+  await ways.getByRole("button", { name: /Try Prompt to App/ }).click();
+  await expect(page.getByRole("tab", { name: "Prompt to App" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("Describe your app")).toBeFocused();
+});
+
+test("a shared link with ?url= reads that website straight away", async ({ page }) => {
+  await page.goto(`/?url=${encodeURIComponent(SITE)}`);
+  await expect(page.getByText("Luigi's Trattoria")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/read 4 pages/)).toBeVisible();
+  // The address bar is tidied, so a reload doesn't import again.
+  expect(new URL(page.url()).search).toBe("");
+
+  await page.goto("/?mode=url");
+  await expect(page.getByRole("tab", { name: "URL to App" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("Website address")).toBeVisible();
 });

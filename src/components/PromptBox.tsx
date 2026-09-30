@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Globe, Loader2, Sparkles } from "lucide-react";
 import { createProject } from "@/lib/storage";
 import { TEMPLATES } from "@/lib/templates";
@@ -19,6 +19,17 @@ const URL_IN_TEXT =
   /(?:https?:\/\/[^\s]+|\bwww\.[a-z0-9-]+\.[^\s]+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|app|dev|ai|shop|store|biz|info|me|us|uk|ca|au|de|fr|in|nl|es|it|nz|ie)\b(?:\/[^\s]*)?)/i;
 
 const MAX_PROMPT = 8000;
+
+export type StartMode = "prompt" | "url";
+
+/** Opens the prompt box at the top of the page in Prompt to App or URL to App. */
+export function StartButton({ mode, className, children }: { mode: StartMode; className?: string; children: React.ReactNode }) {
+  return (
+    <button type="button" className={className} onClick={() => window.dispatchEvent(new CustomEvent("appmaker:mode", { detail: mode }))}>
+      {children}
+    </button>
+  );
+}
 
 export function PromptBox() {
   const router = useRouter();
@@ -57,6 +68,23 @@ export function PromptBox() {
     return () => window.removeEventListener("appmaker:template", onTemplate);
   }, []);
 
+  /** Switches between Prompt to App and URL to App, e.g. from the cards further down the page. */
+  const chooseMode = useCallback((mode: StartMode) => {
+    setShowUrl(mode === "url");
+    setImportError("");
+    if (mode === "prompt") setSite(null);
+    document.getElementById("start")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => {
+      if (mode === "prompt") ref.current?.focus();
+      else (document.querySelector('input[aria-label="Website address"]') as HTMLInputElement | null)?.focus();
+    }, 300);
+  }, []);
+  useEffect(() => {
+    const onMode = (e: Event) => chooseMode((e as CustomEvent<StartMode>).detail);
+    window.addEventListener("appmaker:mode", onMode);
+    return () => window.removeEventListener("appmaker:mode", onMode);
+  }, [chooseMode]);
+
   const detected = !site && !showUrl && features.websiteImport ? URL_IN_TEXT.exec(value)?.[0] : undefined;
   const tooLong = value.length > MAX_PROMPT;
 
@@ -84,6 +112,22 @@ export function PromptBox() {
     }
   };
 
+  // Shareable links: /?url=theirsite.com reads that site straight away; /?mode=url opens URL to App.
+  const linked = useRef(false);
+  useEffect(() => {
+    if (linked.current) return;
+    linked.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const address = params.get("url")?.trim().slice(0, 500);
+    if (!address && params.get("mode") !== "url") return;
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShowUrl(true);
+    if (address) importSite(address);
+    // Runs once, on the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const start = () => {
     const text = value.trim() || (site ? `Turn ${site.siteName} (${site.url}) into a mobile app for its customers.` : "");
     if (!text || busy || importing || tooLong) return;
@@ -96,8 +140,8 @@ export function PromptBox() {
     <div id="start" className="mx-auto w-full max-w-2xl">
       <div role="tablist" aria-label="How do you want to start?" className="mb-3 flex justify-center gap-1">
         {[
-          { key: false, label: "Describe an idea", icon: Sparkles },
-          ...(features.websiteImport ? [{ key: true, label: "From a website", icon: Globe }] : []),
+          { key: false, label: "Prompt to App", icon: Sparkles },
+          ...(features.websiteImport ? [{ key: true, label: "URL to App", icon: Globe }] : []),
         ].map((t) => {
           const selected = (showUrl || !!site) === t.key;
           return (

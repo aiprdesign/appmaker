@@ -21,8 +21,10 @@ Limitations: the importer reads the HTML the server sends. Sites that load all t
 
 ## Apps for businesses
 
+- **Two ways to start: Prompt to App and URL to App.** They're tabs on the prompt box, and a section on the home page shows them side by side, each with a "Try" button that opens that tab. The admin **Build from a website** switch hides URL to App everywhere.
+- **Share links for URL to App.** `https://your-site/?url=theirbusiness.com` opens Appmaker and reads that website straight away, ready to build. Send one to a business owner as "see your website as an app". `/?mode=url` just opens the URL to App tab. The link is removed from the address bar after it's used, so a reload doesn't read the site again.
 - **Business templates** on the home page: restaurant or café, salon or barber, gym, clinic, local shop, church, real estate and home services. Each fills in a prompt with [bracketed] blanks for the business's details. The first blank is selected so you can type straight over it. The AI never makes up anything left in brackets.
-- **Photos and contact details from the website.** "From a website" now also finds:
+- **Photos and contact details from the website.** URL to App now also finds:
   - the logo and up to 16 photos (https only; tracking pixels and tiny icons are skipped);
   - phone numbers, emails, WhatsApp, Maps, booking or ordering, and social links;
   - the address and opening hours from the site's structured data.
