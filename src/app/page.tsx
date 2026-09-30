@@ -17,7 +17,6 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { PromptBox } from "@/components/PromptBox";
 import { PhoneShot, TemplateCard } from "@/components/TemplateCard";
 import { StartOptions } from "@/components/StartOptions";
-import { ConceptFlow } from "@/components/ConceptFlow";
 import { BUSINESS_TEMPLATES, TEMPLATES, templateImage } from "@/lib/templates";
 
 const STEPS = [
@@ -115,7 +114,6 @@ export default function Home() {
       <main className="relative flex-1">
         {/* Hero */}
         <section className="mx-auto max-w-6xl px-4 pb-20 pt-20 text-center md:pt-28">
-          <ConceptFlow />
           <Link
             href="#ways"
             className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-muted hover:text-foreground"

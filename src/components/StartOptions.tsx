@@ -2,6 +2,7 @@
 
 import { ArrowRight, ArrowUp, Check, Globe, Smartphone, Sparkles } from "lucide-react";
 import { useFeatures } from "@/lib/use-features";
+import { ConceptFlow } from "./ConceptFlow";
 import { StartButton } from "./PromptBox";
 
 const OPTIONS = [
@@ -35,6 +36,7 @@ export function StartOptions() {
   const options = OPTIONS.filter((o) => o.mode === "prompt" || features.websiteImport);
   return (
     <section id="ways" aria-labelledby="ways-title" className="mx-auto max-w-6xl scroll-mt-20 px-4 pb-4 pt-4">
+      <ConceptFlow />
       <div className="flex flex-col items-center text-center">
         <h2 id="ways-title" className="text-3xl font-semibold tracking-tight md:text-4xl">
           {options.length > 1 ? "Two ways to make your app" : "Make your app from a prompt"}
