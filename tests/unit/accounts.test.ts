@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as signup } from "@/app/api/auth/signup/route";
 import { POST as login } from "@/app/api/auth/login/route";
 import { POST as logout } from "@/app/api/auth/logout/route";
-import { GET as me } from "@/app/api/auth/me/route";
+import { DELETE as deleteMe, GET as me } from "@/app/api/auth/me/route";
 import { GET as list } from "@/app/api/projects/route";
 import { DELETE as del, GET as getOne, PUT as put } from "@/app/api/projects/[id]/route";
 import { GET as status } from "@/app/api/status/route";
@@ -46,6 +46,28 @@ describe.skipIf(!DB)("accounts and cloud projects (PostgreSQL)", () => {
     expect(res.status).toBe(200);
     return cookieOf(res);
   }
+
+  it("people can delete their own account, and everything in it goes with it", async () => {
+    const cookie = await account("leaving@example.com");
+    const other = await account("staying@example.com");
+    expect((await put(req("/api/projects/proj123abc", { method: "PUT", body: { project: project("proj123abc", 5) }, cookie }), ctx("proj123abc"))).status).toBe(200);
+    expect((await put(req("/api/projects/proj456abc", { method: "PUT", body: { project: project("proj456abc", 5) }, cookie: other }), ctx("proj456abc"))).status).toBe(200);
+
+    // Signed out, from another site, or without typing the email: refused.
+    expect((await deleteMe(req("/api/auth/me", { method: "DELETE", body: { confirm: "leaving@example.com" } }))).status).toBe(401);
+    expect((await deleteMe(req("/api/auth/me", { method: "DELETE", body: { confirm: "leaving@example.com" }, cookie, origin: "https://evil.example" }))).status).toBe(403);
+    expect((await deleteMe(req("/api/auth/me", { method: "DELETE", body: { confirm: "someone@example.com" }, cookie }))).status).toBe(400);
+
+    const res = await deleteMe(req("/api/auth/me", { method: "DELETE", body: { confirm: " Leaving@Example.com " }, cookie }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toMatch(/appmaker_session=;.*Max-Age=0/);
+    expect(await query("select id from app_users where email = 'leaving@example.com'")).toEqual([]);
+    expect(await query("select id from app_projects where id = 'proj123abc'")).toEqual([]);
+    expect((await (await me(req("/api/auth/me", { cookie }))).json()).user).toBeNull();
+    // Other accounts are untouched.
+    expect((await (await me(req("/api/auth/me", { cookie: other }))).json()).user).toEqual({ email: "staying@example.com" });
+    expect((await query("select id from app_projects where id = 'proj456abc'")).length).toBe(1);
+  });
 
   it("creates accounts with hashed passwords and hashed session tokens", async () => {
     const res = await signup(req("/api/auth/signup", { method: "POST", body: { email: " Ada@Example.com ", password: "correct horse" } }));

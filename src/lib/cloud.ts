@@ -244,6 +244,18 @@ export async function signedIn(user: { email: string }): Promise<void> {
   await syncNow();
 }
 
+/** Deletes the account (confirmed by typing its email) and clears this browser's copy of its apps. */
+export async function deleteAccount(confirmEmail: string): Promise<void> {
+  const res = await fetch("/api/auth/me", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: confirmEmail }) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Couldn't delete the account. Try again.");
+  clearLocalProjects();
+  writeSet(DIRTY_KEY, new Set());
+  writeSet(DELETED_KEY, new Set());
+  set({ user: null, status: "idle", error: undefined });
+  announce();
+}
+
 export async function signOut(options: { force?: boolean } = {}): Promise<void> {
   await flush();
   if (!options.force && (readSet(DIRTY_KEY).size || readSet(DELETED_KEY).size)) {

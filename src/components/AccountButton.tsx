@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Cloud, CloudOff, Coins, LayoutGrid, Loader2, LogOut } from "lucide-react";
-import { signOut, useCloud, type SyncStatus } from "@/lib/cloud";
+import { deleteAccount, signOut, useCloud, type SyncStatus } from "@/lib/cloud";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { PasskeyManager } from "./Passkeys";
 
 export function syncLabel(status: SyncStatus): string {
@@ -54,6 +55,7 @@ export function AccountButton() {
   }, [open]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   if (!cloud.enabled) return null;
   if (!cloud.user) {
     return (
@@ -124,7 +126,46 @@ export function AccountButton() {
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />} Sign out
           </button>
           <p className="mt-2 text-[11px] text-muted">Signing out removes your apps from this browser. They stay safe in your account.</p>
+          <button
+            onClick={() => setDeleting(true)}
+            className="mt-2 inline-flex min-h-8 items-center text-[11px] text-muted underline underline-offset-2 hover:text-rose-300"
+          >
+            Delete my account
+          </button>
         </div>
+      )}
+      {deleting && (
+        <ConfirmDialog
+          danger
+          title="Delete your account?"
+          typeToConfirm={cloud.user.email}
+          confirmLabel="Delete my account"
+          body={
+            <div className="space-y-2">
+              <p>This permanently deletes, for everyone and on every device:</p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>your apps and their history (in your account and in this browser);</li>
+                <li>your credits, including ones you bought, and your paid plan;</li>
+                <li>support and privacy pages Appmaker hosts for your apps, so their links stop working;</li>
+                <li>live website updates and bookings, including your customers&apos; bookings.</li>
+              </ul>
+              <p>
+                Published apps keep working, but without those. Download any app you want to keep first (Publish tab → Download Expo project). This can&apos;t be
+                undone.
+              </p>
+            </div>
+          }
+          onCancel={() => setDeleting(false)}
+          onConfirm={async () => {
+            try {
+              await deleteAccount(cloud.user!.email);
+              window.location.assign("/?account=deleted");
+            } catch (e) {
+              setDeleting(false);
+              setError(e instanceof Error ? e.message : "Couldn't delete the account.");
+            }
+          }}
+        />
       )}
     </div>
   );

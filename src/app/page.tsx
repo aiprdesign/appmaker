@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PlanCards } from "@/components/PlanCards";
+import { AccountDeletedNotice } from "@/components/AccountDeletedNotice";
 import { PromptBox } from "@/components/PromptBox";
 import { PhoneShot, TemplateCard } from "@/components/TemplateCard";
 import { StartOptions } from "@/components/StartOptions";
@@ -92,6 +93,7 @@ export default function Home() {
       <SiteHeader />
 
       <main className="relative flex-1">
+        <AccountDeletedNotice />
         {/* Hero */}
         <section className="mx-auto max-w-6xl px-4 pb-20 pt-20 text-center md:pt-28">
           <Link

@@ -133,7 +133,7 @@ export function termsSections(): LegalSection[] {
     {
       heading: "Ending your use",
       paragraphs: [
-        "You can stop using Appmaker at any time and ask us to delete your account at {{email}}. We may suspend or close accounts that break these terms or put others at risk. Sections that by their nature should continue (like responsibility for your apps and the limits below) continue after your use ends.",
+        "You can stop using Appmaker at any time and delete your account yourself from the account menu (or ask us at {{email}}). We may suspend or close accounts that break these terms or put others at risk. Sections that by their nature should continue (like responsibility for your apps and the limits below) continue after your use ends.",
       ],
     },
     {
@@ -219,13 +219,13 @@ export function privacySections(): LegalSection[] {
     {
       heading: "How long we keep it",
       paragraphs: [
-        "We keep your account and apps until you delete them or ask us to delete your account. When you delete an app, it's removed from your account. Bookings are deleted one year after the appointment, anonymous quality counts after about 13 months, and payment records as long as tax law requires.",
+        "We keep your account and apps until you delete them or delete your account (from the account menu, which removes everything in it straight away). When you delete an app, it's removed from your account. Bookings are deleted one year after the appointment, and anonymous quality counts after about 13 months. Stripe keeps payment records as long as tax law requires.",
       ],
     },
     {
       heading: "Your rights",
       paragraphs: [
-        "Depending on where you live, you can ask to see, correct, download or delete your personal information, object to or limit how we use it, and complain to your data protection authority. Email {{email}} and we'll respond within the time the law requires. You can download each app yourself from the builder at any time.",
+        "Depending on where you live, you can ask to see, correct, download or delete your personal information, object to or limit how we use it, and complain to your data protection authority. You can download each app yourself from the builder and delete your account from the account menu at any time; for anything else, email {{email}} and we'll respond within the time the law requires.",
       ],
     },
     {
