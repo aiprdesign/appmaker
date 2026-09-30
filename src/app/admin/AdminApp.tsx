@@ -8,6 +8,7 @@ import { FEATURES, FEATURE_KEYS, type FeatureKey, type Features } from "@/lib/fe
 import type { Prices } from "@/lib/credits";
 import { AppsTab } from "./AppsTab";
 import { QualityTab } from "./QualityTab";
+import { LegalSection } from "./LegalSection";
 
 type Tab = "overview" | "members" | "apps" | "quality" | "settings";
 
@@ -637,6 +638,7 @@ function SettingsTab({
   return (
     <div className="max-w-2xl space-y-6">
       <PaymentsSection />
+      <LegalSection />
       {error && (
         <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-200">
           {error}

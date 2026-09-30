@@ -182,6 +182,19 @@ export function LoginForm() {
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}
           {mode === "login" ? "Sign in" : "Create account"}
         </button>
+        {mode !== "login" && (
+          <p className="text-center text-xs text-muted">
+            By creating an account you agree to the{" "}
+            <Link href="/terms" className="inline-block py-1 underline underline-offset-2 hover:text-foreground">
+              Terms of service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="inline-block py-1 underline underline-offset-2 hover:text-foreground">
+              Privacy policy
+            </Link>
+            .
+          </p>
+        )}
       </form>
     </div>
   );
