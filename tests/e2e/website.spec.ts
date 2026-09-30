@@ -40,6 +40,41 @@ test("offers to import a link typed into the prompt", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Use content from luigis\.com/ })).toBeVisible();
 });
 
+test("a website address alone in Prompt to App switches to URL to App", async ({ page }) => {
+  let generated = false;
+  page.on("request", (r) => {
+    if (r.url().includes("/api/generate")) generated = true;
+  });
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill(SITE);
+  await expect(page.getByText(/That's a website address\. Press Enter to use URL to App/)).toBeVisible();
+  await page.getByLabel("Describe your app").press("Enter");
+  await expect(page.getByRole("tab", { name: "URL to App" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText(/read 4 pages/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByLabel("Describe your app")).toHaveValue("");
+  expect(generated).toBe(false);
+});
+
+test("pasting just a link into the prompt opens URL to App", async ({ page }) => {
+  await page.goto("/");
+  const box = page.getByLabel("Describe your app");
+  await box.focus();
+  await box.evaluate((el, text) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, SITE);
+  await expect(page.getByRole("tab", { name: "URL to App" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText(/read 4 pages/)).toBeVisible({ timeout: 20_000 });
+});
+
+test("a link inside a longer idea stays in Prompt to App", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("A loyalty card app like luigis.com has");
+  await expect(page.getByText(/That's a website address/)).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "Prompt to App" })).toHaveAttribute("aria-selected", "true");
+});
+
 test("shows a friendly error for a site that can't be read", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("tab", { name: "URL to App" }).click();

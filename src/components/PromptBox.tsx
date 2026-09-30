@@ -19,6 +19,14 @@ import { useFeatures } from "@/lib/use-features";
 const URL_IN_TEXT =
   /(?:https?:\/\/[^\s]+|\bwww\.[a-z0-9-]+\.[^\s]+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|app|dev|ai|shop|store|biz|info|me|us|uk|ca|au|de|fr|in|nl|es|it|nz|ie)\b(?:\/[^\s]*)?)/i;
 
+/** The whole prompt is just a website address (nothing else to build from). */
+export function onlyUrl(text: string): string | null {
+  const t = text.trim();
+  if (!t || /\s/.test(t)) return null;
+  const m = URL_IN_TEXT.exec(t);
+  return m && m.index === 0 && m[0].length === t.length ? t : null;
+}
+
 const MAX_PROMPT = 8000;
 
 /** Examples that rotate in the empty prompt box. */
@@ -105,6 +113,7 @@ export function PromptBox() {
   }, [chooseMode]);
 
   const detected = !site && !showUrl && features.websiteImport ? URL_IN_TEXT.exec(value)?.[0] : undefined;
+  const bareUrl = detected ? onlyUrl(value) : null;
   const tooLong = value.length > MAX_PROMPT;
 
   const importSite = async (address: string) => {
@@ -147,7 +156,16 @@ export function PromptBox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** A website address typed or pasted into Prompt to App belongs in URL to App: switch and read the site. */
+  const switchToUrl = (address: string) => {
+    setValue("");
+    setShowUrl(true);
+    setUrl(address);
+    importSite(address);
+  };
+
   const start = () => {
+    if (bareUrl) return switchToUrl(bareUrl);
     const text = value.trim() || (site ? `Turn ${site.siteName} (${site.url}) into a mobile app for its customers.` : "");
     if (!text || busy || importing || tooLong) return;
     setBusy(true);
@@ -244,6 +262,14 @@ export function PromptBox() {
           ref={ref}
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          onPaste={(e) => {
+            // Pasting just a link into the empty box: that's URL to App.
+            const address = features.websiteImport && !site && !showUrl && !value.trim() ? onlyUrl(e.clipboardData.getData("text")) : null;
+            if (address) {
+              e.preventDefault();
+              switchToUrl(address);
+            }
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -268,7 +294,13 @@ export function PromptBox() {
           </p>
         )}
 
-        {detected && (
+        {bareUrl && (
+          <p role="status" className="mb-1 px-2 text-xs text-violet-200">
+            That&apos;s a website address. Press Enter to use <strong>URL to App</strong>, which reads the site and builds its app, or describe what the app should do.
+          </p>
+        )}
+
+        {detected && !bareUrl && (
           <button
             type="button"
             onClick={() => importSite(detected)}
