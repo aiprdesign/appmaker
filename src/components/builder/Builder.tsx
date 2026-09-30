@@ -41,6 +41,8 @@ export function friendlyError(message: string): string {
   if (/prompt must be at most/i.test(message)) return "That request is too long. Shorten it to under 8,000 characters and try again.";
   if (/too large to edit/i.test(message)) return "This app has grown too large to edit in one go. Try a smaller, more specific change.";
   if (/request failed \(5\d\d\)/i.test(message)) return "Something went wrong on our side. Please try again in a moment.";
+  if (/out of credits/i.test(message)) return `${message.replace(/ Buy more on the Credits page \(\/credits\)\./, "")} [Buy credits](/credits) to keep building.`;
+  if (/^Sign in to keep building/i.test(message)) return `${message} [Sign in or create an account](/login).`;
   return message;
 }
 
@@ -195,6 +197,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             site: current.source,
             ai: aiChoiceFor(getAiSettings()),
             wording: current.wording ?? DEFAULT_WORDING,
+            ...(opts.autoFix ? { auto: true } : {}),
           }),
         });
         demoRef.current = res.headers.get("X-Appmaker-Mode") === "demo";

@@ -19,6 +19,41 @@ The AI uses these to build an app that feels like the business's official app, w
 
 Limitations: the importer reads the HTML the server sends. Sites that load all their content with JavaScript, or that block bots, show a friendly error instead.
 
+## Credits and payments (Stripe) — plug and play
+
+Credits are off until Stripe is set up. Until then everything is free, as before. To start taking payments:
+
+1. Create a Stripe account and stay in **test mode** at first.
+2. **Stripe → Developers → API keys:** copy the secret key into Railway → Variables as `STRIPE_SECRET_KEY`.
+3. **Stripe → Developers → Webhooks → Add endpoint:**
+   - URL: `https://<your-site>/api/stripe/webhook`
+   - Event: `checkout.session.completed`
+   - Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
+4. Deploy. **Admin → Settings → Payments (Stripe)** shows a checklist of what's set up, your credit packs, and sales.
+5. Test with card `4242 4242 4242 4242`. When it works, swap in your live keys and a live webhook.
+
+**How it works**
+- New accounts get free credits (`APPMAKER_FREE_CREDITS`, default 10).
+- Visitors who aren't signed in get a few free AI builds a day (`APPMAKER_GUEST_BUILDS`, default 3), then they're asked to sign in.
+- **What costs credits:**
+  - an AI build or edit with the site's AI key: 1 credit;
+  - a cloud build on the site's Expo account: 5 credits;
+  - a phone preview QR code: 1 credit.
+- **What's free:**
+  - automatic quality fixes, within a limit;
+  - using your own AI key or your own Expo account;
+  - hand edits, downloads and store pages.
+- If the AI or a build fails before starting, the credits are refunded.
+
+**Buying and managing credits**
+- People buy packs on **/credits** through Stripe's hosted Checkout page, so card details never touch the site.
+- Credits are added when Stripe's webhook confirms the payment, or when the buyer returns and Stripe says it's paid. Each payment counts once, even if both happen.
+- The account menu shows the balance with a "Buy more" link.
+- Admins see each member's balance and can give or remove credits.
+- **Optional settings:**
+  - `APPMAKER_CREDIT_PACKS`: a JSON list of `{ id, name, credits, price (cents), badge? }`. The default is 50 for $9, 200 for $29 and 600 for $69.
+  - `APPMAKER_CURRENCY`: the currency, `usd` by default.
+
 ## Apps for businesses
 
 - **Live updates from the website** (Publish tab, for apps made with URL to App). When the business changes its website (photos, prices, new dishes or products, hours, offers), the app shows it within a day, with no new build or store review.

@@ -2,6 +2,7 @@ import { feature } from "@/lib/server/features";
 import { InputError, parseAscAppId, parseAscKey, parseIcon, parseLink, parseProject, parseSigning, parseTarget } from "@/lib/eas/input";
 import { buildLimit, easErrorResponse, readJson, resolveToken } from "@/lib/eas/respond";
 import { startBuild } from "@/lib/eas/server";
+import { charge, CreditsError, creditsResponse, refund } from "@/lib/server/credits";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -32,9 +33,17 @@ export async function POST(req: Request) {
     const icon = parseIcon(body.icon);
     const limited = buildLimit(req, "build", hosted);
     if (limited) return limited;
-    const result = await startBuild({ token, project, icon, link, target, submit, ascKey, signing: parseSigning(body.signing) });
-    return Response.json(result);
+    // Builds on the site's Expo account cost credits when payments are on.
+    const paid = hosted ? await charge(req, "build", { reason: `Cloud build (${target})` }) : { userId: null, charged: false };
+    try {
+      const result = await startBuild({ token, project, icon, link, target, submit, ascKey, signing: parseSigning(body.signing) });
+      return Response.json(result);
+    } catch (e) {
+      if (paid.charged && paid.userId) await refund(paid.userId, "build", "Refund: the build didn't start").catch(() => {});
+      throw e;
+    }
   } catch (e) {
+    if (e instanceof CreditsError) return creditsResponse(e);
     return easErrorResponse(e);
   }
 }

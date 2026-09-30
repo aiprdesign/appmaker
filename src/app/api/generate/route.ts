@@ -4,6 +4,7 @@ import { demoResponse } from "@/lib/demo";
 import { buildUserMessage, systemPrompt } from "@/lib/prompt";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { APP_MAX_BYTES, APP_MAX_FILES, isAllowedPath } from "@/lib/validate";
+import { charge, CreditsError, creditsResponse, refund } from "@/lib/server/credits";
 import type { FileMap, SiteSummary, StoreListing } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -31,6 +32,8 @@ interface GenerateRequest {
   ai?: Partial<AiChoice>;
   /** "claim-safe" (default) keeps app text free of marketing claims. */
   wording?: "claim-safe" | "standard";
+  /** Sent by the builder's automatic quality fixes (free within a limit when credits are on). */
+  auto?: boolean;
 }
 
 function textStream(ai: ResolvedAi | null, produce: (write: (s: string) => void) => Promise<void>): Response {
@@ -153,15 +156,37 @@ export async function POST(req: Request) {
   while (history.length && history[0].role !== "user") history.shift();
   if (history.length && history[history.length - 1].role === "user") history.pop();
 
+  // Credits (when the site takes payments): only for the site's own AI key.
+  let paid: { userId: string | null; charged: boolean } = { userId: null, charged: false };
+  if (ai.usingServerKey) {
+    try {
+      paid = await charge(req, "generate", { auto: body.auto === true, reason: isEdit ? "AI edit" : "AI build" });
+    } catch (e) {
+      if (e instanceof CreditsError) return creditsResponse(e);
+      throw e;
+    }
+  }
+
   const resolved = ai;
   return textStream(resolved, async (write) => {
-    const outcome = await streamGeneration({
-      ai: resolved,
-      system: systemPrompt(body.wording === "standard" ? "standard" : "claim-safe"),
-      messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site) }],
-      signal: req.signal,
-      write,
-    });
+    let wrote = false;
+    let outcome: Awaited<ReturnType<typeof streamGeneration>>;
+    try {
+      outcome = await streamGeneration({
+        ai: resolved,
+        system: systemPrompt(body.wording === "standard" ? "standard" : "claim-safe"),
+        messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site) }],
+        signal: req.signal,
+        write: (t) => {
+          wrote = true;
+          write(t);
+        },
+      });
+    } catch (e) {
+      // Nothing was written: give the credit back.
+      if (!wrote && paid.charged && paid.userId) await refund(paid.userId, "generate", "Refund: the AI didn't answer").catch(() => {});
+      throw e;
+    }
     if (outcome === "refusal") {
       write("\n<error>The AI declined this request. Try rephrasing your app idea.</error>");
     } else if (outcome === "length") {

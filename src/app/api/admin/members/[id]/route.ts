@@ -2,6 +2,7 @@ import { deleteMember, signOutMember } from "@/lib/server/admin-data";
 import { requireAdmin } from "@/lib/server/admin-guard";
 import { assertSameOrigin, AuthError } from "@/lib/server/auth";
 import { accountError, readBody } from "@/lib/server/respond";
+import { addCredits, balance } from "@/lib/server/credits";
 
 export const runtime = "nodejs";
 
@@ -13,14 +14,24 @@ async function memberId(ctx: Ctx): Promise<string> {
   return id;
 }
 
-/** { action: "sign-out" } signs the member out everywhere. */
+/**
+ * { action: "sign-out" } signs the member out everywhere;
+ * { action: "credits", amount } gives (or with a negative amount, removes) credits.
+ */
 export async function POST(req: Request, ctx: Ctx) {
   try {
     requireAdmin(req, true);
     assertSameOrigin(req);
     const body = await readBody(req);
+    const id = await memberId(ctx);
+    if (body.action === "credits") {
+      const amount = Number(body.amount);
+      if (!Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 100000) throw new AuthError("Enter a whole number of credits.", 400);
+      await addCredits(id, amount, amount > 0 ? `Given by the site owner` : `Removed by the site owner`, null);
+      return Response.json({ ok: true, balance: await balance(id) });
+    }
     if (body.action !== "sign-out") throw new AuthError("Unknown action.", 400);
-    await signOutMember(await memberId(ctx));
+    await signOutMember(id);
     return Response.json({ ok: true });
   } catch (e) {
     return accountError(e);

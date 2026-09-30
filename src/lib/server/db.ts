@@ -84,6 +84,16 @@ create table if not exists app_store_pages (
   updated_at timestamptz not null default now(),
   unique (user_id, project_id)
 );
+alter table app_users add column if not exists credits integer;
+create table if not exists app_credit_events (
+  id bigserial primary key,
+  user_id text not null references app_users(id) on delete cascade,
+  delta integer not null,
+  reason text not null,
+  ref text unique,
+  created_at timestamptz not null default now()
+);
+create index if not exists app_credit_events_user on app_credit_events(user_id, created_at desc);
 create table if not exists app_live_sites (
   id text primary key,
   user_id text not null references app_users(id) on delete cascade,

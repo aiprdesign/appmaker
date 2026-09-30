@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Cloud, CloudOff, LayoutGrid, Loader2, LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Cloud, CloudOff, Coins, LayoutGrid, Loader2, LogOut } from "lucide-react";
 import { signOut, useCloud, type SyncStatus } from "@/lib/cloud";
 import { PasskeyManager } from "./Passkeys";
 
@@ -39,6 +39,19 @@ export function SyncBadge() {
 export function AccountButton() {
   const cloud = useCloud();
   const [open, setOpen] = useState(false);
+  const [credits, setCredits] = useState<number | null>(null);
+  // The balance, when the site takes payments; refreshed each time the menu opens.
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    fetch("/api/credits", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => live && setCredits(d.enabled && d.signedIn ? d.balance : null))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [open]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!cloud.enabled) return null;
@@ -82,6 +95,18 @@ export function AccountButton() {
                 Sign out anyway
               </button>
             </p>
+          )}
+          {credits !== null && (
+            <Link
+              href="/credits"
+              onClick={() => setOpen(false)}
+              className="mt-3 flex min-h-9 items-center justify-between rounded-lg bg-amber-500/10 px-3 text-sm text-amber-100 hover:bg-amber-500/15"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Coins className="h-4 w-4" /> {credits} credits
+              </span>
+              <span className="text-xs font-medium">Buy more</span>
+            </Link>
           )}
           <Link
             href="/projects"

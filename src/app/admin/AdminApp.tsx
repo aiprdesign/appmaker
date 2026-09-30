@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppWindow, BarChart3, Check, Eye, EyeOff, KeyRound, Loader2, LogOut, Search, Settings, ShieldCheck, Trash2, Users } from "lucide-react";
+import { AppWindow, BarChart3, Check, CircleAlert, Coins, CreditCard, Eye, EyeOff, KeyRound, Loader2, LogOut, Search, Settings, ShieldCheck, Trash2, Users } from "lucide-react";
+import { formatPrice, type CreditPack } from "@/lib/credits";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FEATURES, FEATURE_KEYS, type FeatureKey, type Features } from "@/lib/features";
 import { AppsTab } from "./AppsTab";
@@ -35,6 +36,7 @@ interface Member {
   google: boolean;
   passkeys: number;
   apps: number;
+  credits: number | null;
 }
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<{ status: number; data: T & { error?: string } }> {
@@ -356,6 +358,18 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirming, setConfirming] = useState<{ member: Member; action: "sign-out" | "delete" } | null>(null);
+  const [giving, setGiving] = useState<Member | null>(null);
+  const [amount, setAmount] = useState("25");
+
+  const give = async (m: Member) => {
+    const n = Number(amount);
+    const { status, data } = await api<{ balance: number }>(`/api/admin/members/${m.id}`, { method: "POST", body: JSON.stringify({ action: "credits", amount: n }) });
+    setGiving(null);
+    if (status === 200) {
+      setNote({ ok: true, text: `${n > 0 ? "Gave" : "Removed"} ${Math.abs(n)} credits ${n > 0 ? "to" : "from"} ${m.email}. Balance: ${data.balance}.` });
+      setList((prev) => prev?.map((x) => (x.id === m.id ? { ...x, credits: data.balance } : x)) ?? prev);
+    } else setNote({ ok: false, text: data.error || "That didn't work." });
+  };
 
   const load = useCallback(async (search: string, offset = 0) => {
     const { status, data } = await api<{ members: Member[]; total: number }>(`/api/admin/members?q=${encodeURIComponent(search)}&offset=${offset}`);
@@ -408,7 +422,17 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
       <span className="text-xs text-muted">No apps</span>
     );
   const actions = (m: Member) => (
-    <div className="flex justify-end gap-1.5">
+    <div className="flex flex-wrap justify-end gap-1.5">
+      <button
+        onClick={() => {
+          setAmount("25");
+          setGiving(m);
+        }}
+        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs text-muted hover:border-white/20 hover:text-foreground"
+        aria-label={`Give credits to ${m.email}`}
+      >
+        <Coins className="h-3.5 w-3.5" /> {m.credits ?? "—"}
+      </button>
       <button
         onClick={() => setConfirming({ member: m, action: "sign-out" })}
         disabled={busy === m.id}
@@ -506,6 +530,31 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
           Show more
         </button>
       )}
+      {giving && (
+        <ConfirmDialog
+          title="Give credits"
+          body={
+            <div className="space-y-3">
+              <p>
+                <span className="text-foreground">{giving.email}</span> has {giving.credits ?? "no"} credits. Use a negative number to remove some.
+              </p>
+              <label className="block text-xs">
+                Credits
+                <input
+                  type="number"
+                  step={1}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-violet-500/60"
+                />
+              </label>
+            </div>
+          }
+          confirmLabel={Number(amount) < 0 ? "Remove credits" : "Give credits"}
+          onConfirm={() => give(giving)}
+          onCancel={() => setGiving(null)}
+        />
+      )}
       {confirming && (
         <ConfirmDialog
           danger={confirming.action === "delete"}
@@ -566,6 +615,7 @@ function SettingsTab({
   const groups = [...SETTING_GROUPS, { title: "Other", keys: FEATURE_KEYS.filter((k) => !grouped.has(k)) }].filter((g) => g.keys.length);
   return (
     <div className="max-w-2xl space-y-6">
+      <PaymentsSection />
       {error && (
         <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-200">
           {error}
@@ -618,5 +668,92 @@ function SettingsTab({
         Variables and deploy; everyone signed in to admin is signed out.
       </p>
     </div>
+  );
+}
+
+interface Payments {
+  enabled: boolean;
+  stripeKey: boolean;
+  webhook: boolean;
+  database: boolean;
+  mode: "test" | "live" | null;
+  currency: string;
+  freeCredits: number;
+  guestBuilds: number;
+  packs: CreditPack[];
+  costs: { generate: number; build: number; phonePreview: number };
+  webhookUrl: string;
+  stats: { purchases: number; creditsSold: number; creditsSpent: number } | null;
+}
+
+/** Stripe setup checklist: what's done, what's missing, and exactly where to set it. */
+function PaymentsSection() {
+  const [p, setP] = useState<Payments | null>(null);
+  useEffect(() => {
+    api<Payments>("/api/admin/payments").then(({ status, data }) => status === 200 && setP(data));
+  }, []);
+  if (!p) return null;
+  const steps = [
+    { ok: p.database, label: "Database connected", hint: "Balances are kept in the database (DATABASE_URL)." },
+    { ok: p.stripeKey, label: "Stripe secret key", hint: "Stripe → Developers → API keys → Secret key. Add it as STRIPE_SECRET_KEY in Railway → Variables." },
+    {
+      ok: p.webhook,
+      label: "Stripe webhook",
+      hint: `Stripe → Developers → Webhooks → Add endpoint: ${p.webhookUrl}, event checkout.session.completed. Copy its signing secret into STRIPE_WEBHOOK_SECRET.`,
+    },
+  ];
+  return (
+    <section aria-labelledby="payments-title" className="rounded-2xl border border-line bg-surface p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="payments-title" className="flex items-center gap-2 font-semibold">
+          <CreditCard className="h-4 w-4 text-violet-300" /> Payments (Stripe)
+        </h2>
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${p.enabled ? (p.mode === "live" ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-200") : "bg-white/10 text-muted"}`}
+        >
+          {p.enabled ? (p.mode === "live" ? "Live — taking real payments" : "Test mode") : "Off — everything is free"}
+        </span>
+      </div>
+      <ul className="mt-4 space-y-3">
+        {steps.map((s) => (
+          <li key={s.label} className="flex items-start gap-2 text-sm">
+            {s.ok ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /> : <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />}
+            <div className="min-w-0">
+              <div className={s.ok ? "" : "font-medium"}>{s.label}</div>
+              {!s.ok && <p className="mt-0.5 break-words text-xs text-muted">{s.hint}</p>}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {p.enabled && !p.webhook && <p className="mt-3 text-xs text-amber-200">Without the webhook, credits are still added when buyers return from Stripe, but a buyer who closes the tab early would wait for support.</p>}
+      <div className="mt-4 grid gap-3 text-xs text-muted sm:grid-cols-2">
+        <div>
+          <div className="font-medium text-foreground">Credit packs</div>
+          <ul className="mt-1 space-y-0.5">
+            {p.packs.map((pack) => (
+              <li key={pack.id}>
+                {pack.name}: {pack.credits} credits for {formatPrice(pack.price, p.currency)}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div className="font-medium text-foreground">Prices and free credits</div>
+          <p className="mt-1">
+            AI build or edit: {p.costs.generate} · cloud build: {p.costs.build} · phone preview: {p.costs.phonePreview}. New accounts get {p.freeCredits} free; visitors
+            who aren&apos;t signed in get {p.guestBuilds} free AI builds a day.
+          </p>
+        </div>
+      </div>
+      {p.stats && p.enabled && (
+        <p className="mt-4 text-sm">
+          {p.stats.purchases.toLocaleString()} purchases · {p.stats.creditsSold.toLocaleString()} credits sold · {p.stats.creditsSpent.toLocaleString()} credits used
+        </p>
+      )}
+      <p className="mt-4 text-xs text-muted">
+        Optional variables: APPMAKER_CREDIT_PACKS (JSON list of packs), APPMAKER_CURRENCY (default usd), APPMAKER_FREE_CREDITS (default 10), APPMAKER_GUEST_BUILDS
+        (default 3). Use test keys first; switch to live keys when you&apos;re ready.
+      </p>
+    </section>
   );
 }
