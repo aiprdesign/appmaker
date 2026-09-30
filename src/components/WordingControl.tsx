@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, ShieldCheck, Type } from "lucide-react";
-import { DEFAULT_WORDING, type Wording } from "@/lib/claims";
+import { DEFAULT_WORDING, type Wording, RESPONSIBILITY } from "@/lib/claims";
 
 const KEY = "appmaker.wording.v1";
 
@@ -29,7 +29,7 @@ const OPTIONS: { value: Wording; label: string; detail: string }[] = [
     label: "Claim-safe",
     detail: 'Descriptive text only. Removes "best", "#1", "leading", "100%", "guaranteed", "never", "always", "in seconds", "10x faster" and unsupported "faster"/"better".',
   },
-  { value: "standard", label: "Standard", detail: "No wording rules. You're responsible for any claims in the app and listing." },
+  { value: "standard", label: "Standard", detail: "No marketing-wording rules (health, medical and money claims are still checked)." },
 ];
 
 /** Compact "Wording" control shown next to the AI model button. */
@@ -89,6 +89,7 @@ export function WordingControl({ value, onChange }: { value: Wording; onChange: 
           <p className="mt-1 border-t border-line px-2 pb-1 pt-2 text-[11px] leading-snug text-muted">
             Health, medical and financial claims are always checked, and health apps get a &quot;not medical advice&quot; line.
           </p>
+          <p className="mt-1 rounded-lg bg-amber-500/10 px-2 py-1.5 text-[11px] leading-snug text-amber-100/90">{RESPONSIBILITY}</p>
         </div>
       )}
     </div>

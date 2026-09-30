@@ -74,6 +74,10 @@ const FAQ = [
     a: "No. But if you do, you get clean, idiomatic source code you fully own.",
   },
   {
+    q: "Who is responsible for what's in my app?",
+    a: "You are. You decide what your app says and does: its text, claims, prices, images and features, and its store listing. Make sure everything is true, accurate and allowed, and follows the law and Apple's and Google's rules. Appmaker's claim-safe wording and health and money checks help, but they can't catch everything and aren't legal advice.",
+  },
+  {
     q: "How does pricing work?",
     a: "There are no subscriptions. Try it without an account, or create a free account for monthly credits. When you're ready to publish, buy any credit pack: credits never expire, and your first pack unlocks store builds and the other paid features for good.",
   },

@@ -9,6 +9,10 @@ import type { FileMap, StoreListing } from "./types";
 export type Wording = "claim-safe" | "standard";
 export const DEFAULT_WORDING: Wording = "claim-safe";
 
+/** Shown wherever wording checks appear: the checks help, the app owner is responsible. */
+export const RESPONSIBILITY =
+  "You're responsible for everything in your app and its store listing: text, claims, prices, images and features. Make sure it's true, accurate and allowed, and that it follows the law and Apple's and Google's rules. Appmaker's checks help, but they can't catch everything and aren't legal advice.";
+
 export const CLAIM_SAFE_RULES = `## Wording: claim-safe (on)
 All user-visible text — screen text, buttons, placeholders, empty states, alerts, notifications and the store listing — must be descriptive, not promotional. Describe what the app does; never make claims about it. Do NOT use:
 - superlatives and rankings: "best", "#1", "number one", "leading", "top-rated", "world's fastest" or any "world's …est"

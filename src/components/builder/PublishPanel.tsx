@@ -9,7 +9,7 @@ import { Bookings } from "./Bookings";
 import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
-import { checkClaims, DEFAULT_WORDING } from "@/lib/claims";
+import { checkClaims, DEFAULT_WORDING, RESPONSIBILITY } from "@/lib/claims";
 import { checkRegulatedClaims } from "@/lib/regulated";
 
 const CATEGORIES = [
@@ -453,6 +453,10 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
                 ))}
               </ul>
             </div>
+            <p role="note" className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-[11px] leading-snug text-amber-100/90">
+              <strong className="block text-xs text-amber-100">Your responsibility</strong>
+              {RESPONSIBILITY}
+            </p>
             <button
               onClick={() => download()}
               disabled={exporting || !Object.keys(project.files).length}

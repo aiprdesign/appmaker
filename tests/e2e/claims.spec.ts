@@ -111,3 +111,20 @@ test("a new version is shown only after all three checks pass", async ({ page })
   await expect(preview.getByText(/Track how you slept/)).toBeVisible({ timeout: 20_000 });
   await expect(overlay).toHaveCount(0);
 });
+
+test("the wording menu, the Publish checklist and the FAQ say the app owner is responsible for the content", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Who is responsible for what's in my app?")).toBeVisible();
+  await page.getByRole("button", { name: /Wording: Claim-safe/ }).click();
+  await expect(page.getByText(/You're responsible for everything in your app and its store listing/)).toBeVisible();
+  await expect(page.getByText(/aren't legal advice/).first()).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await page.getByLabel("Describe your app").fill("A dream diary");
+  await page.keyboard.press("Enter");
+  await expect(page.frameLocator('iframe[title="App preview"]').getByText("Kicked off the project")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Publish" }).first().click();
+  const note = page.getByRole("note");
+  await expect(note).toContainText("Your responsibility");
+  await expect(note).toContainText("Make sure it's true, accurate and allowed");
+});
