@@ -8,6 +8,8 @@ import { useFeatures } from "@/lib/use-features";
 import { BOOKING_FILE, bookingModule, defaultSettings, usesBooking, type BookingSettings } from "@/lib/booking";
 import { defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PaidLock } from "@/components/PaidLock";
+import { locked, usePlan } from "@/lib/use-plan";
 import { HoursEditor } from "@/components/HoursEditor";
 import type { Project } from "@/lib/types";
 
@@ -49,6 +51,7 @@ export function Bookings({
 }) {
   const cloud = useCloud();
   const features = useFeatures();
+  const plan = usePlan();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [settings, setSettings] = useState<BookingSettings | null>(null);
   const [editing, setEditing] = useState(false);
@@ -154,6 +157,8 @@ export function Bookings({
           </Link>{" "}
           to take bookings.
         </p>
+      ) : locked(plan) && !project.booking ? (
+        <PaidLock feature="Bookings" />
       ) : !settings ? (
         <Loader2 className="mt-3 h-4 w-4 animate-spin text-muted" aria-label="Loading" />
       ) : (

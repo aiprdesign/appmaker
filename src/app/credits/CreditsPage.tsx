@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Coins, Loader2, Lock, Sparkles } from "lucide-react";
-import { formatPrice, type CreditPack } from "@/lib/credits";
+import { formatPrice, type CreditPack, type Plan } from "@/lib/credits";
+import { PlanCards } from "@/components/PlanCards";
+import { PLAN_CHANGED } from "@/lib/use-plan";
 
 interface CreditsInfo {
   enabled: boolean;
@@ -11,8 +13,10 @@ interface CreditsInfo {
   packs: CreditPack[];
   costs: { generate: number; build: number; phonePreview: number };
   freeCredits: number;
+  guestBuilds: number;
   mode: "test" | "live" | null;
   signedIn?: boolean;
+  plan?: Plan;
   balance?: number;
   history?: { delta: number; reason: string; at: string }[];
 }
@@ -47,7 +51,10 @@ export function CreditsPage() {
     if (session && !confirmed.current) {
       confirmed.current = true;
       post<{ added: boolean; balance: number }>("/api/credits/confirm", { sessionId: session })
-        .then(() => setMessage({ ok: true, text: "Payment received. Your credits are ready — thank you!" }))
+        .then(() => {
+          setMessage({ ok: true, text: "Payment received. Your credits are ready, and the paid features are unlocked. Thank you!" });
+          window.dispatchEvent(new Event(PLAN_CHANGED));
+        })
         .catch((e) => setMessage({ ok: false, text: e.message }))
         .finally(() => void load());
       window.history.replaceState(null, "", "/credits");
@@ -82,7 +89,7 @@ export function CreditsPage() {
         </p>
       ) : (
         <>
-          <p className="mt-2 text-muted">Credits pay for AI building and cloud builds. They never expire.</p>
+          <p className="mt-2 text-muted">Credits pay for AI building and cloud builds. They never expire, and there&apos;s no subscription.</p>
           {message && (
             <p
               role={message.ok ? "status" : "alert"}
@@ -99,7 +106,7 @@ export function CreditsPage() {
             <div className="mt-6 rounded-2xl border border-line bg-surface p-6 text-center">
               <Lock className="mx-auto h-6 w-6 text-muted" />
               <p className="mt-2">Sign in to see your credits and buy more.</p>
-              <p className="mt-1 text-sm text-muted">New accounts get {info.freeCredits} free credits.</p>
+              <p className="mt-1 text-sm text-muted">Free accounts get {info.freeCredits} credits every month.</p>
               <Link href="/login" className="mt-4 inline-flex min-h-10 items-center rounded-lg bg-white px-4 text-sm font-medium text-black">
                 Sign in or create an account
               </Link>
@@ -114,6 +121,19 @@ export function CreditsPage() {
                   </div>
                 </div>
                 <span className="mb-2 text-muted">credits</span>
+                <div className="mb-1 ml-auto text-right text-sm">
+                  {info.plan === "paid" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 font-medium text-emerald-300">
+                      <CheckCircle2 className="h-4 w-4" /> Paid plan
+                    </span>
+                  ) : (
+                    <span className="text-muted">
+                      Free plan: {info.freeCredits} credits a month.
+                      <br />
+                      Any pack unlocks store builds, live website updates and more.
+                    </span>
+                  )}
+                </div>
               </div>
 
               <h2 className="mt-10 text-xl font-semibold">Buy credits</h2>
@@ -144,6 +164,9 @@ export function CreditsPage() {
               </p>
             </>
           )}
+
+          <h2 className="mt-10 text-xl font-semibold">Plans</h2>
+          <PlanCards info={{ ...info, plan: info.signedIn ? info.plan : "guest" }} />
 
           <h2 className="mt-10 text-xl font-semibold">What uses credits</h2>
           <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface text-sm">

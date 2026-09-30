@@ -25,6 +25,24 @@ export const COSTS = {
 
 export type CreditKind = keyof typeof COSTS;
 
+/**
+ * Plans, all credit based (no subscriptions):
+ * - guest: not signed in, a few free AI builds a day;
+ * - free: an account, with free credits topped up every month;
+ * - paid: has bought any credit pack (unlocks the paid features for good).
+ * Paid features are only locked while payments are on.
+ */
+export type Plan = "guest" | "free" | "paid";
+
+export const PAID_FEATURES = {
+  storeBuilds: "Store builds",
+  bookings: "Bookings",
+  liveUpdates: "Live website updates",
+  noBranding: "No “Made with Appmaker” line",
+} as const;
+
+export type PaidFeature = keyof typeof PAID_FEATURES;
+
 export const DEFAULT_PACKS: CreditPack[] = [
   { id: "starter", name: "Starter", credits: 50, price: 900 },
   { id: "maker", name: "Maker", credits: 200, price: 2900, badge: "Popular" },

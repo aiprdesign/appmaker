@@ -158,8 +158,46 @@ describe.skipIf(!DB)("credits and Stripe (PostgreSQL, fake Stripe)", () => {
     expect((await confirmRoute(req("/api/credits/confirm", { sessionId }, other.cookie))).status).toBe(403);
 
     const info = await (await creditsInfo(req("/api/credits", undefined, cookie))).json();
-    expect(info).toMatchObject({ enabled: true, signedIn: true, balance: 210, mode: "test" });
+    expect(info).toMatchObject({ enabled: true, signedIn: true, balance: 210, mode: "test", plan: "paid" });
+    // Any purchase unlocks the paid plan; other accounts stay free.
+    expect((await (await creditsInfo(req("/api/credits", undefined, other.cookie))).json()).plan).toBe("free");
+    expect((await (await creditsInfo(req("/api/credits"))).json()).plan).toBe("guest");
     expect(info.history[0]).toMatchObject({ delta: 200, reason: "Bought 200 credits" });
+  });
+
+  it("tops free credits back up each month, without piling them up", async () => {
+    const { id } = await account("hopper");
+    const now = new Date();
+    const month = (n: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + n, 2));
+    expect(await balance(id)).toBe(10);
+    await spend(id, "build", "Cloud build");
+    expect(await balance(id)).toBe(5);
+    expect(await balance(id, month(1))).toBe(10);
+    expect(await balance(id, month(1))).toBe(10);
+    // A bigger balance (bought credits) isn't topped up.
+    await addCredits(id, 40, "Given", null);
+    expect(await balance(id, month(2))).toBe(50);
+    const reasons = await query<{ reason: string }>("select reason from app_credit_events where user_id = $1 and reason = 'Monthly free credits'", [id]);
+    expect(reasons).toHaveLength(1);
+  });
+
+  it("paid features need the paid plan while payments are on", async () => {
+    const { setFeature } = await import("@/lib/server/features");
+    const { POST: bookingsRoute } = await import("@/app/api/bookings/route");
+    const { setPaid } = await import("@/lib/server/credits");
+    const { defaultSettings } = await import("@/lib/booking");
+    await setFeature("bookings", true);
+    try {
+      const { cookie, id } = await account("turing");
+      const body = { projectId: "plan123abc", settings: defaultSettings("UTC") };
+      const free = await bookingsRoute(req("/api/bookings", body, cookie));
+      expect(free.status).toBe(402);
+      expect(await free.json()).toMatchObject({ code: "plan", error: expect.stringMatching(/Bookings are part of the paid plan. Buy any credit pack/) });
+      await setPaid(id, true);
+      expect((await bookingsRoute(req("/api/bookings", body, cookie))).status).toBe(200);
+    } finally {
+      await setFeature("bookings", false);
+    }
   });
 
   it("the return page adds credits when the webhook hasn't arrived yet", async () => {
@@ -175,7 +213,7 @@ describe.skipIf(!DB)("credits and Stripe (PostgreSQL, fake Stripe)", () => {
     const body = { prompt: "A habit tracker" };
     const guest = await generateRoute(req("/api/generate", body));
     expect(guest.status).toBe(401);
-    expect(await guest.json()).toMatchObject({ code: "sign-in", error: expect.stringMatching(/10 free credits/) });
+    expect(await guest.json()).toMatchObject({ code: "sign-in", error: expect.stringMatching(/10 credits every month/) });
 
     const { cookie, id } = await account("barbara");
     await addCredits(id, -10, "Removed", null);

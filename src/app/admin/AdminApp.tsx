@@ -37,6 +37,7 @@ interface Member {
   passkeys: number;
   apps: number;
   credits: number | null;
+  paid: boolean;
 }
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<{ status: number; data: T & { error?: string } }> {
@@ -360,15 +361,25 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
   const [confirming, setConfirming] = useState<{ member: Member; action: "sign-out" | "delete" } | null>(null);
   const [giving, setGiving] = useState<Member | null>(null);
   const [amount, setAmount] = useState("25");
+  const [paid, setPaid] = useState(false);
 
   const give = async (m: Member) => {
     const n = Number(amount);
-    const { status, data } = await api<{ balance: number }>(`/api/admin/members/${m.id}`, { method: "POST", body: JSON.stringify({ action: "credits", amount: n }) });
     setGiving(null);
-    if (status === 200) {
-      setNote({ ok: true, text: `${n > 0 ? "Gave" : "Removed"} ${Math.abs(n)} credits ${n > 0 ? "to" : "from"} ${m.email}. Balance: ${data.balance}.` });
+    const done: string[] = [];
+    if (paid !== m.paid) {
+      const { status, data } = await api(`/api/admin/members/${m.id}`, { method: "POST", body: JSON.stringify({ action: "plan", paid }) });
+      if (status !== 200) return setNote({ ok: false, text: data.error || "That didn't work." });
+      setList((prev) => prev?.map((x) => (x.id === m.id ? { ...x, paid } : x)) ?? prev);
+      done.push(paid ? `Gave ${m.email} the paid plan.` : `Moved ${m.email} to the free plan.`);
+    }
+    if (n) {
+      const { status, data } = await api<{ balance: number }>(`/api/admin/members/${m.id}`, { method: "POST", body: JSON.stringify({ action: "credits", amount: n }) });
+      if (status !== 200) return setNote({ ok: false, text: data.error || "That didn't work." });
+      done.push(`${n > 0 ? "Gave" : "Removed"} ${Math.abs(n)} credits ${n > 0 ? "to" : "from"} ${m.email}. Balance: ${data.balance}.`);
       setList((prev) => prev?.map((x) => (x.id === m.id ? { ...x, credits: data.balance } : x)) ?? prev);
-    } else setNote({ ok: false, text: data.error || "That didn't work." });
+    }
+    if (done.length) setNote({ ok: true, text: done.join(" ") });
   };
 
   const load = useCallback(async (search: string, offset = 0) => {
@@ -400,6 +411,7 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
 
   const methods = (m: Member) => (
     <div className="flex flex-wrap gap-1 text-[11px]">
+      {m.paid && <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-medium text-emerald-300">Paid</span>}
       {m.password && <span className="rounded-full bg-surface-2 px-2 py-0.5">Password</span>}
       {m.google && <span className="rounded-full bg-surface-2 px-2 py-0.5">Google</span>}
       {m.passkeys > 0 && (
@@ -426,6 +438,7 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
       <button
         onClick={() => {
           setAmount("25");
+          setPaid(m.paid);
           setGiving(m);
         }}
         className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs text-muted hover:border-white/20 hover:text-foreground"
@@ -532,7 +545,7 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
       )}
       {giving && (
         <ConfirmDialog
-          title="Give credits"
+          title="Credits and plan"
           body={
             <div className="space-y-3">
               <p>
@@ -548,9 +561,13 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
                   className="mt-1 w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-violet-500/60"
                 />
               </label>
+              <label className="flex min-h-9 items-center gap-2 text-sm">
+                <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="h-4 w-4 accent-violet-500" />
+                Paid plan (store builds, bookings, live updates, no Made with Appmaker line)
+              </label>
             </div>
           }
-          confirmLabel={Number(amount) < 0 ? "Remove credits" : "Give credits"}
+          confirmLabel={Number(amount) < 0 ? "Remove credits" : "Save"}
           onConfirm={() => give(giving)}
           onCancel={() => setGiving(null)}
         />
@@ -683,7 +700,7 @@ interface Payments {
   packs: CreditPack[];
   costs: { generate: number; build: number; phonePreview: number };
   webhookUrl: string;
-  stats: { purchases: number; creditsSold: number; creditsSpent: number } | null;
+  stats: { purchases: number; creditsSold: number; creditsSpent: number; paidMembers: number } | null;
 }
 
 /** Stripe setup checklist: what's done, what's missing, and exactly where to set it. */
@@ -740,14 +757,15 @@ function PaymentsSection() {
         <div>
           <div className="font-medium text-foreground">Prices and free credits</div>
           <p className="mt-1">
-            AI build or edit: {p.costs.generate} · cloud build: {p.costs.build} · phone preview: {p.costs.phonePreview}. New accounts get {p.freeCredits} free; visitors
-            who aren&apos;t signed in get {p.guestBuilds} free AI builds a day.
+            AI build or edit: {p.costs.generate} · cloud build: {p.costs.build} · phone preview: {p.costs.phonePreview}. Free accounts are topped up to {p.freeCredits}{" "}
+            credits each month; visitors who aren&apos;t signed in get {p.guestBuilds} free AI builds a day. Buying any pack gives the paid plan for good (store
+            builds, bookings, live updates, no Made with Appmaker line); you can also give it to a member in Members.
           </p>
         </div>
       </div>
       {p.stats && p.enabled && (
         <p className="mt-4 text-sm">
-          {p.stats.purchases.toLocaleString()} purchases · {p.stats.creditsSold.toLocaleString()} credits sold · {p.stats.creditsSpent.toLocaleString()} credits used
+          {p.stats.paidMembers.toLocaleString()} paid members · {p.stats.purchases.toLocaleString()} purchases · {p.stats.creditsSold.toLocaleString()} credits sold · {p.stats.creditsSpent.toLocaleString()} credits used
         </p>
       )}
       <p className="mt-4 text-xs text-muted">

@@ -9,6 +9,8 @@ import { SyncBadge } from "@/components/AccountButton";
 import { LIVE_FILE, liveModule } from "@/lib/live";
 import { defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
 import { BOOKING_FILE, bookingModule } from "@/lib/booking";
+import { BRAND_FILE, brandModule } from "@/lib/branding";
+import { locked, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
@@ -78,6 +80,13 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [platform, setPlatform] = useState<"ios" | "android">("ios");
   const [generating, setGenerating] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
+  // Free apps show "Made with Appmaker" in their settings (only when the site takes payments).
+  const plan = usePlan();
+  const branded = locked(plan);
+  const brandedRef = useRef(false);
+  useEffect(() => {
+    brandedRef.current = branded;
+  }, [branded]);
   const [live, setLive] = useState<ParsedGeneration | null>(null);
   const [previewFiles, setPreviewFiles] = useState<FileMap>({});
   /** A new version is being checked (and fixed) before it's shown. */
@@ -147,6 +156,17 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     window.addEventListener(PROJECTS_CHANGED, onSync);
     return () => window.removeEventListener(PROJECTS_CHANGED, onSync);
   }, [id]);
+
+  // Keep the "Made with Appmaker" file in line with the plan (e.g. after buying credits).
+  useEffect(() => {
+    const p = projectRef.current;
+    if (!plan || !p || generating || p.files[BRAND_FILE] == null) return;
+    const want = brandModule(branded);
+    if (p.files[BRAND_FILE] === want) return;
+    const files = { ...p.files, [BRAND_FILE]: want };
+    commit({ ...p, files });
+    setPreviewFiles(files);
+  }, [plan, branded, generating, project, commit]);
 
   // Debounce hand edits in the code tab into the preview.
   useEffect(() => {
@@ -260,6 +280,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       if (Object.keys(files).length) files[THEME_FILE] = themeModule(base.design ?? defaultDesign(listing));
       // Apps with bookings always carry Appmaker's booking screen, whatever the AI wrote.
       if (base.booking) files[BOOKING_FILE] = bookingModule(base.booking.apiUrl);
+      if (Object.keys(files).length) files[BRAND_FILE] = brandModule(brandedRef.current);
 
       const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && isAllowedPath(p)) && continueBudget.current > 0 && !demoRef.current;
       if (continuing) error = "";
@@ -379,6 +400,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // The design is a setting, not part of a version: the restored code keeps today's look.
       const files: FileMap = p.design ? { ...v.files, [THEME_FILE]: themeModule(p.design) } : { ...v.files };
       if (p.booking) files[BOOKING_FILE] = bookingModule(p.booking.apiUrl);
+      if (files[BRAND_FILE] != null) files[BRAND_FILE] = brandModule(brandedRef.current);
       const listing = p.design ? { ...v.listing, primaryColor: p.design.primary } : v.listing;
       const restored = withVersion({ ...p, files, listing, name: v.listing.name || p.name }, `Restored the version from ${when}`);
       const note: ChatMessage = {

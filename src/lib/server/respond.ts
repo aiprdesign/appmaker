@@ -1,9 +1,11 @@
 import { AuthError, currentUser, type User } from "./auth";
 import { databaseConfigured } from "./db";
+import { CreditsError } from "./credits";
 
 /** Shared handling for the account and cloud-project routes. */
 export function accountError(e: unknown): Response {
   if (e instanceof AuthError) return Response.json({ error: e.message }, { status: e.status });
+  if (e instanceof CreditsError) return Response.json({ error: e.message, code: e.code }, { status: e.status });
   console.error("[accounts]", e instanceof Error ? e.message.replace(/postgres(ql)?:\/\/\S+/g, "postgres://•••") : "unknown error");
   return Response.json({ error: "Couldn't reach the database. Try again in a moment." }, { status: 503 });
 }

@@ -60,6 +60,8 @@ export interface Member {
   apps: number;
   /** Credit balance; null until the member first uses credits (they then get the free ones). */
   credits: number | null;
+  /** Has the paid plan (bought a pack, or given by the site owner). */
+  paid: boolean;
 }
 
 export async function members(search: string, offset: number, limit = 50): Promise<{ members: Member[]; total: number }> {
@@ -75,9 +77,10 @@ export async function members(search: string, offset: number, limit = 50): Promi
     last_session: Date | null;
     last_edit: string | null;
     credits: number | null;
+    paid: boolean;
     total: string;
   }>(
-    `select u.id, u.email, u.created_at, u.credits, u.password_hash <> '' has_password, u.google_sub is not null has_google,
+    `select u.id, u.email, u.created_at, u.credits, u.paid, u.password_hash <> '' has_password, u.google_sub is not null has_google,
             (select count(*) from app_passkeys p where p.user_id = u.id) passkeys,
             (select count(*) from app_projects a where a.user_id = u.id and a.deleted_at is null) apps,
             (select max(created_at) from app_sessions s where s.user_id = u.id) last_session,
@@ -103,6 +106,7 @@ export async function members(search: string, offset: number, limit = 50): Promi
         passkeys: Number(r.passkeys),
         apps: Number(r.apps),
         credits: r.credits,
+        paid: r.paid,
       };
     }),
   };

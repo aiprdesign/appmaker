@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, CircleAlert, Loader2, Power, RefreshCw, Radio } from "lucide-react";
 import { useCloud } from "@/lib/cloud";
+import { PaidLock } from "@/components/PaidLock";
+import { locked, usePlan } from "@/lib/use-plan";
 import { LIVE_FILE, liveModule, type LiveContent } from "@/lib/live";
 import type { Project } from "@/lib/types";
 
@@ -25,6 +27,7 @@ const when = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleSt
  */
 export function LiveUpdates({ project, onChange }: { project: Project; onChange: (live: Live | undefined, files: Project["files"]) => void }) {
   const cloud = useCloud();
+  const plan = usePlan();
   const [busy, setBusy] = useState<"on" | "refresh" | "off" | null>(null);
   const [error, setError] = useState("");
   const [found, setFound] = useState<LiveContent | null>(null);
@@ -85,6 +88,8 @@ export function LiveUpdates({ project, onChange }: { project: Project; onChange:
           </Link>{" "}
           to turn on live updates.
         </p>
+      ) : locked(plan) && !live ? (
+        <PaidLock feature="Live website updates" />
       ) : (
         <div className="mt-4 space-y-3">
           {live ? (

@@ -106,6 +106,8 @@ const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 describe.skipIf(!DB)("bookings (PostgreSQL)", () => {
   beforeAll(() => {
     process.env.DATABASE_URL = DB;
+    // Without Stripe, nothing is locked to the paid plan.
+    delete process.env.STRIPE_SECRET_KEY;
   });
   afterAll(async () => {
     await setFeature("bookings", false);

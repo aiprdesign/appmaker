@@ -1,3 +1,4 @@
+import { requirePaidPlan } from "@/lib/server/credits";
 import { AuthError, assertSameOrigin } from "@/lib/server/auth";
 import { BookingInputError, parseSettings } from "@/lib/booking";
 import { deleteSetup, saveSetup, setupFor, type BookingSetup } from "@/lib/server/bookings";
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
     const user = await requireUser(req);
     assertSameOrigin(req);
     await requireFeature("bookings");
+    await requirePaidPlan(req, "bookings");
     if (!rateLimit(`bookings-setup:${user.id}`, 60, 60 * 60 * 1000).ok) return Response.json({ error: "Too many changes. Try again later." }, { status: 429 });
     const body = await readBody(req);
     const projectId = checkProjectId(String(body.projectId ?? ""));

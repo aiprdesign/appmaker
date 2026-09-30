@@ -2,7 +2,7 @@ import { feature } from "@/lib/server/features";
 import { InputError, parseAscAppId, parseAscKey, parseIcon, parseLink, parseProject, parseSigning, parseTarget } from "@/lib/eas/input";
 import { buildLimit, easErrorResponse, readJson, resolveToken } from "@/lib/eas/respond";
 import { startBuild } from "@/lib/eas/server";
-import { charge, CreditsError, creditsResponse, refund } from "@/lib/server/credits";
+import { charge, CreditsError, creditsResponse, refund, requirePaidPlan } from "@/lib/server/credits";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -31,6 +31,8 @@ export async function POST(req: Request) {
     }
     const project = parseProject(body.project);
     const icon = parseIcon(body.icon);
+    // Store builds are part of the paid plan (when payments are on).
+    await requirePaidPlan(req, "storeBuilds");
     const limited = buildLimit(req, "build", hosted);
     if (limited) return limited;
     // Builds on the site's Expo account cost credits when payments are on.

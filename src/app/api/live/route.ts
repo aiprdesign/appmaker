@@ -1,3 +1,4 @@
+import { requirePaidPlan } from "@/lib/server/credits";
 import { assertSameOrigin, AuthError } from "@/lib/server/auth";
 import { checkProjectId } from "@/lib/server/cloud-projects";
 import { createFeed } from "@/lib/server/live";
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
     const user = await requireUser(req);
     assertSameOrigin(req);
     await requireFeature("websiteImport");
+    await requirePaidPlan(req, "liveUpdates");
     if (!rateLimit(`live-create:${user.id}`, 30, 60 * 60 * 1000).ok) return Response.json({ error: "Too many changes. Try again later." }, { status: 429 });
     const body = await readBody(req);
     const projectId = checkProjectId(String(body.projectId ?? ""));

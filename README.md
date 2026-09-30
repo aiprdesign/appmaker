@@ -33,7 +33,11 @@ Credits are off until Stripe is set up. Until then everything is free, as before
 5. Test with card `4242 4242 4242 4242`. When it works, swap in your live keys and a live webhook.
 
 **How it works**
-- New accounts get free credits (`APPMAKER_FREE_CREDITS`, default 10).
+- **Plans, all credit based (no subscriptions):**
+  - *Try it*: without an account, `APPMAKER_GUEST_BUILDS` AI builds a day (default 3).
+  - *Free account*: free credits every month (`APPMAKER_FREE_CREDITS`, default 10). At the start of each month, a balance below that is topped back up; free credits don't pile up.
+  - *Paid*: buying any credit pack unlocks the paid features for good: store builds, bookings, live website updates, and apps without the small "Made with Appmaker" line. You can also give (or take away) the paid plan in **Admin → Members → credits button**.
+  - Paid features are only locked while payments are on; without Stripe, everything stays free.
 - Visitors who aren't signed in get a few free AI builds a day (`APPMAKER_GUEST_BUILDS`, default 3), then they're asked to sign in.
 - **What costs credits:**
   - an AI build or edit with the site's AI key: 1 credit;

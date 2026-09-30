@@ -47,6 +47,9 @@ Appmaker writes \`src/theme.js\` for every app from the user's Design settings (
 - Don't hard-code UI colors, corner radii or heading weights anywhere else; use these values in StyleSheet.create. Photos, gradients over photos and content colors (a category tag, a chart series) may use their own colors.
 - \`<StatusBar style={mode === 'dark' ? 'light' : 'dark'} />\`.
 
+## Made with Appmaker
+Appmaker writes \`src/appmaker.js\` for every app. Render its component once, at the very bottom of the Settings or More screen (or the last screen if there is none): \`import MadeWith from './src/appmaker';\` (relative path) then \`<MadeWith />\`. It may show a small "Made with Appmaker" line or nothing, depending on the owner's plan. Never write, change or delete \`src/appmaker.js\`, and don't add your own version of that line.
+
 ## Quality bar
 Build something that would pass App Store review and feel like a top-chart app: real content (no lorem ipsum), sensible seed data, empty states, clear hierarchy, generous spacing, rounded cards, one confident accent color, and interactions that actually work (adding, editing, deleting, toggling, filtering). Aim for 3–5 screens or tabs for a new app.
 

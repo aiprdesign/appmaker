@@ -85,6 +85,8 @@ create table if not exists app_store_pages (
   unique (user_id, project_id)
 );
 alter table app_users add column if not exists credits integer;
+alter table app_users add column if not exists credits_month text;
+alter table app_users add column if not exists paid boolean not null default false;
 create table if not exists app_credit_events (
   id bigserial primary key,
   user_id text not null references app_users(id) on delete cascade,
@@ -137,6 +139,7 @@ create table if not exists app_booking_blocks (
   note text not null default ''
 );
 create index if not exists app_booking_blocks_setup on app_booking_blocks(setup_id, ends_at);
+update app_users set paid = true where not paid and id in (select user_id from app_credit_events where ref like 'stripe:%');
 `;
 
 /** Creates the tables on first use. */

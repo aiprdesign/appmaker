@@ -1,5 +1,7 @@
 "use client";
 
+import { PaidLock } from "@/components/PaidLock";
+import { locked, usePlan } from "@/lib/use-plan";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Apple,
@@ -58,8 +60,7 @@ const TARGET_LABEL: Record<BuildTarget, string> = {
 /** Links inside sentences, with a 24px-tall tap area. */
 const inlineLink = "inline-block py-1 text-violet-300 underline underline-offset-2 hover:text-violet-200";
 
-const input =
-  "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-violet-500/60";
+const input = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-violet-500/60";
 
 function statusText(b: CloudBuild): { label: string; tone: "busy" | "ok" | "bad" | "muted" } {
   switch (b.status) {
@@ -170,6 +171,9 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
   const canUpload = !!expo.ascAppId && !!ascKey?.p8 && !!ascKey.keyId;
   const signing = settings.appleSigning && settings.appleSigning.issuerId === ascKey?.issuerId ? settings.appleSigning : undefined;
   const hasCode = Object.keys(project.files).length > 0;
+  const plan = usePlan();
+  // Store builds are part of the paid plan when the site takes payments; downloading stays free.
+  const buildsLocked = locked(plan);
 
   const connect = async () => {
     const t = tokenDraft.trim();
@@ -301,7 +305,8 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
   const blockers = [
     !hasCode && "Generate the app first.",
     !/^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*){2,}$/.test(project.listing.bundleId) && "Set a valid bundle ID in the store listing.",
-    /^com\.appmaker\./.test(project.listing.bundleId) && "Change the bundle ID to your own (e.g. com.yourname.app) — it can't be changed after the first store build.",
+    /^com\.appmaker\./.test(project.listing.bundleId) &&
+      "Change the bundle ID to your own (e.g. com.yourname.app) — it can't be changed after the first store build.",
     target === "ios" && hosted && !teamKey && "Add your App Store Connect API key in Apple setup — Appmaker uses it to sign the app.",
   ].filter(Boolean) as string[];
 
@@ -317,8 +322,8 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
         </li>
         <li>Click your account name or picture, then open the account&apos;s Settings.</li>
         <li>
-          Choose <strong className="text-foreground/90">Access tokens</strong> → Create token, name it “Appmaker” and copy it. The address
-          is <code className="font-mono text-foreground/90">expo.dev/accounts/your-username/settings/access-tokens</code>.
+          Choose <strong className="text-foreground/90">Access tokens</strong> → Create token, name it “Appmaker” and copy it. The address is{" "}
+          <code className="font-mono text-foreground/90">expo.dev/accounts/your-username/settings/access-tokens</code>.
         </li>
         <li>
           Paste it here — it stays in this browser.{" "}
@@ -382,253 +387,261 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
       )}
       {available === false && !server?.off && (
         <div role="status" className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-100/90">
-          Cloud builds aren&apos;t enabled on this server (the EAS CLI isn&apos;t installed). Run Appmaker on a server such as Railway
-          with <code className="font-mono">npm install</code>, or use “Build it yourself” below.
+          Cloud builds aren&apos;t enabled on this server (the EAS CLI isn&apos;t installed). Run Appmaker on a server such as Railway with{" "}
+          <code className="font-mono">npm install</code>, or use “Build it yourself” below.
         </div>
       )}
 
-      <ol className="mt-5 space-y-6">
-        {token ? (
-          <Step n={1} title="Connect your Expo account" done>
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="text-foreground/90">
-                Connected as <strong>{settings.accountName ?? "your Expo account"}</strong>
-              </span>
-              <button onClick={disconnect} className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted hover:text-foreground">
-                <LogOut className="h-3.5 w-3.5" /> {server?.hosted ? "Use Appmaker's builds instead" : "Disconnect"}
-              </button>
-            </div>
-          </Step>
-        ) : hosted ? (
-          <Step n={1} title="Expo builds are included" done>
-            <p className="text-xs text-muted">Builds run on Appmaker&apos;s Expo account — you don&apos;t need one.</p>
-            <details className="mt-2 text-xs">
-              <summary className="inline-flex min-h-8 cursor-pointer items-center text-muted hover:text-foreground">
-                Use my own Expo account instead (optional)
-              </summary>
-              <div className="mt-2">{tokenForm}</div>
-            </details>
-          </Step>
-        ) : (
-          <Step n={1} title="Connect your Expo account">
-            {tokenForm}
-          </Step>
-        )}
-
-        <Step n={2} title="Choose what to build">
-          <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Build type">
-            {TARGETS.map((t) => (
-              <button
-                key={t.id}
-                role="radio"
-                aria-checked={target === t.id}
-                onClick={() => setTarget(t.id)}
-                className={`rounded-xl border p-3 text-left transition ${
-                  target === t.id ? "border-violet-500/70 bg-violet-500/10" : "border-line hover:border-white/20"
-                }`}
-              >
-                <t.icon className="h-4 w-4" />
-                <div className="mt-2 text-sm font-medium">{t.title}</div>
-                <div className="mt-0.5 text-[11px] text-muted">{t.detail}</div>
-              </button>
-            ))}
-          </div>
-
-          {target === "ios" && (
-            <div className="mt-4 rounded-xl border border-line">
-              <button
-                onClick={() => setAppleOpen((o) => !o)}
-                aria-expanded={appleOpen}
-                className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-sm"
-              >
-                <span className="flex items-center gap-2">
-                  <Apple className="h-4 w-4" /> Apple setup
-                  <span className="text-xs text-muted">
-                    {teamKey ? (canUpload ? "· ready, uploads on" : "· ready") : hosted ? "· needed for iPhone builds" : "· needed once"}
-                  </span>
+      {buildsLocked ? (
+        <PaidLock feature="Store builds" signedIn={plan?.plan !== "guest"} />
+      ) : (
+        <ol className="mt-5 space-y-6">
+          {token ? (
+            <Step n={1} title="Connect your Expo account" done>
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="text-foreground/90">
+                  Connected as <strong>{settings.accountName ?? "your Expo account"}</strong>
                 </span>
-                <ChevronDown className={`h-4 w-4 text-muted transition ${appleOpen ? "rotate-180" : ""}`} />
-              </button>
-              {appleOpen && (
-                <ol className="space-y-4 border-t border-line p-3 text-xs text-muted">
-                  <li>
-                    <div className="font-medium text-foreground/90">a. Apple Developer Program</div>
-                    You need a paid membership ($99/year) —{" "}
-                    <a href="https://developer.apple.com/programs/enroll/" target="_blank" rel="noreferrer" className={inlineLink}>
-                      enroll here
-                    </a>
-                    . Approval can take a day or two.
-                  </li>
-                  <li>
-                    <div className="font-medium text-foreground/90">
-                      b. App Store Connect API key {hosted ? "(required)" : "(recommended)"}
-                    </div>
-                    <p>
-                      Appmaker uses it to create your app&apos;s signing certificate and provisioning profile and to upload builds — no
-                      Apple sign-in or command line needed. In{" "}
-                      <a href="https://appstoreconnect.apple.com/access/integrations/api" target="_blank" rel="noreferrer" className={inlineLink}>
-                        App Store Connect → Users and Access → Integrations
-                      </a>
-                      , create a <strong className="text-foreground/90">Team key</strong> with <strong className="text-foreground/90">Admin</strong>{" "}
-                      access and download the .p8 file (Apple lets you download it once). The Issuer ID is shown above the list of keys. The key
-                      stays in this browser and works for all your apps.
-                    </p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1 block text-foreground/90">Key ID</span>
-                        <input
-                          className={`${input} font-mono`}
-                          placeholder="2X9R4HXF34"
-                          value={ascKey?.keyId ?? ""}
-                          onChange={(e) => setKeyField("keyId", e.target.value.toUpperCase())}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-foreground/90">Issuer ID</span>
-                        <input
-                          className={`${input} font-mono`}
-                          placeholder="57246542-96fe-1a63-e053-0824d011072a"
-                          value={ascKey?.issuerId ?? ""}
-                          onChange={(e) => setKeyField("issuerId", e.target.value)}
-                        />
-                      </label>
-                    </div>
-                    <label className="mt-2 inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg border border-line px-3 text-foreground hover:border-white/20">
-                      <FileKey2 className="h-3.5 w-3.5" />
-                      {ascKey?.p8 ? `Key file: ${ascKey.fileName ?? "added"} — replace` : "Choose .p8 key file"}
-                      <input type="file" accept=".p8" className="sr-only" onChange={(e) => readKeyFile(e.target.files?.[0])} />
-                    </label>
-                    {keyError && (
-                      <p role="alert" className="mt-1 text-rose-300">
-                        {keyError}
-                      </p>
-                    )}
-                    {signing && (
-                      <p className="mt-2 flex items-center gap-1.5 text-emerald-300">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Signing certificate created by Appmaker
-                        {signing.expires ? ` · valid until ${new Date(signing.expires).toLocaleDateString()}` : ""}
-                      </p>
-                    )}
-                  </li>
-                  <li>
-                    <div className="font-medium text-foreground/90">c. Automatic upload to App Store Connect (optional)</div>
-                    <p>
-                      In{" "}
-                      <a href="https://appstoreconnect.apple.com/apps" target="_blank" rel="noreferrer" className={inlineLink}>
-                        App Store Connect
-                      </a>{" "}
-                      create the app (Apps → + → New App) with bundle ID{" "}
-                      <code className="font-mono text-foreground/90">{project.listing.bundleId}</code>, then copy its Apple ID from App
-                      Information.{teamKey ? "" : " Your first build registers the bundle ID, so it appears in the list."}
-                    </p>
-                    <label className="mt-2 block">
-                      <span className="mb-1 block text-foreground/90">App Store Connect Apple ID</span>
-                      <input
-                        className={`${input} font-mono`}
-                        inputMode="numeric"
-                        placeholder="6741234567"
-                        value={expo.ascAppId ?? ""}
-                        onChange={(e) => onExpoChange({ ...expo, ascAppId: e.target.value.replace(/\D/g, "") || undefined })}
-                      />
-                    </label>
-                  </li>
-                  {!hosted && !teamKey && (
-                    <li>
-                      <details>
-                        <summary className="inline-flex min-h-8 cursor-pointer items-center font-medium text-foreground/90">
-                          No API key? Set up signing from the command line instead
-                        </summary>
-                        <p className="mt-1">
-                          On any computer with Node.js (Windows is fine), download the project, unzip it and run this in its folder. Sign in
-                          to Expo and Apple when asked and accept the defaults.
-                        </p>
-                        <div className="mt-2 space-y-2">
-                          <button
-                            onClick={downloadForSetup}
-                            disabled={busy || !hasCode}
-                            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-foreground hover:border-white/20 disabled:opacity-50"
-                          >
-                            <Download className="h-3.5 w-3.5" /> Download project{token && !expo.link ? " (links it to Expo)" : ""}
-                          </button>
-                          <CopyLine
-                            cmd={`cd ${slug} && npm install && npx eas-cli@latest credentials:configure-build --platform ios --profile production`}
-                          />
-                        </div>
-                      </details>
-                    </li>
-                  )}
-                </ol>
-              )}
-            </div>
-          )}
-
-          {target === "ios" && (
-            <label className={`mt-3 flex items-center gap-2.5 text-xs ${canUpload ? "text-foreground/90" : "text-muted"}`}>
-              <input
-                type="checkbox"
-                className="h-6 w-6 shrink-0 accent-violet-500"
-                checked={submit && canUpload}
-                disabled={!canUpload}
-                onChange={(e) => setSubmit(e.target.checked)}
-              />
-              <span>
-                Upload to App Store Connect when the build finishes (for TestFlight and App Store review)
-                {!canUpload && <span className="block text-[11px]">Add the Apple ID and API key in Apple setup to turn this on.</span>}
-              </span>
-            </label>
-          )}
-          {target === "android" && (
-            <p className="mt-3 text-xs text-muted">
-              Google requires the first upload of a new app to be done by hand in Play Console. Download the .aab when it&apos;s ready
-              and upload it there.
-            </p>
-          )}
-        </Step>
-
-        <Step n={3} title="Build">
-          {blockers.length > 0 && (
-            <ul className="mb-3 space-y-1 text-xs text-amber-200/90">
-              {blockers.map((b) => (
-                <li key={b} className="flex gap-1.5">
-                  <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {b}
-                </li>
-              ))}
-            </ul>
-          )}
-          {hasPreviewError && <p className="mb-3 text-xs text-amber-200/90">The preview shows an error — fix it first so the build doesn&apos;t crash.</p>}
-          <button
-            onClick={build}
-            disabled={!canUseExpo || busy || blockers.length > 0 || available === false}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 px-4 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-            {target === "ios" ? (submit && canUpload ? "Build & upload to App Store Connect" : "Build for iPhone") : target === "android" ? "Build for Google Play" : "Build Android test app"}
-          </button>
-          {!canUseExpo && available !== false && <p className="mt-2 text-xs text-muted">Connect Expo to start a build.</p>}
-          {phase && (
-            <p role="status" className="mt-2 text-xs text-muted">
-              {phase}
-            </p>
-          )}
-          {buildError && (
-            <div role="alert" className="mt-3 whitespace-pre-wrap rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-xs text-rose-200">
-              {buildError.message}
-              {buildError.code === "auth" && (
-                <button onClick={disconnect} className="mt-2 block underline underline-offset-2">
-                  Connect a new token
+                <button onClick={disconnect} className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted hover:text-foreground">
+                  <LogOut className="h-3.5 w-3.5" /> {server?.hosted ? "Use Appmaker's builds instead" : "Disconnect"}
                 </button>
-              )}
-            </div>
+              </div>
+            </Step>
+          ) : hosted ? (
+            <Step n={1} title="Expo builds are included" done>
+              <p className="text-xs text-muted">Builds run on Appmaker&apos;s Expo account — you don&apos;t need one.</p>
+              <details className="mt-2 text-xs">
+                <summary className="inline-flex min-h-8 cursor-pointer items-center text-muted hover:text-foreground">
+                  Use my own Expo account instead (optional)
+                </summary>
+                <div className="mt-2">{tokenForm}</div>
+              </details>
+            </Step>
+          ) : (
+            <Step n={1} title="Connect your Expo account">
+              {tokenForm}
+            </Step>
           )}
-        </Step>
-      </ol>
+
+          <Step n={2} title="Choose what to build">
+            <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Build type">
+              {TARGETS.map((t) => (
+                <button
+                  key={t.id}
+                  role="radio"
+                  aria-checked={target === t.id}
+                  onClick={() => setTarget(t.id)}
+                  className={`rounded-xl border p-3 text-left transition ${
+                    target === t.id ? "border-violet-500/70 bg-violet-500/10" : "border-line hover:border-white/20"
+                  }`}
+                >
+                  <t.icon className="h-4 w-4" />
+                  <div className="mt-2 text-sm font-medium">{t.title}</div>
+                  <div className="mt-0.5 text-[11px] text-muted">{t.detail}</div>
+                </button>
+              ))}
+            </div>
+
+            {target === "ios" && (
+              <div className="mt-4 rounded-xl border border-line">
+                <button
+                  onClick={() => setAppleOpen((o) => !o)}
+                  aria-expanded={appleOpen}
+                  className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-sm"
+                >
+                  <span className="flex items-center gap-2">
+                    <Apple className="h-4 w-4" /> Apple setup
+                    <span className="text-xs text-muted">
+                      {teamKey ? (canUpload ? "· ready, uploads on" : "· ready") : hosted ? "· needed for iPhone builds" : "· needed once"}
+                    </span>
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-muted transition ${appleOpen ? "rotate-180" : ""}`} />
+                </button>
+                {appleOpen && (
+                  <ol className="space-y-4 border-t border-line p-3 text-xs text-muted">
+                    <li>
+                      <div className="font-medium text-foreground/90">a. Apple Developer Program</div>
+                      You need a paid membership ($99/year) —{" "}
+                      <a href="https://developer.apple.com/programs/enroll/" target="_blank" rel="noreferrer" className={inlineLink}>
+                        enroll here
+                      </a>
+                      . Approval can take a day or two.
+                    </li>
+                    <li>
+                      <div className="font-medium text-foreground/90">b. App Store Connect API key {hosted ? "(required)" : "(recommended)"}</div>
+                      <p>
+                        Appmaker uses it to create your app&apos;s signing certificate and provisioning profile and to upload builds — no Apple sign-in or
+                        command line needed. In{" "}
+                        <a href="https://appstoreconnect.apple.com/access/integrations/api" target="_blank" rel="noreferrer" className={inlineLink}>
+                          App Store Connect → Users and Access → Integrations
+                        </a>
+                        , create a <strong className="text-foreground/90">Team key</strong> with <strong className="text-foreground/90">Admin</strong> access
+                        and download the .p8 file (Apple lets you download it once). The Issuer ID is shown above the list of keys. The key stays in this
+                        browser and works for all your apps.
+                      </p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="mb-1 block text-foreground/90">Key ID</span>
+                          <input
+                            className={`${input} font-mono`}
+                            placeholder="2X9R4HXF34"
+                            value={ascKey?.keyId ?? ""}
+                            onChange={(e) => setKeyField("keyId", e.target.value.toUpperCase())}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-foreground/90">Issuer ID</span>
+                          <input
+                            className={`${input} font-mono`}
+                            placeholder="57246542-96fe-1a63-e053-0824d011072a"
+                            value={ascKey?.issuerId ?? ""}
+                            onChange={(e) => setKeyField("issuerId", e.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <label className="mt-2 inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg border border-line px-3 text-foreground hover:border-white/20">
+                        <FileKey2 className="h-3.5 w-3.5" />
+                        {ascKey?.p8 ? `Key file: ${ascKey.fileName ?? "added"} — replace` : "Choose .p8 key file"}
+                        <input type="file" accept=".p8" className="sr-only" onChange={(e) => readKeyFile(e.target.files?.[0])} />
+                      </label>
+                      {keyError && (
+                        <p role="alert" className="mt-1 text-rose-300">
+                          {keyError}
+                        </p>
+                      )}
+                      {signing && (
+                        <p className="mt-2 flex items-center gap-1.5 text-emerald-300">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Signing certificate created by Appmaker
+                          {signing.expires ? ` · valid until ${new Date(signing.expires).toLocaleDateString()}` : ""}
+                        </p>
+                      )}
+                    </li>
+                    <li>
+                      <div className="font-medium text-foreground/90">c. Automatic upload to App Store Connect (optional)</div>
+                      <p>
+                        In{" "}
+                        <a href="https://appstoreconnect.apple.com/apps" target="_blank" rel="noreferrer" className={inlineLink}>
+                          App Store Connect
+                        </a>{" "}
+                        create the app (Apps → + → New App) with bundle ID <code className="font-mono text-foreground/90">{project.listing.bundleId}</code>,
+                        then copy its Apple ID from App Information.{teamKey ? "" : " Your first build registers the bundle ID, so it appears in the list."}
+                      </p>
+                      <label className="mt-2 block">
+                        <span className="mb-1 block text-foreground/90">App Store Connect Apple ID</span>
+                        <input
+                          className={`${input} font-mono`}
+                          inputMode="numeric"
+                          placeholder="6741234567"
+                          value={expo.ascAppId ?? ""}
+                          onChange={(e) => onExpoChange({ ...expo, ascAppId: e.target.value.replace(/\D/g, "") || undefined })}
+                        />
+                      </label>
+                    </li>
+                    {!hosted && !teamKey && (
+                      <li>
+                        <details>
+                          <summary className="inline-flex min-h-8 cursor-pointer items-center font-medium text-foreground/90">
+                            No API key? Set up signing from the command line instead
+                          </summary>
+                          <p className="mt-1">
+                            On any computer with Node.js (Windows is fine), download the project, unzip it and run this in its folder. Sign in to Expo and Apple
+                            when asked and accept the defaults.
+                          </p>
+                          <div className="mt-2 space-y-2">
+                            <button
+                              onClick={downloadForSetup}
+                              disabled={busy || !hasCode}
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-foreground hover:border-white/20 disabled:opacity-50"
+                            >
+                              <Download className="h-3.5 w-3.5" /> Download project{token && !expo.link ? " (links it to Expo)" : ""}
+                            </button>
+                            <CopyLine cmd={`cd ${slug} && npm install && npx eas-cli@latest credentials:configure-build --platform ios --profile production`} />
+                          </div>
+                        </details>
+                      </li>
+                    )}
+                  </ol>
+                )}
+              </div>
+            )}
+
+            {target === "ios" && (
+              <label className={`mt-3 flex items-center gap-2.5 text-xs ${canUpload ? "text-foreground/90" : "text-muted"}`}>
+                <input
+                  type="checkbox"
+                  className="h-6 w-6 shrink-0 accent-violet-500"
+                  checked={submit && canUpload}
+                  disabled={!canUpload}
+                  onChange={(e) => setSubmit(e.target.checked)}
+                />
+                <span>
+                  Upload to App Store Connect when the build finishes (for TestFlight and App Store review)
+                  {!canUpload && <span className="block text-[11px]">Add the Apple ID and API key in Apple setup to turn this on.</span>}
+                </span>
+              </label>
+            )}
+            {target === "android" && (
+              <p className="mt-3 text-xs text-muted">
+                Google requires the first upload of a new app to be done by hand in Play Console. Download the .aab when it&apos;s ready and upload it there.
+              </p>
+            )}
+          </Step>
+
+          <Step n={3} title="Build">
+            {blockers.length > 0 && (
+              <ul className="mb-3 space-y-1 text-xs text-amber-200/90">
+                {blockers.map((b) => (
+                  <li key={b} className="flex gap-1.5">
+                    <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {b}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {hasPreviewError && <p className="mb-3 text-xs text-amber-200/90">The preview shows an error — fix it first so the build doesn&apos;t crash.</p>}
+            <button
+              onClick={build}
+              disabled={!canUseExpo || busy || blockers.length > 0 || available === false}
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 px-4 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+              {target === "ios"
+                ? submit && canUpload
+                  ? "Build & upload to App Store Connect"
+                  : "Build for iPhone"
+                : target === "android"
+                  ? "Build for Google Play"
+                  : "Build Android test app"}
+            </button>
+            {!canUseExpo && available !== false && <p className="mt-2 text-xs text-muted">Connect Expo to start a build.</p>}
+            {phase && (
+              <p role="status" className="mt-2 text-xs text-muted">
+                {phase}
+              </p>
+            )}
+            {buildError && (
+              <div role="alert" className="mt-3 whitespace-pre-wrap rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-xs text-rose-200">
+                {buildError.message}
+                {buildError.code === "auth" && (
+                  <button onClick={disconnect} className="mt-2 block underline underline-offset-2">
+                    Connect a new token
+                  </button>
+                )}
+              </div>
+            )}
+          </Step>
+        </ol>
+      )}
 
       {builds.length > 0 && (
         <div className="mt-6 border-t border-line pt-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium">Builds</h3>
             {activeCount > 0 && token && (
-              <button onClick={refresh} disabled={refreshing} className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted hover:text-foreground">
+              <button
+                onClick={refresh}
+                disabled={refreshing}
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted hover:text-foreground"
+              >
                 <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh
               </button>
             )}
@@ -664,7 +677,9 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
                   </div>
                   {b.error && <p className="mt-2 text-xs text-rose-300">{b.error}</p>}
                   {sub && (
-                    <p className={`mt-2 text-xs ${sub.tone === "ok" ? "text-emerald-300" : sub.tone === "bad" ? "text-rose-300" : "text-muted"}`}>{sub.label}</p>
+                    <p className={`mt-2 text-xs ${sub.tone === "ok" ? "text-emerald-300" : sub.tone === "bad" ? "text-rose-300" : "text-muted"}`}>
+                      {sub.label}
+                    </p>
                   )}
                   {b.status === "FINISHED" && b.target === "android-apk" && (
                     <p className="mt-2 text-xs text-muted">
@@ -677,23 +692,20 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
                     <div className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-surface-2 p-3">
                       <QrCode value={b.artifactUrl} size={112} label="QR code to install this build on an Android phone" />
                       <p className="text-xs text-muted">
-                        Scan with your Android phone&apos;s camera to download and install the real app. iPhones install through TestFlight
-                        instead — build for the App Store with automatic upload on.
+                        Scan with your Android phone&apos;s camera to download and install the real app. iPhones install through TestFlight instead — build for
+                        the App Store with automatic upload on.
                       </p>
                     </div>
                   )}
                   {b.status === "FINISHED" && b.target === "ios" && !b.submission && (
                     <p className="mt-2 text-xs text-muted">
-                      To send it to Apple, turn on automatic upload (Apple setup, step c) and build again — or upload the .ipa with
-                      Apple&apos;s Transporter app on a Mac.
+                      To send it to Apple, turn on automatic upload (Apple setup, step c) and build again — or upload the .ipa with Apple&apos;s Transporter app
+                      on a Mac.
                     </p>
                   )}
                   <div className="mt-2 flex flex-wrap gap-2">
                     {b.status === "FINISHED" && b.artifactUrl && (
-                      <a
-                        href={b.artifactUrl}
-                        className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-white px-3 text-xs font-medium text-black"
-                      >
+                      <a href={b.artifactUrl} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-white px-3 text-xs font-medium text-black">
                         <Download className="h-3.5 w-3.5" /> Download {b.target === "ios" ? ".ipa" : b.target === "android" ? ".aab" : ".apk"}
                       </a>
                     )}

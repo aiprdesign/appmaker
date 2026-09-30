@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   Apple,
-  Check,
   Code2,
   Download,
   MessageSquareText,
@@ -14,6 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { PlanCards } from "@/components/PlanCards";
 import { PromptBox } from "@/components/PromptBox";
 import { PhoneShot, TemplateCard } from "@/components/TemplateCard";
 import { StartOptions } from "@/components/StartOptions";
@@ -56,36 +56,6 @@ const SHOWCASE = [
   { title: "Gym or studio", label: "Gym", width: 170 },
 ];
 
-const PLANS = [
-  {
-    name: "Starter",
-    price: "$0",
-    period: "forever",
-    blurb: "Explore ideas and prototype.",
-    features: ["5 AI generations / day", "Live iOS & Android preview", "Export Expo project", "Community templates"],
-    cta: "Start free",
-    highlight: false,
-  },
-  {
-    name: "Pro",
-    price: "$25",
-    period: "/ month",
-    blurb: "For makers shipping real apps.",
-    features: ["250 AI generations / month", "Unlimited projects", "Store listing & icon studio", "GitHub + EAS build workflow", "Priority generation"],
-    cta: "Go Pro",
-    highlight: true,
-  },
-  {
-    name: "Studio",
-    price: "$79",
-    period: "/ month",
-    blurb: "For agencies and teams.",
-    features: ["1,000 AI generations / month", "Team workspaces", "White-label exports", "Custom domains for web builds", "Dedicated support"],
-    cta: "Contact sales",
-    highlight: false,
-  },
-];
-
 const FAQ = [
   {
     q: "Are these real native apps?",
@@ -102,6 +72,10 @@ const FAQ = [
   {
     q: "Do I need to know how to code?",
     a: "No. But if you do, you get clean, idiomatic source code you fully own.",
+  },
+  {
+    q: "How does pricing work?",
+    a: "There are no subscriptions. Try it without an account, or create a free account for monthly credits. When you're ready to publish, buy any credit pack: credits never expire, and your first pack unlocks store builds and the other paid features for good.",
   },
 ];
 
@@ -244,48 +218,9 @@ export default function Home() {
 
         {/* Pricing */}
         <section id="pricing" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
-          <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">Simple pricing</h2>
-          <p className="mt-3 text-center text-muted">Start free. Upgrade when you&apos;re ready to ship.</p>
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {PLANS.map((p) => (
-              <div
-                key={p.name}
-                className={`lift reveal flex flex-col rounded-2xl p-6 ${p.highlight ? "gradient-border gradient-border-live" : "border border-line bg-surface"}`}
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">{p.name}</h3>
-                  {p.highlight && (
-                    <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-300">
-                      Popular
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-sm text-muted">{p.blurb}</p>
-                <div className="mt-5 flex items-baseline gap-1">
-                  <span className="text-4xl font-semibold">{p.price}</span>
-                  <span className="text-sm text-muted">{p.period}</span>
-                </div>
-                <ul className="mt-6 flex-1 space-y-2.5 text-sm">
-                  {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
-                      <span className="text-foreground/90">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="#start"
-                  className={`mt-8 rounded-xl py-2.5 text-center text-sm font-medium ${
-                    p.highlight
-                      ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white"
-                      : "border border-line bg-surface-2 hover:border-white/20"
-                  }`}
-                >
-                  {p.cta}
-                </Link>
-              </div>
-            ))}
-          </div>
+          <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">Simple pricing, no subscriptions</h2>
+          <p className="mt-3 text-center text-muted">Try it free. Pay with credits only when you&apos;re ready to ship.</p>
+          <PlanCards />
         </section>
 
         {/* FAQ */}
@@ -315,7 +250,7 @@ export default function Home() {
               href="#start"
               className="relative mt-8 inline-flex rounded-xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90"
             >
-              Start building — it&apos;s free
+              Get Started for Free
             </Link>
           </div>
         </section>

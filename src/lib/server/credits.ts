@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { COSTS, parsePacks, type CreditKind, type CreditPack } from "../credits";
+import { COSTS, PAID_FEATURES, parsePacks, type CreditKind, type CreditPack, type PaidFeature, type Plan } from "../credits";
 import { databaseConfigured, query, transaction } from "./db";
 
 /**
@@ -49,23 +49,65 @@ export class CreditsError extends Error {
   constructor(
     message: string,
     public status = 402,
-    public code: "credits" | "sign-in" = "credits",
+    public code: "credits" | "sign-in" | "plan" = "credits",
   ) {
     super(message);
   }
 }
 
-/** Current balance; new accounts get their free credits on first use. */
-export async function balance(userId: string): Promise<number> {
+export const monthKey = (now = new Date()) => now.toISOString().slice(0, 7);
+
+/**
+ * Current balance. New accounts get their free credits on first use, and at
+ * the start of each month a balance below the free amount is topped back up
+ * to it (free credits don't pile up).
+ */
+export async function balance(userId: string, now = new Date()): Promise<number> {
   const free = paymentsConfig().freeCredits;
+  const month = monthKey(now);
   return transaction(async (c) => {
-    const rows = await c.query<{ credits: number | null }>("select credits from app_users where id = $1 for update", [userId]);
-    if (!rows.rows[0]) return 0;
-    if (rows.rows[0].credits !== null) return rows.rows[0].credits;
-    await c.query("update app_users set credits = $2 where id = $1", [userId, free]);
-    if (free) await c.query("insert into app_credit_events (user_id, delta, reason) values ($1, $2, 'Welcome credits')", [userId, free]);
-    return free;
+    const rows = await c.query<{ credits: number | null; credits_month: string | null }>("select credits, credits_month from app_users where id = $1 for update", [
+      userId,
+    ]);
+    const row = rows.rows[0];
+    if (!row) return 0;
+    if (row.credits === null) {
+      await c.query("update app_users set credits = $2, credits_month = $3 where id = $1", [userId, free, month]);
+      if (free) await c.query("insert into app_credit_events (user_id, delta, reason) values ($1, $2, 'Welcome credits')", [userId, free]);
+      return free;
+    }
+    if (row.credits_month && row.credits_month >= month) return row.credits;
+    const topUp = Math.max(0, free - row.credits);
+    await c.query("update app_users set credits = credits + $2, credits_month = $3 where id = $1", [userId, topUp, month]);
+    if (topUp) await c.query("insert into app_credit_events (user_id, delta, reason) values ($1, $2, 'Monthly free credits')", [userId, topUp]);
+    return row.credits + topUp;
   });
+}
+
+/** Whether the account has the paid plan (bought any pack, or given it by the site owner). */
+export async function isPaid(userId: string): Promise<boolean> {
+  const rows = await query<{ paid: boolean }>("select paid from app_users where id = $1", [userId]);
+  return rows[0]?.paid === true;
+}
+
+export async function setPaid(userId: string, paid: boolean): Promise<void> {
+  await query("update app_users set paid = $2 where id = $1", [userId, paid]);
+}
+
+export async function planOf(userId: string | null): Promise<Plan> {
+  if (!userId) return "guest";
+  return (await isPaid(userId)) ? "paid" : "free";
+}
+
+/** Stops a paid feature for accounts without the paid plan (only while payments are on). */
+export async function requirePaidPlan(req: Request, feature: PaidFeature): Promise<void> {
+  if (!paymentsConfig().enabled) return;
+  const { currentUser } = await import("./auth");
+  const user = await currentUser(req);
+  const label = PAID_FEATURES[feature];
+  if (!user) throw new CreditsError(`Sign in to use ${label.toLowerCase()}.`, 401, "sign-in");
+  if (!(await isPaid(user.id)))
+    throw new CreditsError(`${label} are part of the paid plan. Buy any credit pack to unlock them for good (/credits).`, 402, "plan");
 }
 
 /** Takes credits for an action, or throws a CreditsError that explains what to do. */
@@ -172,7 +214,10 @@ export async function creditSession(session: CheckoutSession): Promise<boolean> 
   const userId = session.metadata?.user_id || session.client_reference_id;
   const credits = Number(session.metadata?.credits);
   if (!userId || !Number.isInteger(credits) || credits <= 0) return false;
-  return addCredits(userId, credits, `Bought ${credits} credits`, `stripe:${session.id}`);
+  const added = await addCredits(userId, credits, `Bought ${credits} credits`, `stripe:${session.id}`);
+  // Any purchase unlocks the paid plan for good.
+  await setPaid(userId, true);
+  return added;
 }
 
 /** The buyer is back from Checkout: ask Stripe directly, so credits show up without waiting for the webhook. */
@@ -216,7 +261,7 @@ export async function charge(req: Request, kind: CreditKind, opts: { auto?: bool
   if (!user) {
     // The limiter always lets a first request through, so "no free builds" is checked on its own.
     if (kind !== "generate" || cfg.guestBuilds === 0 || !rateLimit(`guest-generate:${clientIp(req)}`, cfg.guestBuilds, DAY).ok) {
-      throw new CreditsError(`Sign in to keep building: new accounts get ${cfg.freeCredits} free credits.`, 401, "sign-in");
+      throw new CreditsError(`Sign in to keep building: free accounts get ${cfg.freeCredits} credits every month.`, 401, "sign-in");
     }
     return { userId: null, charged: false };
   }
@@ -230,13 +275,16 @@ export function creditsResponse(e: CreditsError): Response {
 }
 
 /** Payment totals for the admin dashboard. */
-export async function paymentStats(): Promise<{ purchases: number; creditsSold: number; creditsSpent: number }> {
-  const rows = await query<{ purchases: string; sold: string | null; spent: string | null }>(
-    `select count(*) filter (where ref like 'stripe:%') purchases,
-            sum(delta) filter (where ref like 'stripe:%') sold,
-            -sum(delta) filter (where delta < 0) spent
-       from app_credit_events`,
-  );
+export async function paymentStats(): Promise<{ purchases: number; creditsSold: number; creditsSpent: number; paidMembers: number }> {
+  const [rows, paid] = await Promise.all([
+    query<{ purchases: string; sold: string | null; spent: string | null }>(
+      `select count(*) filter (where ref like 'stripe:%') purchases,
+              sum(delta) filter (where ref like 'stripe:%') sold,
+              -sum(delta) filter (where delta < 0) spent
+         from app_credit_events`,
+    ),
+    query<{ n: string }>("select count(*) n from app_users where paid"),
+  ]);
   const r = rows[0];
-  return { purchases: Number(r?.purchases ?? 0), creditsSold: Number(r?.sold ?? 0), creditsSpent: Number(r?.spent ?? 0) };
+  return { purchases: Number(r?.purchases ?? 0), creditsSold: Number(r?.sold ?? 0), creditsSpent: Number(r?.spent ?? 0), paidMembers: Number(paid[0]?.n ?? 0) };
 }
