@@ -14,9 +14,10 @@ import {
   Zap,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
-import { PromptBox, TemplateButton } from "@/components/PromptBox";
+import { PromptBox } from "@/components/PromptBox";
+import { PhoneShot, TemplateCard } from "@/components/TemplateCard";
 import { StartOptions } from "@/components/StartOptions";
-import { BUSINESS_TEMPLATES, TEMPLATES } from "@/lib/templates";
+import { BUSINESS_TEMPLATES, TEMPLATES, templateImage } from "@/lib/templates";
 
 const STEPS = [
   {
@@ -43,6 +44,15 @@ const FEATURES = [
   { icon: Store, title: "Store listing studio", body: "Name, subtitle, keywords, description and category written for ASO." },
   { icon: Palette, title: "Your logo as the icon", body: "Upload your logo for a store-ready 1024×1024 icon, or generate one from your brand color and an emoji." },
   { icon: ShieldCheck, title: "Review-ready defaults", body: "Bundle IDs, privacy notes, build numbers and EAS config set up for you." },
+];
+
+/** Phones in the showcase under the hero: template titles, widest in the middle. */
+const SHOWCASE = [
+  { title: "Salon or barber", label: "Salon", width: 170 },
+  { title: "Habit tracker", label: "Habits", width: 200 },
+  { title: "Restaurant or café", label: "Restaurant", width: 236 },
+  { title: "Budget planner", label: "Budget", width: 200 },
+  { title: "Gym or studio", label: "Gym", width: 170 },
 ];
 
 const PLANS = [
@@ -114,7 +124,7 @@ export default function Home() {
             Publish-ready Expo projects with one-command store builds →
           </Link>
           <h1 className="mx-auto max-w-4xl text-4xl font-semibold tracking-tight md:text-7xl">
-            Turn a prompt into an <span className="text-gradient">App Store app</span>
+            Turn a prompt or a website into an <span className="text-gradient">App Store app</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-muted md:text-lg">
             Describe your idea or paste your website. Appmaker designs and codes a native iOS &amp; Android app, lets you test it live, and
@@ -137,6 +147,28 @@ export default function Home() {
               <Download className="h-4 w-4" /> Own your code
             </span>
           </div>
+        </section>
+
+        {/* Showcase */}
+        <section aria-labelledby="showcase-title" className="relative mx-auto max-w-6xl overflow-hidden px-4 pb-16">
+          <h2 id="showcase-title" className="sr-only">
+            Apps made with Appmaker
+          </h2>
+          <div className="flex items-end justify-center gap-3 md:gap-6">
+            {SHOWCASE.map((s, i) => (
+              <figure
+                key={s.title}
+                className={`flex flex-col items-center ${i === 0 || i === SHOWCASE.length - 1 ? "hidden md:flex" : ""}`}
+                style={{ width: `min(28vw, ${s.width}px)` }}
+              >
+                <PhoneShot src={templateImage(s)} alt={`${s.label} app made with Appmaker`} width={s.width} className="w-full" eager={i === 2} />
+                <figcaption className="mt-3 text-xs text-muted">{s.label}</figcaption>
+              </figure>
+            ))}
+          </div>
+          <p className="mx-auto mt-6 max-w-xl text-center text-xs text-muted">
+            Real screens from Appmaker&apos;s app preview. Start from any of them below, or describe your own.
+          </p>
         </section>
 
         {/* Two ways to start */}
@@ -185,20 +217,7 @@ export default function Home() {
           </div>
           <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
             {BUSINESS_TEMPLATES.map((t) => (
-              <TemplateButton
-                key={t.title}
-                prompt={t.prompt}
-                className="group rounded-2xl border border-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-white/20"
-              >
-                <div
-                  className="grid aspect-[4/3] place-items-center rounded-xl text-5xl"
-                  style={{ background: `linear-gradient(135deg, ${t.color}55, ${t.color}10)` }}
-                >
-                  <span className="transition group-hover:scale-110">{t.emoji}</span>
-                </div>
-                <div className="mt-3 text-sm font-medium">{t.title}</div>
-                <div className="text-xs text-muted">{t.category}</div>
-              </TemplateButton>
+              <TemplateCard key={t.title} template={t} />
             ))}
           </div>
         </section>
@@ -211,20 +230,7 @@ export default function Home() {
           </div>
           <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
             {TEMPLATES.map((t) => (
-              <TemplateButton
-                key={t.title}
-                prompt={t.prompt}
-                className="group rounded-2xl border border-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-white/20"
-              >
-                <div
-                  className="grid aspect-[4/3] place-items-center rounded-xl text-5xl"
-                  style={{ background: `linear-gradient(135deg, ${t.color}55, ${t.color}10)` }}
-                >
-                  <span className="transition group-hover:scale-110">{t.emoji}</span>
-                </div>
-                <div className="mt-3 text-sm font-medium">{t.title}</div>
-                <div className="text-xs text-muted">{t.category}</div>
-              </TemplateButton>
+              <TemplateCard key={t.title} template={t} />
             ))}
           </div>
         </section>

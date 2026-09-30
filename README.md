@@ -21,6 +21,7 @@ Limitations: the importer reads the HTML the server sends. Sites that load all t
 
 ## Apps for businesses
 
+- **Template screenshots.** Every template card and the showcase under the hero show the app's home screen. These are rendered by Appmaker's own preview runtime at iPhone size: the habit, budget, workout and journal templates are the built-in sample apps, and the others are a one-screen app with the template's content. After adding or changing a template, run `npm run build && APPMAKER_DEMO=1 npx next start -p 3150`, then `npx tsx scripts/template-screens.ts`. A unit test checks that every template has an image.
 - **Two ways to start: Prompt to App and URL to App.** They're tabs on the prompt box, and a section on the home page shows them side by side, each with a "Try" button that opens that tab. The admin **Build from a website** switch hides URL to App everywhere.
 - **Share links for URL to App.** `https://your-site/?url=theirbusiness.com` opens Appmaker and reads that website straight away, ready to build. Send one to a business owner as "see your website as an app". `/?mode=url` just opens the URL to App tab. The link is removed from the address bar after it's used, so a reload doesn't read the site again.
 - **Business templates** on the home page: restaurant or café, salon or barber, gym, clinic, local shop, church, real estate and home services. Each fills in a prompt with [bracketed] blanks for the business's details. The first blank is selected so you can type straight over it. The AI never makes up anything left in brackets.

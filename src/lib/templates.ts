@@ -6,6 +6,21 @@ export interface Template {
   prompt: string;
 }
 
+/** URL-safe name, e.g. "Restaurant or café" → "restaurant-or-cafe". */
+export function templateSlug(t: Pick<Template, "title">): string {
+  return t.title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** Screenshot of the template's app (made by scripts/template-screens.ts). */
+export function templateImage(t: Pick<Template, "title">): string {
+  return `/templates/${templateSlug(t)}.jpg`;
+}
+
 export const TEMPLATES: Template[] = [
   {
     title: "Habit tracker",

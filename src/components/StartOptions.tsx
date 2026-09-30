@@ -39,7 +39,9 @@ export function StartOptions() {
         <h2 id="ways-title" className="text-3xl font-semibold tracking-tight md:text-4xl">
           {options.length > 1 ? "Two ways to make your app" : "Make your app from a prompt"}
         </h2>
-        {options.length > 1 && <p className="mt-3 text-muted">Start from an idea or from a website. Try both: each one gives you a real app you can test on your phone.</p>}
+        {options.length > 1 && (
+          <p className="mt-3 text-muted">Start from an idea or from a website. Try both: each one gives you a real app you can test on your phone.</p>
+        )}
       </div>
       <div className={`mt-10 grid gap-4 ${options.length > 1 ? "md:grid-cols-2" : "mx-auto max-w-xl"}`}>
         {options.map((o) => (
