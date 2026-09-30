@@ -132,6 +132,15 @@ export interface CloudBuild {
   submission?: { status: string; error?: string };
 }
 
+/** Design settings, applied through src/theme.js (see src/lib/design.ts). */
+export interface AppDesign {
+  primary: string;
+  mode: "light" | "dark";
+  corners: "sharp" | "rounded" | "soft";
+  cards: "flat" | "raised" | "outlined";
+  headings: "light" | "regular" | "bold";
+}
+
 /** The app's hosted support page and privacy policy. */
 export interface StorePagesState {
   id: string;
@@ -185,6 +194,8 @@ export interface Project {
   pending?: PendingRequest;
   /** Cloud builds with Expo Application Services. */
   expo?: ExpoState;
+  /** Design settings from the Design tab; without them the design follows the listing's brand color. */
+  design?: AppDesign;
   /** Live updates from the business's website (see src/lib/live.ts). */
   live?: { id: string; url: string; feedUrl: string; fetchedAt: string | null; error?: string | null };
   /** Hosted support page and privacy policy (see src/lib/store-pages.ts). */

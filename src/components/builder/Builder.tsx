@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Code2, Download, Loader2, MessageSquare, RotateCw, Rocket, ShieldCheck, Smartphone, Wand2 } from "lucide-react";
+import { AlertTriangle, Code2, Download, Loader2, MessageSquare, Palette, RotateCw, Rocket, ShieldCheck, Smartphone, Wand2 } from "lucide-react";
 import { HistoryMenu } from "./HistoryMenu";
 import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
 import { LIVE_FILE, liveModule } from "@/lib/live";
+import { defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
+import { DesignPanel } from "./DesignPanel";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
@@ -19,7 +21,7 @@ import { describeIssues, isAllowedPath, validateApp, type ValidationIssue } from
 import { checkClaims, DEFAULT_WORDING, describeClaims } from "@/lib/claims";
 import { cleanFiles } from "@/lib/parse";
 import { checkRegulatedClaims, describeRegulated } from "@/lib/regulated";
-import type { ChatMessage, FileMap, Project } from "@/lib/types";
+import type { AppDesign, ChatMessage, FileMap, Project } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
 import { CodePanel } from "./CodePanel";
 import { AppIcon, PublishPanel } from "./PublishPanel";
@@ -74,6 +76,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [mobileView, setMobileView] = useState<"chat" | "app">("chat");
   const [platform, setPlatform] = useState<"ios" | "android">("ios");
   const [generating, setGenerating] = useState(false);
+  const [designOpen, setDesignOpen] = useState(false);
   const [live, setLive] = useState<ParsedGeneration | null>(null);
   const [previewFiles, setPreviewFiles] = useState<FileMap>({});
   /** A new version is being checked (and fixed) before it's shown. */
@@ -252,6 +255,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // Website apps always carry Appmaker's live-content file, whatever the AI wrote.
       if (base.source) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
+      // Every app carries Appmaker's theme file too, written from the Design settings.
+      if (Object.keys(files).length) files[THEME_FILE] = themeModule(base.design ?? defaultDesign(listing));
 
       const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && isAllowedPath(p)) && continueBudget.current > 0 && !demoRef.current;
       if (continuing) error = "";
@@ -368,7 +373,10 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const v = p?.versions?.find((x) => x.id === versionId);
       if (!p || !v || abortRef.current) return;
       const when = new Date(v.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      const restored = withVersion({ ...p, files: v.files, listing: v.listing, name: v.listing.name || p.name }, `Restored the version from ${when}`);
+      // The design is a setting, not part of a version: the restored code keeps today's look.
+      const files = p.design ? { ...v.files, [THEME_FILE]: themeModule(p.design) } : v.files;
+      const listing = p.design ? { ...v.listing, primaryColor: p.design.primary } : v.listing;
+      const restored = withVersion({ ...p, files, listing, name: v.listing.name || p.name }, `Restored the version from ${when}`);
       const note: ChatMessage = {
         id: uid(),
         role: "assistant",
@@ -377,7 +385,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         versionId: restored.versionId,
       };
       commit({ ...restored.project, messages: [...p.messages, note] });
-      setPreviewFiles(v.files);
+      setPreviewFiles(files);
       setReloadKey((k) => k + 1);
       setSelectedFile("App.js");
     },
@@ -445,6 +453,14 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   }
 
   const hasApp = Object.keys(project.files).length > 0;
+
+  // A design change rewrites src/theme.js and shows straight away: no AI, no credits.
+  const changeDesign = (design: AppDesign) => {
+    const current = projectRef.current ?? project;
+    const files = { ...current.files, [THEME_FILE]: themeModule(design) };
+    commit({ ...current, design, files, listing: { ...current.listing, primaryColor: design.primary } });
+    setPreviewFiles(files);
+  };
   const shownFiles = generating && live ? { ...project.files, ...live.files } : project.files;
 
   const tabs: { key: Tab; label: string; icon: typeof Smartphone }[] = [
@@ -581,6 +597,17 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 >
                   <RotateCw className="h-3.5 w-3.5" />
                 </button>
+                {hasApp && (
+                  <button
+                    onClick={() => setDesignOpen((o) => !o)}
+                    aria-pressed={designOpen}
+                    className={`flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
+                      designOpen ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <Palette className="h-3.5 w-3.5" /> Design
+                  </button>
+                )}
                 {generating && hasApp && (
                   <span className="flex items-center gap-1.5 text-xs text-muted">
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> Applying changes…
@@ -607,7 +634,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   )}
                 </div>
               )}
-              <div className="relative min-h-0 flex-1 px-4 pb-4">
+              <div className="relative flex min-h-0 flex-1 gap-4 px-4 pb-4">
+                <div className="relative min-h-0 min-w-0 flex-1">
                 <PhoneFrame platform={platform}>
                   {checking && <ChecksOverlay generating={generating} />}
                   {hasApp || Object.keys(previewFiles).length ? (
@@ -625,6 +653,24 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                     </div>
                   )}
                 </PhoneFrame>
+                </div>
+                {designOpen && hasApp && (
+                  // Beside the phone on wide screens; a sheet over the lower half on phones.
+                  <div className="absolute inset-x-2 bottom-2 z-20 max-h-[60%] lg:static lg:inset-auto lg:z-auto lg:max-h-none lg:w-80 lg:shrink-0">
+                    <DesignPanel
+                      project={project}
+                      busy={generating || checking}
+                      onChange={changeDesign}
+                      onClose={() => setDesignOpen(false)}
+                      onMakeCustomizable={() => {
+                        setDesignOpen(false);
+                        send(
+                          `Make this app's design customizable: move every color, corner radius, font weight and card style into imports from src/theme.js (colors, radius, font, card, mode), as the design rules describe. Keep the layout, content and behavior exactly the same.`,
+                        );
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}

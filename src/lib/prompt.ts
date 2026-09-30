@@ -11,7 +11,6 @@ The app runs in two places: a live in-browser preview (React Native Web) and a r
 - Entry point: \`App.js\` with a default-exported component. Split larger apps into files under \`src/\` (e.g. \`src/screens/HomeScreen.js\`, \`src/components/Card.js\`, \`src/data.js\`) and import them with relative paths without file extensions.
 - Allowed imports ONLY: \`react\`, \`react-native\`, \`@react-native-async-storage/async-storage\`, \`expo-status-bar\`, \`react-native-safe-area-context\`, \`expo-haptics\`, \`expo-notifications\`, \`expo-image-picker\`, \`lucide-react-native\` (icons), and the app's own files. No navigation libraries or other icon packs.
 - Navigation: implement it yourself with state (a bottom tab bar and/or a simple stack held in useState).
-- Icons: use emoji or simple shapes drawn with Views.
 - No asset files: you can only write .js/.jsx/.json files, so never import or require images, fonts or sounds (\`require('./assets/logo.png')\` breaks the app). Use emoji, styled Views, or a remote image: \`<Image source={{ uri: 'https://…' }} />\` with a stable https URL.
 - Persistence: AsyncStorage for anything the user creates, so data survives restarts.
 - Styling: StyleSheet.create. Never use CSS, className, or web-only APIs (window, document, localStorage).
@@ -40,6 +39,13 @@ The app runs in two places: a live in-browser preview (React Native Web) and a r
 - Write plain, readable code: no eval(), new Function(), code in strings, WebAssembly, background workers, obfuscated or minified code, large encoded blobs, or imports that go outside the app (absolute paths, "../" past the project, require.context).
 - Always show a loading state, a friendly error with a Retry button, and cache the last good result in AsyncStorage so the app still shows something offline.
 - Images returned by these APIs may be shown with \`<Image source={{ uri }} />\`; otherwise use emoji and shapes.
+
+## Design theme
+Appmaker writes \`src/theme.js\` for every app from the user's Design settings (color scheme, light/dark, corners, card style, headings), so the user can restyle the app without you. Never write or delete \`src/theme.js\`; read the design from it:
+- \`import { colors, radius, font, card, mode } from './src/theme';\` (relative path, e.g. \`'../theme'\` from \`src/screens/\`).
+- colors: \`primary\`, \`onPrimary\` (text/icons on primary buttons), \`primarySoft\` (tinted chips and selected rows), \`background\`, \`surface\`, \`text\`, \`muted\`, \`border\`, \`success\`, \`danger\`. radius: \`sm\`, \`md\`, \`lg\`, \`pill\`. font: \`heading\` and \`body\` fontWeight strings. \`card\` is a ready style object for cards: \`style={[card, styles.item]}\`.
+- Don't hard-code UI colors, corner radii or heading weights anywhere else; use these values in StyleSheet.create. Photos, gradients over photos and content colors (a category tag, a chart series) may use their own colors.
+- \`<StatusBar style={mode === 'dark' ? 'light' : 'dark'} />\`.
 
 ## Quality bar
 Build something that would pass App Store review and feel like a top-chart app: real content (no lorem ipsum), sensible seed data, empty states, clear hierarchy, generous spacing, rounded cards, one confident accent color, and interactions that actually work (adding, editing, deleting, toggling, filtering). Aim for 3–5 screens or tabs for a new app.

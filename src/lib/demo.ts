@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { defaultDesign, THEME_FILE, themeModule } from "./design";
 import type { FileMap, SiteSummary, StoreListing } from "./types";
 
 /**
@@ -141,6 +142,8 @@ export function demoResponse(prompt: string, isEdit: boolean, site?: SiteSummary
     const original = (demo?.listing ?? { primaryColor: "#2563EB" }).primaryColor;
     for (const [p, code] of Object.entries(files)) files[p] = code.split(original).join(site.colors[0]);
   }
+  // Themed starters read their colors from src/theme.js, written from the listing.
+  if (files[THEME_FILE] != null) files[THEME_FILE] = themeModule(defaultDesign(listing));
   const body = Object.entries(files)
     .map(([p, code]) => `<file path="${p}">\n${code}</file>`)
     .join("\n");

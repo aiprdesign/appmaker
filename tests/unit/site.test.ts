@@ -198,7 +198,7 @@ describe("using an imported site", () => {
     const parsed = parseGeneration(demoResponse("Turn this into an app", false, site));
     expect(parsed.listing?.name).toBe("Luigi's Trattoria");
     expect(parsed.listing?.primaryColor).toBe("#b91c1c");
-    expect(parsed.files["App.js"]).toContain("#b91c1c");
+    expect(parsed.files["src/theme.js"]).toContain("#b91c1c");
     expect(parsed.files["App.js"]).toContain("Luigi's Trattoria");
   });
 });
