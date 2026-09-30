@@ -73,6 +73,77 @@ export const TEMPLATES: Template[] = [
   },
 ];
 
+/**
+ * Starting points for a business's own app. The [bracketed] parts are for the
+ * business's real details; importing its website instead fills them in.
+ */
+export const BUSINESS_TEMPLATES: Template[] = [
+  {
+    title: "Restaurant or café",
+    emoji: "🍽️",
+    color: "#E0482B",
+    category: "Food & Drink",
+    prompt:
+      "An app for my restaurant [name] in [city]. Home with today's specials and an Open now / Closed badge from our hours [hours], a menu with categories, prices and dietary tags, a digital loyalty card (10 stamps = free coffee, staff add a stamp with a 4-digit PIN), and a Visit screen with one-tap Call [phone], Directions to [address] and Order online / Book a table [link].",
+  },
+  {
+    title: "Salon or barber",
+    emoji: "💈",
+    color: "#B4546A",
+    category: "Beauty",
+    prompt:
+      "An app for my salon [name]. Services with prices and durations, our team with specialties, a photo gallery, a Book now button that opens [booking link], a loyalty card (every 6th visit 20% off, staff PIN to add a visit), appointment reminders the customer sets, and one-tap Call [phone], WhatsApp and Directions to [address].",
+  },
+  {
+    title: "Gym or studio",
+    emoji: "🏋️",
+    color: "#2563EB",
+    category: "Fitness",
+    prompt:
+      "An app for my gym [name]. Weekly class timetable with filters by class type, favourite classes with a reminder before they start, membership options and prices, trainers, opening hours with an Open now badge [hours], a check-in streak tracker, and one-tap Call [phone], Directions to [address] and Book a class [link].",
+  },
+  {
+    title: "Clinic or dentist",
+    emoji: "🦷",
+    color: "#0E9F8E",
+    category: "Health",
+    prompt:
+      "An information app for my clinic [name]. Services we offer (descriptions only, no medical claims), our practitioners, opening hours with an Open now badge [hours], what to bring to a first visit, an appointment reminder the patient sets for themselves, and one-tap Call [phone], Directions to [address] and Book an appointment [link].",
+  },
+  {
+    title: "Local shop",
+    emoji: "🛍️",
+    color: "#7C3AED",
+    category: "Shopping",
+    prompt:
+      "An app for my shop [name]. A product catalog with categories, prices and a wishlist, this week's offers, new arrivals, a loyalty card with a staff PIN, store hours with an Open now badge [hours], and one-tap Call [phone], Directions to [address], Instagram [link] and Shop online [link].",
+  },
+  {
+    title: "Church or community",
+    emoji: "⛪",
+    color: "#A16207",
+    category: "Community",
+    prompt:
+      "An app for [name], our church community. Service times and upcoming events with reminders, sermon notes people can save, a prayer request form that opens an email to [email], groups and ministries, a giving button that opens [link], and one-tap Call [phone] and Directions to [address].",
+  },
+  {
+    title: "Real estate agent",
+    emoji: "🏡",
+    color: "#0F766E",
+    category: "Real Estate",
+    prompt:
+      "An app for my real estate agency [name]. Featured listings with price, beds, baths and area, filters and saved favourites, a mortgage payment calculator (estimates only), an Open house schedule with reminders, and one-tap Call [phone], WhatsApp, Email [email] and Book a viewing [link].",
+  },
+  {
+    title: "Home services",
+    emoji: "🧰",
+    color: "#EA580C",
+    category: "Business",
+    prompt:
+      "An app for my [plumbing / cleaning / electrical] business [name]. Services with starting prices, a simple quote request that opens an email to [email] with the customer's details and photos described, service areas, reviews, opening hours [hours], and one-tap Call [phone] and WhatsApp.",
+  },
+];
+
 export const EDIT_SUGGESTIONS = [
   "Add a dark mode toggle in settings",
   "Add an onboarding flow with 3 screens",

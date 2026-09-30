@@ -424,7 +424,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         <Logo href="/projects" />
         <span className="hidden text-line sm:inline">/</span>
         <div className="hidden min-w-0 items-center gap-2 sm:flex">
-          <AppIcon listing={project.listing} size={22} />
+          <AppIcon listing={project.listing} icon={project.icon} size={22} />
           <span className="truncate text-sm font-medium">{project.name}</span>
           {demoMode && (
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300" title="Set ANTHROPIC_API_KEY to enable AI generation">
@@ -609,6 +609,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               hasPreviewError={!!previewError}
               onChange={(listing) => commit({ ...project, listing, name: listing.name || project.name })}
               onExpoChange={(expo) => commit({ ...(projectRef.current ?? project), expo })}
+              onIconChange={(icon) => commit({ ...(projectRef.current ?? project), icon })}
             />
           )}
         </main>

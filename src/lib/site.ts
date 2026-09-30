@@ -3,7 +3,8 @@ import https from "node:https";
 import zlib from "node:zlib";
 import { parse, type HTMLElement } from "node-html-parser";
 import { isPrivateHost, isPublicAddress, makeSafeLookup } from "./net-guard";
-import type { SitePage, SiteSummary } from "./types";
+import { cleanEmail, cleanPhone, cleanText, MAX_SITE_IMAGES, safeHttpsUrl, sanitizeContact } from "./site-details";
+import type { SiteContact, SitePage, SiteSummary } from "./types";
 
 export { isPublicAddress };
 
@@ -211,6 +212,146 @@ function extractPage(root: HTMLElement, url: URL): SitePage {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Photos and contact details
+
+const BOOKING_HOSTS =
+  /(^|\.)(calendly|booksy|fresha|vagaro|opentable|resy|setmore|acuityscheduling|mindbodyonline|treatwell|schedulicity|exploretock|sevenrooms|squareup|square\.site|toasttab|ubereats|doordash|grubhub|deliveroo|zenoti|simplybook|youcanbook|appointy|glossgenius|styleseat)\./i;
+const BOOKING_TEXT = /\b(book|booking|reserve|reservations?|appointments?|order online|order now|schedule)\b/i;
+const SOCIAL_HOSTS = /^(www\.)?(instagram|facebook|tiktok|twitter|x|youtube|linkedin|pinterest)\.com$/i;
+const MAPS_LINK = /(google\.[a-z.]+\/maps|maps\.google\.|goo\.gl\/maps|maps\.app\.goo\.gl|maps\.apple\.com)/i;
+const JUNK_IMAGE = /(pixel|spacer|tracking|sprite|blank|placeholder|loader|lazy|1x1|gravatar|badge|payment|flag)/i;
+
+interface Details {
+  logos: string[];
+  images: string[];
+  contact: Partial<SiteContact> & { phones: string[]; emails: string[]; hours: string[]; social: string[] };
+}
+
+function absolute(href: string | undefined, base: URL): string | null {
+  if (!href || href.startsWith("data:")) return null;
+  try {
+    return safeHttpsUrl(new URL(href.trim(), base).toString());
+  } catch {
+    return null;
+  }
+}
+
+/** The largest image in a srcset. */
+function fromSrcset(srcset: string | undefined): string | undefined {
+  if (!srcset) return undefined;
+  const parts = srcset.split(",").map((p) => p.trim().split(/\s+/)[0]).filter(Boolean);
+  return parts[parts.length - 1];
+}
+
+function readJsonLd(root: HTMLElement, add: (o: Record<string, unknown>) => void) {
+  const visit = (v: unknown, depth: number) => {
+    if (depth > 4 || !v || typeof v !== "object") return;
+    if (Array.isArray(v)) return v.slice(0, 20).forEach((x) => visit(x, depth + 1));
+    const o = v as Record<string, unknown>;
+    add(o);
+    if (o["@graph"]) visit(o["@graph"], depth + 1);
+  };
+  for (const script of root.querySelectorAll('script[type="application/ld+json"]').slice(0, 10)) {
+    try {
+      visit(JSON.parse(script.text), 0);
+    } catch {
+      /* ignore broken structured data */
+    }
+  }
+}
+
+function extractDetails(root: HTMLElement, base: URL): Details {
+  const d: Details = { logos: [], images: [], contact: { phones: [], emails: [], hours: [], social: [] } };
+  const c = d.contact;
+
+  for (const name of ["og:image", "og:image:secure_url", "twitter:image"]) {
+    const url = absolute(meta(root, name), base);
+    if (url) d.images.push(url);
+  }
+  for (const img of root.querySelectorAll("img").slice(0, 200)) {
+    const src = img.getAttribute("src") || img.getAttribute("data-src") || img.getAttribute("data-lazy-src") || fromSrcset(img.getAttribute("srcset") ?? img.getAttribute("data-srcset"));
+    const url = absolute(src, base);
+    if (!url || /\.(svg|gif|ico)(\?|$)/i.test(url) || JUNK_IMAGE.test(url)) continue;
+    const w = Number(img.getAttribute("width")) || 0;
+    const h = Number(img.getAttribute("height")) || 0;
+    if ((w && w < 64) || (h && h < 64)) continue;
+    const label = `${url} ${img.getAttribute("alt") ?? ""} ${img.getAttribute("class") ?? ""} ${img.getAttribute("id") ?? ""}`;
+    if (/logo/i.test(label)) d.logos.push(url);
+    else d.images.push(url);
+  }
+
+  for (const a of root.querySelectorAll("a[href]").slice(0, 500)) {
+    const href = (a.getAttribute("href") ?? "").trim();
+    if (/^tel:/i.test(href)) {
+      const phone = cleanPhone(decodeURIComponent(href));
+      if (phone) c.phones.push(phone);
+      continue;
+    }
+    if (/^mailto:/i.test(href)) {
+      const email = cleanEmail(href);
+      if (email) c.emails.push(email);
+      continue;
+    }
+    const url = absolute(href, base);
+    if (!url) continue;
+    const host = new URL(url).hostname;
+    if (/(^|\.)(wa\.me|api\.whatsapp\.com|whatsapp\.com)$/i.test(host)) c.whatsapp ??= url;
+    else if (MAPS_LINK.test(url)) c.maps ??= url;
+    else if (SOCIAL_HOSTS.test(host)) c.social.push(url);
+    else if (BOOKING_HOSTS.test(host) || (BOOKING_TEXT.test(clean(a.text)) && clean(a.text).length < 40)) c.booking ??= url;
+  }
+
+  readJsonLd(root, (o) => {
+    const phone = cleanPhone(o.telephone);
+    if (phone) c.phones.push(phone);
+    const email = cleanEmail(o.email);
+    if (email) c.emails.push(email);
+    const logo = absolute(typeof o.logo === "string" ? o.logo : ((o.logo as { url?: string } | undefined)?.url ?? undefined), base);
+    if (logo) d.logos.unshift(logo);
+    const addr = o.address as Record<string, unknown> | string | undefined;
+    if (!c.address && addr) {
+      c.address =
+        (typeof addr === "string"
+          ? cleanText(addr, 200)
+          : cleanText([addr.streetAddress, addr.addressLocality, addr.addressRegion, addr.postalCode].filter((x) => typeof x === "string").join(", "), 200)) ?? undefined;
+    }
+    const hours = o.openingHours;
+    for (const h of Array.isArray(hours) ? hours : typeof hours === "string" ? [hours] : []) {
+      const t = cleanText(h, 80);
+      if (t) c.hours.push(t);
+    }
+    const specs = o.openingHoursSpecification;
+    for (const spec of (Array.isArray(specs) ? specs : specs ? [specs] : []) as Record<string, unknown>[]) {
+      const days = (Array.isArray(spec.dayOfWeek) ? spec.dayOfWeek : [spec.dayOfWeek]).map((x) => String(x ?? "").replace(/^https?:\/\/schema\.org\//, "")).join(", ");
+      const t = cleanText(`${days} ${spec.opens ?? ""}-${spec.closes ?? ""}`, 80);
+      if (t && days) c.hours.push(t);
+    }
+    const map = absolute(typeof o.hasMap === "string" ? o.hasMap : undefined, base);
+    if (map) c.maps ??= map;
+  });
+  return d;
+}
+
+/** Merges what was found on each page: the logo, photos, and each contact detail once. */
+function mergeDetails(all: Details[]): { logo?: string; images: string[]; contact?: SiteContact } {
+  const logo = all.flatMap((d) => d.logos)[0];
+  const images = [...new Set(all.flatMap((d) => d.images))].filter((u) => u !== logo).slice(0, MAX_SITE_IMAGES);
+  const c = all.map((d) => d.contact);
+  const pick = <K extends "address" | "whatsapp" | "booking" | "maps">(k: K) => c.find((x) => x[k])?.[k];
+  const contact = sanitizeContact({
+    phones: c.flatMap((x) => x.phones),
+    emails: c.flatMap((x) => x.emails),
+    hours: c.flatMap((x) => x.hours),
+    social: c.flatMap((x) => x.social),
+    address: pick("address"),
+    whatsapp: pick("whatsapp"),
+    booking: pick("booking"),
+    maps: pick("maps"),
+  });
+  return { ...(logo ? { logo } : {}), images, ...(contact ? { contact } : {}) };
+}
+
 const KEY_PAGES = /(about|menu|service|product|pricing|price|plan|feature|shop|store|collection|course|class|program|team|faq|work|portfolio|book|reserv|order)/i;
 
 function pickExtraPages(root: HTMLElement, base: URL): URL[] {
@@ -239,8 +380,10 @@ function pickExtraPages(root: HTMLElement, base: URL): URL[] {
     .map((s) => s.url);
 }
 
-export function summarizeHtml(html: string, url: URL): { summary: Omit<SiteSummary, "pages">; page: SitePage; extra: URL[] } {
+export function summarizeHtml(html: string, url: URL): { summary: Omit<SiteSummary, "pages">; page: SitePage; extra: URL[]; details: Details } {
   const root = parse(html, { comment: false });
+  // Before extractPage, which removes scripts (structured data lives in one).
+  const details = extractDetails(root, url);
   const themeColor = meta(root, "theme-color");
   const title = clean(root.querySelector("title")?.text);
   const siteName = meta(root, "og:site_name", "application-name") || title.split(/\s[|\-–—·]\s/)[0] || url.hostname.replace(/^www\./, "");
@@ -253,20 +396,25 @@ export function summarizeHtml(html: string, url: URL): { summary: Omit<SiteSumma
     language: clean(root.querySelector("html")?.getAttribute("lang")).slice(0, 10),
   };
   const extra = pickExtraPages(root, url);
-  return { summary, page: extractPage(root, url), extra };
+  return { summary, page: extractPage(root, url), extra, details };
 }
 
 export async function importSite(input: string): Promise<SiteSummary> {
   const start = normalizeUrl(input);
   const first = await fetchHtml(start);
-  const { summary, page, extra } = summarizeHtml(first.html, first.url);
+  const { summary, page, extra, details } = summarizeHtml(first.html, first.url);
   const pages: SitePage[] = [page];
+  const found = [details];
   const results = await Promise.allSettled(extra.map((u) => fetchHtml(u)));
   for (const r of results) {
-    if (r.status === "fulfilled") pages.push(summarizeHtml(r.value.html, r.value.url).page);
+    if (r.status === "fulfilled") {
+      const more = summarizeHtml(r.value.html, r.value.url);
+      pages.push(more.page);
+      found.push(more.details);
+    }
   }
   if (!pages.some((p) => p.text.length > 40 || p.headings.length)) {
     throw new SiteError("That website has almost no readable text (it may need JavaScript to load). Try describing it instead.");
   }
-  return { ...summary, pages };
+  return { ...summary, pages, ...mergeDetails(found) };
 }

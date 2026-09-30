@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, CircleAlert, Copy, Download, ImageDown, Loader2, Star } from "lucide-react";
-import type { ExpoState, Project, StoreListing } from "@/lib/types";
+import { Check, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
+import type { AppIconImage, ExpoState, Project, StoreListing } from "@/lib/types";
+import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
 import { checkClaims, DEFAULT_WORDING } from "@/lib/claims";
@@ -18,6 +19,7 @@ interface Props {
   project: Project;
   onChange: (listing: StoreListing) => void;
   onExpoChange: (expo: ExpoState) => void;
+  onIconChange: (icon: AppIconImage | undefined) => void;
   hasPreviewError: boolean;
 }
 
@@ -30,19 +32,107 @@ function isUrl(value?: string): boolean {
   }
 }
 
-export function AppIcon({ listing, size = 64 }: { listing: StoreListing; size?: number }) {
+export function AppIcon({ listing, icon, size = 64 }: { listing: StoreListing; icon?: AppIconImage; size?: number }) {
+  const gradient = `linear-gradient(135deg, ${shade(listing.primaryColor, 0.25)}, ${shade(listing.primaryColor, -0.25)})`;
+  const radius = size * 0.225;
+  if (icon && isIconImage(icon)) {
+    // The data URL was checked to be plain base64, so it's safe inside url().
+    return (
+      <div
+        role="img"
+        aria-label={`${listing.name || "App"} icon`}
+        className="grid shrink-0 place-items-center overflow-hidden shadow-lg"
+        style={{ width: size, height: size, borderRadius: radius, background: icon.background === "brand" ? gradient : "#ffffff" }}
+      >
+        <div
+          className="bg-center bg-no-repeat"
+          style={{
+            backgroundImage: `url("${icon.image}")`,
+            backgroundSize: icon.background === "fill" ? "cover" : "contain",
+            width: icon.background === "fill" ? "100%" : `${LOGO_SCALE * 100}%`,
+            height: icon.background === "fill" ? "100%" : `${LOGO_SCALE * 100}%`,
+          }}
+        />
+      </div>
+    );
+  }
   return (
     <div
       className="grid shrink-0 place-items-center shadow-lg"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size * 0.225,
-        fontSize: size * 0.56,
-        background: `linear-gradient(135deg, ${shade(listing.primaryColor, 0.25)}, ${shade(listing.primaryColor, -0.25)})`,
-      }}
+      style={{ width: size, height: size, borderRadius: radius, fontSize: size * 0.56, background: gradient }}
     >
       {listing.iconEmoji || "✨"}
+    </div>
+  );
+}
+
+const BACKGROUNDS: { key: AppIconImage["background"]; label: string }[] = [
+  { key: "white", label: "White" },
+  { key: "brand", label: "Brand color" },
+  { key: "fill", label: "Fill the icon" },
+];
+
+/** Upload a logo for the app icon, pick its background, or go back to the emoji. */
+function LogoPicker({ icon, onIconChange }: { icon?: AppIconImage; onIconChange: (icon: AppIconImage | undefined) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const pick = async (file?: File) => {
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    try {
+      onIconChange({ image: await prepareLogo(file), background: icon?.background ?? "white" });
+    } catch (e) {
+      setError(e instanceof IconError ? e.message : "Couldn't read that image.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="w-full space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg bg-white px-3 text-sm font-medium text-black focus-within:ring-2 focus-within:ring-violet-400">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          {icon ? "Change logo" : "Use your logo"}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label="Upload a logo for the app icon"
+            onChange={(e) => {
+              pick(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {icon && (
+          <>
+            <div role="radiogroup" aria-label="Logo background" className="flex rounded-lg border border-line p-0.5">
+              {BACKGROUNDS.map((b) => (
+                <button
+                  key={b.key}
+                  role="radio"
+                  aria-checked={icon.background === b.key}
+                  onClick={() => onIconChange({ ...icon, background: b.key })}
+                  className={`min-h-8 rounded-md px-2.5 text-xs ${icon.background === b.key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"}`}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => onIconChange(undefined)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs text-muted hover:text-foreground">
+              <Trash2 className="h-3.5 w-3.5" /> Use the emoji instead
+            </button>
+          </>
+        )}
+      </div>
+      {error ? (
+        <p role="alert" className="text-xs text-rose-300">
+          {error}
+        </p>
+      ) : (
+        <p className="text-xs text-muted">A square logo at least 512 px works best. It&apos;s placed on a solid background, since app stores don&apos;t allow see-through icons.</p>
+      )}
     </div>
   );
 }
@@ -97,7 +187,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, onChange, onExpoChange, hasPreviewError }: Props) {
+export function PublishPanel({ project, onChange, onExpoChange, onIconChange, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -231,9 +321,12 @@ export function PublishPanel({ project, onChange, onExpoChange, hasPreviewError 
           <section className="rounded-2xl border border-line bg-surface p-5">
             <h2 className="font-semibold">App icon</h2>
             <div className="mt-4 flex flex-wrap items-center gap-6">
-              <AppIcon listing={l} size={96} />
+              <AppIcon listing={l} icon={project.icon} size={96} />
               <div className="grid flex-1 gap-4 sm:grid-cols-2">
-                <Field label="Emoji">
+                <div className="sm:col-span-2">
+                  <LogoPicker icon={project.icon} onIconChange={onIconChange} />
+                </div>
+                <Field label={project.icon ? "Emoji (used without a logo)" : "Emoji"}>
                   <input className={input} value={l.iconEmoji} maxLength={4} onChange={(e) => set("iconEmoji", e.target.value)} />
                 </Field>
                 <Field label="Brand color">
@@ -249,7 +342,7 @@ export function PublishPanel({ project, onChange, onExpoChange, hasPreviewError 
                 </Field>
               </div>
               <button
-                onClick={async () => downloadBlob(await renderIcon(l), `${slugify(l.name)}-icon-1024.png`)}
+                onClick={async () => downloadBlob(await renderIcon(l, 1024, project.icon), `${slugify(l.name)}-icon-1024.png`)}
                 className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm hover:border-white/20"
               >
                 <ImageDown className="h-4 w-4" /> 1024×1024 PNG
@@ -290,7 +383,7 @@ export function PublishPanel({ project, onChange, onExpoChange, hasPreviewError 
             <div className="text-[11px] font-medium uppercase tracking-wide text-muted">App Store preview</div>
             <div className="mt-4 rounded-xl bg-white p-4 text-black">
               <div className="flex gap-3">
-                <AppIcon listing={l} size={64} />
+                <AppIcon listing={l} icon={project.icon} size={64} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold">{l.name || "App name"}</div>
                   <div className="truncate text-xs text-neutral-500">{l.subtitle || "Subtitle"}</div>

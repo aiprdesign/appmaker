@@ -185,7 +185,7 @@ function AppViewer({ app, onClose, onDelete }: { app: AppSummary; onClose: () =>
         className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-line bg-background shadow-2xl"
       >
         <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-          <AppIcon listing={{ ...listing, iconEmoji: listing.iconEmoji || app.iconEmoji }} size={36} />
+          <AppIcon listing={{ ...listing, iconEmoji: listing.iconEmoji || app.iconEmoji }} icon={project?.icon} size={36} />
           <div className="min-w-0 flex-1">
             <div className="truncate font-semibold">{app.name}</div>
             <div className="truncate text-xs text-muted">

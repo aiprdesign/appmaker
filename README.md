@@ -19,6 +19,18 @@ The AI uses these to build an app that feels like the business's official app, w
 
 Limitations: the importer reads the HTML the server sends. Sites that load all their content with JavaScript, or that block bots, show a friendly error instead.
 
+## Apps for businesses
+
+- **Business templates** on the home page: restaurant or café, salon or barber, gym, clinic, local shop, church, real estate and home services. Each fills in a prompt with [bracketed] blanks for the business's details. The first blank is selected so you can type straight over it. The AI never makes up anything left in brackets.
+- **Photos and contact details from the website.** "From a website" now also finds:
+  - the logo and up to 16 photos (https only; tracking pixels and tiny icons are skipped);
+  - phone numbers, emails, WhatsApp, Maps, booking or ordering, and social links;
+  - the address and opening hours from the site's structured data.
+
+  The website card shows what was found. The AI uses the photos with `<Image source={{ uri }}>` and uses only these exact details. All of it is checked again on the server before the AI sees it.
+- **One-tap actions.** Business apps get a Contact or Visit screen with Call, Email, Directions, WhatsApp, and Book or Order buttons (`Linking.openURL`), and an "Open now" badge when the hours are known. A button is only added when the real detail is known.
+- **Your logo as the app icon.** In the Publish tab, under **App icon → Use your logo**. Choose a white or brand-color background, or have the image fill the icon. The icon always has a solid background, because stores reject see-through icons. The logo is resized in the browser and kept with the app, not in the store listing sent to the AI. It's used for downloads, cloud builds and the Expo Go preview.
+
 ## What generated apps can do
 
 Apps are self-contained Expo apps that save their data on the device. On top of screens, forms, lists, search, charts, animations and haptics, they can use:

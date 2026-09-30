@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PromptBox, TemplateButton } from "@/components/PromptBox";
-import { TEMPLATES } from "@/lib/templates";
+import { BUSINESS_TEMPLATES, TEMPLATES } from "@/lib/templates";
 
 const STEPS = [
   {
@@ -166,6 +166,35 @@ export default function Home() {
                 <h3 className="mt-4 font-semibold">{f.title}</h3>
                 <p className="mt-1.5 text-sm text-muted">{f.body}</p>
               </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Business templates */}
+        <section id="business" className="mx-auto max-w-6xl scroll-mt-20 px-4 pt-20">
+          <div className="flex flex-col items-center text-center">
+            <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">An app for your business</h2>
+            <p className="mt-3 max-w-2xl text-muted">
+              Pick your kind of business, fill in the [bracketed] details, and get an app with your menu or services, opening hours and one-tap call,
+              directions and booking. Or use “From a website” above and Appmaker fills them in for you.
+            </p>
+          </div>
+          <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
+            {BUSINESS_TEMPLATES.map((t) => (
+              <TemplateButton
+                key={t.title}
+                prompt={t.prompt}
+                className="group rounded-2xl border border-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-white/20"
+              >
+                <div
+                  className="grid aspect-[4/3] place-items-center rounded-xl text-5xl"
+                  style={{ background: `linear-gradient(135deg, ${t.color}55, ${t.color}10)` }}
+                >
+                  <span className="transition group-hover:scale-110">{t.emoji}</span>
+                </div>
+                <div className="mt-3 text-sm font-medium">{t.title}</div>
+                <div className="text-xs text-muted">{t.category}</div>
+              </TemplateButton>
             ))}
           </div>
         </section>

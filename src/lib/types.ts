@@ -57,6 +57,22 @@ export interface SitePage {
   text: string;
 }
 
+/** Ways to reach a business, found on its website. */
+export interface SiteContact {
+  phones: string[];
+  emails: string[];
+  /** Street address, from the site's structured data. */
+  address?: string;
+  /** Opening hours as the site states them, e.g. "Mo-Fr 09:00-17:00". */
+  hours: string[];
+  whatsapp?: string;
+  /** Link to the business's booking, reservation or online ordering page. */
+  booking?: string;
+  /** Link that opens the business in Google or Apple Maps. */
+  maps?: string;
+  social: string[];
+}
+
 /** Content extracted from a website the user imported to base an app on. */
 export interface SiteSummary {
   url: string;
@@ -67,6 +83,11 @@ export interface SiteSummary {
   colors: string[];
   language: string;
   pages: SitePage[];
+  /** The business's logo (https link), if the site marks one. */
+  logo?: string;
+  /** Photo links from the site (https only). Older imports don't have them. */
+  images?: string[];
+  contact?: SiteContact;
 }
 
 /** The Expo (EAS) project an app is linked to, created on its first cloud build. */
@@ -111,6 +132,14 @@ export interface CloudBuild {
   submission?: { status: string; error?: string };
 }
 
+/** A logo used as the app icon (see src/lib/icon.ts). */
+export interface AppIconImage {
+  /** The logo as a data URL (PNG, JPEG or WebP, at most 1024 px). */
+  image: string;
+  /** "white" or "brand": the logo centered on that color; "fill": the image covers the whole icon. */
+  background: "white" | "brand" | "fill";
+}
+
 /** The app published for Expo Go (EAS Update), opened by scanning a QR code. */
 export interface PhonePreview {
   groupId: string;
@@ -146,6 +175,8 @@ export interface Project {
   pending?: PendingRequest;
   /** Cloud builds with Expo Application Services. */
   expo?: ExpoState;
+  /** The business's logo as the app icon; without it, the icon is drawn from the emoji. */
+  icon?: AppIconImage;
   /** "claim-safe" (default): app text and listing avoid marketing claims. */
   wording?: "claim-safe" | "standard";
   createdAt: number;

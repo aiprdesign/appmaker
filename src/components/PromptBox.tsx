@@ -43,9 +43,15 @@ export function PromptBox() {
   // instead of starting a (paid) build straight away.
   useEffect(() => {
     const onTemplate = (e: Event) => {
-      setValue((e as CustomEvent<string>).detail);
+      const text = (e as CustomEvent<string>).detail;
+      setValue(text);
       document.getElementById("start")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      setTimeout(() => ref.current?.focus(), 300);
+      setTimeout(() => {
+        ref.current?.focus();
+        // Business templates have [blanks]: select the first one, ready to type over.
+        const blank = /\[[^\]]*\]/.exec(text);
+        if (blank) ref.current?.setSelectionRange(blank.index, blank.index + blank[0].length);
+      }, 300);
     };
     window.addEventListener("appmaker:template", onTemplate);
     return () => window.removeEventListener("appmaker:template", onTemplate);
@@ -190,6 +196,12 @@ export function PromptBox() {
           className="w-full resize-none bg-transparent px-2 py-1 text-base text-foreground outline-none placeholder:text-muted/70"
           aria-label="Describe your app"
         />
+
+        {/\[[^\]\n]{1,40}\]/.test(value) && (
+          <p className="mb-1 px-2 text-xs text-amber-200/90">
+            Replace the [bracketed] parts with your business&apos;s details. Anything left in brackets is left out of the app, not made up.
+          </p>
+        )}
 
         {detected && (
           <button

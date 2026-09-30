@@ -64,7 +64,7 @@ export function ProjectList() {
           <div key={p.id} className="group relative rounded-2xl border border-line bg-surface p-5 transition hover:border-white/20">
             <Link href={`/build/${p.id}`} className="absolute inset-0" aria-label={`Open ${p.name}`} />
             <div className="flex items-center gap-3">
-              <AppIcon listing={p.listing} size={48} />
+              <AppIcon listing={p.listing} icon={p.icon} size={48} />
               <div className="min-w-0">
                 <div className="truncate font-medium">{p.name}</div>
                 <div className="text-xs text-muted">
