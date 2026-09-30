@@ -1,4 +1,4 @@
-import { balance, history, paymentsConfig, planOf } from "@/lib/server/credits";
+import { balance, history, paymentsConfig, planOf, prices } from "@/lib/server/credits";
 import { currentUser } from "@/lib/server/auth";
 import { accountError } from "@/lib/server/respond";
 
@@ -6,13 +6,14 @@ import { accountError } from "@/lib/server/respond";
 export async function GET(req: Request) {
   try {
     const cfg = paymentsConfig();
+    const p = await prices();
     const pub = {
       enabled: cfg.enabled,
       currency: cfg.currency,
       packs: cfg.packs,
-      costs: cfg.costs,
-      freeCredits: cfg.freeCredits,
-      guestBuilds: cfg.guestBuilds,
+      prices: p,
+      freeCredits: p.freeCredits,
+      guestBuilds: p.guestBuilds,
       mode: cfg.mode,
     };
     if (!cfg.enabled) return Response.json(pub);

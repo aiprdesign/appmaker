@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Coins, Loader2, Lock, Sparkles } from "lucide-react";
-import { formatPrice, type CreditPack, type Plan } from "@/lib/credits";
+import { creditsInApps, formatPrice, type CreditPack, type Plan, type Prices } from "@/lib/credits";
 import { PlanCards } from "@/components/PlanCards";
 import { PLAN_CHANGED } from "@/lib/use-plan";
 
@@ -11,7 +11,7 @@ interface CreditsInfo {
   enabled: boolean;
   currency: string;
   packs: CreditPack[];
-  costs: { generate: number; build: number; phonePreview: number };
+  prices: Prices;
   freeCredits: number;
   guestBuilds: number;
   mode: "test" | "live" | null;
@@ -147,7 +147,7 @@ export function CreditsPage() {
                     <div className="mt-3 text-3xl font-semibold tabular-nums">{pack.credits.toLocaleString()}</div>
                     <div className="text-sm text-muted">credits</div>
                     <div className="mt-3 text-lg font-medium">{formatPrice(pack.price, info.currency)}</div>
-                    <div className="text-xs text-muted">{formatPrice(Math.round(pack.price / pack.credits), info.currency)} per credit</div>
+                    <div className="text-xs text-muted">{creditsInApps(pack.credits, info.prices)}</div>
                     <button
                       onClick={() => buy(pack)}
                       disabled={!!buying}
@@ -171,19 +171,23 @@ export function CreditsPage() {
           <h2 className="mt-10 text-xl font-semibold">What uses credits</h2>
           <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface text-sm">
             <li className="flex justify-between p-4">
-              <span>An AI build or change</span>
-              <span className="tabular-nums text-muted">{info.costs.generate} credit</span>
+              <span>A new app, written by the AI</span>
+              <span className="tabular-nums text-muted">{info.prices.newApp} credit{info.prices.newApp === 1 ? "" : "s"}</span>
             </li>
             <li className="flex justify-between p-4">
-              <span>An App Store or Google Play cloud build</span>
-              <span className="tabular-nums text-muted">{info.costs.build} credits</span>
+              <span>A change to an app</span>
+              <span className="tabular-nums text-muted">{info.prices.edit} credit{info.prices.edit === 1 ? "" : "s"}</span>
+            </li>
+            <li className="flex justify-between p-4">
+              <span>An App Store or Google Play build</span>
+              <span className="tabular-nums text-muted">{info.prices.build} credit{info.prices.build === 1 ? "" : "s"}</span>
             </li>
             <li className="flex justify-between p-4">
               <span>A phone preview (Expo Go QR code)</span>
-              <span className="tabular-nums text-muted">{info.costs.phonePreview} credit</span>
+              <span className="tabular-nums text-muted">{info.prices.phonePreview} credit{info.prices.phonePreview === 1 ? "" : "s"}</span>
             </li>
             <li className="flex justify-between p-4">
-              <span>Automatic quality fixes, editing code by hand, downloads, store pages</span>
+              <span>Automatic quality fixes after a build, the Design panel, editing code by hand, downloads, store pages</span>
               <span className="text-emerald-300">Free</span>
             </li>
           </ul>

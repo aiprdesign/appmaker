@@ -1,5 +1,7 @@
 import { requireAdmin } from "@/lib/server/admin-guard";
-import { paymentStats, paymentsConfig } from "@/lib/server/credits";
+import { paymentStats, paymentsConfig, prices, setPrices } from "@/lib/server/credits";
+import { assertSameOrigin } from "@/lib/server/auth";
+import { readBody } from "@/lib/server/respond";
 import { accountError } from "@/lib/server/respond";
 
 export const runtime = "nodejs";
@@ -14,9 +16,22 @@ export async function GET(req: Request) {
     const base = host ? `${proto}://${host}` : new URL(req.url).origin;
     return Response.json({
       ...cfg,
+      prices: await prices(),
       webhookUrl: `${base}/api/stripe/webhook`,
       stats: cfg.database ? await paymentStats() : null,
     });
+  } catch (e) {
+    return accountError(e);
+  }
+}
+
+/** Saves what things cost and the free allowances. */
+export async function POST(req: Request) {
+  try {
+    requireAdmin(req, true);
+    assertSameOrigin(req);
+    const body = await readBody(req);
+    return Response.json({ prices: await setPrices(body.prices) });
   } catch (e) {
     return accountError(e);
   }

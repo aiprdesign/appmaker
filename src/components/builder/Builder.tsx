@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Code2, Download, Loader2, MessageSquare, Palette, RotateCw, Rocket, ShieldCheck, Smartphone, Wand2 } from "lucide-react";
+import { AlertTriangle, Code2, Coins, Download, Loader2, MessageSquare, Palette, RotateCw, Rocket, ShieldCheck, Smartphone, Wand2 } from "lucide-react";
 import { HistoryMenu } from "./HistoryMenu";
 import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
@@ -10,7 +10,7 @@ import { LIVE_FILE, liveModule } from "@/lib/live";
 import { defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
 import { BOOKING_FILE, bookingModule } from "@/lib/booking";
 import { BRAND_FILE, brandModule } from "@/lib/branding";
-import { locked, usePlan } from "@/lib/use-plan";
+import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
@@ -305,6 +305,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         ...(error && !wrote ? { error: true } : {}),
       };
       commit({ ...next, messages: [...base.messages, assistantMsg] });
+      // The balance changed: refresh the low-credit warning.
+      window.dispatchEvent(new Event(PLAN_CHANGED));
       setLive(null);
       setGenerating(false);
       setStartedAt(null);
@@ -580,6 +582,15 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         <aside
           className={`${mobileView === "chat" ? "flex" : "hidden"} w-full flex-col border-line lg:flex lg:w-[400px] lg:shrink-0 lg:border-r`}
         >
+          {plan?.enabled && plan.plan !== "guest" && typeof plan.balance === "number" && plan.balance <= 3 && (
+            <div role="status" className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
+              <Coins className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1">{plan.balance === 0 ? "You're out of credits." : `${plan.balance} credit${plan.balance === 1 ? "" : "s"} left.`}</span>
+              <Link href="/credits" className="inline-flex min-h-8 items-center rounded-lg bg-white px-2.5 font-medium text-black">
+                Buy credits
+              </Link>
+            </div>
+          )}
           <ChatPanel
             source={project.source}
             messages={project.messages}

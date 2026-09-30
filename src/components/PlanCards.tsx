@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Check, Lock } from "lucide-react";
-import { DEFAULT_PACKS, formatPrice, type CreditPack, type Plan } from "@/lib/credits";
+import { creditsInApps, DEFAULT_PACKS, DEFAULT_PRICES, formatPrice, type CreditPack, type Plan, type Prices } from "@/lib/credits";
 import { useFeatures } from "@/lib/use-features";
 
 interface Info {
@@ -12,10 +12,11 @@ interface Info {
   packs: CreditPack[];
   freeCredits: number;
   guestBuilds: number;
+  prices?: Prices;
   plan?: Plan;
 }
 
-const FALLBACK: Info = { enabled: true, currency: "usd", packs: DEFAULT_PACKS, freeCredits: 10, guestBuilds: 3 };
+const FALLBACK: Info = { enabled: true, currency: "usd", packs: DEFAULT_PACKS, freeCredits: 10, guestBuilds: 1 };
 
 /**
  * The three ways to use Appmaker, all credit based (no subscriptions): try it
@@ -58,7 +59,11 @@ export function PlanCards({ info: given }: { info?: Info }) {
       price: "Free",
       note: "no account needed",
       blurb: "See your idea as a real app in a minute.",
-      items: [`${info.guestBuilds} AI builds a day`, "Live iPhone & Android preview", "Download the Expo project"],
+      items: [
+        info.guestBuilds === 1 ? "1 free AI build a day" : `${info.guestBuilds} AI builds a day`,
+        "Live iPhone & Android preview",
+        "Download the Expo project",
+      ],
       cta: "Try for Free!",
       href: "/#start",
     },
@@ -69,7 +74,7 @@ export function PlanCards({ info: given }: { info?: Info }) {
       note: "forever",
       blurb: "Keep building and test on your phone.",
       items: [
-        `${info.freeCredits} credits every month`,
+        `${info.freeCredits} credits every month (${creditsInApps(info.freeCredits, info.prices ?? DEFAULT_PRICES)})`,
         "Apps saved to your account, on any device",
         "Test on your phone with Expo Go",
         "Design settings, support page & privacy policy",
@@ -85,7 +90,10 @@ export function PlanCards({ info: given }: { info?: Info }) {
       note: "one-time, no subscription",
       blurb: "Buy any credit pack and ship to the stores.",
       items: [
-        `Credit packs from ${cheapest ? `${cheapest.credits} credits` : "any size"}; credits never expire`,
+        cheapest
+          ? `${cheapest.credits} credits for ${formatPrice(cheapest.price, info.currency)} (${creditsInApps(cheapest.credits, info.prices ?? DEFAULT_PRICES)})`
+          : "Credit packs of any size",
+        "Credits never expire",
         "App Store & Google Play builds",
         ...(features.bookings ? ["Bookings in your apps"] : []),
         "Live updates from your website",

@@ -14,16 +14,58 @@ export interface CreditPack {
   badge?: string;
 }
 
-export const COSTS = {
-  /** One AI build or edit with the site's AI key. */
-  generate: 1,
-  /** A cloud build on the site's Expo account. */
-  build: 5,
+/**
+ * What things cost and the free allowances. The site owner can change these
+ * in Admin → Settings → Payments; the environment variables set the defaults.
+ */
+export interface Prices {
+  /** A new app from a prompt or website (the AI writes the whole app). */
+  newApp: number;
+  /** A change to an existing app. */
+  edit: number;
+  /** An App Store or Google Play build on the site's Expo account. */
+  build: number;
   /** A phone preview (Expo Go QR code) on the site's Expo account. */
-  phonePreview: 1,
-} as const;
+  phonePreview: number;
+  /** Free accounts are topped up to this many credits each month. */
+  freeCredits: number;
+  /** AI builds a day without an account. */
+  guestBuilds: number;
+}
 
-export type CreditKind = keyof typeof COSTS;
+export type CreditKind = "newApp" | "edit" | "build" | "phonePreview";
+
+export const DEFAULT_PRICES: Prices = { newApp: 3, edit: 1, build: 5, phonePreview: 1, freeCredits: 10, guestBuilds: 1 };
+
+const LIMITS: Record<keyof Prices, [number, number]> = {
+  newApp: [0, 100],
+  edit: [0, 100],
+  build: [0, 1000],
+  phonePreview: [0, 100],
+  freeCredits: [0, 1000],
+  guestBuilds: [0, 20],
+};
+
+/** Checks prices from the admin (or the environment); anything invalid keeps the fallback value. */
+export function parsePrices(v: unknown, fallback: Prices = DEFAULT_PRICES): Prices {
+  const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  const out = { ...fallback };
+  for (const key of Object.keys(LIMITS) as (keyof Prices)[]) {
+    const n = Number(o[key]);
+    const [min, max] = LIMITS[key];
+    if (o[key] !== undefined && o[key] !== "" && Number.isInteger(n) && n >= min && n <= max) out[key] = n;
+  }
+  return out;
+}
+
+/** "≈ 16 new apps or 50 changes": credits in terms people understand. */
+export function creditsInApps(credits: number, prices: Pick<Prices, "newApp" | "edit">): string {
+  const parts = [
+    prices.newApp > 0 && `${Math.floor(credits / prices.newApp).toLocaleString()} new apps`,
+    prices.edit > 0 && `${Math.floor(credits / prices.edit).toLocaleString()} changes`,
+  ].filter(Boolean);
+  return parts.length ? `≈ ${parts.join(" or ")}` : "";
+}
 
 /**
  * Plans, all credit based (no subscriptions):

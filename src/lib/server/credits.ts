@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { COSTS, PAID_FEATURES, parsePacks, type CreditKind, type CreditPack, type PaidFeature, type Plan } from "../credits";
+import { DEFAULT_PRICES, PAID_FEATURES, parsePacks, parsePrices, type CreditKind, type CreditPack, type PaidFeature, type Plan, type Prices } from "../credits";
 import { databaseConfigured, query, transaction } from "./db";
 
 /**
@@ -22,10 +22,7 @@ export interface PaymentsConfig {
   database: boolean;
   mode: "test" | "live" | null;
   currency: string;
-  freeCredits: number;
-  guestBuilds: number;
   packs: CreditPack[];
-  costs: typeof COSTS;
 }
 
 export function paymentsConfig(): PaymentsConfig {
@@ -38,11 +35,42 @@ export function paymentsConfig(): PaymentsConfig {
     database,
     mode: key ? (key.startsWith("sk_live_") || key.startsWith("rk_live_") ? "live" : "test") : null,
     currency: (process.env.APPMAKER_CURRENCY?.trim() || "usd").toLowerCase().slice(0, 3),
-    freeCredits: Math.max(0, Number(process.env.APPMAKER_FREE_CREDITS ?? 10) || 0),
-    guestBuilds: Math.max(0, Number(process.env.APPMAKER_GUEST_BUILDS ?? 3) || 0),
     packs: parsePacks(process.env.APPMAKER_CREDIT_PACKS),
-    costs: COSTS,
   };
+}
+
+/** Prices from the environment (the defaults before the admin changes them). */
+export function envPrices(): Prices {
+  return parsePrices(
+    {
+      freeCredits: process.env.APPMAKER_FREE_CREDITS,
+      guestBuilds: process.env.APPMAKER_GUEST_BUILDS,
+    },
+    DEFAULT_PRICES,
+  );
+}
+
+let priceCache: { at: number; value: Prices } | null = null;
+
+/** What things cost and the free allowances: the admin's settings over the defaults. */
+export async function prices(): Promise<Prices> {
+  const base = envPrices();
+  if (!databaseConfigured()) return base;
+  if (priceCache && Date.now() - priceCache.at < 30_000) return priceCache.value;
+  const rows = await query<{ value: unknown }>("select value from app_settings where key = 'prices'").catch(() => []);
+  const value = parsePrices(rows[0]?.value, base);
+  priceCache = { at: Date.now(), value };
+  return value;
+}
+
+export async function setPrices(input: unknown): Promise<Prices> {
+  const value = parsePrices(input, await prices());
+  await query(
+    "insert into app_settings (key, value, updated_at) values ('prices', $1::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now()",
+    [JSON.stringify(value)],
+  );
+  priceCache = null;
+  return value;
 }
 
 export class CreditsError extends Error {
@@ -63,7 +91,7 @@ export const monthKey = (now = new Date()) => now.toISOString().slice(0, 7);
  * to it (free credits don't pile up).
  */
 export async function balance(userId: string, now = new Date()): Promise<number> {
-  const free = paymentsConfig().freeCredits;
+  const free = (await prices()).freeCredits;
   const month = monthKey(now);
   return transaction(async (c) => {
     const rows = await c.query<{ credits: number | null; credits_month: string | null }>("select credits, credits_month from app_users where id = $1 for update", [
@@ -112,7 +140,7 @@ export async function requirePaidPlan(req: Request, feature: PaidFeature): Promi
 
 /** Takes credits for an action, or throws a CreditsError that explains what to do. */
 export async function spend(userId: string, kind: CreditKind, reason: string): Promise<number> {
-  const cost = COSTS[kind];
+  const cost = (await prices())[kind];
   await balance(userId);
   const rows = await query<{ credits: number }>("update app_users set credits = credits - $2 where id = $1 and credits >= $2 returning credits", [
     userId,
@@ -127,7 +155,8 @@ export async function spend(userId: string, kind: CreditKind, reason: string): P
 
 /** Gives credits back, e.g. when the AI request failed before doing anything. */
 export async function refund(userId: string, kind: CreditKind, reason: string): Promise<void> {
-  const cost = COSTS[kind];
+  const cost = (await prices())[kind];
+  if (!cost) return;
   await query("update app_users set credits = credits + $2 where id = $1", [userId, cost]);
   await query("insert into app_credit_events (user_id, delta, reason) values ($1, $2, $3)", [userId, cost, reason.slice(0, 120)]);
 }
@@ -246,27 +275,57 @@ export function verifyWebhook(body: string, header: string | null, now = Date.no
 
 const DAY = 24 * 60 * 60 * 1000;
 
+// After a paid (or free-allowance) AI build, its automatic follow-ups are
+// free: continuations of a long reply and quality fixes. The browser marks
+// them as automatic, so they're only free for a short while after a real
+// build, and only a few per build.
+const FOLLOW_UPS = 6;
+const FOLLOW_UP_WINDOW = 15 * 60 * 1000;
+const followUps = new Map<string, { until: number; left: number }>();
+
+function allowFollowUps(key: string) {
+  followUps.set(key, { until: Date.now() + FOLLOW_UP_WINDOW, left: FOLLOW_UPS });
+  if (followUps.size > 10_000) for (const [k, v] of followUps) if (v.until < Date.now()) followUps.delete(k);
+}
+function takeFollowUp(key: string): boolean {
+  const a = followUps.get(key);
+  if (!a || a.until < Date.now() || a.left <= 0) return false;
+  a.left -= 1;
+  return true;
+}
+
+/** Tests only. */
+export function clearFollowUps() {
+  followUps.clear();
+  priceCache = null;
+}
+
 /**
  * Charges for an action when payments are on. Signed-out visitors get a few
- * free AI builds a day, then are asked to sign in (new accounts get free
- * credits). Automatic quality fixes are free, within a limit. Returns who was
- * charged, so the charge can be refunded if the action fails straight away.
+ * free AI builds a day, then are asked to sign in (free accounts get monthly
+ * credits). Returns who was charged, so the charge can be refunded if the
+ * action fails straight away.
  */
 export async function charge(req: Request, kind: CreditKind, opts: { auto?: boolean; reason: string }): Promise<{ userId: string | null; charged: boolean }> {
   const cfg = paymentsConfig();
   if (!cfg.enabled) return { userId: null, charged: false };
+  const p = await prices();
   const { currentUser } = await import("./auth");
   const { clientIp, rateLimit } = await import("../rate-limit");
   const user = await currentUser(req);
+  const ai = kind === "newApp" || kind === "edit";
+  const key = user ? `user:${user.id}` : `ip:${clientIp(req)}`;
+  if (ai && opts.auto && takeFollowUp(key)) return { userId: user?.id ?? null, charged: false };
   if (!user) {
     // The limiter always lets a first request through, so "no free builds" is checked on its own.
-    if (kind !== "generate" || cfg.guestBuilds === 0 || !rateLimit(`guest-generate:${clientIp(req)}`, cfg.guestBuilds, DAY).ok) {
-      throw new CreditsError(`Sign in to keep building: free accounts get ${cfg.freeCredits} credits every month.`, 401, "sign-in");
+    if (!ai || opts.auto || p.guestBuilds === 0 || !rateLimit(`guest-generate:${clientIp(req)}`, p.guestBuilds, DAY).ok) {
+      throw new CreditsError(`Sign in to keep building: free accounts get ${p.freeCredits} credits every month.`, 401, "sign-in");
     }
+    allowFollowUps(key);
     return { userId: null, charged: false };
   }
-  if (opts.auto && rateLimit(`auto-fix:${user.id}`, 20, 60 * 60 * 1000).ok) return { userId: user.id, charged: false };
   await spend(user.id, kind, opts.reason);
+  if (ai) allowFollowUps(key);
   return { userId: user.id, charged: true };
 }
 

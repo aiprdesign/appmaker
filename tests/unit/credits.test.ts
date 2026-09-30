@@ -7,8 +7,8 @@ import { POST as checkoutRoute } from "@/app/api/credits/checkout/route";
 import { POST as confirmRoute } from "@/app/api/credits/confirm/route";
 import { POST as webhookRoute } from "@/app/api/stripe/webhook/route";
 import { POST as generateRoute } from "@/app/api/generate/route";
-import { formatPrice, parsePacks, DEFAULT_PACKS } from "@/lib/credits";
-import { addCredits, balance, charge, CreditsError, paymentsConfig, spend, verifyWebhook } from "@/lib/server/credits";
+import { creditsInApps, DEFAULT_PRICES, formatPrice, parsePacks, parsePrices, DEFAULT_PACKS } from "@/lib/credits";
+import { addCredits, balance, charge, clearFollowUps, CreditsError, paymentsConfig, setPrices, spend, verifyWebhook } from "@/lib/server/credits";
 import { closeDatabase, query } from "@/lib/server/db";
 
 describe("credit packs and prices", () => {
@@ -27,10 +27,16 @@ describe("credit packs and prices", () => {
     ).toEqual([{ id: "big", name: "Big", credits: 1000, price: 9900 }]);
   });
 
+  it("checks prices and describes credits as apps", () => {
+    expect(parsePrices({ newApp: 5, edit: -1, build: "x", guestBuilds: 50 })).toEqual({ ...DEFAULT_PRICES, newApp: 5 });
+    expect(DEFAULT_PRICES).toMatchObject({ newApp: 3, edit: 1, guestBuilds: 1 });
+    expect(creditsInApps(50, DEFAULT_PRICES)).toBe("≈ 16 new apps or 50 changes");
+  });
+
   it("is off, and nothing costs credits, until a Stripe key is set", async () => {
     delete process.env.STRIPE_SECRET_KEY;
     expect(paymentsConfig().enabled).toBe(false);
-    expect(await charge(new Request("http://localhost/"), "generate", { reason: "x" })).toEqual({ userId: null, charged: false });
+    expect(await charge(new Request("http://localhost/"), "edit", { reason: "x" })).toEqual({ userId: null, charged: false });
   });
 });
 
@@ -112,7 +118,7 @@ describe.skipIf(!DB)("credits and Stripe (PostgreSQL, fake Stripe)", () => {
     expect(await balance(id)).toBe(10);
     expect(await spend(id, "build", "Cloud build")).toBe(5);
     await spend(id, "build", "Cloud build");
-    await expect(spend(id, "generate", "AI build")).rejects.toThrow(CreditsError);
+    await expect(spend(id, "edit", "AI edit")).rejects.toThrow(CreditsError);
     const events = await query<{ delta: number; reason: string }>("select delta, reason from app_credit_events where user_id = $1 order by id", [id]);
     expect(events).toEqual([
       { delta: 10, reason: "Welcome credits" },
@@ -163,6 +169,46 @@ describe.skipIf(!DB)("credits and Stripe (PostgreSQL, fake Stripe)", () => {
     expect((await (await creditsInfo(req("/api/credits", undefined, other.cookie))).json()).plan).toBe("free");
     expect((await (await creditsInfo(req("/api/credits"))).json()).plan).toBe("guest");
     expect(info.history[0]).toMatchObject({ delta: 200, reason: "Bought 200 credits" });
+  });
+
+  it("a new app costs more than a change; automatic follow-ups are free only right after a build", async () => {
+    clearFollowUps();
+    const { cookie, id } = await account("lovelace");
+    const withCookie = (ip: string) => req("/api/generate", {}, cookie, { "x-forwarded-for": ip });
+    expect(await balance(id)).toBe(10);
+    // Automatic requests with no build before them are charged like any other.
+    await charge(withCookie("10.9.0.1"), "edit", { auto: true, reason: "AI edit" });
+    expect(await balance(id)).toBe(9);
+    await charge(withCookie("10.9.0.1"), "newApp", { reason: "New app" });
+    expect(await balance(id)).toBe(6);
+    // Up to 6 continuations and fixes after it are free, then they cost again.
+    for (let i = 0; i < 6; i++) expect((await charge(withCookie("10.9.0.1"), "edit", { auto: true, reason: "AI edit" })).charged).toBe(false);
+    expect((await charge(withCookie("10.9.0.1"), "edit", { auto: true, reason: "AI edit" })).charged).toBe(true);
+    expect(await balance(id)).toBe(5);
+
+    // The admin can change prices.
+    await setPrices({ ...DEFAULT_PRICES, newApp: 4 });
+    await charge(withCookie("10.9.0.1"), "newApp", { reason: "New app" });
+    expect(await balance(id)).toBe(1);
+    await query("delete from app_settings where key = 'prices'");
+    clearFollowUps();
+  });
+
+  it("visitors get one free build a day, and its automatic fixes still work", async () => {
+    clearFollowUps();
+    const prev = process.env.APPMAKER_GUEST_BUILDS;
+    delete process.env.APPMAKER_GUEST_BUILDS;
+    try {
+      const guest = () => req("/api/generate", {}, undefined, { "x-forwarded-for": "10.9.1.7" });
+      // Without a build first, an "automatic" request doesn't get a free pass.
+      await expect(charge(guest(), "edit", { auto: true, reason: "AI edit" })).rejects.toMatchObject({ code: "sign-in" });
+      expect((await charge(guest(), "newApp", { reason: "New app" })).charged).toBe(false);
+      expect((await charge(guest(), "edit", { auto: true, reason: "AI edit" })).charged).toBe(false);
+      await expect(charge(guest(), "newApp", { reason: "New app" })).rejects.toMatchObject({ code: "sign-in" });
+    } finally {
+      if (prev !== undefined) process.env.APPMAKER_GUEST_BUILDS = prev;
+      clearFollowUps();
+    }
   });
 
   it("tops free credits back up each month, without piling them up", async () => {

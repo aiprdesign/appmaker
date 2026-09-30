@@ -158,9 +158,11 @@ export async function POST(req: Request) {
 
   // Credits (when the site takes payments): only for the site's own AI key.
   let paid: { userId: string | null; charged: boolean } = { userId: null, charged: false };
+  // A new app costs more than a change: the AI writes the whole app.
+  const kind = isEdit ? "edit" : "newApp";
   if (ai.usingServerKey) {
     try {
-      paid = await charge(req, "generate", { auto: body.auto === true, reason: isEdit ? "AI edit" : "AI build" });
+      paid = await charge(req, kind, { auto: body.auto === true, reason: isEdit ? "AI edit" : "New app" });
     } catch (e) {
       if (e instanceof CreditsError) return creditsResponse(e);
       throw e;
@@ -191,11 +193,11 @@ export async function POST(req: Request) {
       });
     } catch (e) {
       // Nothing was written: give the credit back.
-      if (!wrote && paid.charged && paid.userId) await refund(paid.userId, "generate", "Refund: the AI didn't answer").catch(() => {});
+      if (!wrote && paid.charged && paid.userId) await refund(paid.userId, kind, "Refund: the AI didn't answer").catch(() => {});
       throw e;
     }
     if (outcome === "done" && !madeFiles && paid.charged && paid.userId) {
-      await refund(paid.userId, "generate", "Refund: the AI asked a question").catch(() => {});
+      await refund(paid.userId, kind, "Refund: the AI asked a question").catch(() => {});
     }
     if (outcome === "refusal") {
       write("\n<error>The AI declined this request. Try rephrasing your app idea.</error>");

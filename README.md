@@ -34,20 +34,18 @@ Credits are off until Stripe is set up. Until then everything is free, as before
 
 **How it works**
 - **Plans, all credit based (no subscriptions):**
-  - *Try it*: without an account, `APPMAKER_GUEST_BUILDS` AI builds a day (default 3).
+  - *Try it*: without an account, `APPMAKER_GUEST_BUILDS` AI builds a day (default 1).
   - *Free account*: free credits every month (`APPMAKER_FREE_CREDITS`, default 10). At the start of each month, a balance below that is topped back up; free credits don't pile up.
   - *Paid*: buying any credit pack unlocks the paid features for good: store builds, bookings, live website updates, and apps without the small "Made with Appmaker" line. You can also give (or take away) the paid plan in **Admin → Members → credits button**.
   - Paid features are only locked while payments are on; without Stripe, everything stays free.
 - Visitors who aren't signed in get a few free AI builds a day (`APPMAKER_GUEST_BUILDS`, default 3), then they're asked to sign in.
-- **What costs credits:**
-  - an AI build or edit with the site's AI key: 1 credit;
-  - a cloud build on the site's Expo account: 5 credits;
+- **What costs credits** (defaults; change them any time in **Admin → Settings → Payments**, no redeploy):
+  - a new app written by the AI: 3 credits;
+  - a change to an app: 1 credit;
+  - a store build on the site's Expo account: 5 credits;
   - a phone preview QR code: 1 credit.
-- **What's free:**
-  - automatic quality fixes, within a limit;
-  - using your own AI key or your own Expo account;
-  - hand edits, downloads and store pages.
-- If the AI or a build fails before starting, the credits are refunded.
+  - Automatic follow-ups right after a build (continuing a long reply, quality fixes) are free, up to 6 per build.
+  - Check your AI and Expo bills now and then, and keep each price above what it costs you.
 
 **Buying and managing credits**
 - People buy packs on **/credits** through Stripe's hosted Checkout page, so card details never touch the site.

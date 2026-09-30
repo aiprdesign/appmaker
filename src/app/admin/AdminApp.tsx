@@ -5,6 +5,7 @@ import { AppWindow, BarChart3, Check, CircleAlert, Coins, CreditCard, Eye, EyeOf
 import { formatPrice, type CreditPack } from "@/lib/credits";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FEATURES, FEATURE_KEYS, type FeatureKey, type Features } from "@/lib/features";
+import type { Prices } from "@/lib/credits";
 import { AppsTab } from "./AppsTab";
 
 type Tab = "overview" | "members" | "apps" | "settings";
@@ -695,21 +696,45 @@ interface Payments {
   database: boolean;
   mode: "test" | "live" | null;
   currency: string;
-  freeCredits: number;
-  guestBuilds: number;
   packs: CreditPack[];
-  costs: { generate: number; build: number; phonePreview: number };
+  prices: Prices;
   webhookUrl: string;
   stats: { purchases: number; creditsSold: number; creditsSpent: number; paidMembers: number } | null;
 }
 
 /** Stripe setup checklist: what's done, what's missing, and exactly where to set it. */
+const PRICE_FIELDS: { key: keyof Prices; label: string; hint: string }[] = [
+  { key: "newApp", label: "New app", hint: "credits" },
+  { key: "edit", label: "Change to an app", hint: "credits" },
+  { key: "build", label: "Store build", hint: "credits" },
+  { key: "phonePreview", label: "Phone preview", hint: "credits" },
+  { key: "freeCredits", label: "Free credits each month", hint: "per free account" },
+  { key: "guestBuilds", label: "Builds without an account", hint: "per day" },
+];
+
 function PaymentsSection() {
   const [p, setP] = useState<Payments | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
-    api<Payments>("/api/admin/payments").then(({ status, data }) => status === 200 && setP(data));
+    api<Payments>("/api/admin/payments").then(({ status, data }) => {
+      if (status !== 200) return;
+      setP(data);
+      setDraft(Object.fromEntries(Object.entries(data.prices).map(([k, v]) => [k, String(v)])));
+    });
   }, []);
   if (!p) return null;
+  const savePrices = async () => {
+    const { status, data } = await api<{ prices: Prices }>("/api/admin/payments", {
+      method: "POST",
+      body: JSON.stringify({ prices: Object.fromEntries(Object.entries(draft).map(([k, v]) => [k, Number(v)])) }),
+    });
+    if (status !== 200) return setSaved({ ok: false, text: data.error || "Couldn't save the prices." });
+    setP({ ...p, prices: data.prices });
+    setDraft(Object.fromEntries(Object.entries(data.prices).map(([k, v]) => [k, String(v)])));
+    setSaved({ ok: true, text: "Saved. New prices apply within a minute." });
+  };
+  const cheapest = [...p.packs].sort((a, b) => a.price / a.credits - b.price / b.credits)[0];
   const steps = [
     { ok: p.database, label: "Database connected", hint: "Balances are kept in the database (DATABASE_URL)." },
     { ok: p.stripeKey, label: "Stripe secret key", hint: "Stripe → Developers → API keys → Secret key. Add it as STRIPE_SECRET_KEY in Railway → Variables." },
@@ -754,23 +779,53 @@ function PaymentsSection() {
             ))}
           </ul>
         </div>
-        <div>
-          <div className="font-medium text-foreground">Prices and free credits</div>
-          <p className="mt-1">
-            AI build or edit: {p.costs.generate} · cloud build: {p.costs.build} · phone preview: {p.costs.phonePreview}. Free accounts are topped up to {p.freeCredits}{" "}
-            credits each month; visitors who aren&apos;t signed in get {p.guestBuilds} free AI builds a day. Buying any pack gives the paid plan for good (store
-            builds, bookings, live updates, no Made with Appmaker line); you can also give it to a member in Members.
-          </p>
-        </div>
       </div>
+      <fieldset className="mt-5">
+        <legend className="text-sm font-medium">Prices and free allowances</legend>
+        <p className="mt-0.5 text-xs text-muted">
+          Check your AI and Expo bills now and then: a credit sells for about {cheapest ? formatPrice(Math.round(cheapest.price / cheapest.credits), p.currency) : "—"} in
+          the biggest pack, so each thing should cost you less than its credits bring in. Automatic fixes after a build are free (a few per build).
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {PRICE_FIELDS.map((f) => (
+            <label key={f.key} className="grid gap-1 text-xs text-muted">
+              <span className="font-medium text-foreground">{f.label}</span>
+              <span className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={draft[f.key] ?? ""}
+                  onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
+                  className="min-h-9 w-20 rounded-lg border border-line bg-surface-2 px-2 text-sm text-foreground outline-none focus:border-violet-500/60"
+                />
+                {f.hint}
+              </span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button onClick={savePrices} className="inline-flex min-h-9 items-center rounded-lg bg-white px-3 text-sm font-medium text-black">
+            Save prices
+          </button>
+          {saved && (
+            <span role="status" className={`text-xs ${saved.ok ? "text-emerald-300" : "text-amber-200"}`}>
+              {saved.text}
+            </span>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          Buying any pack gives the paid plan for good (store builds, bookings, live updates, no Made with Appmaker line); you can also give it to a member in Members.
+        </p>
+      </fieldset>
       {p.stats && p.enabled && (
         <p className="mt-4 text-sm">
           {p.stats.paidMembers.toLocaleString()} paid members · {p.stats.purchases.toLocaleString()} purchases · {p.stats.creditsSold.toLocaleString()} credits sold · {p.stats.creditsSpent.toLocaleString()} credits used
         </p>
       )}
       <p className="mt-4 text-xs text-muted">
-        Optional variables: APPMAKER_CREDIT_PACKS (JSON list of packs), APPMAKER_CURRENCY (default usd), APPMAKER_FREE_CREDITS (default 10), APPMAKER_GUEST_BUILDS
-        (default 3). Use test keys first; switch to live keys when you&apos;re ready.
+        Optional variables: APPMAKER_CREDIT_PACKS (JSON list of packs), APPMAKER_CURRENCY (default usd), APPMAKER_FREE_CREDITS (default 10) and APPMAKER_GUEST_BUILDS
+        (default 1) set the starting values; the prices above override them. Use test keys first; switch to live keys when you&apos;re ready.
       </p>
     </section>
   );

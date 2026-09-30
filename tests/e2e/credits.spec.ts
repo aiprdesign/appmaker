@@ -15,7 +15,7 @@ const PAYMENTS = {
     { id: "starter", name: "Starter", credits: 50, price: 900 },
     { id: "maker", name: "Maker", credits: 200, price: 2900, badge: "Popular" },
   ],
-  costs: { generate: 1, build: 5, phonePreview: 1 },
+  prices: { newApp: 3, edit: 1, build: 5, phonePreview: 1, freeCredits: 10, guestBuilds: 3 },
   freeCredits: 10,
   guestBuilds: 3,
   mode: "test",
