@@ -77,3 +77,75 @@ test("files outside the project are never accepted", async ({ page }) => {
   await expect(page.getByRole("button", { name: /evil|package\.json/ })).toHaveCount(0);
   expect(prompts[1] ?? "").toContain("was ignored");
 });
+
+test("a big app cut off at the model's length limit is finished automatically in a second part", async ({ page }) => {
+  const app = `import React from 'react';
+import { View } from 'react-native';
+import Menu from './src/screens/Menu';
+export default function App() { return <View style={{ flex: 1, paddingTop: 80 }}><Menu /></View>; }`;
+  const menu = `import React from 'react';
+import { Text } from 'react-native';
+export default function Menu() { return <Text>Full menu is here</Text>; }`;
+  const prompts = await mockAI(page, [
+    // Part one: App.js finished, the menu screen cut off mid-file.
+    `<plan>A restaurant app with a menu screen</plan>\n<file path="App.js">\n${app}\n</file>\n<file path="src/screens/Menu.js">\nimport React from 'react';\n\n<error>The app was too large to finish in one pass. Ask for a smaller first version, or choose a model with a larger output limit in AI settings.</error>`,
+    `<plan>Finish the menu</plan>\n<file path="src/screens/Menu.js">\n${menu}\n</file>\n<listing>${LISTING}</listing>\n<summary>Finished the app.</summary>`,
+  ]);
+  const preview = await start(page);
+  await expect(preview.getByText("Full menu is here")).toBeVisible({ timeout: 20_000 });
+  expect(prompts).toHaveLength(2);
+  expect(prompts[1]).toMatch(/cut off before it finished/);
+  expect(prompts[1]).toMatch(/src\/screens\/Menu/);
+  expect(prompts[1]).toMatch(/Files already written: App\.js/);
+  await expect(page.getByText(/writing it in parts/)).toBeVisible();
+  await expect(page.getByText(/too large to finish/)).toHaveCount(0);
+});
+
+test("a hero slider built the way the AI is told works in the preview: slides, dots and auto-advance", async ({ page }) => {
+  const slider = `import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, useWindowDimensions } from 'react-native';
+const SLIDES = ['Fresh pasta daily', 'Wood-fired pizza', 'Book your table'];
+export default function HeroSlider() {
+  const { width } = useWindowDimensions();
+  const w = width - 40;
+  const ref = useRef(null);
+  const [index, setIndex] = useState(0);
+  const dragging = useRef(false);
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (dragging.current) return;
+      setIndex((i) => {
+        const next = (i + 1) % SLIDES.length;
+        ref.current?.scrollTo({ x: next * w, animated: true });
+        return next;
+      });
+    }, 4000);
+    return () => clearInterval(t);
+  }, [w]);
+  return (
+    <View>
+      <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false}
+        onScrollBeginDrag={() => { dragging.current = true; }}
+        onMomentumScrollEnd={(e) => { dragging.current = false; setIndex(Math.round(e.nativeEvent.contentOffset.x / w)); }}>
+        {SLIDES.map((s) => (
+          <View key={s} style={{ width: w, height: 200, borderRadius: 20, backgroundColor: '#B91C1C', justifyContent: 'flex-end', padding: 16 }}>
+            <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800' }}>{s}</Text>
+          </View>
+        ))}
+      </ScrollView>
+      <Text accessibilityLabel="slide position">Slide {index + 1} of {SLIDES.length}</Text>
+    </View>
+  );
+}`;
+  const app = `import React from 'react';
+import { View } from 'react-native';
+import HeroSlider from './src/components/HeroSlider';
+export default function App() { return <View style={{ flex: 1, paddingTop: 80, paddingHorizontal: 20 }}><HeroSlider /></View>; }`;
+  await mockAI(page, [
+    `<plan>Slider</plan>\n<file path="App.js">\n${app}\n</file>\n<file path="src/components/HeroSlider.js">\n${slider}\n</file>\n<listing>${LISTING}</listing>\n<summary>ok</summary>`,
+  ]);
+  const preview = await start(page);
+  await expect(preview.getByText("Fresh pasta daily")).toBeVisible({ timeout: 20_000 });
+  await expect(preview.getByText("Slide 1 of 3")).toBeVisible();
+  await expect(preview.getByText("Slide 2 of 3")).toBeVisible({ timeout: 6_000 });
+});

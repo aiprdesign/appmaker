@@ -27,6 +27,8 @@ type Tab = "preview" | "code" | "publish";
 
 /** Automatic repair passes allowed after each request the user sends. */
 const AUTO_FIX_BUDGET = 2;
+/** Extra requests allowed to finish an app the model couldn't write in one reply. */
+const CONTINUE_BUDGET = 3;
 /** How long after a generation a preview crash counts as caused by it. */
 const RUNTIME_WATCH_MS = 8000;
 
@@ -83,6 +85,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const projectRef = useRef<Project | null>(null);
   const started = useRef(false);
   const fixBudget = useRef(AUTO_FIX_BUDGET);
+  const continueBudget = useRef(CONTINUE_BUDGET);
   const runtimeWatchUntil = useRef(0);
   const demoRef = useRef(false);
   const unloading = useRef(false);
@@ -149,7 +152,10 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     async (text: string, opts: { autoFix?: boolean; retry?: boolean } = {}) => {
       const current = projectRef.current;
       if (!current || abortRef.current) return;
-      if (!opts.autoFix) fixBudget.current = AUTO_FIX_BUDGET;
+      if (!opts.autoFix) {
+        fixBudget.current = AUTO_FIX_BUDGET;
+        continueBudget.current = CONTINUE_BUDGET;
+      }
       runtimeWatchUntil.current = 0;
       const userMsg: ChatMessage = {
         id: uid(),
@@ -221,6 +227,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       if (unloading.current) return;
 
       const streamError = /<error>([\s\S]*?)<\/error>/.exec(raw)?.[1];
+      // A reply cut off at the model's length limit: the finished files are
+      // kept and the rest is written in a follow-up request (below).
+      const cutOff = !!streamError && /too large to finish in one pass/i.test(streamError);
       if (streamError) error = friendlyError(streamError);
       const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
       const base = projectRef.current ?? withUser;
@@ -238,7 +247,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       for (const p of parsed.deleted) if (isAllowedPath(p)) delete files[p];
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
 
-      const reply =
+      const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && isAllowedPath(p)) && continueBudget.current > 0 && !demoRef.current;
+      if (continuing) error = "";
+      const reply = continuing
+        ? `${parsed.plan || "Building your app."}\n\nThat was a big one, so I'm writing it in parts. Part done — continuing with the rest…`
+        :
         [parsed.summary || (Object.keys(complete).length ? parsed.plan || "Updated your app." : ""), error && `⚠️ ${error}`]
           .filter(Boolean)
           .join("\n\n") || "I couldn't produce an app for that. Try describing it differently.";
@@ -277,6 +290,22 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // Problems go back to the AI; the app appears once it's clean.
       const wroteFiles = Object.keys(complete).length > 0;
       if (!wroteFiles || error || demoRef.current) return reveal();
+      if (continuing) {
+        continueBudget.current -= 1;
+        setChecking(true);
+        const missing = validateApp(files).filter((i) => /doesn't exist|is missing/.test(i.message));
+        sendRef.current?.(
+          [
+            "Your previous reply was cut off before it finished. Keep every file you already wrote exactly as it is, and write only the files that are still missing or incomplete, then the <listing> and <summary>.",
+            missing.length ? `Still missing:\n${describeIssues(missing)}` : "",
+            `Files already written: ${Object.keys(files).join(", ")}.`,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+          { autoFix: true },
+        );
+        return;
+      }
       const issues = [...rejected, ...validateApp(files)];
       const claims = (next.wording ?? DEFAULT_WORDING) === "claim-safe" ? checkClaims(files, next.listing) : [];
       const regulated = checkRegulatedClaims(files, next.listing);

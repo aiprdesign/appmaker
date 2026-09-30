@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST } from "@/app/api/site/route";
 import { demoResponse } from "@/lib/demo";
 import { parseGeneration } from "@/lib/parse";
-import { formatSite } from "@/lib/prompt";
+import { formatSite, systemPrompt } from "@/lib/prompt";
 import { importSite, isPublicAddress, normalizeUrl, SiteError } from "@/lib/site";
 import type { SiteSummary } from "@/lib/types";
 
@@ -176,6 +176,15 @@ describe("using an imported site", () => {
     expect(text).not.toContain("call");
     expect(text).toContain("- Email: a@b.co");
     expect(text.match(/<\/website_content>/g)).toHaveLength(1);
+  });
+
+  it("asks for a hero slider and a complete, usable app when building from a website", () => {
+    const system = systemPrompt();
+    expect(system).toMatch(/Hero slider: when there are 2 or more Images/);
+    expect(system).toMatch(/pagingEnabled/);
+    expect(system).toMatch(/auto-advance every 4 seconds/);
+    expect(system).toMatch(/A complete, usable app from a website/);
+    expect(system).toMatch(/never pretend a booking was confirmed/);
   });
 
   it("fences website text so it can't break out of <website_content>", () => {
