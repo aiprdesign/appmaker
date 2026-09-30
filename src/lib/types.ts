@@ -198,6 +198,8 @@ export interface Project {
   design?: AppDesign;
   /** Live updates from the business's website (see src/lib/live.ts). */
   live?: { id: string; url: string; feedUrl: string; fetchedAt: string | null; error?: string | null };
+  /** Bookings run by Appmaker (see src/lib/booking.ts): the app's booking address. */
+  booking?: { id: string; apiUrl: string };
   /** Hosted support page and privacy policy (see src/lib/store-pages.ts). */
   storePages?: StorePagesState;
   /** The business's logo as the app icon; without it, the icon is drawn from the emoji. */

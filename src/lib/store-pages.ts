@@ -18,6 +18,7 @@ export interface AppFacts {
   photos: boolean;
   /** Opens the phone, email, maps, WhatsApp or websites. */
   opensLinks: boolean;
+  bookings?: boolean;
   /** Web services the app loads content from. */
   services: string[];
 }
@@ -54,6 +55,7 @@ export function appFacts(files: Record<string, string>): AppFacts {
     camera: /launchCameraAsync|requestCameraPermissions/.test(code),
     photos: /launchImageLibraryAsync|requestMediaLibraryPermissions/.test(code),
     opensLinks: /Linking\.openURL/.test(code),
+    bookings: /\/api\/book\/[A-Za-z0-9_-]+/.test(code),
     services: [...services].sort().slice(0, 15),
   };
 }
@@ -95,6 +97,7 @@ export function parsePageContent(v: unknown): StorePageContent {
       camera: f.camera === true,
       photos: f.photos === true,
       opensLinks: f.opensLinks === true,
+      bookings: f.bookings === true,
       services,
     },
   };
@@ -130,9 +133,14 @@ export function privacySections(c: StorePageContent): PageSection[] {
     },
     {
       heading: "Information we collect",
-      paragraphs: [
-        "We do not collect personal information through the app. The app has no user accounts, advertising or analytics, and we do not sell or share personal information.",
-      ],
+      paragraphs: f.bookings
+        ? [
+            `When you book an appointment, the app sends your name, phone number, the time you chose, the service and any note to ${c.developer} so they can see and manage your booking. Bookings are stored securely by Appmaker, the service that runs bookings for ${c.developer}, and are deleted automatically one year after the appointment. They are used only for your booking.`,
+            "Apart from bookings, we do not collect personal information through the app. The app has no user accounts, advertising or analytics, and we do not sell or share personal information.",
+          ]
+        : [
+            "We do not collect personal information through the app. The app has no user accounts, advertising or analytics, and we do not sell or share personal information.",
+          ],
     },
     {
       heading: "Information stored on your device",

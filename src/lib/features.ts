@@ -8,7 +8,11 @@ export const FEATURES = {
   passkeys: { label: "Passkeys", description: "Sign in with Face ID, a fingerprint or the device passcode.", default: true },
   signups: { label: "New account sign-ups", description: "Lets new people create accounts. Existing accounts can always sign in.", default: true },
   websiteImport: { label: "Build from a website", description: "URL to App: the tab and section on the home page.", default: true },
-  bookings: { label: "Bookings", description: "Apps can take bookings: free times in the app, and an owner page for the business.", default: true },
+  bookings: {
+    label: "Bookings",
+    description: "Apps can take bookings: customers pick a free time in the app, and the business manages them on an owner page. Off until you turn it on.",
+    default: false,
+  },
   cloudBuilds: { label: "Expo cloud builds", description: "“Build & upload with Expo” in the Publish tab.", default: true },
   publicStatus: { label: "Public status page", description: "Anyone can open /status. When off, only a signed-in admin can.", default: true },
 } as const;

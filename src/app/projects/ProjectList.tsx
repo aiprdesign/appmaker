@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { CalendarCheck, Plus, Trash2 } from "lucide-react";
 import { AppIcon } from "@/components/builder/PublishPanel";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { PasskeyNudge } from "@/components/Passkeys";
@@ -76,6 +76,15 @@ export function ProjectList() {
               </div>
             </div>
             <p className="mt-4 line-clamp-2 text-sm text-muted">{p.prompt}</p>
+            {p.booking && (
+              // The business's bookings page; the account that made the app opens it without a link.
+              <Link
+                href={`/owner/${p.booking.id}`}
+                className="relative z-10 mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:border-white/20"
+              >
+                <CalendarCheck className="h-4 w-4 text-violet-300" /> Bookings
+              </Link>
+            )}
             <button
               onClick={() => setRemoving(p)}
               // Always visible on touch screens; on hover or keyboard focus with a mouse.

@@ -36,7 +36,8 @@ export async function POST(req: Request, ctx: Ctx) {
   try {
     const setup = await load(ctx);
     if (!setup) return json({ error: "Bookings aren't open." }, 404);
-    if (!rateLimit(`book:${setup.id}:${clientIp(req)}`, 8, 60 * 60 * 1000).ok) return json({ error: "Too many bookings from this device. Please call us instead." }, 429);
+    if (!rateLimit(`book:${setup.id}:${clientIp(req)}`, 8, 60 * 60 * 1000).ok)
+      return json({ error: "Too many bookings from this device. Please call us instead." }, 429);
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") return json({ error: "Invalid request." }, 400);
     return json(await createBooking(setup, body as Record<string, unknown>));

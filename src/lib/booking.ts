@@ -73,12 +73,21 @@ export function parseSettings(v: unknown): BookingSettings {
     const d = h as Record<string, unknown>;
     if (typeof d.open !== "string" || typeof d.close !== "string" || !TIME.test(d.open) || !TIME.test(d.close))
       throw new BookingInputError(`Check the opening hours on ${WEEKDAYS[i]}.`);
-    if (toMinutes(d.close) - toMinutes(d.open) < slot) throw new BookingInputError(`On ${WEEKDAYS[i]}, closing time must be at least one appointment after opening.`);
+    if (toMinutes(d.close) - toMinutes(d.open) < slot)
+      throw new BookingInputError(`On ${WEEKDAYS[i]}, closing time must be at least one appointment after opening.`);
     return { open: d.open, close: d.close };
   });
   if (!hours.some(Boolean)) throw new BookingInputError("Open at least one day a week.");
   const services = (Array.isArray(o.services) ? o.services : [])
-    .map((s) => (typeof s === "string" ? s.replace(/[\u0000-\u001f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) : ""))
+    .map((s) =>
+      typeof s === "string"
+        ? s
+            .replace(/[\u0000-\u001f<>]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 60)
+        : "",
+    )
     .filter(Boolean)
     .filter((s, i, all) => all.indexOf(s) === i)
     .slice(0, 20);
@@ -127,7 +136,7 @@ export default function BookingScreen({ phone }) {
   const [mine, setMine] = useState([]);
 
   const load = useCallback(() => {
-    if (!API) return setError('Bookings open soon.');
+    if (!API) return setError('Online booking is closed right now. Please call us.');
     setError('');
     fetch(API)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
@@ -208,6 +217,11 @@ export default function BookingScreen({ phone }) {
             <TouchableOpacity style={styles.secondary} onPress={load}>
               <RotateCw color={colors.primary} size={18} />
               <Text style={styles.secondaryText}>Try again</Text>
+            </TouchableOpacity>
+          ) : phone ? (
+            <TouchableOpacity style={styles.secondary} onPress={() => Linking.openURL('tel:' + String(phone).replace(/[^\\d+]/g, '')).catch(() => {})}>
+              <Phone color={colors.primary} size={18} />
+              <Text style={styles.secondaryText}>Call us</Text>
             </TouchableOpacity>
           ) : null}
         </View>

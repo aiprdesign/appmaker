@@ -31,7 +31,14 @@ interface SetupRow {
   settings: BookingSettings;
 }
 
-const toSetup = (r: SetupRow): BookingSetup => ({ id: r.id, userId: r.user_id, projectId: r.project_id, ownerKey: r.owner_key, name: r.name, settings: r.settings });
+const toSetup = (r: SetupRow): BookingSetup => ({
+  id: r.id,
+  userId: r.user_id,
+  projectId: r.project_id,
+  ownerKey: r.owner_key,
+  name: r.name,
+  settings: r.settings,
+});
 
 // ---------- time in the business's time zone ----------
 
@@ -39,7 +46,15 @@ const formatters = new Map<string, Intl.DateTimeFormat>();
 function zoneParts(ms: number, tz: string) {
   let f = formatters.get(tz);
   if (!f) {
-    f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    });
     formatters.set(tz, f);
   }
   const p = Object.fromEntries(f.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
@@ -212,10 +227,16 @@ export async function createBooking(setup: BookingSetup, input: Record<string, u
   if (!free) throw new BookingConflict("Sorry, that time was just taken. Please choose another.");
   const id = randomBytes(9).toString("base64url");
   try {
-    await query(
-      "insert into app_bookings (id, setup_id, starts_at, ends_at, name, phone, service, note) values ($1, $2, $3, $4, $5, $6, $7, $8)",
-      [id, setup.id, new Date(start).toISOString(), new Date(start + setup.settings.slotMinutes * 60000).toISOString(), name, phone, service, note],
-    );
+    await query("insert into app_bookings (id, setup_id, starts_at, ends_at, name, phone, service, note) values ($1, $2, $3, $4, $5, $6, $7, $8)", [
+      id,
+      setup.id,
+      new Date(start).toISOString(),
+      new Date(start + setup.settings.slotMinutes * 60000).toISOString(),
+      name,
+      phone,
+      service,
+      note,
+    ]);
   } catch (e) {
     if ((e as { code?: string }).code === "23505") throw new BookingConflict("Sorry, that time was just taken. Please choose another.");
     throw e;
@@ -341,7 +362,11 @@ export async function removeBlock(setupId: string, blockId: string): Promise<boo
 // ---------- calendar feed ----------
 
 const icsText = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
-const icsTime = (ms: number) => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+const icsTime = (ms: number) =>
+  new Date(ms)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
 
 /** An iCalendar feed of upcoming bookings, for the owner's phone calendar. */
 export async function calendarFeed(setup: BookingSetup, now = Date.now()): Promise<string> {

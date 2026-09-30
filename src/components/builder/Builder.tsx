@@ -8,6 +8,7 @@ import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
 import { LIVE_FILE, liveModule } from "@/lib/live";
 import { defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
+import { BOOKING_FILE, bookingModule } from "@/lib/booking";
 import { DesignPanel } from "./DesignPanel";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
@@ -257,6 +258,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
       // Every app carries Appmaker's theme file too, written from the Design settings.
       if (Object.keys(files).length) files[THEME_FILE] = themeModule(base.design ?? defaultDesign(listing));
+      // Apps with bookings always carry Appmaker's booking screen, whatever the AI wrote.
+      if (base.booking) files[BOOKING_FILE] = bookingModule(base.booking.apiUrl);
 
       const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && isAllowedPath(p)) && continueBudget.current > 0 && !demoRef.current;
       if (continuing) error = "";
@@ -374,7 +377,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       if (!p || !v || abortRef.current) return;
       const when = new Date(v.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       // The design is a setting, not part of a version: the restored code keeps today's look.
-      const files = p.design ? { ...v.files, [THEME_FILE]: themeModule(p.design) } : v.files;
+      const files: FileMap = p.design ? { ...v.files, [THEME_FILE]: themeModule(p.design) } : { ...v.files };
+      if (p.booking) files[BOOKING_FILE] = bookingModule(p.booking.apiUrl);
       const listing = p.design ? { ...v.listing, primaryColor: p.design.primary } : v.listing;
       const restored = withVersion({ ...p, files, listing, name: v.listing.name || p.name }, `Restored the version from ${when}`);
       const note: ChatMessage = {
@@ -697,6 +701,17 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               onLiveChange={(live, files) => {
                 commit({ ...(projectRef.current ?? project), live, files });
                 setPreviewFiles(files);
+              }}
+              onBookingChange={(booking, files) => {
+                commit({ ...(projectRef.current ?? project), booking, files });
+                setPreviewFiles(files);
+              }}
+              busy={generating || checking}
+              onAddBookingScreen={() => {
+                setTab("preview");
+                send(
+                  "Add a Book tab to the app's tab bar that shows Appmaker's booking screen (src/booking.js) as that tab's whole screen, as the booking rules describe. Point every Book button (for example a quick action on the home screen) to this tab, and replace any other booking form or booking link with it. Keep everything else the same.",
+                );
               }}
             />
           )}

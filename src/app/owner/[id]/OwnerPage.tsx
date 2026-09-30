@@ -178,19 +178,19 @@ export function OwnerPage({ id }: { id: string }) {
                 <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{day}</h3>
                 <ul className="space-y-2">
                   {list.map((b) => (
-                    <li key={b.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-surface-2/60 p-3">
-                      <div className="w-20 shrink-0 text-sm font-semibold">
+                    <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-surface-2/60 p-3">
+                      <div className="w-[4.75rem] shrink-0 whitespace-nowrap text-sm font-semibold">
                         <Clock className="mr-1 inline h-3.5 w-3.5 text-muted" />
                         {timeOf(b)}
                       </div>
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 basis-40">
                         <p className="truncate font-medium">
                           {b.name}
                           {b.isNew && <span className="ml-2 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">New</span>}
                         </p>
                         <p className="truncate text-xs text-muted">{[b.service, b.phone, b.note].filter(Boolean).join(" · ")}</p>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="ml-auto flex gap-1">
                         <a
                           href={`tel:${b.phone.replace(/[^\d+]/g, "")}`}
                           aria-label={`Call ${b.name}`}
@@ -235,7 +235,12 @@ export function OwnerPage({ id }: { id: string }) {
             <input type="date" value={block.date} min={today()} onChange={(e) => setBlock({ ...block, date: e.target.value })} className={field} />
           </label>
           <label className="flex min-h-10 items-center gap-2 text-sm">
-            <input type="checkbox" checked={block.allDay} onChange={(e) => setBlock({ ...block, allDay: e.target.checked })} className="h-4 w-4 accent-violet-500" />
+            <input
+              type="checkbox"
+              checked={block.allDay}
+              onChange={(e) => setBlock({ ...block, allDay: e.target.checked })}
+              className="h-4 w-4 accent-violet-500"
+            />
             All day
           </label>
           {!block.allDay && (
@@ -317,7 +322,9 @@ export function OwnerPage({ id }: { id: string }) {
             <CalendarPlus className="h-4 w-4" /> Google Calendar
           </a>
         </div>
-        <p className="mt-2 text-xs text-muted">Apple Calendar checks for new bookings every 15 minutes; Google Calendar can take several hours. This page is always up to date.</p>
+        <p className="mt-2 text-xs text-muted">
+          Apple Calendar checks for new bookings every 15 minutes; Google Calendar can take several hours. This page is always up to date.
+        </p>
       </section>
 
       {view.ownerUrl && (
@@ -344,7 +351,9 @@ export function OwnerPage({ id }: { id: string }) {
         </section>
       )}
 
-      <p className="px-1 text-center text-xs text-muted">Tip: add this page to your home screen to open it like an app. Bookings older than a year are deleted automatically.</p>
+      <p className="px-1 text-center text-xs text-muted">
+        Tip: add this page to your home screen to open it like an app. Bookings older than a year are deleted automatically.
+      </p>
 
       {cancelling && (
         <ConfirmDialog

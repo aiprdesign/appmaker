@@ -5,6 +5,7 @@ import { Check, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star
 import type { AppIconImage, ExpoState, Project, StoreListing, StorePagesState } from "@/lib/types";
 import { StorePages } from "./StorePages";
 import { LiveUpdates } from "./LiveUpdates";
+import { Bookings } from "./Bookings";
 import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
@@ -24,6 +25,9 @@ interface Props {
   onIconChange: (icon: AppIconImage | undefined) => void;
   onStorePagesChange: (next: { listing: StoreListing; storePages: StorePagesState }) => void;
   onLiveChange: (live: Project["live"], files: Project["files"]) => void;
+  onBookingChange: (booking: Project["booking"], files: Project["files"]) => void;
+  onAddBookingScreen: () => void;
+  busy: boolean;
   hasPreviewError: boolean;
 }
 
@@ -191,7 +195,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, hasPreviewError }: Props) {
+export function PublishPanel({ project, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, busy, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -323,6 +327,8 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
           </section>
 
           <LiveUpdates project={project} onChange={onLiveChange} />
+
+          <Bookings project={project} onChange={onBookingChange} onAddScreen={onAddBookingScreen} busy={busy} />
 
           <StorePages project={project} onChange={onStorePagesChange} />
 

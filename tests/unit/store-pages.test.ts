@@ -35,6 +35,7 @@ describe("store pages", () => {
       camera: true,
       photos: false,
       opensLinks: true,
+      bookings: false,
       services: ["api.open-meteo.com", "images.luigis.example"],
     });
     expect(appFacts({ "App.js": "export default () => null;" })).toEqual({
@@ -43,6 +44,7 @@ describe("store pages", () => {
       camera: false,
       photos: false,
       opensLinks: false,
+      bookings: false,
       services: [],
     });
   });
