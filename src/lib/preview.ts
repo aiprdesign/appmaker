@@ -122,6 +122,53 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
     });
     AppRegistry.runApplication("main", { rootTag: document.getElementById("root") });
     post({ type: "ready" });
+
+    // Layout check: the app should fill the screen, with a bottom tab bar at
+    // the bottom. Catches a root View without flex: 1 or a fixed screen height.
+    var layoutIssue = function () {
+      var root = document.getElementById("root");
+      var H = window.innerHeight, W = window.innerWidth;
+      if (!root || !root.firstElementChild) return null;
+      var empty = function (el) { return !el || el === document.body || el === document.documentElement || el === root || el === root.firstElementChild; };
+      var hits = [H - 24, H - 90].map(function (y) { return document.elementFromPoint(W / 2, y); });
+      if (hits.every(empty)) {
+        // Where the app's content ends: scan up from the bottom of the screen.
+        var bottom = 0;
+        for (var y = H - 1; y > 0; y -= 4) {
+          if (!empty(document.elementFromPoint(W / 2, y))) { bottom = y + 1; break; }
+        }
+        return "The app only fills the top " + Math.round(bottom) + "px of the " + H + "px-tall screen, leaving an empty band at the bottom.";
+      }
+      // A bottom tab bar (a full-width row of 3+ tappable items in the lower half) must sit at the bottom.
+      var pointer = function (el) { return getComputedStyle(el).cursor === "pointer"; };
+      var rows = new Map();
+      Array.prototype.forEach.call(root.querySelectorAll("*"), function (el) {
+        if (!pointer(el) || (el.parentElement && pointer(el.parentElement))) return;
+        var parent = el.parentElement;
+        if (!parent) return;
+        if (!rows.has(parent)) rows.set(parent, []);
+        rows.get(parent).push(el.getBoundingClientRect());
+      });
+      var issue = null;
+      rows.forEach(function (rects, parent) {
+        if (issue || rects.length < 3) return;
+        var r = parent.getBoundingClientRect();
+        var sameRow = rects.every(function (x) { return Math.abs(x.top - rects[0].top) < 6; });
+        if (!sameRow || r.width < W * 0.8 || r.top < H * 0.5 || r.bottom > H - 48) return;
+        var below = document.elementFromPoint(W / 2, Math.min(H - 4, (r.bottom + H) / 2));
+        if (below && (empty(below) || below.contains(parent))) {
+          issue = "The bottom tab bar ends at " + Math.round(r.bottom) + "px instead of at the bottom of the " + H + "px-tall screen, with empty space below it.";
+        }
+      });
+      return issue;
+    };
+    setTimeout(function () {
+      try {
+        var issue = layoutIssue();
+        window.__layoutIssue = issue;
+        if (issue && !reported) post({ type: "layout", message: issue });
+      } catch (_) {}
+    }, 1500);
   } catch (e) {
     report(e.message, e.stack);
     document.getElementById("root").innerHTML = '<pre style="padding:24px;padding-top:70px;color:#b91c1c;font:13px ui-monospace,monospace;white-space:pre-wrap"></pre>';

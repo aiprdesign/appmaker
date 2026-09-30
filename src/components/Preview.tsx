@@ -15,11 +15,13 @@ interface Props {
   /** Bump to force a fresh reload of the app. */
   reloadKey: number;
   onError?: (err: PreviewError | null) => void;
+  /** The app doesn't fill the screen (for example a tab bar floating mid-screen). */
+  onLayoutIssue?: (message: string) => void;
 }
 
 const noopSubscribe = () => () => {};
 
-export function Preview({ files, platform, reloadKey, onError }: Props) {
+export function Preview({ files, platform, reloadKey, onError, onLayoutIssue }: Props) {
   const origin = useSyncExternalStore(
     noopSubscribe,
     () => window.location.origin,
@@ -38,10 +40,11 @@ export function Preview({ files, platform, reloadKey, onError }: Props) {
       // Only trust messages from our own preview frame.
       if (e.source !== frame.current?.contentWindow || e.data?.source !== "appmaker-preview") return;
       if (e.data.type === "error") onError?.({ message: e.data.message, stack: e.data.stack });
+      if (e.data.type === "layout" && typeof e.data.message === "string") onLayoutIssue?.(e.data.message.slice(0, 300));
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [html, reloadKey, onError]);
+  }, [html, reloadKey, onError, onLayoutIssue]);
 
   if (!html) return <div className="h-full w-full bg-white" />;
   return (

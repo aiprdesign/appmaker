@@ -85,6 +85,8 @@ const BROKEN: [string, string, Parameters<typeof app>[0], Partial<typeof LISTING
   ["has unreadable grey text", "readable-contrast", { body: "<Text style={s.title}>Hello</Text><Text style={{ color: '#D1D5DB', fontSize: 14 }}>Faint text one</Text><Text style={{ color: '#D1D5DB', fontSize: 14 }}>Faint text two</Text><Text style={s.item}>{tab}</Text>" }],
   ["uses tiny text", "readable-size", { body: "<Text style={s.title}>Hello</Text><Text style={{ fontSize: 9, color: '#111827' }}>Fine print nobody can read</Text><Text style={s.item}>{tab}</Text>" }],
   ["overflows the screen", "fits-screen", { body: "<Text style={s.title}>Wide</Text><View style={{ width: 700, height: 40, backgroundColor: '#1D4ED8' }} /><Text style={s.item}>{tab}</Text>" }],
+  ["doesn't fill the screen", "fills-screen", { styles: "root: { height: 520, backgroundColor: '#FFFFFF' }," }],
+  ["has its tab bar floating above the bottom", "fills-screen", { styles: "tabs: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#E5E7EB', marginBottom: 280 }," }],
   ["contains lorem ipsum", "content", { body: "<Text style={s.title}>Lorem ipsum dolor</Text><Text style={s.item}>{tab}</Text>" }],
   ["forgets data when reopened", "persists", { save: "setItems(next);" }],
   ["has a Save button that does nothing", "adds", { save: "" }],

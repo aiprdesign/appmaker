@@ -183,6 +183,10 @@ export async function gradeApp(browser: Browser, files: FileMap, listing: Partia
       add("readable-contrast", "Text contrast meets WCAG AA", first.lowContrast <= Math.max(1, first.textEls * 0.05), false, 6, first.lowSamples.join(", "));
       add("readable-size", "No text smaller than 11pt", first.tinyText === 0, false, 3, first.tinyText ? `${first.tinyText} tiny labels` : undefined);
       add("fits-screen", "Layout fits the phone width", first.overflow === 0, false, 6, first.overflow ? `${first.overflow} elements overflow` : undefined);
+      // The preview's own layout check: fills the screen, tab bar at the bottom.
+      await page.waitForFunction(() => (window as unknown as { __layoutIssue?: string | null }).__layoutIssue !== undefined, null, { timeout: 5000 }).catch(() => {});
+      const layout = await page.evaluate(() => (window as unknown as { __layoutIssue?: string | null }).__layoutIssue ?? null);
+      add("fills-screen", "Fills the screen, with the tab bar at the bottom", !layout, false, 6, layout ?? undefined);
 
       const targets = await tappables(page);
       const buttons = targets.filter((t) => !t.input);

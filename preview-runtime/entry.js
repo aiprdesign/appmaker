@@ -31,14 +31,24 @@ const AsyncStorage = {
 
 function StatusBar() { return null; }
 
-const SafeAreaView = React.forwardRef(function SafeAreaView(props, ref) {
-  return React.createElement(RNW.View, { ...props, ref, style: [{ flex: 1, paddingTop: 44 }, props.style] });
+// Safe areas like a real phone: the iPhone notch and home indicator, or the
+// Android status bar. SafeAreaView pads only the edges it's asked for.
+const insets = () => (RNW.Platform.OS === "android" ? { top: 24, bottom: 0, left: 0, right: 0 } : { top: 44, bottom: 24, left: 0, right: 0 });
+const SafeAreaView = React.forwardRef(function SafeAreaView({ edges, mode, ...props }, ref) {
+  const i = insets();
+  const list = Array.isArray(edges) ? edges : edges && typeof edges === "object" ? Object.keys(edges).filter((k) => edges[k] !== "off") : ["top", "right", "bottom", "left"];
+  const key = mode === "margin" ? "margin" : "padding";
+  const pad = {};
+  for (const edge of list) pad[key + edge[0].toUpperCase() + edge.slice(1)] = i[edge] || 0;
+  return React.createElement(RNW.View, { ...props, ref, style: [{ flex: 1 }, pad, props.style] });
 });
 
 const safeArea = {
   SafeAreaView,
   SafeAreaProvider: ({ children }) => children,
-  useSafeAreaInsets: () => ({ top: 44, bottom: 24, left: 0, right: 0 }),
+  useSafeAreaInsets: insets,
+  useSafeAreaFrame: () => ({ x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }),
+  initialWindowMetrics: null,
 };
 
 const Haptics = {

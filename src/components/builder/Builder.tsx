@@ -93,6 +93,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [checking, setChecking] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [previewError, setPreviewError] = useState<PreviewError | null>(null);
+  const [layoutIssue, setLayoutIssue] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -167,6 +168,10 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     commit({ ...p, files });
     setPreviewFiles(files);
   }, [plan, branded, generating, project, commit]);
+
+  // A new version of the app gets checked again.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setLayoutIssue(null), [previewFiles, reloadKey]);
 
   // Debounce hand edits in the code tab into the preview.
   useEffect(() => {
@@ -440,6 +445,20 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     }
   }, []);
 
+  // A layout problem right after a generation (e.g. a tab bar floating
+  // mid-screen) goes back to the AI too, once.
+  const onLayoutIssue = useCallback((message: string) => {
+    setLayoutIssue(message);
+    if (Date.now() < runtimeWatchUntil.current && fixBudget.current > 0 && !abortRef.current) {
+      runtimeWatchUntil.current = 0;
+      fixBudget.current -= 1;
+      sendRef.current(
+        `Automatic quality check: layout problem in the preview on a 390×844 phone. ${message}\n\nFix the layout so it looks right on iPhone, Android and the web: the root View and every wrapper down to each screen need flex: 1 (no fixed screen heights from Dimensions), each screen's content scrolls in a ScrollView with flex: 1, and the bottom tab bar is the last child of the root column so it sits at the bottom, with the bottom safe-area inset as padding.`,
+        { autoFix: true },
+      );
+    }
+  }, []);
+
   if (project === undefined) {
     return (
       <div className="grid h-screen place-items-center">
@@ -671,12 +690,33 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   )}
                 </div>
               )}
+              {layoutIssue && !previewError && !generating && !checking && (
+                <div role="status" className="mx-4 mb-2 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-amber-100">The layout doesn&apos;t fill the screen</div>
+                    <div className="mt-0.5 text-xs text-amber-100/80">{layoutIssue}</div>
+                  </div>
+                  {!demoMode && (
+                    <button
+                      onClick={() =>
+                        send(
+                          `Layout problem in the preview on a 390×844 phone: ${layoutIssue}\n\nFix the layout so it looks right on iPhone, Android and the web, following the layout rules (flex: 1 from the root down to each screen, ScrollView per screen, tab bar as the last child of the root column with the bottom safe-area inset).`,
+                        )
+                      }
+                      className="min-h-8 shrink-0 rounded-lg bg-amber-400 px-3 text-xs font-medium text-black hover:bg-amber-300"
+                    >
+                      Fix with AI
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="relative flex min-h-0 flex-1 gap-4 px-4 pb-4">
                 <div className="relative min-h-0 min-w-0 flex-1">
                 <PhoneFrame platform={platform}>
                   {checking && <ChecksOverlay generating={generating} />}
                   {hasApp || Object.keys(previewFiles).length ? (
-                    <Preview files={previewFiles} platform={platform} reloadKey={reloadKey} onError={onPreviewError} />
+                    <Preview files={previewFiles} platform={platform} reloadKey={reloadKey} onError={onPreviewError} onLayoutIssue={onLayoutIssue} />
                   ) : (
                     <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-500">
                       <div>

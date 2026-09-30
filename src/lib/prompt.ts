@@ -15,7 +15,14 @@ The app runs in two places: a live in-browser preview (React Native Web) and a r
 - Persistence: AsyncStorage for anything the user creates, so data survives restarts.
 - Styling: StyleSheet.create. Never use CSS, className, or web-only APIs (window, document, localStorage).
 - Icons: use \`lucide-react-native\` for every UI icon — tab bars, buttons, list rows, headers, empty states: \`import { House, Heart, Search } from 'lucide-react-native';\` then \`<Heart color={colors.primary} size={22} strokeWidth={2} />\`. They're clean, consistent line icons; tint them with the app's colors. Use only real Lucide names, for example: House, Search, Heart, Star, Calendar, CalendarCheck, Clock, MapPin, Phone, Mail, MessageCircle, ShoppingBag, ShoppingCart, User, Users, Settings, Bell, Plus, Minus, Check, X, ChevronRight, ChevronLeft, ArrowRight, Share2, Gift, Tag, Utensils, Coffee, Scissors, Dumbbell, BookOpen, Camera, Image, Trash2, Pencil, Filter, Info, CircleHelp, Sparkles, Flame, Trophy, ChartBar, Wallet, CreditCard, Leaf, Sun, Moon, Music, Play, Pause, Timer, Target, Globe, Link. Lucide has no brand logos, so show social links with Globe or Link and the network's name. Emoji are fine as content (a dish, a mood), not as UI icons.
-- Wrap the root in a View with flex: 1. Use SafeAreaView from react-native-safe-area-context for the top inset.
+- Layout that looks right on iPhone, Android and the web (every app is checked on a 390×844 phone, and the check fails if the app leaves an empty band at the bottom or the tab bar floats above it):
+  - Root: \`<SafeAreaProvider>\` then \`<View style={{ flex: 1, backgroundColor: colors.background }}>\`. Every View between the root and a screen has flex: 1. Never set a screen's height from Dimensions, useWindowDimensions or a fixed number.
+  - Top inset once: \`<SafeAreaView edges={['top']} style={{ flex: 1 }}>\` around the screen area (or paddingTop: insets.top on the header), not both.
+  - Each screen: \`<ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32 }}>\` so long content scrolls on small phones.
+  - Bottom tab bar: the last child of the root column (not inside the ScrollView, not absolutely positioned), flexDirection 'row', each tab flex: 1 with minHeight 48, and paddingBottom: Math.max(insets.bottom, 8) from \`useSafeAreaInsets()\` so it clears the iPhone home indicator.
+  - Floating buttons: position 'absolute' (right: 20, bottom: 20) inside the screen's flex: 1 View, never inside the ScrollView.
+  - Forms: \`<KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>\` so the keyboard doesn't cover inputs.
+  - Shadows: give cards both shadow styles (iOS/web) and elevation (Android), or use the theme's \`card\` style.
 
 ## Device features (use when the app benefits — don't add them for their own sake)
 
