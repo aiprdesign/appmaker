@@ -105,6 +105,38 @@ create table if not exists app_live_sites (
   created_at timestamptz not null default now(),
   unique (user_id, project_id)
 );
+create table if not exists app_booking_setups (
+  id text primary key,
+  user_id text not null references app_users(id) on delete cascade,
+  project_id text not null,
+  owner_key text not null,
+  name text not null default '',
+  settings jsonb not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, project_id)
+);
+create table if not exists app_bookings (
+  id text primary key,
+  setup_id text not null references app_booking_setups(id) on delete cascade,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  name text not null,
+  phone text not null,
+  service text not null default '',
+  note text not null default '',
+  status text not null default 'booked',
+  created_at timestamptz not null default now()
+);
+create unique index if not exists app_bookings_slot on app_bookings(setup_id, starts_at) where status = 'booked';
+create index if not exists app_bookings_setup on app_bookings(setup_id, starts_at);
+create table if not exists app_booking_blocks (
+  id text primary key,
+  setup_id text not null references app_booking_setups(id) on delete cascade,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  note text not null default ''
+);
+create index if not exists app_booking_blocks_setup on app_booking_blocks(setup_id, ends_at);
 `;
 
 /** Creates the tables on first use. */

@@ -24,3 +24,10 @@ export async function readBody(req: Request): Promise<Record<string, unknown>> {
   if (!body || typeof body !== "object") throw new AuthError("Invalid JSON body", 400);
   return body as Record<string, unknown>;
 }
+
+/** This site's public address, as the browser (or a phone app) reaches it. */
+export function publicOrigin(req: Request): string {
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") ?? new URL(req.url).protocol.replace(":", "");
+  return host ? `${proto}://${host}` : new URL(req.url).origin;
+}

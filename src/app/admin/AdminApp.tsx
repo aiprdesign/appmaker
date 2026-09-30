@@ -583,7 +583,7 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
 
 const SETTING_GROUPS: { title: string; keys: FeatureKey[] }[] = [
   { title: "Sign-in", keys: ["signups", "passkeys", "google"] },
-  { title: "Building apps", keys: ["websiteImport", "cloudBuilds"] },
+  { title: "Building apps", keys: ["websiteImport", "bookings", "cloudBuilds"] },
   { title: "Site", keys: ["publicStatus"] },
 ];
 
