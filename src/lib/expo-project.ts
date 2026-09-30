@@ -23,6 +23,9 @@ export const EXPO_DEPS: Record<string, string> = {
   // Not imported by apps: installed on the server so previews can be
   // published with EAS Update for Expo Go.
   "expo-updates": "~57.0.24",
+  // Icons (ISC license) and the SVG library they draw with.
+  "lucide-react-native": "^1.49.0",
+  "react-native-svg": "15.15.4",
 };
 
 /** The Expo SDK the apps target, as Expo Go names it (e.g. "57.0.0"). */
@@ -50,6 +53,11 @@ export function usedDependencies(project: Project): Record<string, string> {
   const deps: Record<string, string> = {};
   for (const [name, version] of Object.entries(EXPO_DEPS)) {
     if (name === "expo-updates") continue;
+    // react-native-svg comes with the icons.
+    if (name === "react-native-svg" && (code.includes("'lucide-react-native'") || code.includes('"lucide-react-native"'))) {
+      deps[name] = version;
+      continue;
+    }
     const always = ["expo", "react", "react-dom", "react-native", "react-native-web", "expo-status-bar"].includes(name);
     if (always || code.includes(`'${name}'`) || code.includes(`"${name}"`)) deps[name] = version;
   }

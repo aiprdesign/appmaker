@@ -56,6 +56,11 @@ Credits are off until Stripe is set up. Until then everything is free, as before
 
 ## Apps for businesses
 
+- **Professional icons.** Apps use [Lucide](https://lucide.dev) line icons for tab bars, buttons and list rows, tinted with the app's colors, instead of emoji.
+  - License: ISC, free for commercial use.
+  - Real apps use `lucide-react-native` with `react-native-svg`, added to the project automatically. The preview draws the same icons as SVG.
+  - The automatic check catches icon names that don't exist, such as brand logos, which Lucide 1.x removed.
+  - After upgrading Lucide, regenerate `src/lib/lucide-icons.json`. A test fails if it's out of date.
 - **Live updates from the website** (Publish tab, for apps made with URL to App). When the business changes its website (photos, prices, new dishes or products, hours, offers), the app shows it within a day, with no new build or store review.
   - How it works: each website app includes `src/live.js`, written by Appmaker. It fetches `/api/live/<id>`, keeps an offline copy, and merges the latest content over what the app was built with. The website wins for photos, contact details, hours, prices and offers. The app keeps its own wording, and new priced items are added under their section.
   - Light on the server: no scheduled jobs, AI calls or stored images. A site is re-read only when an app asks for its content and the saved copy is over 24 hours old. This happens in the background, one read at a time, while the saved copy is returned immediately. Responses can be cached for an hour. If a read fails, the last good content stays.

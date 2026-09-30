@@ -4,6 +4,7 @@ import * as React from "react";
 import * as ReactDOMClient from "react-dom/client";
 import * as JSXRuntime from "react/jsx-runtime";
 import * as RNW from "react-native-web";
+import * as lucide from "lucide";
 
 const memory = {};
 const safeStorage = {
@@ -236,6 +237,53 @@ const ImagePicker = {
   getPendingResultAsync: async () => null,
 };
 
+// ---------------------------------------------------------------------------
+// lucide-react-native (preview): the same icons (ISC license) drawn as SVG,
+// with the same props as the real library: color, size, strokeWidth,
+// absoluteStrokeWidth and style. Every name the library exports works,
+// including the Icon-suffixed and Lucide-prefixed forms.
+// ---------------------------------------------------------------------------
+const iconCache = new Map();
+function lucideIcon(name) {
+  if (iconCache.has(name)) return iconCache.get(name);
+  const node = lucide[name];
+  if (!Array.isArray(node)) return undefined;
+  const Icon = React.forwardRef(function LucideIcon({ color = "currentColor", size = 24, strokeWidth = 2, absoluteStrokeWidth, style, ...rest }, ref) {
+    const px = Number(size) || 24;
+    return React.createElement(
+      "svg",
+      {
+        ref,
+        xmlns: "http://www.w3.org/2000/svg",
+        width: px,
+        height: px,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: color,
+        strokeWidth: absoluteStrokeWidth ? (Number(strokeWidth) * 24) / px : strokeWidth,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        style: { flexShrink: 0, ...(RNW.StyleSheet.flatten(style) || {}) },
+        "aria-hidden": rest.accessibilityLabel ? undefined : true,
+        "aria-label": rest.accessibilityLabel,
+        "data-lucide": name,
+      },
+      node.map(([tag, attrs], i) => React.createElement(tag, { key: i, ...attrs })),
+    );
+  });
+  Icon.displayName = name;
+  iconCache.set(name, Icon);
+  return Icon;
+}
+const LucideModule = { __esModule: true };
+for (const name of Object.keys(lucide)) {
+  if (!/^[A-Z]/.test(name) || !Array.isArray(lucide[name])) continue;
+  for (const alias of [name, `${name}Icon`, `Lucide${name}`]) {
+    Object.defineProperty(LucideModule, alias, { enumerable: true, get: () => lucideIcon(name) });
+  }
+}
+Object.defineProperty(LucideModule, "createLucideIcon", { enumerable: true, get: () => () => () => null });
+
 function withDefault(mod, def) {
   return { __esModule: true, default: def, ...mod };
 }
@@ -255,5 +303,6 @@ window.__APPMAKER_RUNTIME__ = {
     "expo-haptics": withDefault(Haptics, Haptics),
     "expo-notifications": withDefault(Notifications, Notifications),
     "expo-image-picker": withDefault(ImagePicker, ImagePicker),
+    "lucide-react-native": LucideModule,
   },
 };

@@ -1,5 +1,6 @@
 import { checkCodeSafety } from "./code-safety";
 import type { FileMap } from "./types";
+import lucideIcons from "./lucide-icons.json";
 
 /**
  * Static checks run on every generated app before it is shown or exported.
@@ -16,7 +17,15 @@ export const ALLOWED_PACKAGES = [
   "expo-haptics",
   "expo-notifications",
   "expo-image-picker",
+  "lucide-react-native",
 ] as const;
+
+/** Icon names lucide-react-native exports: each icon also as NameIcon and LucideName. */
+const ICONS = new Set<string>(lucideIcons);
+export function isLucideIcon(name: string): boolean {
+  return ICONS.has(name) || ICONS.has(name.replace(/Icon$/, "")) || ICONS.has(name.replace(/^Lucide/, ""));
+}
+const LUCIDE_IMPORT = /import\s*\{([^}]*)\}\s*from\s*["']lucide-react-native["']/g;
 
 /** Size limits for an app, so the AI can read all of it when editing. */
 export const APP_MAX_FILES = 60;
@@ -108,6 +117,14 @@ export function validateApp(files: FileMap): ValidationIssue[] {
     }
     for (const [re, message] of WEB_ONLY) {
       if (re.test(code)) issues.push({ file: path, message });
+    }
+    for (const m of code.matchAll(LUCIDE_IMPORT)) {
+      for (const part of m[1].split(",")) {
+        const name = part.trim().split(/\s+as\s+/)[0].trim();
+        if (name && !isLucideIcon(name)) {
+          issues.push({ file: path, message: `imports the icon '${name}' from lucide-react-native, which doesn't exist — use a real Lucide icon name (e.g. House, Heart, Search, Calendar, ShoppingBag)` });
+        }
+      }
     }
   }
   for (const f of checkCodeSafety(files)) issues.push({ file: f.file, message: `${SAFETY_PREFIX}${f.message}` });

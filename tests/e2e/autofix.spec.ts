@@ -149,3 +149,26 @@ export default function App() { return <View style={{ flex: 1, paddingTop: 80, p
   await expect(preview.getByText("Slide 1 of 3")).toBeVisible();
   await expect(preview.getByText("Slide 2 of 3")).toBeVisible({ timeout: 6_000 });
 });
+
+test("apps can use professional Lucide icons, drawn as SVG in the preview", async ({ page }) => {
+  const app = `import React from 'react';
+import { View, Text } from 'react-native';
+import { House, Heart, ShoppingBagIcon } from 'lucide-react-native';
+export default function App() {
+  return (
+    <View style={{ flex: 1, paddingTop: 80, flexDirection: 'row', gap: 12 }}>
+      <House color="#6D28D9" size={28} />
+      <Heart color="#DB2777" size={28} strokeWidth={2.5} />
+      <ShoppingBagIcon color="#111" size={28} />
+      <Text>Icons ready</Text>
+    </View>
+  );
+}`;
+  await mockAI(page, [`<plan>Icons</plan>\n<file path="App.js">\n${app}\n</file>\n<listing>${LISTING}</listing>\n<summary>ok</summary>`]);
+  const preview = await start(page);
+  await expect(preview.getByText("Icons ready")).toBeVisible({ timeout: 20_000 });
+  await expect(preview.locator('svg[data-lucide="House"]')).toHaveAttribute("stroke", "#6D28D9");
+  await expect(preview.locator('svg[data-lucide="Heart"]')).toHaveAttribute("stroke-width", "2.5");
+  await expect(preview.locator('svg[data-lucide="ShoppingBag"]')).toHaveAttribute("width", "28");
+  await expect(preview.locator('svg[data-lucide="House"] path')).toHaveCount(2);
+});
