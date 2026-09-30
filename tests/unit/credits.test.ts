@@ -183,4 +183,30 @@ describe.skipIf(!DB)("credits and Stripe (PostgreSQL, fake Stripe)", () => {
     expect(broke.status).toBe(402);
     expect(await broke.json()).toMatchObject({ code: "credits", error: expect.stringMatching(/out of credits/) });
   });
+
+  it("a reply that only asks a question gives the credit back", async () => {
+    let reply = "";
+    const ai = createServer((_req, res) => {
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      const chunk = (content: string | null, finish: string | null) =>
+        `data: ${JSON.stringify({ id: "c1", object: "chat.completion.chunk", created: 0, model: "m", choices: [{ index: 0, delta: content == null ? {} : { content }, finish_reason: finish }] })}\n\n`;
+      // Split mid-tag, as streams do.
+      res.end(chunk(reply.slice(0, 20), null) + chunk(reply.slice(20), null) + chunk(null, "stop") + "data: [DONE]\n\n");
+    });
+    await new Promise<void>((r) => ai.listen(0, "127.0.0.1", r));
+    Object.assign(process.env, { APPMAKER_PROVIDER: "custom", APPMAKER_MODEL: "test-model", CUSTOM_AI_BASE_URL: `http://127.0.0.1:${(ai.address() as { port: number }).port}/v1` });
+    try {
+      const { cookie, id } = await account("grace");
+      const body = { prompt: "Add a booking screen", files: { "App.js": "export default function App() { return null; }" } };
+      reply = "<plan>Ask for booking details.</plan><summary>Which booking link, WhatsApp number or email should bookings go to?</summary>";
+      await (await generateRoute(req("/api/generate", body, cookie))).text();
+      expect(await balance(id)).toBe(10);
+      reply = '<plan>Add booking.</plan><file path="App.js">export default function App() { return null; }\n</file><summary>Done.</summary>';
+      await (await generateRoute(req("/api/generate", body, cookie))).text();
+      expect(await balance(id)).toBe(9);
+    } finally {
+      ai.close();
+      for (const k of ["APPMAKER_PROVIDER", "APPMAKER_MODEL", "CUSTOM_AI_BASE_URL"]) delete process.env[k];
+    }
+  });
 });

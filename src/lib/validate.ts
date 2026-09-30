@@ -1,4 +1,5 @@
 import { checkCodeSafety } from "./code-safety";
+import { userFacingText } from "./claims";
 import type { FileMap } from "./types";
 import lucideIcons from "./lucide-icons.json";
 
@@ -76,6 +77,10 @@ function resolveRelative(from: string, spec: string, files: FileMap): boolean {
   return [p, `${p}.js`, `${p}.jsx`, `${p}.json`, `${p}/index.js`, `${p}/index.jsx`].some((c) => files[c] != null);
 }
 
+// The app can't confirm a booking: it only sends a request to the business.
+const FAKE_CONFIRMATION =
+  /\b(?:booking|reservation|appointment|order|table)\s+(?:is\s+|has\s+been\s+)?confirmed\b|\byou(?:'|’)?re\s+(?:all\s+)?booked\b|\b(?:booking|reservation|appointment)\s+(?:successful|complete)\b/i;
+
 export function validateApp(files: FileMap): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const entry = files["App.js"] ?? files["App.jsx"];
@@ -114,6 +119,13 @@ export function validateApp(files: FileMap): ValidationIssue[] {
       } else if (!(ALLOWED_PACKAGES as readonly string[]).includes(spec)) {
         issues.push({ file: path, message: `imports '${spec}', which isn't available (allowed: ${ALLOWED_PACKAGES.join(", ")})` });
       }
+    }
+    const fake = userFacingText(code).find((t) => FAKE_CONFIRMATION.test(t));
+    if (fake) {
+      issues.push({
+        file: path,
+        message: `tells the customer "${fake.slice(0, 60)}", but the app can't confirm bookings or orders — it only sends a request to the business. Say "Request sent — we'll confirm with you" instead`,
+      });
     }
     for (const [re, message] of WEB_ONLY) {
       if (re.test(code)) issues.push({ file: path, message });

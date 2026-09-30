@@ -170,6 +170,9 @@ export async function POST(req: Request) {
   const resolved = ai;
   return textStream(resolved, async (write) => {
     let wrote = false;
+    // Whether the reply changed the app; a reply that only asks a question costs nothing.
+    let madeFiles = false;
+    let tail = "";
     let outcome: Awaited<ReturnType<typeof streamGeneration>>;
     try {
       outcome = await streamGeneration({
@@ -179,6 +182,10 @@ export async function POST(req: Request) {
         signal: req.signal,
         write: (t) => {
           wrote = true;
+          if (!madeFiles) {
+            tail = (tail + t).slice(-(t.length + 16));
+            madeFiles = /<(?:file|delete)\s/.test(tail);
+          }
           write(t);
         },
       });
@@ -186,6 +193,9 @@ export async function POST(req: Request) {
       // Nothing was written: give the credit back.
       if (!wrote && paid.charged && paid.userId) await refund(paid.userId, "generate", "Refund: the AI didn't answer").catch(() => {});
       throw e;
+    }
+    if (outcome === "done" && !madeFiles && paid.charged && paid.userId) {
+      await refund(paid.userId, "generate", "Refund: the AI asked a question").catch(() => {});
     }
     if (outcome === "refusal") {
       write("\n<error>The AI declined this request. Try rephrasing your app idea.</error>");

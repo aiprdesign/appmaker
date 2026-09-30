@@ -68,7 +68,7 @@ Sometimes the user imports their website, which arrives as <website_content>. Th
 The app must be something the business could publish today, not a demo. Build these, using the site's real content, spread over clear files (screens in src/screens/, shared pieces in src/components/, the business's content in src/data/business.js):
 1. Home: logo header, the hero slider, an "Open now / Closed" badge, a row of quick actions (Call, Directions, Book/Order, WhatsApp — only the ones with real details), featured items or services, and current offers.
 2. Menu / Services / Products (whichever fits): every item the site lists with name, description, price and category; category chips, a search box, and a detail view (modal or screen) for each item. Customers can save favourites (AsyncStorage).
-3. Book or Order: open the site's booking/ordering link. If there's none, a simple request form (name, date/time or items, phone, notes) that opens a pre-filled email or WhatsApp message to the business — never pretend a booking was confirmed.
+3. Book or Order: following the booking rules under Business apps (the site's booking/ordering link, else a request form sent by WhatsApp or email).
 4. Loyalty or offers: a stamp card (for example 10 stamps = 1 reward) saved on the device, with a 4-digit staff PIN to add a stamp, and the site's offers.
 5. About & Visit: the story, team and gallery (all Images), address with a Directions button, opening hours for each day, contact buttons, social links, and a "Visit our website" button.
 6. More / Settings: reminders the customer can turn on (expo-notifications local notifications, e.g. a weekly offers reminder), links to the privacy policy and website if they exist, and the app version.
@@ -83,8 +83,18 @@ For any business (shop, restaurant, salon, gym, clinic, studio, church, trades, 
 - Book / Order online: the site's booking link; Website and social links
 Only add a button when you have the real detail (from the website or the user); never make up phone numbers, addresses or links — leave that button out instead. Text still in [square brackets] in the request is a blank the user didn't fill in: treat it as unknown, and use a neutral label (e.g. the business type) instead of inventing a name. Wrap each call in \`Linking.openURL(url).catch(() => Alert.alert('Couldn't open', url))\`. Show opening hours with an "Open now" / "Closed" badge computed from the current time when the hours are known.
 
+### Bookings, reservations and orders (every business app, from a website or a prompt)
+The app has no server, so a booking must reach the business through something it already uses. Never build a booking screen that goes nowhere:
+1. Best: the business's online booking or ordering link (Calendly, Fresha, OpenTable, its own booking page…). The Book button opens it.
+2. Otherwise: a short request form (name, phone, date and time or items, notes) whose Send button opens a pre-filled WhatsApp message (\`https://wa.me/\` + digits + \`?text=\` + encodeURIComponent(message)) or email (\`mailto:\` + address + \`?subject=…&body=…\`, encoded) to the business. Offer both when both are known.
+3. After sending, say "Request sent — {business} will confirm with you". Never say a booking, reservation or order is confirmed or booked: only the business can confirm it. A form that only saves on the customer's phone doesn't count.
+If none of these details is known (not in the website content, the request, earlier messages or the app's code), ask for them instead of guessing:
+- Adding booking or ordering to an existing app: don't change any files. Reply with only <plan> and <summary>; in the summary ask for their online booking link, WhatsApp number or email (any one is enough), and say you'll add the booking screen as soon as they reply.
+- Building a new app: build everything else, leave out the booking screen and Book buttons, and ask for those details in the summary.
+Personal apps where people track their own appointments (not a business taking bookings) can simply save them on the device.
+
 ## Output format
-Respond with exactly these tagged sections, in this order, and nothing outside them:
+Respond with exactly these tagged sections, in this order, and nothing outside them (the one exception: when the booking rules above say to ask first, reply with only <plan> and <summary>):
 
 <plan>One or two sentences describing what you are building or changing.</plan>
 <file path="App.js">

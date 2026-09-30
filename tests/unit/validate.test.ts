@@ -100,3 +100,15 @@ describe("device features", () => {
     ).toEqual([]);
   });
 });
+
+describe("booking wording", () => {
+  const app = (text: string) => ({ "App.js": `import { Text } from 'react-native';\nexport default function App() { return <Text>${text}</Text>; }\n` });
+  it("never lets an app claim a booking is confirmed", () => {
+    for (const text of ["Booking confirmed!", "Your reservation has been confirmed", "You're booked for Tuesday", "Appointment successful"]) {
+      expect(validateApp(app(text)).map((i) => i.message).join(), text).toMatch(/can't confirm bookings/);
+    }
+  });
+  it("allows honest request wording", () => {
+    for (const text of ["Request sent — we'll confirm with you", "Book a table", "Confirm your details"]) expect(validateApp(app(text)), text).toEqual([]);
+  });
+});

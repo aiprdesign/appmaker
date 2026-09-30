@@ -184,7 +184,7 @@ describe("using an imported site", () => {
     expect(system).toMatch(/pagingEnabled/);
     expect(system).toMatch(/auto-advance every 4 seconds/);
     expect(system).toMatch(/A complete, usable app from a website/);
-    expect(system).toMatch(/never pretend a booking was confirmed/);
+    expect(system).toMatch(/Never say a booking, reservation or order is confirmed/);
   });
 
   it("fences website text so it can't break out of <website_content>", () => {

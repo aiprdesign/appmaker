@@ -72,3 +72,11 @@ describe("app design", () => {
     expect(SYSTEM_PROMPT).not.toContain("use emoji or simple shapes drawn with Views");
   });
 });
+
+describe("booking rules", () => {
+  it("apply to every business app and ask when the details are missing", () => {
+    expect(SYSTEM_PROMPT).toContain("Bookings, reservations and orders (every business app");
+    expect(SYSTEM_PROMPT).toContain("Never build a booking screen that goes nowhere");
+    expect(SYSTEM_PROMPT).toMatch(/don't change any files\. Reply with only <plan> and <summary>/);
+  });
+});
