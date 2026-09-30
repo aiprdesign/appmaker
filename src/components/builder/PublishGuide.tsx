@@ -31,8 +31,13 @@ export function PublishGuide({ project }: { project: Project }) {
     },
     {
       done: false,
-      title: "Age rating, screenshots and your developer accounts",
-      text: "An age-rating questionnaire in each store, screenshots of your app, an Apple Developer account ($99 a year) and a Google Play Console account ($25 once).",
+      title: "Screenshots and a feature graphic",
+      text: "Both stores need screenshots; Google Play also needs a 1024×500 feature graphic. Make them in Store screenshots below.",
+    },
+    {
+      done: false,
+      title: "Age rating and your developer accounts",
+      text: "An age-rating questionnaire in each store, an Apple Developer account ($99 a year) and a Google Play Console account ($25 once).",
     },
   ];
   return (

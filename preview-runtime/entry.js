@@ -5,6 +5,7 @@ import * as ReactDOMClient from "react-dom/client";
 import * as JSXRuntime from "react/jsx-runtime";
 import * as RNW from "react-native-web";
 import * as lucide from "lucide";
+import { toPng } from "html-to-image";
 
 const memory = {};
 const safeStorage = {
@@ -322,3 +323,26 @@ window.__APPMAKER_RUNTIME__ = {
     "lucide-react-native": LucideModule,
   },
 };
+
+// Store screenshots: the Publish tab asks for a picture of the current
+// screen. Rendered here, inside the sandbox, and sent back as a PNG.
+window.addEventListener("message", async (e) => {
+  const msg = e.data;
+  if (e.source !== window.parent || !msg || msg.source !== "appmaker-parent" || msg.type !== "capture") return;
+  const reply = (body) => window.parent.postMessage({ source: "appmaker-preview", type: "capture", id: msg.id, ...body }, "*");
+  try {
+    const scale = Math.min(4, Math.max(1, Number(msg.scale) || 3));
+    const dataUrl = await toPng(document.body, {
+      pixelRatio: scale,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
+      cacheBust: false,
+      // Photos from other websites may refuse to be copied; show a blank instead of failing.
+      imagePlaceholder: "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+    });
+    reply({ dataUrl, text: (document.body.innerText || "").replace(/\s+/g, " ").slice(0, 400) });
+  } catch (err) {
+    reply({ error: String((err && err.message) || err) });
+  }
+});

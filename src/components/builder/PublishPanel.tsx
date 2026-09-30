@@ -5,6 +5,7 @@ import { Check, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star
 import type { AppIconImage, ExpoState, Project, StoreListing, StorePagesState } from "@/lib/types";
 import { StorePages } from "./StorePages";
 import { PublishGuide } from "./PublishGuide";
+import { StoreScreenshots } from "./StoreScreenshots";
 import { LiveUpdates } from "./LiveUpdates";
 import { Bookings } from "./Bookings";
 import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
@@ -247,7 +248,7 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
   const ready = checks.filter((c) => c.ok).length;
   // Things only the stores can take; listed so "ready" never overpromises.
   const storeSteps = [
-    "Screenshots of your app (take them from the preview, 6.9\" iPhone size for Apple)",
+    "Screenshots of your app (make them in Store screenshots: App Store and Google Play sizes, with headlines)",
     "Age rating questionnaire (answered in App Store Connect / Play Console)",
     "Apple Developer account ($99/yr) and Google Play Console account ($25 once)",
     "App review — Apple and Google usually take 1–3 days",
@@ -328,6 +329,8 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
               </div>
             </div>
           </section>
+
+          <StoreScreenshots project={project} />
 
           <LiveUpdates project={project} onChange={onLiveChange} />
 
