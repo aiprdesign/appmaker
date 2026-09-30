@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { Check, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
-import type { AppIconImage, ExpoState, Project, StoreListing } from "@/lib/types";
+import type { AppIconImage, ExpoState, Project, StoreListing, StorePagesState } from "@/lib/types";
+import { StorePages } from "./StorePages";
 import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
@@ -20,6 +21,7 @@ interface Props {
   onChange: (listing: StoreListing) => void;
   onExpoChange: (expo: ExpoState) => void;
   onIconChange: (icon: AppIconImage | undefined) => void;
+  onStorePagesChange: (next: { listing: StoreListing; storePages: StorePagesState }) => void;
   hasPreviewError: boolean;
 }
 
@@ -187,7 +189,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, onChange, onExpoChange, onIconChange, hasPreviewError }: Props) {
+export function PublishPanel({ project, onChange, onExpoChange, onIconChange, onStorePagesChange, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -292,7 +294,7 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, ha
               <Field label="Bundle ID / package name" hint="Permanent once published, e.g. com.yourcompany.app">
                 <input className={`${input} font-mono`} value={l.bundleId} onChange={(e) => set("bundleId", e.target.value.toLowerCase())} />
               </Field>
-              <Field label="Support page URL" hint="Where users can get help — a simple page or contact form is fine.">
+              <Field label="Support page URL" hint="Where users can get help. Appmaker can create and host it for you: see Support page & privacy policy below.">
                 <input
                   className={input}
                   type="url"
@@ -301,7 +303,7 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, ha
                   onChange={(e) => set("supportUrl", e.target.value.trim())}
                 />
               </Field>
-              <Field label="Privacy policy URL" hint="A hosted privacy policy page (free generators exist).">
+              <Field label="Privacy policy URL" hint="A hosted privacy policy. Appmaker can create it from what your app does: see below.">
                 <input
                   className={input}
                   type="url"
@@ -317,6 +319,8 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, ha
               </div>
             </div>
           </section>
+
+          <StorePages project={project} onChange={onStorePagesChange} />
 
           <section className="rounded-2xl border border-line bg-surface p-5">
             <h2 className="font-semibold">App icon</h2>

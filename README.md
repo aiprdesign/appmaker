@@ -21,6 +21,12 @@ Limitations: the importer reads the HTML the server sends. Sites that load all t
 
 ## Apps for businesses
 
+- **Hosted support page and privacy policy** (Publish tab → **Support page & privacy policy**). Apple requires a support page, and both stores require a privacy policy. For signed-in users, Appmaker writes both and hosts them at `/legal/<id>/support` and `/legal/<id>/privacy`, then fills in both links in the store listing.
+  - The privacy policy is written from what the app's code does: data saved on the device, notifications, camera and photos, the web services it contacts, and links it opens. The name and contact email are pre-filled from the website or the account.
+  - When the app or the details change, the box offers "Update the pages", and the links stay the same.
+  - Pages hold only fixed wording plus checked fields, so they can't be used to host other content. They're a starting point, not legal advice.
+  - Apps link to both pages from their Settings screen once the links exist.
+- **Complete apps from a website.** URL to App builds a home-screen photo slider from the site's photos, plus menu or services with search and favourites, booking or ordering, a loyalty card, about and visit, and settings. If a model's reply is cut off at its length limit, the builder keeps the finished files and asks for the rest automatically.
 - **Template screenshots.** Every template card and the showcase under the hero show the app's home screen. These are rendered by Appmaker's own preview runtime at iPhone size: the habit, budget, workout and journal templates are the built-in sample apps, and the others are a one-screen app with the template's content. After adding or changing a template, run `npm run build && APPMAKER_DEMO=1 npx next start -p 3150`, then `npx tsx scripts/template-screens.ts`. A unit test checks that every template has an image.
 - **Two ways to start: Prompt to App and URL to App.** They're tabs on the prompt box, and a section on the home page shows them side by side, each with a "Try" button that opens that tab. The admin **Build from a website** switch hides URL to App everywhere.
 - **Share links for URL to App.** `https://your-site/?url=theirbusiness.com` opens Appmaker and reads that website straight away, ready to build. Send one to a business owner as "see your website as an app". `/?mode=url` just opens the URL to App tab. The link is removed from the address bar after it's used, so a reload doesn't read the site again.

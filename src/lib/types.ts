@@ -132,6 +132,16 @@ export interface CloudBuild {
   submission?: { status: string; error?: string };
 }
 
+/** The app's hosted support page and privacy policy. */
+export interface StorePagesState {
+  id: string;
+  developer: string;
+  email: string;
+  website?: string;
+  /** What the pages were made from, to tell when they need updating. */
+  fingerprint: string;
+}
+
 /** A logo used as the app icon (see src/lib/icon.ts). */
 export interface AppIconImage {
   /** The logo as a data URL (PNG, JPEG or WebP, at most 1024 px). */
@@ -175,6 +185,8 @@ export interface Project {
   pending?: PendingRequest;
   /** Cloud builds with Expo Application Services. */
   expo?: ExpoState;
+  /** Hosted support page and privacy policy (see src/lib/store-pages.ts). */
+  storePages?: StorePagesState;
   /** The business's logo as the app icon; without it, the icon is drawn from the emoji. */
   icon?: AppIconImage;
   /** "claim-safe" (default): app text and listing avoid marketing claims. */

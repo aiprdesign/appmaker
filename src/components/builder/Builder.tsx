@@ -639,6 +639,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               onChange={(listing) => commit({ ...project, listing, name: listing.name || project.name })}
               onExpoChange={(expo) => commit({ ...(projectRef.current ?? project), expo })}
               onIconChange={(icon) => commit({ ...(projectRef.current ?? project), icon })}
+              onStorePagesChange={({ listing, storePages }) => commit({ ...(projectRef.current ?? project), listing, storePages })}
             />
           )}
         </main>
