@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Globe, Loader2, Sparkles } from "lucide-react";
-import { createProject } from "@/lib/storage";
+import { createProject, emptyListing } from "@/lib/storage";
+import { appTitle } from "@/lib/title";
 import { TEMPLATES } from "@/lib/templates";
 import type { SiteSummary } from "@/lib/types";
 import Link from "next/link";
@@ -19,6 +20,17 @@ const URL_IN_TEXT =
   /(?:https?:\/\/[^\s]+|\bwww\.[a-z0-9-]+\.[^\s]+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|app|dev|ai|shop|store|biz|info|me|us|uk|ca|au|de|fr|in|nl|es|it|nz|ie)\b(?:\/[^\s]*)?)/i;
 
 const MAX_PROMPT = 8000;
+
+/** Examples that rotate in the empty prompt box. */
+const IDEAS = [
+  "a habit tracker with streaks and weekly stats",
+  "a booking app for my hair salon",
+  "a menu and loyalty card for my café",
+  "a workout timer with guided routines",
+  "a class timetable for my yoga studio",
+  "a shared grocery list for my family",
+  "a plant watering reminder",
+];
 
 export type StartMode = "prompt" | "url";
 
@@ -41,6 +53,13 @@ export function PromptBox() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [idea, setIdea] = useState(0);
+  // Rotate the example while the box is empty (not with reduced motion).
+  useEffect(() => {
+    if (value || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setIdea((i) => (i + 1) % IDEAS.length), 3500);
+    return () => clearInterval(t);
+  }, [value]);
   const aiReady = useAiReady();
   const aiStatus = useAiStatus();
   const features = useFeatures();
@@ -132,7 +151,9 @@ export function PromptBox() {
     const text = value.trim() || (site ? `Turn ${site.siteName} (${site.url}) into a mobile app for its customers.` : "");
     if (!text || busy || importing || tooLong) return;
     setBusy(true);
-    const project = createProject(text, site ?? undefined, wording);
+    // Named straight away from the website or the idea; the AI can refine it in the store listing.
+    const name = appTitle(text, site);
+    const project = createProject(text, site ?? undefined, wording, { name, listing: emptyListing(name) });
     router.push(`/build/${project.id}?auto=1`);
   };
 
@@ -172,7 +193,7 @@ export function PromptBox() {
           e.preventDefault();
           start();
         }}
-        className="gradient-border rounded-2xl p-3 shadow-2xl shadow-violet-900/30 focus-within:ring-2 focus-within:ring-violet-400/70"
+        className="gradient-border gradient-border-live rounded-2xl p-3 shadow-2xl shadow-violet-900/30 focus-within:ring-2 focus-within:ring-violet-400/70"
       >
         {site && (
           <div className="mb-2">
@@ -235,7 +256,7 @@ export function PromptBox() {
               ? `What should the ${site.siteName} app do? (optional — press Enter to let AI decide)`
               : showUrl
                 ? "Optional: what should the app do? e.g. bookings, the menu, a loyalty card…"
-                : "Describe your app idea — e.g. a habit tracker with streaks and weekly stats…"
+                : `Describe your app idea — e.g. ${IDEAS[idea]}…`
           }
           className="w-full resize-none bg-transparent px-2 py-1 text-base text-foreground outline-none placeholder:text-muted/70"
           aria-label="Describe your app"

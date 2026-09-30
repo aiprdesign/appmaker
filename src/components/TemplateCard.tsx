@@ -32,7 +32,7 @@ export function TemplateCard({ template: t }: { template: Template }) {
   return (
     <TemplateButton
       prompt={t.prompt}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface text-left transition hover:-translate-y-0.5 hover:border-white/20"
+      className="lift reveal group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface text-left"
     >
       <div
         className="relative flex h-56 justify-center overflow-hidden px-3 pt-5 sm:h-64 md:h-72"

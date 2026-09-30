@@ -17,6 +17,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { PromptBox } from "@/components/PromptBox";
 import { PhoneShot, TemplateCard } from "@/components/TemplateCard";
 import { StartOptions } from "@/components/StartOptions";
+import { AppMarquee } from "@/components/AppMarquee";
 import { BUSINESS_TEMPLATES, TEMPLATES, templateImage } from "@/lib/templates";
 
 const STEPS = [
@@ -108,6 +109,7 @@ export default function Home() {
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-hidden">
       <div className="glow pointer-events-none absolute inset-x-0 top-0 h-[720px]" />
+      <div className="aurora pointer-events-none absolute inset-x-0 top-0 h-[820px]" aria-hidden="true" />
       <div className="grid-bg pointer-events-none absolute inset-x-0 top-0 h-[720px]" />
       <SiteHeader />
 
@@ -124,7 +126,7 @@ export default function Home() {
             URL to App: paste your website, get your app →
           </Link>
           <h1 className="mx-auto max-w-4xl text-4xl font-semibold tracking-tight md:text-7xl">
-            Turn a prompt or a website into an <span className="text-gradient">App Store app</span>
+            Turn a prompt or a website into an <span className="text-gradient text-gradient-live">App Store app</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-muted md:text-lg">
             Describe your idea or paste your website. Appmaker designs and codes a native iOS &amp; Android app, lets you test it live, and
@@ -161,7 +163,9 @@ export default function Home() {
                 className={`flex flex-col items-center ${i === 0 || i === SHOWCASE.length - 1 ? "hidden md:flex" : ""}`}
                 style={{ width: `min(28vw, ${s.width}px)` }}
               >
-                <PhoneShot src={templateImage(s)} alt={`${s.label} app made with Appmaker`} width={s.width} className="w-full" eager={i === 2} />
+                <div className="bob w-full" style={{ animationDelay: `${i * -1.3}s` }}>
+                  <PhoneShot src={templateImage(s)} alt={`${s.label} app made with Appmaker`} width={s.width} className="w-full" eager={i === 2} />
+                </div>
                 <figcaption className="mt-3 text-xs text-muted">{s.label}</figcaption>
               </figure>
             ))}
@@ -174,12 +178,15 @@ export default function Home() {
         {/* Two ways to start */}
         <StartOptions />
 
+        {/* Moving strip of every template's app */}
+        <AppMarquee />
+
         {/* How it works */}
         <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
           <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">From idea to store in three steps</h2>
           <div className="mt-12 grid gap-4 md:grid-cols-3">
             {STEPS.map((s, i) => (
-              <div key={s.title} className="rounded-2xl border border-line bg-surface p-6">
+              <div key={s.title} className="lift reveal rounded-2xl border border-line bg-surface p-6">
                 <div className="flex items-center gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-violet-500/20 to-pink-500/20 text-violet-300">
                     <s.icon className="h-5 w-5" />
@@ -195,9 +202,9 @@ export default function Home() {
 
         {/* Features */}
         <section className="mx-auto max-w-6xl px-4 py-20">
-          <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
+          <div className="reveal grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
             {FEATURES.map((f) => (
-              <div key={f.title} className="bg-surface p-6">
+              <div key={f.title} className="bg-surface p-6 transition-colors hover:bg-surface-2">
                 <f.icon className="h-5 w-5 text-pink-300" />
                 <h3 className="mt-4 font-semibold">{f.title}</h3>
                 <p className="mt-1.5 text-sm text-muted">{f.body}</p>
@@ -243,7 +250,7 @@ export default function Home() {
             {PLANS.map((p) => (
               <div
                 key={p.name}
-                className={`flex flex-col rounded-2xl p-6 ${p.highlight ? "gradient-border" : "border border-line bg-surface"}`}
+                className={`lift reveal flex flex-col rounded-2xl p-6 ${p.highlight ? "gradient-border gradient-border-live" : "border border-line bg-surface"}`}
               >
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">{p.name}</h3>

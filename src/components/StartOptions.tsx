@@ -47,7 +47,7 @@ export function StartOptions() {
       </div>
       <div className={`mt-10 grid gap-4 ${options.length > 1 ? "md:grid-cols-2" : "mx-auto max-w-xl"}`}>
         {options.map((o) => (
-          <div key={o.mode} className="flex flex-col rounded-2xl border border-line bg-surface p-6">
+          <div key={o.mode} className="lift reveal flex flex-col rounded-2xl border border-line bg-surface p-6">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2" aria-hidden="true">
                 <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-900/40">

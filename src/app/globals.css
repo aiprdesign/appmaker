@@ -120,3 +120,106 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .flow-line, .float { animation: none; }
 }
+
+/* ------------------------------------------------------------------ */
+/* Home page motion. Everything below is off with reduced motion.     */
+
+/* Slowly drifting color light behind the hero. */
+.aurora {
+  background:
+    radial-gradient(35% 45% at 20% 30%, rgba(139, 92, 246, 0.28), transparent 70%),
+    radial-gradient(30% 40% at 80% 20%, rgba(236, 72, 153, 0.2), transparent 70%),
+    radial-gradient(30% 35% at 55% 70%, rgba(56, 189, 248, 0.12), transparent 70%);
+  filter: blur(20px);
+}
+
+/* A rotating light around the prompt box's gradient border. */
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.gradient-border-live::before {
+  background: conic-gradient(
+    from var(--border-angle),
+    rgba(139, 92, 246, 0.9),
+    rgba(236, 72, 153, 0.75),
+    rgba(56, 189, 248, 0.6),
+    rgba(255, 255, 255, 0.08) 60%,
+    rgba(139, 92, 246, 0.9)
+  );
+}
+
+/* Moving strip of app screenshots. */
+.marquee-track {
+  display: flex;
+  width: max-content;
+}
+.marquee-mask {
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes aurora-drift {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    33% { transform: translate3d(4%, -3%, 0) scale(1.08); }
+    66% { transform: translate3d(-4%, 3%, 0) scale(0.96); }
+  }
+  .aurora { animation: aurora-drift 18s ease-in-out infinite; }
+
+  @keyframes gradient-pan {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+  .text-gradient-live {
+    background: linear-gradient(100deg, #c4b5fd 0%, #f0abfc 25%, #fda4af 50%, #f0abfc 75%, #c4b5fd 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradient-pan 6s linear infinite;
+  }
+
+  @keyframes border-spin {
+    to { --border-angle: 360deg; }
+  }
+  .gradient-border-live::before { animation: border-spin 6s linear infinite; }
+
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  .bob { animation: bob 6s ease-in-out infinite; }
+
+  @keyframes marquee {
+    to { transform: translateX(-50%); }
+  }
+  .marquee-track { animation: marquee 60s linear infinite; }
+  .marquee-track:hover { animation-play-state: paused; }
+
+  /* Sections slide up softly as they scroll into view (browsers that support it). */
+  @supports (animation-timeline: view()) {
+    @keyframes reveal {
+      from { transform: translateY(28px) scale(0.985); }
+      to { transform: none; }
+    }
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 25%;
+    }
+  }
+}
+
+/* Cards lift with a soft glow on hover. */
+.lift {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px -18px rgba(139, 92, 246, 0.45);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lift:hover { transform: none; }
+}
