@@ -16,7 +16,8 @@ import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
 import { PhoneFrame } from "@/components/PhoneFrame";
-import { Preview, type PreviewError } from "@/components/Preview";
+import { Preview, type PreviewError, type QualityIssue } from "@/components/Preview";
+import { qualityFixRequest, reportQuality } from "@/lib/quality";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
 import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
 import { getProject, saveProject, uid, withVersion } from "@/lib/storage";
@@ -93,7 +94,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [checking, setChecking] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [previewError, setPreviewError] = useState<PreviewError | null>(null);
-  const [layoutIssue, setLayoutIssue] = useState<string | null>(null);
+  const [quality, setQuality] = useState<QualityIssue[] | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -171,7 +172,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
 
   // A new version of the app gets checked again.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setLayoutIssue(null), [previewFiles, reloadKey]);
+  useEffect(() => setQuality(null), [previewFiles, reloadKey]);
 
   // Debounce hand edits in the code tab into the preview.
   useEffect(() => {
@@ -332,7 +333,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // Problems go back to the AI; the app appears once it's clean.
       const wroteFiles = Object.keys(complete).length > 0;
       if (!wroteFiles || error || demoRef.current) return reveal();
+      if (!opts.autoFix) reportQuality([Object.keys(current.files).length ? "build:edit" : "build:new"]);
       if (continuing) {
+        reportQuality(["cutoff"]);
         continueBudget.current -= 1;
         setChecking(true);
         const missing = validateApp(files).filter((i) => /doesn't exist|is missing/.test(i.message));
@@ -351,6 +354,12 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const issues = [...rejected, ...validateApp(files)];
       const claims = (next.wording ?? DEFAULT_WORDING) === "claim-safe" ? checkClaims(files, next.listing) : [];
       const regulated = checkRegulatedClaims(files, next.listing);
+      reportQuality([
+        ...(issues.length ? (["check:code"] as const) : []),
+        ...(claims.length ? (["check:claims"] as const) : []),
+        ...(regulated.length ? (["check:regulated"] as const) : []),
+        ...((issues.length || regulated.length) && fixBudget.current === 0 ? (["unfixed:checks"] as const) : []),
+      ]);
       if ((issues.length || claims.length || regulated.length) && fixBudget.current > 0) {
         fixBudget.current -= 1;
         setChecking(true);
@@ -433,6 +442,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
 
   const onPreviewError = useCallback((err: PreviewError | null) => {
     setPreviewError(err);
+    if (err && Date.now() < runtimeWatchUntil.current && !demoRef.current) reportQuality(["crash"]);
     // A crash right after a generation is almost always caused by it: repair
     // it automatically instead of making the user press "Fix with AI".
     if (err && Date.now() < runtimeWatchUntil.current && fixBudget.current > 0 && !abortRef.current) {
@@ -445,17 +455,18 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     }
   }, []);
 
-  // A layout problem right after a generation (e.g. a tab bar floating
-  // mid-screen) goes back to the AI too, once.
-  const onLayoutIssue = useCallback((message: string) => {
-    setLayoutIssue(message);
-    if (Date.now() < runtimeWatchUntil.current && fixBudget.current > 0 && !abortRef.current) {
+  // Problems the preview's quality check finds right after a generation
+  // (layout, contrast, text size, overflow, small buttons) go back to the AI
+  // too, once; later ones show a banner with Fix with AI.
+  const onQualityIssues = useCallback((issues: QualityIssue[]) => {
+    setQuality(issues.length ? issues : null);
+    const justBuilt = Date.now() < runtimeWatchUntil.current;
+    if (justBuilt && !demoRef.current) reportQuality(issues.length ? issues.map((i) => i.kind) : ["screen:clean"]);
+    if (!issues.length) return;
+    if (justBuilt && fixBudget.current > 0 && !abortRef.current) {
       runtimeWatchUntil.current = 0;
       fixBudget.current -= 1;
-      sendRef.current(
-        `Automatic quality check: layout problem in the preview on a 390×844 phone. ${message}\n\nFix the layout so it looks right on iPhone, Android and the web: the root View and every wrapper down to each screen need flex: 1 (no fixed screen heights from Dimensions), each screen's content scrolls in a ScrollView with flex: 1, and the bottom tab bar is the last child of the root column so it sits at the bottom, with the bottom safe-area inset as padding.`,
-        { autoFix: true },
-      );
+      sendRef.current(`Automatic quality check: ${qualityFixRequest(issues)}`, { autoFix: true });
     }
   }, []);
 
@@ -628,6 +639,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             demoMode={demoMode}
             wording={project.wording ?? DEFAULT_WORDING}
             onWordingChange={(wording) => commit({ ...(projectRef.current ?? project), wording })}
+            prompt={project.prompt}
+            onFeedback={(id, value) => {
+              const p = projectRef.current ?? project;
+              commit({ ...p, messages: p.messages.map((m) => (m.id === id ? { ...m, feedback: value } : m)) });
+            }}
           />
         </aside>
 
@@ -690,20 +706,22 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   )}
                 </div>
               )}
-              {layoutIssue && !previewError && !generating && !checking && (
+              {quality && !previewError && !generating && !checking && (
                 <div role="status" className="mx-4 mb-2 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-amber-100">The layout doesn&apos;t fill the screen</div>
-                    <div className="mt-0.5 text-xs text-amber-100/80">{layoutIssue}</div>
+                    <div className="font-medium text-amber-100">
+                      {quality.some((i) => i.kind === "layout") ? "The layout doesn't fill the screen" : "The quality check found something to improve"}
+                    </div>
+                    <ul className="mt-0.5 space-y-0.5 text-xs text-amber-100/80">
+                      {quality.map((i) => (
+                        <li key={i.kind}>{i.message}</li>
+                      ))}
+                    </ul>
                   </div>
                   {!demoMode && (
                     <button
-                      onClick={() =>
-                        send(
-                          `Layout problem in the preview on a 390×844 phone: ${layoutIssue}\n\nFix the layout so it looks right on iPhone, Android and the web, following the layout rules (flex: 1 from the root down to each screen, ScrollView per screen, tab bar as the last child of the root column with the bottom safe-area inset).`,
-                        )
-                      }
+                      onClick={() => send(`Quality check: ${qualityFixRequest(quality)}`)}
                       className="min-h-8 shrink-0 rounded-lg bg-amber-400 px-3 text-xs font-medium text-black hover:bg-amber-300"
                     >
                       Fix with AI
@@ -716,7 +734,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 <PhoneFrame platform={platform}>
                   {checking && <ChecksOverlay generating={generating} />}
                   {hasApp || Object.keys(previewFiles).length ? (
-                    <Preview files={previewFiles} platform={platform} reloadKey={reloadKey} onError={onPreviewError} onLayoutIssue={onLayoutIssue} />
+                    <Preview files={previewFiles} platform={platform} reloadKey={reloadKey} onError={onPreviewError} onQualityIssues={onQualityIssues} />
                   ) : (
                     <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-500">
                       <div>

@@ -40,8 +40,8 @@ export default function App() {
   const soon = () => Notifications.scheduleNotificationAsync({ content: { title: 'Stand up!', body: 'Stretch your legs' }, trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1 } });
   return (
     <View style={{ flex: 1, padding: 60 }}>
-      <TouchableOpacity onPress={daily}><Text>Daily reminder</Text></TouchableOpacity>
-      <TouchableOpacity onPress={soon}><Text>Remind me in 1 second</Text></TouchableOpacity>
+      <TouchableOpacity style={{ minHeight: 48, justifyContent: 'center' }} onPress={daily}><Text>Daily reminder</Text></TouchableOpacity>
+      <TouchableOpacity style={{ minHeight: 48, justifyContent: 'center' }} onPress={soon}><Text>Remind me in 1 second</Text></TouchableOpacity>
     </View>
   );
 }`,

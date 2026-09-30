@@ -1,19 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppWindow, BarChart3, Check, CircleAlert, Coins, CreditCard, Eye, EyeOff, KeyRound, Loader2, LogOut, Search, Settings, ShieldCheck, Trash2, Users } from "lucide-react";
+import { AppWindow, BarChart3, Gauge, Check, CircleAlert, Coins, CreditCard, Eye, EyeOff, KeyRound, Loader2, LogOut, Search, Settings, ShieldCheck, Trash2, Users } from "lucide-react";
 import { formatPrice, type CreditPack } from "@/lib/credits";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FEATURES, FEATURE_KEYS, type FeatureKey, type Features } from "@/lib/features";
 import type { Prices } from "@/lib/credits";
 import { AppsTab } from "./AppsTab";
+import { QualityTab } from "./QualityTab";
 
-type Tab = "overview" | "members" | "apps" | "settings";
+type Tab = "overview" | "members" | "apps" | "quality" | "settings";
 
 const TABS: { key: Tab; icon: typeof Users }[] = [
   { key: "overview", icon: BarChart3 },
   { key: "members", icon: Users },
   { key: "apps", icon: AppWindow },
+  { key: "quality", icon: Gauge },
   { key: "settings", icon: Settings },
 ];
 
@@ -156,6 +158,7 @@ export function AdminApp() {
             />
           ) : null)}
         {tab === "apps" && (meta.database ? <AppsTab member={appsOf} clearMember={() => setAppsOf(null)} /> : null)}
+        {tab === "quality" && (meta.database ? <QualityTab /> : null)}
         {tab === "settings" && features && <SettingsTab features={features} setFeatures={setFeatures} meta={meta} />}
       </div>
     </div>

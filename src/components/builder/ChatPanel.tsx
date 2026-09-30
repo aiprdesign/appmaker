@@ -1,5 +1,6 @@
 "use client";
 
+import { Feedback } from "./Feedback";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, CheckCircle2, Circle, FileCode2, Loader2, RotateCcw, RotateCw, Square, Wrench, X } from "lucide-react";
 import type { ChatMessage, PendingRequest, SiteSummary } from "@/lib/types";
@@ -30,6 +31,9 @@ interface Props {
   onDismissInterrupted: () => void;
   onOpenFile: (path: string) => void;
   onRestore: (versionId: string) => void;
+  /** The user's first request, for "Not what I asked for". */
+  prompt: string;
+  onFeedback: (messageId: string, value: "up" | "down") => void;
   latestVersionId?: string;
   /** Demo mode can't apply edits, so change suggestions are hidden. */
   demoMode?: boolean;
@@ -110,7 +114,7 @@ function Progress({ live, startedAt }: { live: ParsedGeneration | null; startedA
 }
 
 export function ChatPanel(props: Props) {
-  const { source, messages, generating, live, onSend, onStop, hasApp, startedAt, interrupted, onRetry, onDismissInterrupted, onOpenFile, onRestore, latestVersionId, demoMode, wording, onWordingChange } = props;
+  const { source, messages, generating, live, onSend, onStop, hasApp, startedAt, interrupted, onRetry, onDismissInterrupted, onOpenFile, onRestore, latestVersionId, demoMode, wording, onWordingChange, prompt, onFeedback } = props;
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -178,6 +182,9 @@ export function ChatPanel(props: Props) {
                   >
                     <RotateCw className="h-3.5 w-3.5" /> Try again
                   </button>
+                )}
+                {m.versionId && m.versionId === latestVersionId && !generating && (
+                  <Feedback value={m.feedback} prompt={prompt} canFix={!demoMode} onChange={(v) => onFeedback(m.id, v)} onFix={(request) => onSend(request)} />
                 )}
                 {m.versionId && m.versionId !== latestVersionId && !generating && (
                   <button

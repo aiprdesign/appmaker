@@ -139,6 +139,13 @@ create table if not exists app_booking_blocks (
   note text not null default ''
 );
 create index if not exists app_booking_blocks_setup on app_booking_blocks(setup_id, ends_at);
+create table if not exists app_quality (
+  day date not null,
+  model text not null default '',
+  event text not null,
+  count integer not null default 0,
+  primary key (day, model, event)
+);
 update app_users set paid = true where not paid and id in (select user_id from app_credit_events where ref like 'stripe:%');
 `;
 

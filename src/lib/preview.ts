@@ -162,11 +162,65 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
       });
       return issue;
     };
+    // The rest of the quality bar, measured on the first screen with the same
+    // limits as the app-quality grader: readable contrast, text size, nothing
+    // wider than the phone, and big enough buttons.
+    var screenIssues = function () {
+      var root = document.getElementById("root");
+      var vw = window.innerWidth;
+      var parse = function (c) { var m = (c.match(/[\\d.]+/g) || [0, 0, 0, 0]).map(Number); return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
+      var lum = function (c) {
+        var f = function (v) { var x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+        return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+      };
+      var background = function (el) {
+        while (el) { var c = parse(getComputedStyle(el).backgroundColor); if (c.a > 0.5) return c; el = el.parentElement; }
+        return { r: 255, g: 255, b: 255 };
+      };
+      var textEls = 0, low = [], tiny = [], overflow = 0, buttons = 0, small = [];
+      Array.prototype.forEach.call(root.querySelectorAll("*"), function (el) {
+        var r = el.getBoundingClientRect();
+        var style = getComputedStyle(el);
+        if (r.width === 0 || r.height === 0 || style.visibility === "hidden" || Number(style.opacity) < 0.1 || r.bottom < 0 || r.top > window.innerHeight) return;
+        if (style.cursor === "pointer" && !(el.parentElement && getComputedStyle(el.parentElement).cursor === "pointer")) {
+          buttons++;
+          if (r.width < 40 || r.height < 40) small.push('"' + (el.innerText || el.getAttribute("aria-label") || "icon").trim().slice(0, 20) + '" ' + Math.round(r.width) + "×" + Math.round(r.height));
+        }
+        if (r.right > vw + 2 || r.left < -2) {
+          var carousel = false;
+          for (var p = el.parentElement; p; p = p.parentElement) {
+            var ps = getComputedStyle(p);
+            if ((ps.overflowX === "auto" || ps.overflowX === "scroll") && ps.overflowY !== "auto" && ps.overflowY !== "scroll") { carousel = true; break; }
+          }
+          if (!carousel) overflow++;
+        }
+        var hasText = Array.prototype.some.call(el.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); });
+        if (!hasText) return;
+        var text = el.innerText.trim();
+        if (!/[A-Za-z0-9]/.test(text)) return;
+        textEls++;
+        var size = parseFloat(style.fontSize);
+        if (size < 11) tiny.push('"' + text.slice(0, 20) + '" ' + size + "px");
+        var fg = parse(style.color);
+        var L1 = lum(fg), L2 = lum(background(el));
+        var ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+        var large = size >= 18 || (size >= 14 && Number(style.fontWeight) >= 700);
+        if (ratio < (large ? 3 : 4.5) && fg.a > 0.3) low.push('"' + text.slice(0, 20) + '" ' + ratio.toFixed(1) + ":1");
+      });
+      var out = [];
+      if (low.length > Math.max(1, textEls * 0.05)) out.push({ kind: "contrast", message: "Text is hard to read (below WCAG AA contrast): " + low.slice(0, 3).join(", ") + "." });
+      if (tiny.length) out.push({ kind: "text-size", message: "Text smaller than 11pt: " + tiny.slice(0, 3).join(", ") + "." });
+      if (overflow) out.push({ kind: "overflow", message: overflow + " element" + (overflow === 1 ? " is" : "s are") + " wider than the screen and cut off." });
+      if (buttons && small.length > buttons * 0.1) out.push({ kind: "touch", message: "Buttons smaller than 44pt, hard to tap: " + small.slice(0, 3).join(", ") + "." });
+      return out;
+    };
     setTimeout(function () {
       try {
         var issue = layoutIssue();
         window.__layoutIssue = issue;
-        if (issue && !reported) post({ type: "layout", message: issue });
+        var issues = (issue ? [{ kind: "layout", message: issue }] : []).concat(screenIssues());
+        window.__screenIssues = issues;
+        if (!reported) post({ type: "quality", issues: issues });
       } catch (_) {}
     }, 1500);
   } catch (e) {

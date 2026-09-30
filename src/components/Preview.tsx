@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { buildPreviewHtml } from "@/lib/preview";
 import type { FileMap } from "@/lib/types";
 
+export interface QualityIssue {
+  kind: "layout" | "contrast" | "text-size" | "overflow" | "touch";
+  message: string;
+}
+
 export interface PreviewError {
   message: string;
   stack: string;
@@ -15,13 +20,13 @@ interface Props {
   /** Bump to force a fresh reload of the app. */
   reloadKey: number;
   onError?: (err: PreviewError | null) => void;
-  /** The app doesn't fill the screen (for example a tab bar floating mid-screen). */
-  onLayoutIssue?: (message: string) => void;
+  /** Problems the preview's quality check found on the first screen (layout, contrast, text size, overflow, small buttons). */
+  onQualityIssues?: (issues: QualityIssue[]) => void;
 }
 
 const noopSubscribe = () => () => {};
 
-export function Preview({ files, platform, reloadKey, onError, onLayoutIssue }: Props) {
+export function Preview({ files, platform, reloadKey, onError, onQualityIssues }: Props) {
   const origin = useSyncExternalStore(
     noopSubscribe,
     () => window.location.origin,
@@ -40,11 +45,18 @@ export function Preview({ files, platform, reloadKey, onError, onLayoutIssue }: 
       // Only trust messages from our own preview frame.
       if (e.source !== frame.current?.contentWindow || e.data?.source !== "appmaker-preview") return;
       if (e.data.type === "error") onError?.({ message: e.data.message, stack: e.data.stack });
-      if (e.data.type === "layout" && typeof e.data.message === "string") onLayoutIssue?.(e.data.message.slice(0, 300));
+      if (e.data.type === "quality" && Array.isArray(e.data.issues)) {
+        const kinds = ["layout", "contrast", "text-size", "overflow", "touch"];
+        const issues = (e.data.issues as { kind?: unknown; message?: unknown }[])
+          .filter((i) => typeof i?.message === "string" && kinds.includes(i.kind as string))
+          .slice(0, 5)
+          .map((i) => ({ kind: i.kind as QualityIssue["kind"], message: (i.message as string).slice(0, 300) }));
+        onQualityIssues?.(issues);
+      }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [html, reloadKey, onError, onLayoutIssue]);
+  }, [html, reloadKey, onError, onQualityIssues]);
 
   if (!html) return <div className="h-full w-full bg-white" />;
   return (

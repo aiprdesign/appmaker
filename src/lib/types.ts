@@ -12,6 +12,8 @@ export interface ChatMessage {
   error?: boolean;
   /** Snapshot of the app right after this reply, for "restore". */
   versionId?: string;
+  /** The user's 👍 / 👎 on this version. */
+  feedback?: "up" | "down";
   createdAt: number;
 }
 
