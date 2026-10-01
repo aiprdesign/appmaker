@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Code2, Coins, Download, Loader2, MessageSquare, Moon, Palette, Sun, RotateCw, Rocket, ShieldCheck, Smartphone, Wand2 } from "lucide-react";
+import { AlertTriangle, Code2, Coins, Download, Loader2, MessageSquare, Moon, Palette, Sun, RotateCw, Rocket, ShieldCheck, Smartphone, Sparkles, Wand2 } from "lucide-react";
 import { HistoryMenu } from "./HistoryMenu";
 import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
@@ -19,6 +19,8 @@ import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Preview, type PreviewError, type QualityIssue } from "@/components/Preview";
 import { qualityFixRequest, reportQuality, type QualityEvent } from "@/lib/quality";
+import { polishPrompt, toJpeg } from "@/lib/polish";
+import { captureFrame } from "@/lib/store-shots";
 import { TapTest, type TapTestResult } from "./TapTest";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
 import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
@@ -97,6 +99,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [checking, setChecking] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [previewError, setPreviewError] = useState<PreviewError | null>(null);
+  const [polishing, setPolishing] = useState(false);
+  const [polishError, setPolishError] = useState<string | null>(null);
+  const phoneRef = useRef<HTMLDivElement>(null);
   const [quality, setQuality] = useState<QualityIssue[] | null>(null);
   // The tap test runs on each new AI version, in a hidden copy of the app.
   const [tapFiles, setTapFiles] = useState<FileMap | null>(null);
@@ -191,7 +196,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   }, [project, generating]);
 
   const send = useCallback(
-    async (text: string, opts: { autoFix?: boolean; retry?: boolean } = {}) => {
+    async (text: string, opts: { autoFix?: boolean; retry?: boolean; images?: string[] } = {}) => {
       const current = projectRef.current;
       if (!current || abortRef.current) return;
       if (!opts.autoFix) {
@@ -237,6 +242,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             ai: aiChoiceFor(getAiSettings()),
             wording: current.wording ?? DEFAULT_WORDING,
             ...(opts.autoFix ? { auto: true } : {}),
+            ...(opts.images?.length ? { images: opts.images } : {}),
           }),
         });
         demoRef.current = res.headers.get("X-Appmaker-Mode") === "demo";
@@ -403,6 +409,23 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   }, [project, autoStart, send]);
 
   /** Re-runs the last request the user made (not an automatic fix). */
+  // Polish design: screenshot the screen in the preview and let the AI fix what looks off.
+  const polish = async () => {
+    const frame = phoneRef.current?.querySelector<HTMLIFrameElement>('iframe[title="App preview"]');
+    if (!frame || polishing) return;
+    setPolishing(true);
+    setPolishError(null);
+    try {
+      const { dataUrl, text } = await captureFrame(frame, device === "ipad" ? 1 : 1.5);
+      const jpeg = await toJpeg(dataUrl);
+      setPolishing(false);
+      await send(polishPrompt({ scheme, device, screenText: text }), { images: [jpeg] });
+    } catch (e) {
+      setPolishError((e as Error).message || "Couldn't take a screenshot of the preview.");
+      setPolishing(false);
+    }
+  };
+
   const retry = useCallback(() => {
     const p = projectRef.current;
     if (!p) return;
@@ -678,7 +701,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         <main className={`${mobileView === "app" ? "flex" : "hidden"} min-w-0 flex-1 flex-col lg:flex`}>
           {tab === "preview" && (
             <div className="relative flex min-h-0 flex-1 flex-col bg-[radial-gradient(ellipse_at_center,#15151f_0%,#07070b_70%)]">
-              <div className="flex items-center justify-center gap-2 p-3">
+              <div className="flex flex-wrap items-center justify-center gap-2 p-3">
                 <div className="flex rounded-lg border border-line bg-surface p-0.5 text-xs">
                   {(["ios", "android", ...(project.listing.ipad === false ? [] : (["ipad"] as const))] as const).map((p) => (
                     <button
@@ -720,12 +743,33 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                     <Palette className="h-3.5 w-3.5" /> Design
                   </button>
                 )}
+                {hasApp && !demoMode && (
+                  <button
+                    onClick={polish}
+                    disabled={generating || polishing}
+                    aria-label="Polish design"
+                    title="The AI looks at this screen and fixes alignment, spacing and other visual details (1 credit)"
+                    className="flex h-7 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-xs font-medium text-muted hover:text-foreground disabled:opacity-50"
+                  >
+                    {polishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    <span className="hidden sm:inline">Polish design</span>
+                  </button>
+                )}
                 {generating && hasApp && (
                   <span className="flex items-center gap-1.5 text-xs text-muted">
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> Applying changes…
                   </span>
                 )}
               </div>
+              {polishError && !generating && (
+                <div role="alert" className="mx-4 mb-2 flex items-start gap-3 rounded-xl border border-rose-500/30 bg-[#1a0d12] p-3 text-sm text-rose-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                  <div className="min-w-0 flex-1">{polishError}</div>
+                  <button onClick={() => setPolishError(null)} className="min-h-8 shrink-0 rounded-lg px-2 text-xs text-rose-200 hover:text-white">
+                    Dismiss
+                  </button>
+                </div>
+              )}
               {previewError && !generating && (
                 <div role="alert" className="mx-4 mb-2 flex items-start gap-3 rounded-xl border border-rose-500/30 bg-[#1a0d12] p-3 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
@@ -771,7 +815,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 </div>
               )}
               <div className="relative flex min-h-0 flex-1 gap-4 px-4 pb-4">
-                <div className="relative min-h-0 min-w-0 flex-1">
+                <div ref={phoneRef} className="relative min-h-0 min-w-0 flex-1">
                 <PhoneFrame platform={device}>
                   {checking && <ChecksOverlay generating={generating} />}
                   {hasApp || Object.keys(previewFiles).length ? (

@@ -146,6 +146,19 @@ export interface GenerateArgs {
   write: (text: string) => void;
   /** Quick check mode: a small output budget and low effort. */
   quick?: boolean;
+  /** Screenshots (data URLs, JPEG or PNG) shown to the model with the last user message. */
+  images?: string[];
+}
+
+/** Whether a provider can be sent screenshots. */
+export function canSeeImages(ai: ResolvedAi): boolean {
+  return ai.provider !== "replicate";
+}
+
+function splitDataUrl(url: string): { mediaType: "image/jpeg" | "image/png"; data: string } {
+  const m = /^data:(image\/(?:jpeg|png));base64,(.+)$/.exec(url);
+  if (!m) throw new AiConfigError("Screenshots must be JPEG or PNG images.");
+  return { mediaType: m[1] as "image/jpeg" | "image/png", data: m[2] };
 }
 
 /** Streams the model's text through `write`. Returns why generation stopped. */
@@ -167,7 +180,10 @@ function openaiClient(ai: ResolvedAi): OpenAI {
   return new OpenAI({ apiKey: ai.apiKey, baseURL: ai.baseURL, maxRetries: ai.guarded ? 2 : 4, ...(ai.guarded ? guardedFetchOptions() : {}) });
 }
 
-export async function streamGeneration({ ai, system, messages, signal, write, quick }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
+export async function streamGeneration({ ai, system, messages, signal, write, quick, images }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
+  const shots = images?.length ? images.map(splitDataUrl) : null;
+  const last = messages.length - 1;
+  if (shots && !canSeeImages(ai)) throw new AiConfigError("This model can't look at screenshots. Choose another model in AI settings.");
   if (speaksAnthropic(ai)) {
     const client = anthropicClient(ai);
     const modern = isModernClaude(ai.model);
@@ -178,7 +194,19 @@ export async function streamGeneration({ ai, system, messages, signal, write, qu
         ...(modern ? { thinking: { type: "adaptive" as const }, output_config: { effort: quick ? ("low" as const) : ("high" as const) } } : {}),
         ...(ai.provider === "anthropic" && supportsFallbacks(ai.model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-        messages,
+        messages: shots
+          ? messages.map((m, i) =>
+              i === last
+                ? {
+                    role: m.role,
+                    content: [
+                      ...shots.map((s) => ({ type: "image" as const, source: { type: "base64" as const, media_type: s.mediaType, data: s.data } })),
+                      { type: "text" as const, text: m.content },
+                    ],
+                  }
+                : m,
+            )
+          : messages,
       },
       { signal },
     );
@@ -202,7 +230,20 @@ export async function streamGeneration({ ai, system, messages, signal, write, qu
       model: ai.model,
       stream: true,
       ...(info.maxTokens ? { max_tokens: info.maxTokens } : {}),
-      messages: [{ role: "system", content: system }, ...messages],
+      messages: [
+        { role: "system", content: system },
+        ...messages.map((m, i) =>
+          shots && i === last && m.role === "user"
+            ? {
+                role: "user" as const,
+                content: [
+                  ...images!.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+                  { type: "text" as const, text: m.content },
+                ],
+              }
+            : m,
+        ),
+      ],
     },
     { signal },
   );

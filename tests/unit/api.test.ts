@@ -18,6 +18,15 @@ describe("POST /api/generate", () => {
     expect((await call({ prompt: "hi", history: [{ role: "system", content: "x" }] })).status).toBe(400);
   });
 
+  it("accepts up to two JPEG or PNG screenshots", async () => {
+    const jpeg = "data:image/jpeg;base64,/9j/4AAQ";
+    expect((await call({ prompt: "polish", images: [jpeg] })).status).toBe(200);
+    expect((await call({ prompt: "polish", images: [jpeg, jpeg, jpeg] })).status).toBe(400);
+    expect((await call({ prompt: "polish", images: ["data:image/svg+xml;base64,PHN2Zz4="] })).status).toBe(400);
+    expect((await call({ prompt: "polish", images: ["https://example.com/a.png"] })).status).toBe(400);
+    expect((await call({ prompt: "polish", images: [`data:image/png;base64,${"A".repeat(2_000_001)}`] })).status).toBe(400);
+  });
+
   it("streams a complete demo app that passes the parser", async () => {
     const res = await call({ prompt: "a budget tracker" });
     expect(res.status).toBe(200);

@@ -1,5 +1,5 @@
 import { getProvider, type AiChoice } from "@/lib/ai/providers";
-import { aiErrorMessage, AiConfigError, resolveAi, streamGeneration, type ResolvedAi } from "@/lib/ai/server";
+import { aiErrorMessage, AiConfigError, canSeeImages, resolveAi, streamGeneration, type ResolvedAi } from "@/lib/ai/server";
 import { demoResponse } from "@/lib/demo";
 import { buildUserMessage, systemPrompt } from "@/lib/prompt";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -19,6 +19,9 @@ const MAX_PROMPT_CHARS = 8_000;
 const MAX_FILES = APP_MAX_FILES;
 const MAX_FILES_BYTES = APP_MAX_BYTES;
 const MAX_HISTORY_CHARS = 4_000;
+/** Screenshots for "Polish design": a couple of screens, JPEG or PNG. */
+const MAX_IMAGES = 2;
+const MAX_IMAGE_CHARS = 2_000_000;
 
 interface GenerateRequest {
   prompt: string;
@@ -34,6 +37,8 @@ interface GenerateRequest {
   wording?: "claim-safe" | "standard";
   /** Sent by the builder's automatic quality fixes (free within a limit when credits are on). */
   auto?: boolean;
+  /** Screenshots of the app (data URLs) for the AI to look at, used by "Polish design". */
+  images?: string[];
 }
 
 function textStream(ai: ResolvedAi | null, produce: (write: (s: string) => void) => Promise<void>): Response {
@@ -96,6 +101,13 @@ function validateRequest(body: GenerateRequest): string | null {
     }
     if (ai.apiFormat != null && ai.apiFormat !== "openai" && ai.apiFormat !== "anthropic") return "ai.apiFormat is invalid";
   }
+  if (body.images != null) {
+    if (!Array.isArray(body.images) || body.images.length > MAX_IMAGES) return `images must be an array of at most ${MAX_IMAGES} screenshots`;
+    for (const img of body.images) {
+      if (typeof img !== "string" || !/^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(img)) return "images must be JPEG or PNG data URLs";
+      if (img.length > MAX_IMAGE_CHARS) return "a screenshot is too large";
+    }
+  }
   if (body.history != null) {
     if (!Array.isArray(body.history) || body.history.length > 200) return "history must be an array of at most 200 messages";
     for (const m of body.history) {
@@ -137,6 +149,11 @@ export async function POST(req: Request) {
         await new Promise((r) => setTimeout(r, 25));
       }
     });
+  }
+
+  const images = body.images?.length ? body.images : undefined;
+  if (images && !canSeeImages(ai)) {
+    return Response.json({ error: "This model can't look at screenshots. Choose another model in AI settings." }, { status: 400 });
   }
 
   const hourly = ai.usingServerKey ? HOURLY_LIMIT : BYOK_HOURLY_LIMIT;
@@ -182,6 +199,7 @@ export async function POST(req: Request) {
         system: systemPrompt(body.wording === "standard" ? "standard" : "claim-safe"),
         messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site) }],
         signal: req.signal,
+        images,
         write: (t) => {
           wrote = true;
           if (!madeFiles) {

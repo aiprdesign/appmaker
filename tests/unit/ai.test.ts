@@ -106,7 +106,7 @@ afterEach(() => {
   mode = "ok";
 });
 
-const run = async (ai: NonNullable<ReturnType<typeof resolveAi>>) => {
+const run = async (ai: NonNullable<ReturnType<typeof resolveAi>>, images?: string[]) => {
   let out = "";
   const outcome = await streamGeneration({
     ai,
@@ -114,6 +114,7 @@ const run = async (ai: NonNullable<ReturnType<typeof resolveAi>>) => {
     messages: [{ role: "user", content: "build it" }],
     signal: new AbortController().signal,
     write: (t) => (out += t),
+    images,
   });
   return { out, outcome };
 };
@@ -231,6 +232,34 @@ describe("private-network guard", () => {
 });
 
 describe("streamGeneration", () => {
+  it("shows screenshots to the model with the last user message", async () => {
+    clearKeys();
+    process.env.ANTHROPIC_BASE_URL = base;
+    const shot = "data:image/jpeg;base64,/9j/4AAQ";
+    await run({ provider: "anthropic", model: "claude-opus-5", apiKey: "k", usingServerKey: true }, [shot]);
+    expect(captured[0].body.messages).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "/9j/4AAQ" } },
+          { type: "text", text: "build it" },
+        ],
+      },
+    ]);
+    await run({ provider: "openai", model: "gpt-5.5", apiKey: "u", baseURL: `${base}/v1`, usingServerKey: false }, [shot]);
+    expect((captured[1].body.messages as unknown[])[1]).toEqual({
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: shot } },
+        { type: "text", text: "build it" },
+      ],
+    });
+    await expect(run({ provider: "replicate", model: "x/y", apiKey: "r", baseURL: base, usingServerKey: false }, [shot])).rejects.toThrow(AiConfigError);
+    await expect(run({ provider: "anthropic", model: "claude-opus-5", apiKey: "k", usingServerKey: true }, ["data:image/gif;base64,R0lG"])).rejects.toThrow(
+      AiConfigError,
+    );
+  });
+
   it("streams from Claude with adaptive thinking, effort, caching and refusal fallbacks", async () => {
     clearKeys();
     process.env.ANTHROPIC_BASE_URL = base;
