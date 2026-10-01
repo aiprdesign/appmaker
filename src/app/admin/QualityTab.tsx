@@ -14,6 +14,8 @@ const PROBLEMS: QualityEvent[] = [
   "overflow",
   "touch",
   "label",
+  "tap:crash",
+  "tap:dead-save",
   "cutoff",
   "unfixed:checks",
   "check:claims",

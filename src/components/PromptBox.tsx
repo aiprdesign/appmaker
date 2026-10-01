@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Globe, Loader2, Sparkles } from "lucide-react";
 import { createProject, emptyListing } from "@/lib/storage";
 import { appTitle } from "@/lib/title";
+import { BRIEF_SKIP_KEY, briefPrompt, needsBrief, type BriefAnswers } from "@/lib/brief";
+import { AppBrief } from "./AppBrief";
 import { TEMPLATES } from "@/lib/templates";
 import type { SiteSummary } from "@/lib/types";
 import Link from "next/link";
@@ -55,6 +57,7 @@ export function PromptBox() {
   const router = useRouter();
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
+  const [brief, setBrief] = useState(false);
   const [showUrl, setShowUrl] = useState(false);
   const [url, setUrl] = useState("");
   const [site, setSite] = useState<SiteSummary | null>(null);
@@ -164,15 +167,29 @@ export function PromptBox() {
     importSite(address);
   };
 
+  const build = (text: string, answers: BriefAnswers | null = null) => {
+    setBusy(true);
+    setBrief(false);
+    // Named straight away from the website or the idea (or the business name from the brief).
+    const name = answers?.business?.trim() ? appTitle(answers.business, null) : appTitle(text, site);
+    const full = answers ? briefPrompt(text, answers) : text;
+    const project = createProject(full, site ?? undefined, wording, { name, listing: emptyListing(name) });
+    router.push(`/build/${project.id}?auto=1`);
+  };
+
   const start = () => {
     if (bareUrl) return switchToUrl(bareUrl);
     const text = value.trim() || (site ? `Turn ${site.siteName} (${site.url}) into a mobile app for its customers.` : "");
     if (!text || busy || importing || tooLong) return;
-    setBusy(true);
-    // Named straight away from the website or the idea; the AI can refine it in the store listing.
-    const name = appTitle(text, site);
-    const project = createProject(text, site ?? undefined, wording, { name, listing: emptyListing(name) });
-    router.push(`/build/${project.id}?auto=1`);
+    // A short, vague idea gets three quick questions first (unless turned off), for a better first version.
+    let skip = false;
+    try {
+      skip = localStorage.getItem(BRIEF_SKIP_KEY) === "1";
+    } catch {
+      // Ask.
+    }
+    if (!site && !brief && !skip && needsBrief(text)) return setBrief(true);
+    build(text);
   };
 
   return (
@@ -261,7 +278,10 @@ export function PromptBox() {
         <textarea
           ref={ref}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setBrief(false);
+          }}
           onPaste={(e) => {
             // Pasting just a link into the empty box: that's URL to App.
             const address = features.websiteImport && !site && !showUrl && !value.trim() ? onlyUrl(e.clipboardData.getData("text")) : null;
@@ -341,6 +361,7 @@ export function PromptBox() {
           </button>
         </div>
       </form>
+      {brief && <AppBrief prompt={value.trim()} onBuild={(answers) => build(value.trim(), answers)} onCancel={() => setBrief(false)} />}
       {aiReady === false && (
         <p className="mt-3 text-center text-xs text-amber-200/90">
           Demo mode: no AI key is set up yet, so you&apos;ll get a sample app.{" "}

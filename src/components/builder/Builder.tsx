@@ -18,7 +18,8 @@ import { Logo } from "@/components/Logo";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Preview, type PreviewError, type QualityIssue } from "@/components/Preview";
-import { qualityFixRequest, reportQuality } from "@/lib/quality";
+import { qualityFixRequest, reportQuality, type QualityEvent } from "@/lib/quality";
+import { TapTest, type TapTestResult } from "./TapTest";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
 import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
 import { getProject, saveProject, uid, withVersion } from "@/lib/storage";
@@ -97,6 +98,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [previewError, setPreviewError] = useState<PreviewError | null>(null);
   const [quality, setQuality] = useState<QualityIssue[] | null>(null);
+  // The tap test runs on each new AI version, in a hidden copy of the app.
+  const [tapFiles, setTapFiles] = useState<FileMap | null>(null);
+  const [tapIssues, setTapIssues] = useState<QualityIssue[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -173,8 +177,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   }, [plan, branded, generating, project, commit]);
 
   // A new version of the app gets checked again.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setQuality(null), [previewFiles, reloadKey]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQuality(null);
+    setTapIssues([]);
+  }, [previewFiles, reloadKey]);
 
   // Debounce hand edits in the code tab into the preview.
   useEffect(() => {
@@ -377,6 +384,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       }
       reveal();
       runtimeWatchUntil.current = Date.now() + RUNTIME_WATCH_MS;
+      setTapFiles(files);
     },
     [commit],
   );
@@ -463,12 +471,26 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const onQualityIssues = useCallback((issues: QualityIssue[]) => {
     setQuality(issues.length ? issues : null);
     const justBuilt = Date.now() < runtimeWatchUntil.current;
-    if (justBuilt && !demoRef.current) reportQuality(issues.length ? issues.map((i) => i.kind) : ["screen:clean"]);
+    if (justBuilt && !demoRef.current) reportQuality(issues.length ? issues.map((i) => i.kind as QualityEvent) : ["screen:clean"]);
     if (!issues.length) return;
     if (justBuilt && fixBudget.current > 0 && !abortRef.current) {
       runtimeWatchUntil.current = 0;
       fixBudget.current -= 1;
       sendRef.current(`Automatic quality check: ${qualityFixRequest(issues)}`, { autoFix: true });
+    }
+  }, []);
+
+  const onTapResult = useCallback((r: TapTestResult) => {
+    setTapFiles(null);
+    const issues: QualityIssue[] = [
+      ...r.errors.slice(0, 1).map((e) => ({ kind: "crash" as const, message: `Tapping “${e.after || "a control"}” crashes the app: ${e.message}` })),
+      ...(r.deadSave ? [{ kind: "save" as const, message: `“${r.deadSave}” doesn't save: what was typed never appeared in the app after tapping it.` }] : []),
+    ];
+    if (!demoRef.current) reportQuality(issues.length ? issues.map((i) => (i.kind === "crash" ? "tap:crash" : "tap:dead-save")) : ["tap:clean"]);
+    setTapIssues(issues);
+    if (issues.length && fixBudget.current > 0 && !abortRef.current && !demoRef.current) {
+      fixBudget.current -= 1;
+      sendRef.current(`Automatic tap test: ${qualityFixRequest(issues)}`, { autoFix: true });
     }
   }, []);
 
@@ -724,22 +746,23 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   )}
                 </div>
               )}
-              {quality && !previewError && !generating && !checking && (
+              {tapFiles && !generating && <TapTest files={tapFiles} platform={device} onResult={onTapResult} />}
+              {(quality || tapIssues.length > 0) && !previewError && !generating && !checking && (
                 <div role="status" className="mx-4 mb-2 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-amber-100">
-                      {quality.some((i) => i.kind === "layout") ? "The layout doesn't fill the screen" : "The quality check found something to improve"}
+                      {(quality ?? []).some((i) => i.kind === "layout") ? "The layout doesn't fill the screen" : "The quality check found something to improve"}
                     </div>
                     <ul className="mt-0.5 space-y-0.5 text-xs text-amber-100/80">
-                      {quality.map((i) => (
+                      {[...(quality ?? []), ...tapIssues].map((i) => (
                         <li key={i.kind}>{i.message}</li>
                       ))}
                     </ul>
                   </div>
                   {!demoMode && (
                     <button
-                      onClick={() => send(`Quality check: ${qualityFixRequest(quality)}`)}
+                      onClick={() => send(`Quality check: ${qualityFixRequest([...(quality ?? []), ...tapIssues])}`)}
                       className="min-h-8 shrink-0 rounded-lg bg-amber-400 px-3 text-xs font-medium text-black hover:bg-amber-300"
                     >
                       Fix with AI

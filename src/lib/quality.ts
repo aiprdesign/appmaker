@@ -21,6 +21,9 @@ export const QUALITY_EVENTS = {
   overflow: "Content wider than the screen",
   touch: "Buttons too small to tap",
   label: "Buttons without a screen-reader label",
+  "tap:crash": "Tap test: a button crashed the app",
+  "tap:dead-save": "Tap test: a Save/Add button did nothing",
+  "tap:clean": "Passed the tap test",
   "screen:clean": "Passed every check in the preview",
   "unfixed:checks": "Problems left after automatic fixes",
   "feedback:up": "👍 from users",
@@ -41,6 +44,8 @@ export const QUALITY_HINTS: Partial<Record<QualityEvent, string>> = {
   layout: "The layout rules in src/lib/prompt.ts (flex: 1 chain, tab bar last).",
   contrast: "Colors should come from src/theme.js; check apps that hard-code greys.",
   touch: "The 44×44pt rule; icon-only buttons are the usual cause.",
+  "tap:crash": "Usually a detail screen reading data that isn't there yet. Strengthen the 'guard against missing data' rule.",
+  "tap:dead-save": "Forms that don't add the item: strengthen the 'Forms work end to end' rule in src/lib/prompt.ts.",
   cutoff: "Apps are too big for one reply: ask for fewer screens in the first version, or use a model with a larger output limit.",
   "down:wrong": "Prompts are being misunderstood: consider asking one clarifying question for vague prompts.",
 };
@@ -68,6 +73,8 @@ const FIXES: Record<string, string> = {
   "text-size": "use at least 11pt for all text, 13pt or more for body text",
   overflow: "use flexWrap, flex: 1 or percentage widths instead of fixed widths; put wide rows in a horizontal ScrollView",
   touch: "give every tappable element at least 44×44pt, including icon-only buttons (use padding or minWidth/minHeight)",
+  crash: "find the root cause (usually data that's missing or undefined on that screen) and guard against it, so tapping anything never crashes",
+  save: "make that button save what was typed, show the new item straight away, and keep it after a restart (AsyncStorage); clear the form after saving",
   label: "give every icon-only button an accessibilityLabel that says what it does, and accessibilityRole=\"button\" (or \"tab\", \"switch\", \"link\")",
 };
 

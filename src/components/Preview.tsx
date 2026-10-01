@@ -5,7 +5,7 @@ import { buildPreviewHtml } from "@/lib/preview";
 import type { FileMap } from "@/lib/types";
 
 export interface QualityIssue {
-  kind: "layout" | "contrast" | "text-size" | "overflow" | "touch" | "label";
+  kind: "layout" | "contrast" | "text-size" | "overflow" | "touch" | "label" | "crash" | "save";
   message: string;
 }
 

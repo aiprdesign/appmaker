@@ -6,9 +6,9 @@ import type { FileMap } from "./types";
  * wired together with a tiny CommonJS loader; `react-native` resolves to
  * React Native Web from the self-hosted runtime in /public/preview.
  */
-export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android" | "ipad", scheme?: "light" | "dark"): string {
+export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android" | "ipad", scheme?: "light" | "dark", opts: { test?: boolean } = {}): string {
   // An iPad runs iOS; the runtime gets "ipad" for its safe areas and Platform.isPad.
-  const payload = JSON.stringify({ files, platform: platform === "ipad" ? "ios" : platform, device: platform, scheme: scheme ?? null }).replace(/</g, "\\u003c");
+  const payload = JSON.stringify({ files, platform: platform === "ipad" ? "ios" : platform, device: platform, scheme: scheme ?? null, test: !!opts.test }).replace(/</g, "\\u003c");
   return `<!doctype html>
 <html>
 <head>
@@ -34,7 +34,26 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
   var files = payload.files;
   var post = function (msg) { parent.postMessage(Object.assign({ source: "appmaker-preview" }, msg), "*"); };
   var reported = false;
+  // Tap-test mode (a hidden copy of the app): crashes are collected, not posted,
+  // pop-ups don't block, and nothing is sent to servers.
+  var testErrors = [];
+  var lastTapped = "";
+  if (payload.test) {
+    window.alert = function () {};
+    window.confirm = function () { return true; };
+    window.prompt = function () { return null; };
+    var realFetch = window.fetch;
+    window.fetch = function (input, init) {
+      var method = ((init && init.method) || (input && input.method) || "GET").toUpperCase();
+      if (method !== "GET" && method !== "HEAD") return Promise.resolve(new Response("{}", { status: 503, headers: { "content-type": "application/json" } }));
+      return realFetch.apply(window, arguments);
+    };
+  }
   var report = function (message, stack) {
+    if (payload.test) {
+      if (testErrors.length < 3) testErrors.push({ message: String(message).slice(0, 300), after: lastTapped });
+      return;
+    }
     if (reported) return;
     reported = true;
     post({ type: "error", message: String(message), stack: stack ? String(stack) : "" });
@@ -219,6 +238,62 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
       if (buttons && small.length > buttons * 0.1) out.push({ kind: "touch", message: "Buttons smaller than 44pt, hard to tap: " + small.slice(0, 3).join(", ") + "." });
       return out;
     };
+    // The tap test: like a first-time user, fill in forms and tap every control.
+    var tapTest = async function () {
+      var root = document.getElementById("root");
+      var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+      var token = "Test" + Math.floor(Math.random() * 9000 + 1000);
+      var PRIMARY = /\\b(add|save|create|done|submit|log|start|new|ok|confirm|post|send)\\b|^\\+/i;
+      var shown = function (el) {
+        var r = el.getBoundingClientRect();
+        var st = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && st.visibility !== "hidden" && r.bottom > 0 && r.top < window.innerHeight;
+      };
+      var label = function (el) { return ((el.innerText || el.getAttribute("aria-label") || "").trim() || "an icon button").slice(0, 40); };
+      var controls = function () {
+        return Array.prototype.filter.call(root.querySelectorAll("*"), function (el) {
+          return getComputedStyle(el).cursor === "pointer" && !(el.parentElement && getComputedStyle(el.parentElement).cursor === "pointer") && shown(el);
+        });
+      };
+      var typed = false, tokenSeen = false, savedAfterTyping = "", taps = 0, tried = {};
+      var fill = function () {
+        Array.prototype.forEach.call(root.querySelectorAll("input, textarea"), function (input) {
+          if (!shown(input) || input.value) return;
+          var hint = ((input.getAttribute("placeholder") || "") + " " + (input.getAttribute("aria-label") || "")).toLowerCase();
+          if (/search|filter|find/.test(hint)) return;
+          var numeric = /decimal|numeric|number|tel/.test(input.getAttribute("inputmode") || "") || /amount|price|qty|quantity|how many|minutes|phone/.test(hint);
+          var proto = input.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+          Object.getOwnPropertyDescriptor(proto, "value").set.call(input, numeric ? "4255501234" : token + " item");
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          typed = true;
+        });
+      };
+      // Text typed into inputs isn't part of innerText: finding it means it was saved and shown.
+      var seen = function () { return document.body.innerText.indexOf(token + " item") !== -1; };
+      for (var round = 0; round < 30 && !testErrors.length; round++) {
+        fill();
+        await wait(50);
+        var list = controls().filter(function (el) { return !tried[label(el) + "|" + Math.round(el.getBoundingClientRect().top / 10)]; });
+        var next = (typed && list.find(function (el) { return PRIMARY.test(label(el)); })) || list[0];
+        if (!next) break;
+        tried[label(next) + "|" + Math.round(next.getBoundingClientRect().top / 10)] = true;
+        lastTapped = label(next);
+        if (typed && PRIMARY.test(lastTapped) && !savedAfterTyping) savedAfterTyping = lastTapped;
+        next.click();
+        taps++;
+        await wait(150);
+        if (savedAfterTyping && seen()) tokenSeen = true;
+      }
+      return { taps: taps, errors: testErrors, deadSave: !!savedAfterTyping && !tokenSeen && !testErrors.length ? savedAfterTyping : "" };
+    };
+    if (payload.test) {
+      setTimeout(function () {
+        tapTest()
+          .then(function (result) { post({ type: "taptest", result: result }); })
+          .catch(function (e) { post({ type: "taptest", result: { taps: 0, errors: [{ message: String(e && e.message || e), after: lastTapped }], deadSave: "" } }); });
+      }, 1200);
+      return;
+    }
     setTimeout(function () {
       try {
         var issue = layoutIssue();
