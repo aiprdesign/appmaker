@@ -192,6 +192,20 @@ export function easFailure(output: string, action = "start the build"): EasError
       "ios-credentials",
     );
   }
+  // The token can't create projects in the chosen account; Expo lists the ones it can.
+  const denied = /not able to create projects in the "([^"]+)" account\.?\s*Accounts you have permissions to create projects in:\s*([^\n]+)/i.exec(output);
+  if (denied) {
+    const allowed = denied[2]
+      .split(/[,\s]+/)
+      .map((a) => a.trim().replace(/\.$/, ""))
+      .filter(Boolean);
+    return new EasError(
+      `This Expo token can't create projects in the "${denied[1]}" account. It can use: ${allowed.join(", ") || "none"}. Set APPMAKER_EXPO_ACCOUNT to one of these (or remove it), or use a token from the "${denied[1]}" account.`,
+      403,
+      "failed",
+      { allowedAccounts: allowed },
+    );
+  }
   if (/not authorized|unauthorized|log in with|EXPO_TOKEN/i.test(output)) {
     return new EasError("Expo didn't accept this access token. Create a new one at expo.dev and connect again.", 401, "auth");
   }
@@ -396,7 +410,18 @@ async function withProjectDir<T>(
 export async function linkProject(token: string, project: Project, icon: Buffer): Promise<ExpoLink> {
   const account = (token === hostedToken() && process.env.APPMAKER_EXPO_ACCOUNT?.trim()) || (await whoami(token)).account;
   return withProjectDir(project, icon, {}, async (dir) => {
-    const out = await runEas(["init", "--non-interactive", "--force", "--json", "--account", account], { cwd: dir, token, timeoutMs: 3 * 60_000 });
+    const init = (name: string) =>
+      runEas(["init", "--non-interactive", "--force", "--json", "--account", name], { cwd: dir, token, timeoutMs: 3 * 60_000, action: "create the project" });
+    let out: string;
+    try {
+      out = await init(account);
+    } catch (e) {
+      // The account name is wrong for this token (e.g. APPMAKER_EXPO_ACCOUNT): use the one Expo allows.
+      const allowed = e instanceof EasError ? (e.data?.allowedAccounts as string[] | undefined) : undefined;
+      if (!allowed?.[0] || allowed.includes(account)) throw e;
+      console.warn(`Expo: can't create projects in "${account}", using "${allowed[0]}" instead. Check APPMAKER_EXPO_ACCOUNT.`);
+      out = await init(allowed[0]);
+    }
     const res = parseJsonOutput<{ projectId?: string; owner?: string; slug?: string }>(out);
     if (!res.projectId || !res.owner || !res.slug) throw new EasError("Expo didn't return the new project. Try again.", 502);
     return { projectId: res.projectId, owner: res.owner, slug: res.slug };

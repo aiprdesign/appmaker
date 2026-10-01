@@ -143,7 +143,14 @@ const rec = {
 fs.appendFileSync(${JSON.stringify(logFile)}, JSON.stringify(rec) + "\\n");
 if (args.includes("--simulate-failure")) process.exit(1);
 if (args[0] === "init") {
-  console.log(JSON.stringify({ status: "created", projectId: "${PROJECT_ID}", owner: "alice", slug: rec.appJson.expo.slug }));
+  const account = args[args.indexOf("--account") + 1];
+  if (account !== "alice" && account !== "appmaker-builds") {
+    console.error("Using EAS CLI without version control system is not recommended, use this mode only if you know what you are doing.");
+    console.error('You are not able to create projects in the "' + account + '" account. Accounts you have permissions to create projects in: alice');
+    console.error("Error: project:init command failed.");
+    process.exit(1);
+  }
+  console.log(JSON.stringify({ status: "created", projectId: "${PROJECT_ID}", owner: account, slug: rec.appJson.expo.slug }));
 } else if (args[0] === "update") {
   if (rec.appJson.expo.name === "Broken") {
     console.error("SyntaxError: App.js: Unexpected token (3:4)");
@@ -245,6 +252,27 @@ describe("cloud builds (fake Expo)", () => {
     const [rec] = records();
     expect(rec.args).toEqual(["init", "--non-interactive", "--force", "--json", "--account", "alice"]);
     expect(rec.files).toEqual(expect.arrayContaining(["App.js", "app.json", "eas.json", "package.json", "assets/icon.png"]));
+  });
+
+  it("uses the account Expo allows when the configured one is wrong", async () => {
+    process.env.EXPO_TOKEN = TOKEN;
+    process.env.APPMAKER_EXPO_ACCOUNT = "prdesign";
+    try {
+      const link = await linkProject(TOKEN, project(), PNG);
+      expect(link.owner).toBe("alice");
+      expect(records().map((r) => r.args.at(-1))).toEqual(["prdesign", "alice"]);
+    } finally {
+      delete process.env.EXPO_TOKEN;
+      delete process.env.APPMAKER_EXPO_ACCOUNT;
+    }
+  });
+
+  it("explains which accounts a token can create projects in", () => {
+    const e = easFailure(
+      'Using EAS CLI without version control system is not recommended.\nYou are not able to create projects in the "prdesign" account. Accounts you have permissions to create projects in: appmk\nError: project:init command failed.',
+    );
+    expect(e.message).toContain('can\'t create projects in the "prdesign" account. It can use: appmk');
+    expect(e.data).toEqual({ allowedAccounts: ["appmk"] });
   });
 
   it("starts an App Store build with automatic upload, keeping secrets out of the project and args", async () => {
