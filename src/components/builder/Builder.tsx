@@ -79,7 +79,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const cloud = useCloud();
   const [tab, setTab] = useState<Tab>("preview");
   const [mobileView, setMobileView] = useState<"chat" | "app">("chat");
-  const [platform, setPlatform] = useState<"ios" | "android">("ios");
+  const [platform, setPlatform] = useState<"ios" | "android" | "ipad">("ios");
   const [generating, setGenerating] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
   const [scheme, setScheme] = useState<"light" | "dark">("light");
@@ -513,6 +513,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   }
 
   const hasApp = Object.keys(project.files).length > 0;
+  // iPad turned off in the listing: show the iPhone instead.
+  const device = platform === "ipad" && project.listing.ipad === false ? "ios" : platform;
 
   // A design change rewrites src/theme.js and shows straight away: no AI, no credits.
   const changeDesign = (design: AppDesign) => {
@@ -656,13 +658,14 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             <div className="relative flex min-h-0 flex-1 flex-col bg-[radial-gradient(ellipse_at_center,#15151f_0%,#07070b_70%)]">
               <div className="flex items-center justify-center gap-2 p-3">
                 <div className="flex rounded-lg border border-line bg-surface p-0.5 text-xs">
-                  {(["ios", "android"] as const).map((p) => (
+                  {(["ios", "android", ...(project.listing.ipad === false ? [] : (["ipad"] as const))] as const).map((p) => (
                     <button
                       key={p}
                       onClick={() => setPlatform(p)}
-                      className={`rounded-md px-3 py-1 font-medium ${platform === p ? "bg-surface-2 text-foreground" : "text-muted"}`}
+                      aria-pressed={device === p}
+                      className={`rounded-md px-3 py-1 font-medium ${device === p ? "bg-surface-2 text-foreground" : "text-muted"}`}
                     >
-                      {p === "ios" ? "iPhone" : "Android"}
+                      {p === "ios" ? "iPhone" : p === "android" ? "Android" : "iPad"}
                     </button>
                   ))}
                 </div>
@@ -746,10 +749,10 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               )}
               <div className="relative flex min-h-0 flex-1 gap-4 px-4 pb-4">
                 <div className="relative min-h-0 min-w-0 flex-1">
-                <PhoneFrame platform={platform}>
+                <PhoneFrame platform={device}>
                   {checking && <ChecksOverlay generating={generating} />}
                   {hasApp || Object.keys(previewFiles).length ? (
-                    <Preview files={previewFiles} platform={platform} reloadKey={reloadKey} onError={onPreviewError} onQualityIssues={onQualityIssues} scheme={scheme} />
+                    <Preview files={previewFiles} platform={device} reloadKey={reloadKey} onError={onPreviewError} onQualityIssues={onQualityIssues} scheme={scheme} />
                   ) : (
                     <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-500">
                       <div>

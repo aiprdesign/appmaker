@@ -12,6 +12,8 @@ export const SHOT_SIZES = {
   apple: { w: 1290, h: 2796, label: 'App Store (iPhone 6.9")' },
   /** Google Play phone screenshots: 9:16. */
   google: { w: 1080, h: 1920, label: "Google Play (phone)" },
+  /** iPad 13" display: required when the app runs on iPad. */
+  ipad: { w: 2064, h: 2752, label: 'App Store (iPad 13")' },
 } as const;
 
 export const FEATURE_GRAPHIC = { w: 1024, h: 500 };
@@ -21,8 +23,10 @@ export type ShotStyle = "brand" | "light" | "dark";
 
 export interface Shot {
   id: string;
-  /** PNG of the app screen (390×844 at 3×). */
+  /** PNG of the app screen (a phone at 390×844 or an iPad at 1032×1376, at 2–3×). */
   screen: string;
+  /** Captured on a phone (the default) or an iPad. */
+  device?: "phone" | "ipad";
   /** Visible text on that screen, to help write its headline. */
   text: string;
   title: string;
@@ -115,7 +119,7 @@ export async function renderShot(
   size: { w: number; h: number },
   style: ShotStyle,
   brand: string,
-  platform: "ios" | "android",
+  platform: "ios" | "android" | "ipad",
 ): Promise<HTMLCanvasElement> {
   const { w, h } = size;
   const canvas = document.createElement("canvas");
@@ -155,11 +159,14 @@ export async function renderShot(
   // The phone: as big as fits below the text, running off the bottom edge a little.
   const top = y + h * 0.035;
   const screen = await loadImage(shot.screen);
-  const bezel = w * 0.022;
-  const phoneW = Math.min(w * 0.8, ((h - top) * 1.08 * 390) / 844 + bezel * 2);
-  const phoneH = ((phoneW - bezel * 2) * 844) / 390 + bezel * 2;
+  // The device's shape comes from the screen itself (phone or iPad).
+  const aspect = screen.height / screen.width;
+  const ipad = platform === "ipad";
+  const bezel = w * (ipad ? 0.018 : 0.022);
+  const phoneW = Math.min(w * (ipad ? 0.86 : 0.8), ((h - top) * 1.08) / aspect + bezel * 2);
+  const phoneH = (phoneW - bezel * 2) * aspect + bezel * 2;
   const x = (w - phoneW) / 2;
-  const radius = phoneW * (platform === "ios" ? 0.14 : 0.09);
+  const radius = phoneW * (platform === "ios" ? 0.14 : ipad ? 0.045 : 0.09);
   ctx.save();
   ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
   ctx.shadowBlur = w * 0.05;
@@ -175,7 +182,12 @@ export async function renderShot(
   ctx.restore();
   // Dynamic Island or camera dot.
   ctx.fillStyle = "#000000";
-  if (platform === "ios") {
+  if (ipad) {
+    ctx.beginPath();
+    ctx.arc(w / 2, top + bezel / 2, bezel * 0.22, 0, Math.PI * 2);
+    ctx.fillStyle = "#2a2a30";
+    ctx.fill();
+  } else if (platform === "ios") {
     const iw = phoneW * 0.3;
     roundRect(ctx, (w - iw) / 2, top + bezel + phoneW * 0.028, iw, phoneW * 0.085, phoneW * 0.0425);
     ctx.fill();
@@ -243,7 +255,7 @@ export async function renderFeatureGraphic(listing: StoreListing, iconPng: strin
     // A phone peeking in from the right.
     const screen = await loadImage(first.screen);
     const pw = 250;
-    const ph = (pw * 844) / 390;
+    const ph = (pw * screen.height) / screen.width;
     const px = w - pw - 70;
     const py = 60;
     ctx.save();

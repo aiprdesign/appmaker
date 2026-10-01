@@ -21,6 +21,7 @@ The app runs in two places: a live in-browser preview (React Native Web) and a r
   - Each screen: \`<ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32 }}>\` so long content scrolls on small phones.
   - Bottom tab bar: the last child of the root column (not inside the ScrollView, not absolutely positioned), flexDirection 'row', each tab flex: 1 with minHeight 48, and paddingBottom: Math.max(insets.bottom, 8) from \`useSafeAreaInsets()\` so it clears the iPhone home indicator.
   - Floating buttons: position 'absolute' (right: 20, bottom: 20) inside the screen's flex: 1 View, never inside the ScrollView.
+  - Tablets: the same app runs on iPad and Android tablets (wider than 700pt). Read the width with \`useWindowDimensions()\`: on wide screens, center each screen's content with \`maxWidth: 720\` and \`alignSelf: 'center'\` (width: '100%'), show grids and lists of cards in 2–3 columns, and let photo banners grow to about 360pt tall. Never size things from a phone-sized fixed width.
   - Forms: \`<KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>\` so the keyboard doesn't cover inputs.
   - Shadows: use the theme's \`card\` style (it works on iOS, Android and the web).
 

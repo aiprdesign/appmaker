@@ -42,6 +42,12 @@ describe("export helpers", () => {
     expect(expo.ios.bundleIdentifier).toBe("com.acme.my-app");
     expect(expo.android.package).toBe("com.acme.my_app");
     expect(expo.icon).toBe("./assets/icon.png");
+    // iPad: on by default, full screen in portrait (what Apple asks of portrait-only iPad apps).
+    expect(expo.ios).toMatchObject({ supportsTablet: true, requireFullScreen: true });
+    const p = project({});
+    const phoneOnly = appJson({ ...p, listing: { ...p.listing, ipad: false } }).expo;
+    expect(phoneOnly.ios.supportsTablet).toBe(false);
+    expect(phoneOnly.ios).not.toHaveProperty("requireFullScreen");
   });
 
   it("exports a complete Expo project and drops unsafe paths", async () => {

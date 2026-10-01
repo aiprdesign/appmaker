@@ -32,6 +32,8 @@ export interface StoreListing {
   supportUrl?: string;
   /** Required by both stores: a hosted privacy policy. */
   privacyPolicyUrl?: string;
+  /** The iOS app also runs on iPad (needs iPad screenshots). On unless turned off. */
+  ipad?: boolean;
 }
 
 /** A saved state of the app the user can go back to. */

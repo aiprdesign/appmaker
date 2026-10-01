@@ -16,7 +16,7 @@ export interface PreviewError {
 
 interface Props {
   files: FileMap;
-  platform: "ios" | "android";
+  platform: "ios" | "android" | "ipad";
   /** Bump to force a fresh reload of the app. */
   reloadKey: number;
   onError?: (err: PreviewError | null) => void;

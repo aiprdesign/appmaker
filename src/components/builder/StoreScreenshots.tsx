@@ -27,12 +27,14 @@ import type { Project } from "@/lib/types";
 const field = "min-h-9 w-full rounded-lg border border-line bg-background px-2.5 text-sm text-foreground outline-none focus:border-violet-500/60";
 
 /** One listing image, drawn at display size from the full-size render. */
-function ShotPreview({ shot, style, brand, platform }: { shot: Shot; style: ShotStyle; brand: string; platform: "ios" | "android" }) {
+function ShotPreview({ shot, style, brand, platform: selected }: { shot: Shot; style: ShotStyle; brand: string; platform: "ios" | "android" | "ipad" }) {
+  // iPad captures are always shown as iPad images; phone captures as the selected phone.
+  const platform = shot.device === "ipad" ? "ipad" : selected === "android" ? "android" : "ios";
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     const t = setTimeout(async () => {
-      const size = platform === "ios" ? SHOT_SIZES.apple : SHOT_SIZES.google;
+      const size = platform === "ipad" ? SHOT_SIZES.ipad : platform === "ios" ? SHOT_SIZES.apple : SHOT_SIZES.google;
       const canvas = await renderShot(shot, size, style, brand, platform).catch(() => null);
       if (live && canvas) setSrc(canvas.toDataURL("image/jpeg", 0.8));
     }, 250);
@@ -41,7 +43,7 @@ function ShotPreview({ shot, style, brand, platform }: { shot: Shot; style: Shot
       clearTimeout(t);
     };
   }, [shot, style, brand, platform]);
-  const ratio = platform === "ios" ? "1290 / 2796" : "1080 / 1920";
+  const ratio = platform === "ipad" ? "2064 / 2752" : platform === "ios" ? "1290 / 2796" : "1080 / 1920";
   return src ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={`Store image: ${shot.title}`} className="w-full rounded-xl border border-line" style={{ aspectRatio: ratio }} />
@@ -61,7 +63,9 @@ export function StoreScreenshots({ project }: { project: Project }) {
   const [shots, setShots] = useState<Shot[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [style, setStyle] = useState<ShotStyle>("brand");
-  const [platform, setPlatform] = useState<"ios" | "android">("ios");
+  const [picked, setPlatform] = useState<"ios" | "android" | "ipad">("ios");
+  const ipadOn = project.listing.ipad !== false;
+  const platform = picked === "ipad" && !ipadOn ? "ios" : picked;
   const [scheme, setScheme] = useState<"light" | "dark">("light");
   const [busy, setBusy] = useState<"capture" | "ai" | "zip" | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -89,9 +93,10 @@ export function StoreScreenshots({ project }: { project: Project }) {
     setBusy("capture");
     setNote(null);
     try {
-      const { dataUrl, text } = await captureFrame(frame);
+      // iPhone screens at about 3.3× (1290 wide); the 1032-point iPad at 2× (2064 wide).
+      const { dataUrl, text } = await captureFrame(frame, platform === "ipad" ? 2 : 3.31);
       const [caption] = defaultCaptions(project.listing, shots.length + 1).slice(-1);
-      setShots((s) => [...s, { id: uid(), screen: dataUrl, text, ...caption }]);
+      setShots((s) => [...s, { id: uid(), screen: dataUrl, text, device: platform === "ipad" ? "ipad" : "phone", ...caption }]);
     } catch (e) {
       setNote({ ok: false, text: e instanceof Error ? e.message : "Couldn't capture the screen." });
     } finally {
@@ -140,16 +145,23 @@ export function StoreScreenshots({ project }: { project: Project }) {
     try {
       const zip = new JSZip();
       const name = slugify(project.listing.name || project.name);
-      for (const [i, shot] of shots.entries()) {
+      const phones = shots.filter((s) => s.device !== "ipad");
+      const ipads = shots.filter((s) => s.device === "ipad");
+      for (const [i, shot] of phones.entries()) {
         const n = String(i + 1).padStart(2, "0");
         zip.file(`app-store/${n}.png`, await toBlob(await renderShot(shot, SHOT_SIZES.apple, style, brand, "ios")));
         zip.file(`google-play/${n}.png`, await toBlob(await renderShot(shot, SHOT_SIZES.google, style, brand, "android")));
         zip.file(`plain/app-store-${n}.png`, await toBlob(await renderPlain(shot, SHOT_SIZES.apple)));
         zip.file(`plain/google-play-${n}.png`, await toBlob(await renderPlain(shot, SHOT_SIZES.google)));
       }
+      for (const [i, shot] of ipads.entries()) {
+        const n = String(i + 1).padStart(2, "0");
+        zip.file(`app-store-ipad/${n}.png`, await toBlob(await renderShot(shot, SHOT_SIZES.ipad, style, brand, "ipad")));
+        zip.file(`plain/app-store-ipad-${n}.png`, await toBlob(await renderPlain(shot, SHOT_SIZES.ipad)));
+      }
       const icon = URL.createObjectURL(await renderIcon(project.listing, 512, project.icon));
       try {
-        zip.file("google-play/feature-graphic.png", await toBlob(await renderFeatureGraphic(project.listing, icon, style, shots[0])));
+        zip.file("google-play/feature-graphic.png", await toBlob(await renderFeatureGraphic(project.listing, icon, style, phones[0])));
       } finally {
         URL.revokeObjectURL(icon);
       }
@@ -160,6 +172,9 @@ export function StoreScreenshots({ project }: { project: Project }) {
           "",
           `app-store/  ${SHOT_SIZES.apple.w}×${SHOT_SIZES.apple.h}: upload to App Store Connect, iPhone 6.9" display (up to 10).`,
           `google-play/  ${SHOT_SIZES.google.w}×${SHOT_SIZES.google.h}: Google Play Console, Phone screenshots (2 to 8), plus feature-graphic.png (1024×500, required).`,
+          ...(ipads.length
+            ? [`app-store-ipad/  ${SHOT_SIZES.ipad.w}×${SHOT_SIZES.ipad.h}: App Store Connect, iPad 13" display (needed because the app runs on iPad).`]
+            : []),
           "plain/  the same screens without headlines, if you prefer plain screenshots.",
           "",
           "Check every image shows the app as it really is: the stores reject screenshots that don't.",
@@ -173,6 +188,9 @@ export function StoreScreenshots({ project }: { project: Project }) {
     }
   };
 
+  // Up to 10 per device, as the stores allow.
+  const full = shots.filter((x) => (x.device === "ipad") === (platform === "ipad")).length >= MAX_SHOTS;
+  const needsIpad = ipadOn && shots.length > 0 && !shots.some((x) => x.device === "ipad");
   const claims = (project.wording ?? DEFAULT_WORDING) === "claim-safe" ? shots.flatMap((s) => findClaims(`${s.title} ${s.subtitle}`).map((c) => c.phrase)) : [];
   const segment = (active: boolean) =>
     `min-h-8 rounded-md px-3 text-xs ${active ? "bg-surface-2 font-medium text-foreground" : "text-muted hover:text-foreground"}`;
@@ -190,13 +208,18 @@ export function StoreScreenshots({ project }: { project: Project }) {
       <div className="mt-4 grid gap-5 @3xl:grid-cols-[260px_1fr]">
         <div className="mx-auto w-full max-w-[260px]">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex rounded-lg border border-line bg-background p-0.5" role="group" aria-label="Phone">
+            <div className="flex rounded-lg border border-line bg-background p-0.5" role="group" aria-label="Device">
               <button className={segment(platform === "ios")} aria-pressed={platform === "ios"} onClick={() => setPlatform("ios")}>
                 iPhone
               </button>
               <button className={segment(platform === "android")} aria-pressed={platform === "android"} onClick={() => setPlatform("android")}>
                 Android
               </button>
+              {ipadOn && (
+                <button className={segment(platform === "ipad")} aria-pressed={platform === "ipad"} onClick={() => setPlatform("ipad")}>
+                  iPad
+                </button>
+              )}
             </div>
             <button
               onClick={() => setScheme((m) => (m === "dark" ? "light" : "dark"))}
@@ -214,11 +237,11 @@ export function StoreScreenshots({ project }: { project: Project }) {
           </div>
           <button
             onClick={capture}
-            disabled={!!busy || shots.length >= MAX_SHOTS || !Object.keys(project.files).length}
+            disabled={!!busy || full || !Object.keys(project.files).length}
             className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-black disabled:opacity-50"
           >
             {busy === "capture" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-            {shots.length >= MAX_SHOTS ? `${MAX_SHOTS} screens captured` : "Capture this screen"}
+            {full ? `${MAX_SHOTS} ${platform === "ipad" ? "iPad" : "phone"} screens captured` : "Capture this screen"}
           </button>
         </div>
 
@@ -255,6 +278,12 @@ export function StoreScreenshots({ project }: { project: Project }) {
               {note.text}
             </p>
           )}
+          {needsIpad && (
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-200">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> The app runs on iPad, so the App Store also needs iPad screenshots: choose iPad above
+              the phone and capture a few screens.
+            </p>
+          )}
           {claims.length > 0 && (
             <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-200">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Claim-safe wording: rewrite{" "}
@@ -267,7 +296,8 @@ export function StoreScreenshots({ project }: { project: Project }) {
           )}
           {shots.length === 0 ? (
             <p className="mt-6 rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">
-              No screens yet. Open the screens that show off your app best (up to {MAX_SHOTS}; Google Play needs at least 2) and press Capture this screen.
+              No screens yet. Open the screens that show off your app best and press Capture this screen: up to {MAX_SHOTS} per device. Google Play needs at
+              least 2 phone screens{ipadOn ? ", and the App Store needs iPad screens too, because the app runs on iPad" : ""}.
             </p>
           ) : (
             <ol className="mt-4 grid grid-cols-2 gap-4 @xl:grid-cols-3 @4xl:grid-cols-4">

@@ -6,8 +6,9 @@ import type { FileMap } from "./types";
  * wired together with a tiny CommonJS loader; `react-native` resolves to
  * React Native Web from the self-hosted runtime in /public/preview.
  */
-export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android", scheme?: "light" | "dark"): string {
-  const payload = JSON.stringify({ files, platform, scheme: scheme ?? null }).replace(/</g, "\\u003c");
+export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android" | "ipad", scheme?: "light" | "dark"): string {
+  // An iPad runs iOS; the runtime gets "ipad" for its safe areas and Platform.isPad.
+  const payload = JSON.stringify({ files, platform: platform === "ipad" ? "ios" : platform, device: platform, scheme: scheme ?? null }).replace(/</g, "\\u003c");
   return `<!doctype html>
 <html>
 <head>
@@ -29,6 +30,7 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
 (function () {
   var payload = ${payload};
   if (payload.scheme) window.__APPMAKER_SCHEME__ = payload.scheme;
+  window.__APPMAKER_DEVICE__ = payload.device;
   var files = payload.files;
   var post = function (msg) { parent.postMessage(Object.assign({ source: "appmaker-preview" }, msg), "*"); };
   var reported = false;
@@ -51,7 +53,7 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
     var RT = window.__APPMAKER_RUNTIME__;
     if (!RT || !window.Babel) throw new Error("Preview runtime failed to load.");
     var Platform = RT.modules["react-native"].Platform;
-    if (Platform) { try { Platform.OS = payload.platform; } catch (_) {} }
+    if (Platform) { try { Platform.OS = payload.platform; Platform.isPad = payload.device === "ipad"; } catch (_) {} }
 
     var cache = {};
     var dirname = function (p) { var i = p.lastIndexOf("/"); return i === -1 ? "" : p.slice(0, i); };

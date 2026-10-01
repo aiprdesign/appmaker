@@ -34,7 +34,12 @@ function StatusBar() { return null; }
 
 // Safe areas like a real phone: the iPhone notch and home indicator, or the
 // Android status bar. SafeAreaView pads only the edges it's asked for.
-const insets = () => (RNW.Platform.OS === "android" ? { top: 24, bottom: 0, left: 0, right: 0 } : { top: 44, bottom: 24, left: 0, right: 0 });
+const insets = () =>
+  window.__APPMAKER_DEVICE__ === "ipad"
+    ? { top: 24, bottom: 20, left: 0, right: 0 }
+    : RNW.Platform.OS === "android"
+      ? { top: 24, bottom: 0, left: 0, right: 0 }
+      : { top: 44, bottom: 24, left: 0, right: 0 };
 const SafeAreaView = React.forwardRef(function SafeAreaView({ edges, mode, ...props }, ref) {
   const i = insets();
   const list = Array.isArray(edges) ? edges : edges && typeof edges === "object" ? Object.keys(edges).filter((k) => edges[k] !== "off") : ["top", "right", "bottom", "left"];

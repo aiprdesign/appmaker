@@ -106,7 +106,10 @@ export function appJson(project: Project, link: ExpoLink | undefined = project.e
       ios: {
         bundleIdentifier: l.bundleId,
         buildNumber: "1",
-        supportsTablet: true,
+        // iPad: on unless turned off in the listing. Portrait only, full screen
+        // (no Split View), which Apple requires for portrait-only iPad apps.
+        supportsTablet: l.ipad !== false,
+        ...(l.ipad !== false ? { requireFullScreen: true } : {}),
         infoPlist: { ITSAppUsesNonExemptEncryption: false },
       },
       android: {

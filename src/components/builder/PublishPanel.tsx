@@ -304,6 +304,18 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
               <Field label="Bundle ID / package name" hint="Permanent once published, e.g. com.yourcompany.app">
                 <input className={`${input} font-mono`} value={l.bundleId} onChange={(e) => set("bundleId", e.target.value.toLowerCase())} />
               </Field>
+              <div className="sm:col-span-2">
+                <label className="flex min-h-10 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-2/40 p-3">
+                  <input type="checkbox" checked={l.ipad !== false} onChange={(e) => set("ipad", e.target.checked)} className="mt-0.5 h-6 w-6 shrink-0 accent-violet-500" />
+                  <span>
+                    <span className="block text-sm font-medium">Also for iPad</span>
+                    <span className="block text-xs text-muted">
+                      The iPhone app runs full screen on iPad too, with layouts made for the bigger screen (check them with iPad in the preview). The App Store then
+                      also needs iPad screenshots: capture them in Store screenshots.
+                    </span>
+                  </span>
+                </label>
+              </div>
               <Field label="Support page URL" hint="Where users can get help. Appmaker can create and host it for you: see “Support page, privacy policy & terms” below.">
                 <input
                   className={input}

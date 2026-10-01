@@ -9,6 +9,9 @@ describe("store screenshots", () => {
     // Google Play: the long side at most twice the short side.
     expect(SHOT_SIZES.google.h / SHOT_SIZES.google.w).toBeLessThanOrEqual(2);
     expect(FEATURE_GRAPHIC).toEqual({ w: 1024, h: 500 });
+    // iPad 13": the 1032×1376 preview captured at 2×.
+    expect(SHOT_SIZES.ipad).toMatchObject({ w: 2064, h: 2752 });
+    expect(2064 / 1032).toBe(2752 / 1376);
   });
 
   it("keeps headlines readable (4.5:1) on every background, for any brand color", () => {
