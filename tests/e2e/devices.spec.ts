@@ -127,6 +127,9 @@ test("Your phone (Expo Go): publishes the app and shows a QR code to open it", a
   expect(calls.update[0].token).toBeUndefined();
   expect((calls.update[0].project as { files: Record<string, string> }).files["App.js"]).toContain("<Text>Hi</Text>");
   expect(calls.update[0].link).toMatchObject({ slug: "streaks" });
+  // Shows which Expo project and account it lives in, and can set it up again.
+  await expect(dialog.getByRole("link", { name: "appmaker-builds/streaks" })).toHaveAttribute("href", "https://expo.dev/accounts/appmaker-builds/projects/streaks");
+  await expect(dialog.getByText("Expo Go only opens it when signed in to the")).toBeVisible();
 
   const axe = await new AxeBuilder({ page }).include('[role="dialog"]').withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`)).toEqual([]);
@@ -140,6 +143,9 @@ test("Your phone (Expo Go): publishes the app and shows a QR code to open it", a
   await expect(dialog.getByRole("img", { name: "QR code to open this app in Expo Go" })).toHaveAttribute("data-qr-value", EXPO_GO_URL);
   await expect(dialog.getByText("Up to date with your latest changes.")).toBeVisible();
   expect(calls.update).toHaveLength(1);
+  await dialog.getByRole("button", { name: "Set up again" }).click();
+  await expect.poll(() => calls.update.length).toBe(2);
+  expect(calls.link).toHaveLength(2);
 });
 
 test("Your phone (Expo Go): explains what's needed when the site has no Expo account", async ({ page }) => {

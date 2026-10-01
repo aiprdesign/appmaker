@@ -38,12 +38,13 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
     return () => document.removeEventListener("keydown", esc);
   }, []);
 
-  const publish = async () => {
+  const publish = async (relink = false) => {
     setError(null);
     try {
       let state = expo;
       // Link once, on whichever account builds run on (the user's own, or the site's).
-      if (!state.link || !!state.link.hosted !== !token) {
+      // "Set up again" makes a new project, e.g. after the site's Expo account changed.
+      if (relink || !state.link || !!state.link.hosted !== !token) {
         setPhase("Setting up your app with Expo…");
         state = { ...state, link: await linkToExpo(token, project) };
         onExpoChange(state);
@@ -106,6 +107,26 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
                   </p>
                 )}
                 <p>Runs the real app on Expo SDK 57, the same version as your App Store and Google Play builds.</p>
+                {expo.link && (
+                  <p>
+                    Expo project:{" "}
+                    <a
+                      href={`https://expo.dev/accounts/${encodeURIComponent(expo.link.owner)}/projects/${encodeURIComponent(expo.link.slug)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono text-foreground underline underline-offset-2"
+                    >
+                      {expo.link.owner}/{expo.link.slug}
+                    </a>
+                    . Expo Go only opens it when signed in to the <span className="font-medium text-foreground">{expo.link.owner}</span> account or one of
+                    its members.{" "}
+                    {canPublish && !phase && (
+                      <button onClick={() => publish(true)} className="underline underline-offset-2 hover:text-foreground">
+                        Set up again
+                      </button>
+                    )}
+                  </p>
+                )}
                 <a href={preview.url} className="inline-flex min-h-8 items-center rounded-lg border border-line px-3 text-xs text-foreground hover:border-white/20">
                   On this phone? Open in Expo Go
                 </a>
@@ -136,7 +157,7 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
           ) : (
             (!preview || !upToDate) && (
               <button
-                onClick={publish}
+                onClick={() => publish()}
                 className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-medium text-black"
               >
                 {preview ? <RefreshCw className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}
