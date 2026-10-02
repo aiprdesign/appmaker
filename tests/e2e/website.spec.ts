@@ -124,3 +124,29 @@ test("a shared link with ?url= reads that website straight away", async ({ page 
   await expect(page.getByRole("tab", { name: "URL to App" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByLabel("Website address")).toBeVisible();
 });
+
+test("a website app whose first build fails shows no broken app, and the retry builds a new one", async ({ page }) => {
+  const bodies: { files?: Record<string, string> }[] = [];
+  await page.route("**/api/generate", async (route) => {
+    bodies.push(route.request().postDataJSON());
+    if (bodies.length === 1) {
+      return route.fulfill({ status: 200, contentType: "text/plain", headers: { "X-Appmaker-Mode": "ai" }, body: "<error>Something went wrong on our side.</error>" });
+    }
+    return route.continue();
+  });
+  await page.goto("/");
+  await page.getByRole("tab", { name: "URL to App" }).click();
+  await page.getByLabel("Website address").fill(SITE);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(page.getByText(/read 4 pages/)).toBeVisible({ timeout: 20_000 });
+  await page.getByLabel("Describe your app").press("Enter");
+
+  await expect(page.getByText("Something went wrong on our side.")).toBeVisible({ timeout: 20_000 });
+  // No half-made app: the phone waits for the app instead of failing to run it.
+  await expect(page.getByText("Your app will appear here")).toBeVisible();
+  await expect(page.frameLocator('iframe[title="App preview"]').getByText("App.js was not found")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.frameLocator('iframe[title="App preview"]').getByText("Luigi's Trattoria").first()).toBeVisible({ timeout: 30_000 });
+  expect(bodies[1].files ?? {}).toEqual({});
+});

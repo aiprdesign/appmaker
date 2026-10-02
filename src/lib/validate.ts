@@ -146,3 +146,8 @@ export function validateApp(files: FileMap): ValidationIssue[] {
 export function describeIssues(issues: ValidationIssue[]): string {
   return issues.map((i) => `- ${i.file}: ${i.message}`).join("\n");
 }
+
+/** True when the files include the app's entry file (App.js), so there is an app to run. */
+export function hasEntry(files: Record<string, string>): boolean {
+  return files["App.js"] != null || files["App.jsx"] != null;
+}

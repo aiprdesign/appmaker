@@ -8,6 +8,7 @@ import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
 import { AccessibilityMenu } from "@/components/AccessibilityMenu";
 import { LIVE_FILE, liveModule } from "@/lib/live";
+import { hasEntry } from "@/lib/validate";
 import { defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
 import { BOOKING_FILE, bookingModule } from "@/lib/booking";
 import { BRAND_FILE, brandModule } from "@/lib/branding";
@@ -237,8 +238,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           signal: controller.signal,
           body: JSON.stringify({
             prompt: text,
-            files: current.files,
-            listing: Object.keys(current.files).length ? current.listing : undefined,
+            // Until there's an App.js this is a new app, even if helper files were left behind.
+            files: hasEntry(current.files) ? current.files : {},
+            listing: hasEntry(current.files) ? current.listing : undefined,
             history: current.messages.filter((m) => !m.error).map((m) => ({ role: m.role, content: m.content })),
             site: current.source,
             ai: aiChoiceFor(getAiSettings()),
@@ -296,14 +298,17 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       }
       const files: FileMap = { ...base.files, ...complete };
       for (const p of parsed.deleted) if (isAllowedPath(p)) delete files[p];
+      // Appmaker's own files are only added once there is an app to add them to:
+      // a failed first build must not leave a "project" without App.js.
+      const isApp = hasEntry(files);
       // Website apps always carry Appmaker's live-content file, whatever the AI wrote.
-      if (base.source) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
+      if (base.source && isApp) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
       // Every app carries Appmaker's theme file too, written from the Design settings.
-      if (Object.keys(files).length) files[THEME_FILE] = themeModule(base.design ?? defaultDesign(listing));
+      if (isApp) files[THEME_FILE] = themeModule(base.design ?? defaultDesign(listing));
       // Apps with bookings always carry Appmaker's booking screen, whatever the AI wrote.
-      if (base.booking) files[BOOKING_FILE] = bookingModule(base.booking.apiUrl);
-      if (Object.keys(files).length) files[BRAND_FILE] = brandModule(brandedRef.current);
+      if (base.booking && isApp) files[BOOKING_FILE] = bookingModule(base.booking.apiUrl);
+      if (isApp) files[BRAND_FILE] = brandModule(brandedRef.current);
 
       const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && isAllowedPath(p)) && continueBudget.current > 0 && !demoRef.current;
       if (continuing) error = "";
@@ -340,7 +345,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         setChecking(false);
         setPreviewFiles(files);
         setReloadKey((k) => k + 1);
-        if (Object.keys(files).length) setMobileView("app");
+        if (hasEntry(files)) setMobileView("app");
       };
 
       // The three checks run on every new version before it's shown:
@@ -559,7 +564,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     );
   }
 
-  const hasApp = Object.keys(project.files).length > 0;
+  // An app exists once it has its entry file (helper files alone don't count).
+  const hasApp = hasEntry(project.files);
   // iPad turned off in the listing: show the iPhone instead.
   const device = platform === "ipad" && project.listing.ipad === false ? "ios" : platform;
 
@@ -823,7 +829,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 <PhoneFrame platform={device}>
                   {checking && <ChecksOverlay generating={generating} />}
                   {generating && hasApp && !checking && <PhoneEditing live={live} />}
-                  {hasApp || Object.keys(previewFiles).length ? (
+                  {hasApp || hasEntry(previewFiles) ? (
                     <Preview files={previewFiles} platform={device} reloadKey={reloadKey} onError={onPreviewError} onQualityIssues={onQualityIssues} scheme={scheme} />
                   ) : generating && !checking ? (
                     <PhoneBuilding live={live} startedAt={startedAt} />
