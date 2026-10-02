@@ -23,7 +23,7 @@ const MAX_FILES_BYTES = APP_MAX_BYTES;
 const MAX_HISTORY_CHARS = 4_000;
 /** Screenshots for "Polish design": a couple of screens, JPEG or PNG. */
 const MAX_IMAGES = 2;
-const MAX_IMAGE_CHARS = 2_000_000;
+const MAX_IMAGE_CHARS = 4_000_000;
 
 interface GenerateRequest {
   prompt: string;
@@ -107,7 +107,7 @@ function validateRequest(body: GenerateRequest): string | null {
     if (!Array.isArray(body.images) || body.images.length > MAX_IMAGES) return `images must be an array of at most ${MAX_IMAGES} screenshots`;
     for (const img of body.images) {
       if (typeof img !== "string" || !/^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(img)) return "images must be JPEG or PNG data URLs";
-      if (img.length > MAX_IMAGE_CHARS) return "a screenshot is too large";
+      if (img.length > MAX_IMAGE_CHARS) return "The screenshot is too large to send. Try Polish design on a simpler screen.";
     }
   }
   if (body.history != null) {

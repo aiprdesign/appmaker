@@ -26,12 +26,30 @@ export function polishPrompt(opts: { scheme: "light" | "dark"; device: "ios" | "
   ].join("\n");
 }
 
-/** Shrinks a PNG screenshot to a JPEG small enough to send. Browser only. */
-export async function toJpeg(pngDataUrl: string, maxSide = POLISH_MAX_SIDE, quality = 0.82): Promise<string> {
+/** The largest screenshot sent, as data-URL characters (the server accepts up to 4 million). */
+export const POLISH_MAX_CHARS = 1_500_000;
+
+/**
+ * Shrinks a PNG screenshot to a JPEG small enough to send: lower quality
+ * first, then smaller, until it fits. Browser only.
+ */
+export async function toJpeg(pngDataUrl: string, maxSide = POLISH_MAX_SIDE, maxChars = POLISH_MAX_CHARS): Promise<string> {
   const img = new Image();
   img.src = pngDataUrl;
   await img.decode();
-  const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const longest = Math.max(img.naturalWidth, img.naturalHeight);
+  let side = Math.min(maxSide, longest);
+  for (;;) {
+    for (const quality of [0.82, 0.7, 0.55]) {
+      const out = drawJpeg(img, side / longest, quality);
+      if (out.length <= maxChars && out.startsWith("data:image/jpeg")) return out;
+    }
+    if (side <= 400) throw new Error("This screen is too detailed to send as a picture. Try Polish design on another screen.");
+    side = Math.round(side * 0.75);
+  }
+}
+
+function drawJpeg(img: HTMLImageElement, ratio: number, quality: number): string {
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio));
   canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio));

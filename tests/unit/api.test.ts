@@ -24,7 +24,7 @@ describe("POST /api/generate", () => {
     expect((await call({ prompt: "polish", images: [jpeg, jpeg, jpeg] })).status).toBe(400);
     expect((await call({ prompt: "polish", images: ["data:image/svg+xml;base64,PHN2Zz4="] })).status).toBe(400);
     expect((await call({ prompt: "polish", images: ["https://example.com/a.png"] })).status).toBe(400);
-    expect((await call({ prompt: "polish", images: [`data:image/png;base64,${"A".repeat(2_000_001)}`] })).status).toBe(400);
+    expect((await call({ prompt: "polish", images: [`data:image/png;base64,${"A".repeat(4_000_001)}`] })).status).toBe(400);
   });
 
   it("streams a complete demo app that passes the parser", async () => {
