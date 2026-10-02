@@ -53,7 +53,11 @@ export function friendlyError(message: string): string {
   }
   if (/prompt must be at most/i.test(message)) return "That request is too long. Shorten it to under 8,000 characters and try again.";
   if (/too large to edit/i.test(message)) return "This app has grown too large to edit in one go. Try a smaller, more specific change.";
-  if (/request failed \(5\d\d\)/i.test(message)) return "Something went wrong on our side. Please try again in a moment.";
+  // The server answered with an error page and no explanation: say which kind.
+  const status = /request failed \((5\d\d)\)/i.exec(message)?.[1];
+  if (status === "502" || status === "503") return `Appmaker's server is restarting or busy (error ${status}). Wait a moment and press Try again.`;
+  if (status === "504") return "Appmaker's server took too long to answer (error 504). Press Try again; if it keeps happening, try a faster model in AI settings.";
+  if (status) return `Appmaker's server hit a problem (error ${status}). Press Try again; if it keeps happening, the site owner can see the details in the server logs.`;
   if (/out of credits/i.test(message)) return `${message.replace(/ Buy more on the Credits page \(\/credits\)\./, "")} [Buy credits](/credits) to keep building.`;
   if (/^Sign in to keep building/i.test(message)) return `${message} [Sign in or create an account](/login).`;
   return message;

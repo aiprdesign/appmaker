@@ -296,7 +296,12 @@ export function aiErrorMessage(err: unknown, providerName = "the AI provider"): 
   if (err instanceof Anthropic.APIError || err instanceof OpenAI.APIError || err instanceof ProviderHttpError) {
     return `${providerName} error (${status ?? "network"}): ${err.message}`;
   }
-  return err instanceof Error ? err.message : "Unknown error";
+  // No answer at all from the provider: a network problem, or the provider is down.
+  const message = err instanceof Error ? err.message : "";
+  if (err instanceof Anthropic.APIConnectionError || err instanceof OpenAI.APIConnectionError || /fetch failed|terminated|socket hang up|ECONNRESET|ETIMEDOUT|ENOTFOUND|network/i.test(message)) {
+    return `Couldn't reach ${providerName}: it may be down or slow right now. Wait a minute and press Try again, or pick another model in AI settings.`;
+  }
+  return message ? `${providerName} failed: ${message}` : `${providerName} failed without saying why. Press Try again, or pick another model in AI settings.`;
 }
 
 /**

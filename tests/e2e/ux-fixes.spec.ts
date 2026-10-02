@@ -65,7 +65,7 @@ test("every change is saved as a version and can be restored", async ({ page }) 
 test("failed requests explain themselves and can be retried without retyping", async ({ page }) => {
   const prompts = await mockAI(page, async (n) => (n === 0 ? { status: 500, body: '{"error":"Request failed (500)"}' } : { body: app("Worked on retry") }));
   const preview = await start(page, "A retry test app");
-  await expect(page.getByText(/Something went wrong on our side/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Appmaker.s server hit a problem \(error 500\)/)).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(preview.getByText("Worked on retry")).toBeVisible({ timeout: 15_000 });
   expect(prompts).toEqual(["A retry test app", "A retry test app"]);

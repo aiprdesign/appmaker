@@ -5,6 +5,7 @@ import { buildUserMessage, systemPrompt } from "@/lib/prompt";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { APP_MAX_BYTES, APP_MAX_FILES, isAllowedPath } from "@/lib/validate";
 import { charge, CreditsError, creditsResponse, refund } from "@/lib/server/credits";
+import { unexpectedErrorResponse } from "@/lib/server/errors";
 import type { FileMap, SiteSummary, StoreListing } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -118,6 +119,14 @@ function validateRequest(body: GenerateRequest): string | null {
 }
 
 export async function POST(req: Request) {
+  try {
+    return await generate(req);
+  } catch (e) {
+    return unexpectedErrorResponse(e, "start building your app");
+  }
+}
+
+async function generate(req: Request): Promise<Response> {
   let body: GenerateRequest;
   try {
     body = await req.json();
