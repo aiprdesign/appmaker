@@ -47,10 +47,10 @@ test("sign up, apps sync to the account and open on another device", async ({ pa
   const confirm = phone.getByRole("alertdialog", { name: "Delete this app?" });
   await expect(confirm).toContainText("from your account and every device");
   await confirm.getByRole("button", { name: "Delete app" }).click();
-  await expect(phone.getByText("No apps yet")).toBeVisible();
+  await expect(phone.getByText("Your first app is one sentence away")).toBeVisible();
   await page.waitForTimeout(500);
   await page.reload();
-  await expect(page.getByText("No apps yet")).toBeVisible();
+  await expect(page.getByText("Your first app is one sentence away")).toBeVisible();
 
   // Signing out clears this browser; the account keeps its apps.
   await page.getByRole("button", { name: `Account: ${email}` }).click();

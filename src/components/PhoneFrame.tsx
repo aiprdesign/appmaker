@@ -36,7 +36,7 @@ export function PhoneFrame({ platform, children }: { platform: Device; children:
       <div style={{ width: (W + pad * 2) * scale, height: (H + pad * 2) * scale }} className="relative shrink-0">
         <div
           style={{ width: W + pad * 2, height: H + pad * 2, padding: pad, transform: `scale(${scale})`, transformOrigin: "top left" }}
-          className={`absolute left-0 top-0 bg-[#1b1b22] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8),inset_0_0_0_2px_#2e2e3a] ${outer}`}
+          className={`absolute left-0 top-0 bg-gradient-to-b from-[#2a2a34] via-[#18181f] to-[#121218] shadow-[0_40px_100px_-30px_rgba(0,0,0,0.9),0_30px_120px_-40px_rgba(139,92,246,0.45),inset_0_0_0_2px_#33333f,inset_0_1px_0_3px_rgba(255,255,255,0.05)] ${outer}`}
         >
           <div className={`relative h-full w-full overflow-hidden bg-white ${inner}`}>
             {children}

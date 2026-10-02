@@ -366,3 +366,11 @@ html.a11y-spacing body {
   .orb-fast { animation-duration: 2.4s; }
   .orb-fast::before { animation-duration: 3s, 4s; }
 }
+
+/* The builder's stage: a dotted floor under a soft spotlight. */
+.stage {
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 45%, rgba(139, 92, 246, 0.1), transparent 70%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.07) 1px, transparent 1.5px) 0 0 / 22px 22px,
+    radial-gradient(ellipse at center, #13131c 0%, #07070b 75%);
+}

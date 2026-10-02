@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { LEGAL_FIELDS, type LegalDetails, type LegalSection } from "@/lib/site-legal";
+import { PageAura } from "@/components/fx/PageAura";
 
 /** Fills {{field}} with the owner's details, or a highlighted [placeholder] until they're set in admin. */
 function Filled({ text, details }: { text: string; details: LegalDetails }) {
@@ -46,7 +47,8 @@ export function SiteLegalPage({
   other: { href: string; label: string };
 }) {
   return (
-    <div className="min-h-dvh">
+    <div className="relative isolate min-h-dvh">
+      <PageAura />
       <header className="border-b border-line">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
           <Logo />

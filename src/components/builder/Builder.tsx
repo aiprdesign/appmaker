@@ -701,7 +701,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
 
         <main className={`${mobileView === "app" ? "flex" : "hidden"} min-w-0 flex-1 flex-col lg:flex`}>
           {tab === "preview" && (
-            <div className="relative flex min-h-0 flex-1 flex-col bg-[radial-gradient(ellipse_at_center,#15151f_0%,#07070b_70%)]">
+            <div className="stage relative flex min-h-0 flex-1 flex-col">
               <div className="flex flex-wrap items-center justify-center gap-2 p-3">
                 <div className="flex rounded-lg border border-line bg-surface p-0.5 text-xs">
                   {(["ios", "android", ...(project.listing.ipad === false ? [] : (["ipad"] as const))] as const).map((p) => (
@@ -816,7 +816,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 </div>
               )}
               <div className="relative flex min-h-0 flex-1 gap-4 px-4 pb-4">
-                <div ref={phoneRef} className="relative min-h-0 min-w-0 flex-1">
+                <div ref={phoneRef} className="relative isolate min-h-0 min-w-0 flex-1">
+                {/* A soft glow behind the device. */}
+                <Orb size="min(70%, 520px)" soft className="pointer-events-none absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2" />
                 <PhoneFrame platform={device}>
                   {checking && <ChecksOverlay generating={generating} />}
                   {hasApp || Object.keys(previewFiles).length ? (

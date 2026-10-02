@@ -9,6 +9,10 @@ import { PasskeyNudge } from "@/components/Passkeys";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { deleteProject, listProjects } from "@/lib/storage";
 import type { Project } from "@/lib/types";
+import { Orb } from "@/components/fx/Orb";
+
+/** Quick starts for an empty list: they fill in the prompt on the home page. */
+const IDEAS = ["A habit tracker with streaks", "A menu and booking app for my café", "A budget planner with charts", "A workout timer", "A travel packing list"];
 
 function ago(ts: number): string {
   const s = Math.round((Date.now() - ts) / 1000);
@@ -58,8 +62,27 @@ export function ProjectList() {
       )}
       <PasskeyNudge />
       {projects && projects.length === 0 && (
-        <div className="mt-10 rounded-2xl border border-dashed border-line p-12 text-center text-muted">
-          No apps yet. Describe one on the home page to get started.
+        <div className="mt-10 flex flex-col items-center rounded-3xl border border-line bg-surface/60 px-6 py-14 text-center">
+          <Orb size={96} />
+          <h2 className="mt-8 text-xl font-semibold">Your first app is one sentence away</h2>
+          <p className="mt-2 max-w-md text-sm text-muted">Describe it in your own words, or start from one of these ideas.</p>
+          <div className="mt-6 flex max-w-xl flex-wrap justify-center gap-2">
+            {IDEAS.map((idea) => (
+              <Link
+                key={idea}
+                href={`/?idea=${encodeURIComponent(idea)}#start`}
+                className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3.5 text-sm text-foreground/90 hover:border-violet-400/50 hover:bg-violet-500/10"
+              >
+                {idea}
+              </Link>
+            ))}
+          </div>
+          <Link
+            href="/#start"
+            className="mt-8 inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 px-5 text-sm font-medium text-white"
+          >
+            <Plus className="h-4 w-4" /> Describe your own
+          </Link>
         </div>
       )}
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

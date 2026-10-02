@@ -149,6 +149,15 @@ export function PromptBox() {
     if (linked.current) return;
     linked.current = true;
     const params = new URLSearchParams(window.location.search);
+    // /?idea=… fills in the prompt (from My apps' quick starts) without building yet.
+    const idea = params.get("idea")?.trim().slice(0, 500);
+    if (idea) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setValue(idea);
+      requestAnimationFrame(() => ref.current?.focus());
+      return;
+    }
     const address = params.get("url")?.trim().slice(0, 500);
     if (!address && params.get("mode") !== "url") return;
     window.history.replaceState(null, "", window.location.pathname + window.location.hash);
