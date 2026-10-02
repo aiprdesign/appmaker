@@ -2,18 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, Loader2 } from "lucide-react";
-import type { ParsedGeneration } from "@/lib/parse";
-import { buildProgress, friendlyFile } from "@/lib/progress";
+import { buildProgress, friendlyFile, progressNote, type LiveGeneration } from "@/lib/progress";
 import { Orb } from "@/components/fx/Orb";
 
-function useElapsed(startedAt: number | null): string {
+function useElapsed(startedAt: number | null): { elapsed: string; now: number } {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
   const s = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  return { elapsed: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`, now };
 }
 
 /**
@@ -21,9 +20,10 @@ function useElapsed(startedAt: number | null): string {
  * soon as the AI picks them, the steps, each part as it's written, and a
  * sketch of the app that fills in as files arrive.
  */
-export function PhoneBuilding({ live, startedAt }: { live: ParsedGeneration | null; startedAt: number | null }) {
+export function PhoneBuilding({ live, startedAt }: { live: LiveGeneration | null; startedAt: number | null }) {
   const { steps, stage, files } = buildProgress(live);
-  const elapsed = useElapsed(startedAt);
+  const { elapsed, now } = useElapsed(startedAt);
+  const note = progressNote(live, startedAt, now);
   const name = live?.listing?.name;
   const color = live?.listing?.primaryColor && /^#[0-9a-f]{6}$/i.test(live.listing.primaryColor) ? live.listing.primaryColor : "#7c3aed";
   const blocks = Math.min(4, files.length);
@@ -65,6 +65,10 @@ export function PhoneBuilding({ live, startedAt }: { live: ParsedGeneration | nu
         ))}
       </ol>
 
+      {note && (
+        <p className={`mt-4 rounded-xl px-3 py-2 text-xs ${note.stalled ? "bg-amber-100 text-amber-900" : "bg-white/70 text-neutral-700"}`}>{note.text}</p>
+      )}
+
       {files.length > 0 && (
         <ul className="mt-4 flex flex-wrap gap-1.5" aria-label="Parts written so far">
           {files.map((f) => (
@@ -102,7 +106,7 @@ export function PhoneBuilding({ live, startedAt }: { live: ParsedGeneration | nu
 }
 
 /** While an existing app is being changed: a small live note over the bottom of the phone. */
-export function PhoneEditing({ live }: { live: ParsedGeneration | null }) {
+export function PhoneEditing({ live }: { live: LiveGeneration | null }) {
   const { steps, stage } = buildProgress(live);
   const label = live?.writing ? `Updating ${friendlyFile(live.writing)}` : steps[stage];
   return (

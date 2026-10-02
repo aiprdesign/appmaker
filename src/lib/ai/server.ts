@@ -148,6 +148,8 @@ export interface GenerateArgs {
   quick?: boolean;
   /** Screenshots (data URLs, JPEG or PNG) shown to the model with the last user message. */
   images?: string[];
+  /** Called while the model reasons before writing (its thinking isn't shown, only that it's busy). */
+  onThinking?: () => void;
 }
 
 /** Whether a provider can be sent screenshots. */
@@ -180,7 +182,7 @@ function openaiClient(ai: ResolvedAi): OpenAI {
   return new OpenAI({ apiKey: ai.apiKey, baseURL: ai.baseURL, maxRetries: ai.guarded ? 2 : 4, ...(ai.guarded ? guardedFetchOptions() : {}) });
 }
 
-export async function streamGeneration({ ai, system, messages, signal, write, quick, images }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
+export async function streamGeneration({ ai, system, messages, signal, write, quick, images, onThinking }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
   const shots = images?.length ? images.map(splitDataUrl) : null;
   const last = messages.length - 1;
   if (shots && !canSeeImages(ai)) throw new AiConfigError("This model can't look at screenshots. Choose another model in AI settings.");
@@ -212,6 +214,7 @@ export async function streamGeneration({ ai, system, messages, signal, write, qu
     );
     for await (const event of stream) {
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") write(event.delta.text);
+      else if (event.type === "content_block_delta" && event.delta.type === "thinking_delta") onThinking?.();
     }
     const final = await stream.finalMessage();
     if (final.stop_reason === "refusal") return "refusal";
@@ -252,6 +255,8 @@ export async function streamGeneration({ ai, system, messages, signal, write, qu
     const choice = chunk.choices[0];
     const text = choice?.delta?.content;
     if (text) write(text);
+    // Reasoning models (DeepSeek, OpenRouter, Groq…) stream their thinking separately.
+    else if (choice?.delta && ((choice.delta as { reasoning_content?: string }).reasoning_content || (choice.delta as { reasoning?: string }).reasoning)) onThinking?.();
     if (choice?.finish_reason) finish = choice.finish_reason;
   }
   if (finish === "length") return "length";

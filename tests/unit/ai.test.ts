@@ -35,7 +35,7 @@ interface Captured {
   body: Record<string, unknown>;
 }
 let captured: Captured[] = [];
-let mode: "ok" | "length" | "unauthorized" | "rate-once" | "rate-always" = "ok";
+let mode: "ok" | "length" | "unauthorized" | "rate-once" | "rate-always" | "reasoning" = "ok";
 
 const sse = (res: http.ServerResponse, events: [string | null, unknown][]) => {
   res.writeHead(200, { "Content-Type": "text/event-stream" });
@@ -85,7 +85,9 @@ const server = http.createServer((req, res) => {
         model: "m",
         choices: [{ index: 0, delta: content == null ? {} : { content }, finish_reason: finish }],
       });
+      const thought = { id: "c1", object: "chat.completion.chunk", created: 0, model: "m", choices: [{ index: 0, delta: { reasoning_content: "Let me think" }, finish_reason: null }] };
       return sse(res, [
+        ...(mode === "reasoning" ? ([[null, thought]] as [null, unknown][]) : []),
         [null, chunk("<plan>", null)],
         [null, chunk("Hello</plan>", null)],
         [null, chunk(null, mode === "length" ? "length" : "stop")],
@@ -298,6 +300,22 @@ describe("streamGeneration", () => {
     process.env.ANTHROPIC_BASE_URL = base;
     mode = "length";
     expect((await run({ provider: "anthropic", model: "claude-opus-5", apiKey: "k", usingServerKey: true })).outcome).toBe("length");
+  });
+
+  it("reports a reasoning model's thinking without writing it", async () => {
+    mode = "reasoning";
+    let thoughts = 0;
+    let out = "";
+    await streamGeneration({
+      ai: { provider: "deepseek", model: "deepseek-reasoner", apiKey: "user", baseURL: `${base}/v1`, usingServerKey: false },
+      system: "SYS",
+      messages: [{ role: "user", content: "build it" }],
+      signal: new AbortController().signal,
+      write: (t) => (out += t),
+      onThinking: () => thoughts++,
+    });
+    expect(thoughts).toBe(1);
+    expect(out).toBe("<plan>Hello</plan>");
   });
 
   it("streams from OpenAI-compatible providers", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { buildProgress } from "@/lib/progress";
+import { buildProgress, progressNote, type LiveGeneration } from "@/lib/progress";
 import { Feedback } from "./Feedback";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, CheckCircle2, Circle, FileCode2, Loader2, RotateCcw, RotateCw, Square, Wrench, X } from "lucide-react";
@@ -9,7 +9,6 @@ import { ModelButton } from "@/components/AiSettings";
 import { WordingControl } from "@/components/WordingControl";
 import type { Wording } from "@/lib/claims";
 import { SiteCard } from "@/components/SiteCard";
-import type { ParsedGeneration } from "@/lib/parse";
 import { EDIT_SUGGESTIONS } from "@/lib/templates";
 import { Markdown } from "./Markdown";
 
@@ -20,7 +19,7 @@ interface Props {
   source?: SiteSummary;
   messages: ChatMessage[];
   generating: boolean;
-  live: ParsedGeneration | null;
+  live: LiveGeneration | null;
   onSend: (text: string) => void;
   onStop: () => void;
   hasApp: boolean;
@@ -59,7 +58,7 @@ function elapsed(ms: number): string {
 }
 
 /** Live progress for a running request: timer, stages and reassurance. */
-function Progress({ live, startedAt }: { live: ParsedGeneration | null; startedAt: number | null }) {
+function Progress({ live, startedAt }: { live: LiveGeneration | null; startedAt: number | null }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -67,6 +66,7 @@ function Progress({ live, startedAt }: { live: ParsedGeneration | null; startedA
   }, []);
   const ms = startedAt ? now - startedAt : 0;
   const { steps, stage, files } = buildProgress(live);
+  const note = progressNote(live, startedAt, now);
 
   return (
     <div className="rounded-2xl border border-line bg-surface p-4 text-sm">
@@ -104,10 +104,11 @@ function Progress({ live, startedAt }: { live: ParsedGeneration | null; startedA
           ))}
         </ul>
       )}
-      {ms > 20_000 && stage === 0 && (
-        <p className="mt-3 text-xs text-muted">The AI plans the whole app before writing — this can take a minute. Keep this tab open.</p>
+      {note && (
+        <p role={note.stalled ? "alert" : undefined} className={`mt-3 text-xs ${note.stalled ? "text-amber-200" : "text-muted"}`}>
+          {note.text}
+        </p>
       )}
-      {ms > 90_000 && stage > 0 && <p className="mt-3 text-xs text-muted">Bigger apps take 2–4 minutes. Keep this tab open — it&apos;s still working.</p>}
     </div>
   );
 }

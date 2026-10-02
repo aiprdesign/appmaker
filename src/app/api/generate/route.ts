@@ -6,6 +6,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { APP_MAX_BYTES, APP_MAX_FILES, isAllowedPath } from "@/lib/validate";
 import { charge, CreditsError, creditsResponse, refund } from "@/lib/server/credits";
 import { unexpectedErrorResponse } from "@/lib/server/errors";
+import { ALIVE_EVERY_MS, ALIVE_MARK, THINKING_MARK } from "@/lib/progress";
 import type { FileMap, SiteSummary, StoreListing } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -201,6 +202,15 @@ async function generate(req: Request): Promise<Response> {
     // Whether the reply changed the app; a reply that only asks a question costs nothing.
     let madeFiles = false;
     let tail = "";
+    let lastThought = 0;
+    // Keep the connection alive (and show the page we're still here) while the AI is quiet.
+    const alive = setInterval(() => {
+      try {
+        write(ALIVE_MARK);
+      } catch {
+        clearInterval(alive);
+      }
+    }, ALIVE_EVERY_MS);
     let outcome: Awaited<ReturnType<typeof streamGeneration>>;
     try {
       outcome = await streamGeneration({
@@ -209,6 +219,13 @@ async function generate(req: Request): Promise<Response> {
         messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site) }],
         signal: req.signal,
         images,
+        // A tiny "still thinking" signal at most every 1.5s, so the page can show the AI is busy.
+        onThinking: () => {
+          const now = Date.now();
+          if (now - lastThought < 1500) return;
+          lastThought = now;
+          write(THINKING_MARK);
+        },
         write: (t) => {
           wrote = true;
           if (!madeFiles) {
@@ -222,6 +239,8 @@ async function generate(req: Request): Promise<Response> {
       // Nothing was written: give the credit back.
       if (!wrote && paid.charged && paid.userId) await refund(paid.userId, kind, "Refund: the AI didn't answer").catch(() => {});
       throw e;
+    } finally {
+      clearInterval(alive);
     }
     if (outcome === "done" && !madeFiles && paid.charged && paid.userId) {
       await refund(paid.userId, kind, "Refund: the AI asked a question").catch(() => {});

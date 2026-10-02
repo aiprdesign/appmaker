@@ -44,3 +44,20 @@ test("the phone shows the app being made, then the app", async ({ page }) => {
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Garden")).toBeVisible({ timeout: 30_000 });
   await expect(progress).toHaveCount(0);
 });
+
+test("the server's thinking and keep-alive signals never end up in the app", async ({ page }) => {
+  await page.route("**/api/generate", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/plain",
+      headers: { "X-Appmaker-Mode": "ai" },
+      body: `<thinking/><alive/><thinking/><plan>x</plan>\n<file path="App.js">\n${APP.replace("Garden</Text>", "Gar<alive/>den</Text>")}\n</file>\n<listing>${LISTING}</listing>\n<summary>ok</summary>`,
+    }),
+  );
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("a garden planner");
+  await page.keyboard.press("Enter");
+  await expect(page.frameLocator('iframe[title="App preview"]').getByText("Garden", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Code" }).first().click();
+  await expect(page.getByLabel("Source of App.js")).not.toHaveValue(/<alive\/>|<thinking\/>/);
+});

@@ -23,6 +23,7 @@ import { qualityFixRequest, reportQuality, type QualityEvent } from "@/lib/quali
 import { polishPrompt, toJpeg } from "@/lib/polish";
 import { Orb } from "@/components/fx/Orb";
 import { PhoneBuilding, PhoneEditing } from "./PhoneProgress";
+import { takeSignals, type LiveGeneration } from "@/lib/progress";
 import { captureFrame } from "@/lib/store-shots";
 import { TapTest, type TapTestResult } from "./TapTest";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
@@ -100,7 +101,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   useEffect(() => {
     brandedRef.current = branded;
   }, [branded]);
-  const [live, setLive] = useState<ParsedGeneration | null>(null);
+  const [live, setLive] = useState<LiveGeneration | null>(null);
   const [previewFiles, setPreviewFiles] = useState<FileMap>({});
   /** A new version is being checked (and fixed) before it's shown. */
   const [checking, setChecking] = useState(false);
@@ -262,15 +263,20 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let lastParse = 0;
+        let thinking = false;
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           raw += decoder.decode(value, { stream: true });
+          // The server's signals (thinking, keep-alive) show it's busy; they aren't part of the reply.
+          const signals = takeSignals(raw);
+          raw = signals.text;
+          if (signals.thinking) thinking = true;
           const now = performance.now();
           if (now - lastParse > 120) {
             lastParse = now;
             const parsed = parseGeneration(raw);
-            setLive(parsed);
+            setLive({ ...parsed, thinking, lastActivity: Date.now() });
             if (parsed.writing) setSelectedFile(parsed.writing);
           }
         }
