@@ -76,6 +76,8 @@ body {
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: #2a2a38 transparent;
+  /* Keep the scrollbar's space, so content doesn't jump as it appears and disappears. */
+  scrollbar-gutter: stable;
 }
 .scrollbar-thin::-webkit-scrollbar {
   width: 8px;

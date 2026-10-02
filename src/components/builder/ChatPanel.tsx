@@ -1,5 +1,6 @@
 "use client";
 
+import { buildProgress } from "@/lib/progress";
 import { Feedback } from "./Feedback";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, CheckCircle2, Circle, FileCode2, Loader2, RotateCcw, RotateCw, Square, Wrench, X } from "lucide-react";
@@ -53,7 +54,7 @@ function suggestionsFrom(messages: ChatMessage[]): string[] {
 }
 
 function elapsed(ms: number): string {
-  const s = Math.floor(ms / 1000);
+  const s = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
@@ -65,9 +66,7 @@ function Progress({ live, startedAt }: { live: ParsedGeneration | null; startedA
     return () => clearInterval(t);
   }, []);
   const ms = startedAt ? now - startedAt : 0;
-  const files = live ? Object.keys(live.files) : [];
-  const stage = !live?.plan && files.length === 0 ? 0 : files.length === 0 ? 1 : live?.listing || live?.summary ? 3 : 2;
-  const steps = ["Understanding your idea", "Designing the screens", files.length ? `Writing code (${files.length} file${files.length === 1 ? "" : "s"})` : "Writing code", "Finishing touches"];
+  const { steps, stage, files } = buildProgress(live);
 
   return (
     <div className="rounded-2xl border border-line bg-surface p-4 text-sm">

@@ -21,6 +21,7 @@ import { Preview, type PreviewError, type QualityIssue } from "@/components/Prev
 import { qualityFixRequest, reportQuality, type QualityEvent } from "@/lib/quality";
 import { polishPrompt, toJpeg } from "@/lib/polish";
 import { Orb } from "@/components/fx/Orb";
+import { PhoneBuilding, PhoneEditing } from "./PhoneProgress";
 import { captureFrame } from "@/lib/store-shots";
 import { TapTest, type TapTestResult } from "./TapTest";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
@@ -579,7 +580,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   ];
 
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-dvh flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 sm:gap-3">
         <Logo href="/projects" compact />
         <span className="hidden text-line sm:inline">/</span>
@@ -701,7 +702,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
 
         <main className={`${mobileView === "app" ? "flex" : "hidden"} min-w-0 flex-1 flex-col lg:flex`}>
           {tab === "preview" && (
-            <div className="stage relative flex min-h-0 flex-1 flex-col">
+            <div className="stage relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="flex flex-wrap items-center justify-center gap-2 p-3">
                 <div className="flex rounded-lg border border-line bg-surface p-0.5 text-xs">
                   {(["ios", "android", ...(project.listing.ipad === false ? [] : (["ipad"] as const))] as const).map((p) => (
@@ -821,17 +822,16 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 <Orb size="min(70%, 520px)" soft className="pointer-events-none absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2" />
                 <PhoneFrame platform={device}>
                   {checking && <ChecksOverlay generating={generating} />}
+                  {generating && hasApp && !checking && <PhoneEditing live={live} />}
                   {hasApp || Object.keys(previewFiles).length ? (
                     <Preview files={previewFiles} platform={device} reloadKey={reloadKey} onError={onPreviewError} onQualityIssues={onQualityIssues} scheme={scheme} />
+                  ) : generating && !checking ? (
+                    <PhoneBuilding live={live} startedAt={startedAt} />
                   ) : (
-                    <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-500">
+                    <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-600">
                       <div>
-                        {generating ? (
-                          <Orb size={72} fast className="mx-auto" />
-                        ) : (
-                          <Wand2 className="mx-auto h-8 w-8 text-violet-500" />
-                        )}
-                        <p className="mt-4 text-sm">{checking ? "Running checks…" : generating ? "Designing your app…" : "Your app will appear here"}</p>
+                        <Wand2 className="mx-auto h-8 w-8 text-violet-600" />
+                        <p className="mt-4 text-sm">{checking ? "Running checks…" : "Your app will appear here"}</p>
                       </div>
                     </div>
                   )}
