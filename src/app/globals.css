@@ -260,3 +260,109 @@ html.a11y-spacing body {
   word-spacing: 0.12em;
   line-height: 1.6;
 }
+
+/* ------------------------------------------------------------------ */
+/* Beams: light travelling along the hero grid and between steps.      */
+/* Same fade as the grid, so beams vanish where the grid does. */
+.beam-field {
+  mask-image: radial-gradient(ellipse at top, black 30%, transparent 75%);
+}
+.beam {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+.beam-x {
+  height: 1px;
+  width: 160px;
+  background: linear-gradient(90deg, transparent, rgba(196, 181, 253, 0.9), rgba(244, 114, 182, 0.9), transparent);
+  box-shadow: 0 0 12px 1px rgba(167, 139, 250, 0.45);
+}
+.beam-y {
+  width: 1px;
+  height: 160px;
+  background: linear-gradient(180deg, transparent, rgba(125, 211, 252, 0.9), rgba(196, 181, 253, 0.9), transparent);
+  box-shadow: 0 0 12px 1px rgba(125, 211, 252, 0.4);
+}
+/* A connector line with a glow running along it. */
+.beam-link {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+}
+.beam-link::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, rgba(196, 181, 253, 0.95), rgba(244, 114, 182, 0.95), transparent);
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* Orbs: a soft glowing sphere that slowly turns and changes shape. */
+/* Positioned by the component's classes (relative or absolute). */
+.orb {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  isolation: isolate;
+}
+.orb::before,
+.orb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%;
+}
+.orb::before {
+  background: conic-gradient(from 0deg, #8b5cf6, #ec4899, #38bdf8, #a78bfa, #8b5cf6);
+  filter: blur(18px) saturate(1.2);
+  opacity: 0.85;
+}
+.orb::after {
+  inset: 14%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.12) 35%, transparent 60%);
+  filter: blur(6px);
+  opacity: 0.55;
+}
+.orb-soft::before { opacity: 0.22; filter: blur(70px); }
+.orb-soft::after { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes beam-x {
+    0% { transform: translateX(-200px); opacity: 0; }
+    10%, 80% { opacity: 1; }
+    100% { transform: translateX(var(--beam-travel, 900px)); opacity: 0; }
+  }
+  @keyframes beam-y {
+    0% { transform: translateY(-200px); opacity: 0; }
+    10%, 80% { opacity: 1; }
+    100% { transform: translateY(var(--beam-travel, 600px)); opacity: 0; }
+  }
+  .beam-x { animation: beam-x var(--beam-duration, 7s) cubic-bezier(0.45, 0, 0.55, 1) var(--beam-delay, 0s) infinite; }
+  .beam-y { animation: beam-y var(--beam-duration, 7s) cubic-bezier(0.45, 0, 0.55, 1) var(--beam-delay, 0s) infinite; }
+
+  @keyframes beam-link {
+    0% { transform: translateX(-100%); opacity: 0; }
+    15%, 85% { opacity: 1; }
+    100% { transform: translateX(340%); opacity: 0; }
+  }
+  .beam-link::after { animation: beam-link 3.2s ease-in-out infinite; }
+
+  @keyframes orb-spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes orb-morph {
+    0%, 100% { border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%; }
+    33% { border-radius: 54% 46% 44% 56% / 46% 56% 44% 54%; }
+    66% { border-radius: 48% 52% 58% 42% / 56% 44% 56% 44%; }
+  }
+  @keyframes orb-breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+  }
+  .orb { animation: orb-breathe 6s ease-in-out infinite; }
+  .orb::before { animation: orb-spin 14s linear infinite, orb-morph 9s ease-in-out infinite; }
+  .orb-fast { animation-duration: 2.4s; }
+  .orb-fast::before { animation-duration: 3s, 4s; }
+}

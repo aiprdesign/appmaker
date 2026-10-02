@@ -19,6 +19,8 @@ import { PromptBox } from "@/components/PromptBox";
 import { PhoneShot, TemplateCard } from "@/components/TemplateCard";
 import { StartOptions } from "@/components/StartOptions";
 import { AppMarquee } from "@/components/AppMarquee";
+import { Beams } from "@/components/fx/Beams";
+import { Orb } from "@/components/fx/Orb";
 import { BUSINESS_TEMPLATES, TEMPLATES, templateImage } from "@/lib/templates";
 
 const STEPS = [
@@ -90,6 +92,7 @@ export default function Home() {
       <div className="glow pointer-events-none absolute inset-x-0 top-0 h-[720px]" />
       <div className="aurora pointer-events-none absolute inset-x-0 top-0 h-[820px]" aria-hidden="true" />
       <div className="grid-bg pointer-events-none absolute inset-x-0 top-0 h-[720px]" />
+      <Beams className="absolute inset-x-0 top-0 h-[720px]" />
       <SiteHeader />
 
       <main className="relative flex-1">
@@ -112,7 +115,9 @@ export default function Home() {
             Describe your idea or paste your website. Appmaker designs and codes a native iOS &amp; Android app, lets you test it live, and
             packages it for the App Store and Google Play.
           </p>
-          <div className="mt-10">
+          <div className="relative isolate mt-10">
+            {/* A soft orb glowing behind the prompt box. */}
+            <Orb size={560} soft className="pointer-events-none absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2" />
             <PromptBox />
           </div>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs text-muted">
@@ -164,7 +169,18 @@ export default function Home() {
         {/* How it works */}
         <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
           <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">From idea to store in three steps</h2>
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
+          <div className="relative mt-12 grid gap-4 md:grid-cols-3">
+            {/* A beam of light running from step to step, above the cards. */}
+            <div aria-hidden="true" className="absolute inset-x-[16.6%] -top-6 hidden md:block">
+              <div className="beam-link h-px" />
+              {[0, 50, 100].map((x) => (
+                <span
+                  key={x}
+                  className="absolute top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-300 shadow-[0_0_10px_2px_rgba(167,139,250,0.6)]"
+                  style={{ left: `${x}%` }}
+                />
+              ))}
+            </div>
             {STEPS.map((s, i) => (
               <div key={s.title} className="lift reveal rounded-2xl border border-line bg-surface p-6">
                 <div className="flex items-center gap-3">
@@ -251,6 +267,7 @@ export default function Home() {
         <section className="mx-auto max-w-6xl px-4 pb-24">
           <div className="relative overflow-hidden rounded-3xl border border-line bg-surface px-6 py-16 text-center">
             <div className="glow pointer-events-none absolute inset-0" />
+            <Orb size={140} className="relative mx-auto mb-8" />
             <h2 className="relative text-3xl font-semibold tracking-tight md:text-5xl">Your app is one sentence away.</h2>
             <Link
               href="#start"

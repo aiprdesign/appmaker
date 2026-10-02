@@ -20,6 +20,7 @@ import { PhoneFrame } from "@/components/PhoneFrame";
 import { Preview, type PreviewError, type QualityIssue } from "@/components/Preview";
 import { qualityFixRequest, reportQuality, type QualityEvent } from "@/lib/quality";
 import { polishPrompt, toJpeg } from "@/lib/polish";
+import { Orb } from "@/components/fx/Orb";
 import { captureFrame } from "@/lib/store-shots";
 import { TapTest, type TapTestResult } from "./TapTest";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
@@ -824,7 +825,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                     <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-500">
                       <div>
                         {generating ? (
-                          <Loader2 className="mx-auto h-8 w-8 animate-spin text-violet-500" />
+                          <Orb size={72} fast className="mx-auto" />
                         ) : (
                           <Wand2 className="mx-auto h-8 w-8 text-violet-500" />
                         )}
