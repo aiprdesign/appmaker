@@ -83,7 +83,44 @@ export function suggestFeatures(prompt: string): string[] {
   return CATEGORIES.find((c) => c.match.test(prompt))?.features ?? GENERIC;
 }
 
+/** Questions the AI wrote for this particular idea (see /api/brief). */
+export interface AiBrief {
+  /** One sentence: what the AI thinks the person wants. */
+  understood: string;
+  questions: { q: string; options: string[]; multi: boolean }[];
+}
+
+/** Reads the AI's JSON reply, keeping only well-formed, short questions. Null when it's unusable. */
+export function parseAiBrief(text: string): AiBrief | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  const r = raw as { understood?: unknown; questions?: unknown };
+  if (!Array.isArray(r.questions)) return null;
+  const questions = r.questions
+    .map((x) => x as { q?: unknown; question?: unknown; options?: unknown; multi?: unknown })
+    .map((x) => ({
+      q: String(x.q ?? x.question ?? "").trim().slice(0, 120),
+      options: (Array.isArray(x.options) ? x.options : [])
+        .map((o) => String(o ?? "").trim().slice(0, 48))
+        .filter(Boolean)
+        .slice(0, 6),
+      multi: x.multi === true,
+    }))
+    .filter((x) => x.q && x.options.length >= 2)
+    .slice(0, 3);
+  return { understood: String(r.understood ?? "").trim().slice(0, 240), questions };
+}
+
 export interface BriefAnswers {
+  /** Answers to the AI's own questions, when it wrote them. */
+  picks?: { q: string; choices: string[] }[];
   audience?: (typeof AUDIENCES)[number]["id"];
   business?: string;
   features: string[];
@@ -107,6 +144,7 @@ export function briefPrompt(prompt: string, a: BriefAnswers): string {
         ? [`The business is called "${business}".`]
         : []),
     ...(features.length ? [`Must-have features: ${features.join("; ")}.`] : []),
+    ...(a.picks ?? []).filter((p) => p.choices.length).map((p) => `${p.q.replace(/\?$/, "")}: ${p.choices.join(", ")}.`),
     ...(style ? [`Look and feel: ${style.text}.`] : []),
   ]
     .join("\n")

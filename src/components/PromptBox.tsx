@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Globe, Loader2, Sparkles } from "lucide-react";
 import { createProject, emptyListing } from "@/lib/storage";
 import { appTitle } from "@/lib/title";
-import { BRIEF_SKIP_KEY, briefPrompt, needsBrief, type BriefAnswers } from "@/lib/brief";
+import { BRIEF_SKIP_KEY, briefPrompt, type BriefAnswers } from "@/lib/brief";
 import { AppBrief } from "./AppBrief";
 import { TEMPLATES } from "@/lib/templates";
 import type { SiteSummary } from "@/lib/types";
@@ -161,7 +161,6 @@ export function PromptBox() {
     const address = params.get("url")?.trim().slice(0, 500);
     if (!address && params.get("mode") !== "url") return;
     window.history.replaceState(null, "", window.location.pathname + window.location.hash);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowUrl(true);
     if (address) importSite(address);
     // Runs once, on the first render.
@@ -190,14 +189,15 @@ export function PromptBox() {
     if (bareUrl) return switchToUrl(bareUrl);
     const text = value.trim() || (site ? `Turn ${site.siteName} (${site.url}) into a mobile app for its customers.` : "");
     if (!text || busy || importing || tooLong) return;
-    // A short, vague idea gets three quick questions first (unless turned off), for a better first version.
+    // The AI reads the idea first and asks what it needs to know (unless turned off);
+    // a clear idea goes straight to building.
     let skip = false;
     try {
       skip = localStorage.getItem(BRIEF_SKIP_KEY) === "1";
     } catch {
       // Ask.
     }
-    if (!site && !brief && !skip && needsBrief(text)) return setBrief(true);
+    if (!site && !brief && !skip) return setBrief(true);
     build(text);
   };
 

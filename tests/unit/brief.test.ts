@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { briefPrompt, needsBrief, suggestFeatures } from "@/lib/brief";
+import { briefPrompt, needsBrief, parseAiBrief, suggestFeatures } from "@/lib/brief";
 
 describe("app brief", () => {
   it("asks only about short, vague ideas", () => {
@@ -16,5 +16,26 @@ describe("app brief", () => {
       'a salon app\n\nWho it\'s for: for the customers of my business. The business is called "Cuts".\nMust-have features: Book an appointment.\nLook and feel: calm and soft, rounded shapes, gentle pastel colors.',
     );
     expect(briefPrompt("a salon app", { features: [] })).toBe("a salon app");
+  });
+});
+
+describe("the AI's own questions", () => {
+  it("keeps only well-formed, short questions", () => {
+    const reply = `Sure! {"understood":"A booking app for your salon","questions":[
+      {"q":"Who books?","options":["New clients","Regulars"],"multi":false},
+      {"q":"Only one option","options":["Yes"]},
+      {"question":"Which features?","options":["Pick a stylist","Deposits","Reminders"],"multi":true},
+      {"q":"Fourth?","options":["a","b"]},{"q":"Fifth?","options":["a","b"]}]}`;
+    const brief = parseAiBrief(reply)!;
+    expect(brief.understood).toBe("A booking app for your salon");
+    expect(brief.questions.map((q) => q.q)).toEqual(["Who books?", "Which features?", "Fourth?"]);
+    expect(brief.questions[1].multi).toBe(true);
+    expect(parseAiBrief('{"understood":"Clear","questions":[]}')?.questions).toEqual([]);
+    expect(parseAiBrief("no json here")).toBeNull();
+  });
+
+  it("adds the answers to the prompt", () => {
+    const prompt = briefPrompt("a salon app", { features: [], picks: [{ q: "Which features?", choices: ["Pick a stylist", "Reminders"] }, { q: "Skipped?", choices: [] }] });
+    expect(prompt).toBe("a salon app\n\nWhich features: Pick a stylist, Reminders.");
   });
 });

@@ -30,6 +30,7 @@ test("people can delete their own account from the account menu", async ({ page 
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("correct horse battery");
   await page.getByRole("button", { name: "Sign in" }).last().click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  // (Next.js keeps an empty route announcer alert on the page too, so look for the message itself.)
+  await expect(page.getByRole("alert").filter({ hasText: "Email or password is wrong." })).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
 });

@@ -64,3 +64,12 @@ describe("rateLimit", () => {
     expect(third.retryAfter).toBeGreaterThan(0);
   });
 });
+
+describe("POST /api/brief", () => {
+  it("has no questions of its own in demo mode, so the page uses Appmaker's", async () => {
+    const { POST: brief } = await import("@/app/api/brief/route");
+    const res = await brief(new Request("http://localhost/api/brief", { method: "POST", body: JSON.stringify({ prompt: "a gym app" }) }));
+    expect(await res.json()).toEqual({ brief: null });
+    expect((await brief(new Request("http://localhost/api/brief", { method: "POST", body: "{}" }))).status).toBe(400);
+  });
+});

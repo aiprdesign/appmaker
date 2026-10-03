@@ -27,7 +27,7 @@ import { takeSignals, type LiveGeneration } from "@/lib/progress";
 import { captureFrame } from "@/lib/store-shots";
 import { TapTest, type TapTestResult } from "./TapTest";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
-import { parseGeneration, type ParsedGeneration } from "@/lib/parse";
+import { parseGeneration } from "@/lib/parse";
 import { getProject, saveProject, uid, withVersion } from "@/lib/storage";
 import { describeIssues, isAllowedPath, validateApp, type ValidationIssue } from "@/lib/validate";
 import { checkClaims, DEFAULT_WORDING, describeClaims } from "@/lib/claims";
