@@ -30,26 +30,35 @@ export function polishPrompt(opts: { scheme: "light" | "dark"; device: "ios" | "
 export const POLISH_MAX_CHARS = 1_500_000;
 
 /**
- * Shrinks a PNG screenshot to a JPEG small enough to send: lower quality
- * first, then smaller, until it fits. Browser only.
+ * Shrinks a screenshot until it's small enough to send: lower quality first,
+ * then smaller. Prefers JPEG, but some browsers (privacy settings, extensions)
+ * only give PNG, which is fine too, just at a smaller size. Browser only.
  */
 export async function toJpeg(pngDataUrl: string, maxSide = POLISH_MAX_SIDE, maxChars = POLISH_MAX_CHARS): Promise<string> {
   const img = new Image();
   img.src = pngDataUrl;
   await img.decode();
-  const longest = Math.max(img.naturalWidth, img.naturalHeight);
+  const longest = Math.max(img.naturalWidth, img.naturalHeight, 1);
   let side = Math.min(maxSide, longest);
+  let last = "";
   for (;;) {
-    for (const quality of [0.82, 0.7, 0.55]) {
-      const out = drawJpeg(img, side / longest, quality);
-      if (out.length <= maxChars && out.startsWith("data:image/jpeg")) return out;
+    for (const quality of [0.82, 0.65, 0.5]) {
+      const out = await encode(img, side / longest, quality);
+      last = out;
+      if (out.length <= maxChars && /^data:image\/(jpeg|png);base64,/.test(out)) return out;
+      // A browser that only gives PNG ignores quality: go straight to a smaller size.
+      if (!out.startsWith("data:image/jpeg")) break;
     }
-    if (side <= 400) throw new Error("This screen is too detailed to send as a picture. Try Polish design on another screen.");
-    side = Math.round(side * 0.75);
+    if (side <= 240) {
+      console.warn(`[appmaker] screenshot still too large: ${last.slice(0, 30)}… ${last.length} characters`);
+      throw new Error("This browser couldn't make a small enough picture of the screen. Try Polish design in another browser, such as Chrome or Safari.");
+    }
+    side = Math.round(side * 0.7);
   }
 }
 
-function drawJpeg(img: HTMLImageElement, ratio: number, quality: number): string {
+/** Draws the screenshot at a size and encodes it, trying both ways browsers offer to make a JPEG. */
+async function encode(img: HTMLImageElement, ratio: number, quality: number): Promise<string> {
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio));
   canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio));
@@ -59,5 +68,16 @@ function drawJpeg(img: HTMLImageElement, ratio: number, quality: number): string
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", quality);
+  const url = canvas.toDataURL("image/jpeg", quality);
+  if (url.startsWith("data:image/jpeg")) return url;
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+  if (blob?.type === "image/jpeg") {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Couldn't prepare the screenshot."));
+      reader.readAsDataURL(blob);
+    });
+  }
+  return url;
 }
