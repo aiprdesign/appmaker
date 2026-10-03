@@ -46,6 +46,13 @@ http
       res.writeHead(301, { Location: "/" });
       return res.end();
     }
+    // A real photo without CORS headers: pages can show it, but can't copy its pixels.
+    if (path === "/photo.png") {
+      res.writeHead(200, { "Content-Type": "image/png" });
+      return res.end(
+        Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEklEQVR4nGP4z8DAwMDAxMDAAAAPDgEDkY7EVAAAAABJRU5ErkJggg==", "base64"),
+      );
+    }
     if (path === "/image.png") {
       res.writeHead(200, { "Content-Type": "image/png" });
       return res.end("png");

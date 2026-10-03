@@ -343,11 +343,16 @@ window.addEventListener("message", async (e) => {
       height: window.innerHeight,
       backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
       cacheBust: false,
-      // Photos from other websites may refuse to be copied; show a blank instead of failing.
-      imagePlaceholder: "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+      // Photos from other websites may refuse to be copied; show a blank
+      // (a valid 1×1 transparent GIF) instead of failing, and never let one
+      // broken image stop the whole picture.
+      imagePlaceholder: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+      onImageErrorHandler: () => undefined,
     });
     reply({ dataUrl, text: (document.body.innerText || "").replace(/\s+/g, " ").slice(0, 400) });
   } catch (err) {
-    reply({ error: String((err && err.message) || err) });
+    // A failed image load rejects with a bare Event: say what it means.
+    const message = err instanceof Event ? "the screen has an image the browser couldn't draw" : String((err && err.message) || err);
+    reply({ error: message });
   }
 });
