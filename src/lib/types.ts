@@ -6,8 +6,12 @@ export interface ChatMessage {
   content: string;
   /** Files the assistant wrote in this turn. */
   files?: string[];
-  /** Set on messages the builder sent automatically to repair the app. */
-  kind?: "auto-fix";
+  /** Set on messages the builder sent automatically to repair the app, and on the review agents' findings. */
+  kind?: "auto-fix" | "review";
+  /** The UX or UI agent's findings (kind "review"). */
+  review?: import("./review").Review;
+  /** A review's findings were sent to the AI to fix. */
+  fixing?: boolean;
   /** The request failed; the UI offers to try it again. */
   error?: boolean;
   /** Snapshot of the app right after this reply, for "restore". */

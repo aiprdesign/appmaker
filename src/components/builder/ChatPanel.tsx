@@ -3,7 +3,8 @@
 import { buildProgress, progressNote, type LiveGeneration } from "@/lib/progress";
 import { Feedback } from "./Feedback";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, CheckCircle2, Circle, FileCode2, Loader2, RotateCcw, RotateCw, Square, Wrench, X } from "lucide-react";
+import { ArrowUp, CheckCircle2, Circle, FileCode2, Loader2, Palette, RotateCcw, RotateCw, Route, Square, Wrench, X } from "lucide-react";
+import { AGENT_NAMES, reviewFixRequest, type Review } from "@/lib/review";
 import type { ChatMessage, PendingRequest, SiteSummary } from "@/lib/types";
 import { ModelButton } from "@/components/AiSettings";
 import { WordingControl } from "@/components/WordingControl";
@@ -20,6 +21,8 @@ interface Props {
   messages: ChatMessage[];
   generating: boolean;
   live: LiveGeneration | null;
+  /** The UX and UI agents are reviewing the latest version. */
+  reviewing?: boolean;
   onSend: (text: string) => void;
   onStop: () => void;
   hasApp: boolean;
@@ -114,7 +117,7 @@ function Progress({ live, startedAt }: { live: LiveGeneration | null; startedAt:
 }
 
 export function ChatPanel(props: Props) {
-  const { source, messages, generating, live, onSend, onStop, hasApp, startedAt, interrupted, onRetry, onDismissInterrupted, onOpenFile, onRestore, latestVersionId, demoMode, wording, onWordingChange, prompt, onFeedback } = props;
+  const { reviewing, source, messages, generating, live, onSend, onStop, hasApp, startedAt, interrupted, onRetry, onDismissInterrupted, onOpenFile, onRestore, latestVersionId, demoMode, wording, onWordingChange, prompt, onFeedback } = props;
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -140,11 +143,13 @@ export function ChatPanel(props: Props) {
       <div ref={scroller} className="scrollbar-thin relative min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {source && <SiteCard site={source} />}
         {messages.map((m) =>
-          m.kind === "auto-fix" ? (
+          m.kind === "review" && m.review ? (
+            <ReviewCard key={m.id} review={m.review} fixing={!!m.fixing} canFix={!generating && !demoMode} onFix={() => onSend(reviewFixRequest([m.review!], { all: true }))} />
+          ) : m.kind === "auto-fix" ? (
             <details key={m.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200/90">
               <summary className="flex cursor-pointer list-none items-center gap-2">
                 <Wrench className="h-3.5 w-3.5 shrink-0" />
-                Quality check found a problem — fixing it automatically
+                {m.content.startsWith("Automatic UX and UI review") ? "UX and UI agents found things to improve — fixing them" : "Quality check found a problem — fixing it automatically"}
               </summary>
               <pre className="mt-2 whitespace-pre-wrap font-mono text-[11px] text-amber-100/70">{m.content}</pre>
             </details>
@@ -215,6 +220,11 @@ export function ChatPanel(props: Props) {
         )}
 
         {generating && <Progress live={live} startedAt={startedAt} />}
+        {reviewing && !generating && (
+          <p role="status" className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs text-muted">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> The UX and UI agents are reviewing your app…
+          </p>
+        )}
         <div aria-live="polite" className="sr-only">
           {generating ? "Building your app…" : lastMessage?.role === "assistant" ? "Your app is ready." : ""}
         </div>
@@ -280,5 +290,54 @@ export function ChatPanel(props: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+const SEVERITY: Record<string, string> = {
+  high: "bg-rose-500/15 text-rose-200",
+  medium: "bg-amber-500/15 text-amber-200",
+  low: "bg-white/5 text-muted",
+};
+
+/** What the UX or UI agent found, with a way to fix it when it wasn't fixed automatically. */
+function ReviewCard({ review, fixing, canFix, onFix }: { review: Review; fixing: boolean; canFix: boolean; onFix: () => void }) {
+  const Icon = review.agent === "ux" ? Route : Palette;
+  const toFix = review.issues.length;
+  return (
+    <section aria-label={`${AGENT_NAMES[review.agent]} review`} className="rounded-2xl border border-line bg-surface p-3 text-sm">
+      <div className="flex items-center gap-2 font-medium">
+        <span className="grid h-6 w-6 place-items-center rounded-lg bg-violet-500/15 text-violet-300">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        {AGENT_NAMES[review.agent]}
+        <span className="ml-auto text-xs font-normal text-muted">
+          {review.issues.length ? `${review.issues.length} thing${review.issues.length === 1 ? "" : "s"} to improve` : "Looks good"}
+        </span>
+      </div>
+      {review.summary && <p className="mt-2 text-xs text-muted">{review.summary}</p>}
+      {review.issues.length > 0 && (
+        <ul className="mt-2 space-y-1.5">
+          {review.issues.map((i, n) => (
+            <li key={n} className="text-xs leading-relaxed text-foreground/90">
+              <span className={`mr-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium ${SEVERITY[i.severity]}`}>{i.severity}</span>
+              {i.where && <span className="font-medium">{i.where}: </span>}
+              {i.problem}
+            </li>
+          ))}
+        </ul>
+      )}
+      {fixing ? (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-300">
+          <Wrench className="h-3.5 w-3.5" /> The important ones are being fixed automatically.
+        </p>
+      ) : (
+        toFix > 0 &&
+        canFix && (
+          <button onClick={onFix} className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-white px-3 text-xs font-medium text-black hover:bg-white/90">
+            <Wrench className="h-3.5 w-3.5" /> Fix {toFix === 1 ? "it" : `these ${toFix}`}
+          </button>
+        )
+      )}
+    </section>
   );
 }

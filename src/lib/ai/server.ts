@@ -150,6 +150,8 @@ export interface GenerateArgs {
   images?: string[];
   /** Called while the model reasons before writing (its thinking isn't shown, only that it's busy). */
   onThinking?: () => void;
+  /** Output budget for a quick request (default 2048), e.g. for reviews that write a list. */
+  maxTokens?: number;
 }
 
 /** Whether a provider can be sent screenshots. */
@@ -182,7 +184,7 @@ function openaiClient(ai: ResolvedAi): OpenAI {
   return new OpenAI({ apiKey: ai.apiKey, baseURL: ai.baseURL, maxRetries: ai.guarded ? 2 : 4, ...(ai.guarded ? guardedFetchOptions() : {}) });
 }
 
-export async function streamGeneration({ ai, system, messages, signal, write, quick, images, onThinking }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
+export async function streamGeneration({ ai, system, messages, signal, write, quick, images, onThinking, maxTokens }: GenerateArgs): Promise<"done" | "refusal" | "length"> {
   const shots = images?.length ? images.map(splitDataUrl) : null;
   const last = messages.length - 1;
   if (shots && !canSeeImages(ai)) throw new AiConfigError("This model can't look at screenshots. Choose another model in AI settings.");
@@ -192,7 +194,7 @@ export async function streamGeneration({ ai, system, messages, signal, write, qu
     const stream = client.beta.messages.stream(
       {
         model: ai.model,
-        max_tokens: quick ? 2048 : modern ? 64000 : 32000,
+        max_tokens: quick ? (maxTokens ?? 2048) : modern ? 64000 : 32000,
         ...(modern ? { thinking: { type: "adaptive" as const }, output_config: { effort: quick ? ("low" as const) : ("high" as const) } } : {}),
         ...(ai.provider === "anthropic" && supportsFallbacks(ai.model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],

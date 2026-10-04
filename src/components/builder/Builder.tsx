@@ -23,6 +23,7 @@ import { qualityFixRequest, reportQuality, type QualityEvent } from "@/lib/quali
 import { polishPrompt, toJpeg } from "@/lib/polish";
 import { Orb } from "@/components/fx/Orb";
 import { PhoneBuilding, PhoneEditing } from "./PhoneProgress";
+import { fixable, reviewFixRequest, reviewMessage, type Review, type ReviewAgent } from "@/lib/review";
 import { takeSignals, type LiveGeneration } from "@/lib/progress";
 import { captureFrame } from "@/lib/store-shots";
 import { TapTest, type TapTestResult } from "./TapTest";
@@ -122,6 +123,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const projectRef = useRef<Project | null>(null);
   const started = useRef(false);
   const fixBudget = useRef(AUTO_FIX_BUDGET);
+  // The UX and UI agents review once per request, after the first version that passes the checks.
+  const reviewPending = useRef(false);
+  const [reviewing, setReviewing] = useState(false);
   const continueBudget = useRef(CONTINUE_BUDGET);
   const runtimeWatchUntil = useRef(0);
   const demoRef = useRef(false);
@@ -208,6 +212,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const current = projectRef.current;
       if (!current || abortRef.current) return;
       if (!opts.autoFix) {
+        reviewPending.current = true;
         fixBudget.current = AUTO_FIX_BUDGET;
         continueBudget.current = CONTINUE_BUDGET;
       }
@@ -246,7 +251,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             // Until there's an App.js this is a new app, even if helper files were left behind.
             files: hasEntry(current.files) ? current.files : {},
             listing: hasEntry(current.files) ? current.listing : undefined,
-            history: current.messages.filter((m) => !m.error).map((m) => ({ role: m.role, content: m.content })),
+            // The review agents' notes are for the person; the fix request carries what the AI needs.
+            history: current.messages.filter((m) => !m.error && m.kind !== "review").map((m) => ({ role: m.role, content: m.content })),
             site: current.source,
             ai: aiChoiceFor(getAiSettings()),
             wording: current.wording ?? DEFAULT_WORDING,
@@ -531,8 +537,62 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     if (issues.length && fixBudget.current > 0 && !abortRef.current && !demoRef.current) {
       fixBudget.current -= 1;
       sendRef.current(`Automatic tap test: ${qualityFixRequest(issues)}`, { autoFix: true });
+      return;
+    }
+    // A working version: the UX and UI agents look at it (once per request).
+    if (!issues.length && reviewPending.current && !abortRef.current && !demoRef.current) {
+      reviewPending.current = false;
+      void reviewRef.current();
     }
   }, []);
+
+  // The UX agent reads the code; the UI agent also sees a screenshot of the screen.
+  // Their important findings go back to the AI once; the rest are shown in the chat.
+  const runReviews = useCallback(async () => {
+    const p = projectRef.current;
+    if (!p || !hasEntry(p.files)) return;
+    setReviewing(true);
+    let image: string | null = null;
+    try {
+      const frame = phoneRef.current?.querySelector<HTMLIFrameElement>('iframe[title="App preview"]');
+      if (frame) image = await toJpeg((await captureFrame(frame, 1.5)).dataUrl);
+    } catch {
+      // The UI agent reviews the code alone.
+    }
+    const ask = async (agent: ReviewAgent): Promise<Review | null> => {
+      try {
+        const res = await fetch("/api/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agent, files: p.files, listing: p.listing, ai: aiChoiceFor(getAiSettings()), ...(agent === "ui" && image ? { image } : {}) }),
+        });
+        return res.ok ? ((await res.json()).review as Review | null) : null;
+      } catch {
+        return null;
+      }
+    };
+    const reviews = (await Promise.all([ask("ux"), ask("ui")])).filter((r): r is Review => !!r);
+    setReviewing(false);
+    const current = projectRef.current;
+    if (!reviews.length || !current || current.id !== p.id) return;
+    // Fix automatically only if nothing else started meanwhile.
+    const fix = reviews.some((r) => fixable(r).length) && !abortRef.current;
+    const notes: ChatMessage[] = reviews.map((r) => ({
+      id: uid(),
+      role: "assistant",
+      kind: "review",
+      content: reviewMessage(r),
+      review: r,
+      createdAt: Date.now(),
+      ...(fix && fixable(r).length ? { fixing: true } : {}),
+    }));
+    commit({ ...current, messages: [...current.messages, ...notes] });
+    if (fix) sendRef.current(reviewFixRequest(reviews), { autoFix: true });
+  }, [commit]);
+  const reviewRef = useRef(runReviews);
+  useEffect(() => {
+    reviewRef.current = runReviews;
+  }, [runReviews]);
 
   if (project === undefined) {
     return (
@@ -694,6 +754,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             source={project.source}
             messages={project.messages}
             generating={generating}
+            reviewing={reviewing}
             live={live}
             onSend={send}
             onStop={() => abortRef.current?.abort()}

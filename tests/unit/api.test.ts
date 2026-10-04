@@ -73,3 +73,13 @@ describe("POST /api/brief", () => {
     expect((await brief(new Request("http://localhost/api/brief", { method: "POST", body: "{}" }))).status).toBe(400);
   });
 });
+
+describe("POST /api/review", () => {
+  it("checks its input and has no agents in demo mode", async () => {
+    const { POST: review } = await import("@/app/api/review/route");
+    const call = (body: unknown) => review(new Request("http://localhost/api/review", { method: "POST", body: JSON.stringify(body) }));
+    expect((await call({ agent: "design", files: { "App.js": "x" } })).status).toBe(400);
+    expect((await call({ agent: "ux", files: { "../evil.js": "x" } })).status).toBe(400);
+    expect(await (await call({ agent: "ui", files: { "App.js": "export default () => null;" } })).json()).toEqual({ review: null });
+  });
+});
