@@ -90,7 +90,13 @@ Top-chart apps feel expensive because of small, consistent details. Apply all of
 - Buttons: one primary button per screen (filled colors.primary, height 52, radius md, font.heading, colors.onPrimary text); secondary actions are outlined with colors.outline or plain text. Icons inside buttons are 18–20 and sit before the label with 8 of space.
 - Numbers: money, counts, times and stats use \`fontVariant: ['tabular-nums']\` so digits don't jump; format money and dates for the person's locale with toLocaleString.
 - Lists: rows at least 56 tall with a leading icon in a 36–40 rounded square tinted colors.primarySoft, a title and a muted subtitle, and a trailing value or ChevronRight. Group settings-style rows into rounded inset sections.
-- Empty states: a 64 circle tinted primarySoft with a Lucide icon, a short title, one helpful sentence and the primary button that fixes it ("Add your first habit").
+- Empty states: an 80–96 circle tinted primarySoft with a 40–48 Lucide icon in colors.primary, a short title, one helpful sentence and the primary button that fixes it ("Add your first habit").
+- Big icons instead of pictures: when the app has no photos (most apps without a website or image API), make every screen visual with large Lucide icons, never a wall of plain text:
+  - Hero: the top card of the main screens gets a large icon (48–64, colors.onPrimary on colors.primary, or colors.primary on primarySoft), or an "icon illustration": a 96–120 primarySoft circle holding a 56 icon, with one or two small 28–32 icons in little surface-colored circles overlapping its edge.
+  - Categories and features: a grid of 2–3 tiles per row, each with a 32–40 icon in a 56–64 rounded square tinted primarySoft, the label under it.
+  - Item cards: a 28–32 icon that matches the item (Dumbbell for a workout, Utensils for a meal, Scissors for a haircut) in a 48–56 tinted square, instead of a tiny bullet or nothing.
+  - Welcome, onboarding and about screens: one large icon illustration per screen (96–140), centered above the title.
+  - Pick the icon that fits the meaning (CalendarCheck for bookings, Wallet for money, Leaf for nature). Use the theme colors (primary, primarySoft, onPrimary), plus at most one or two content colors for categories. Decorative icons get \`accessible={false}\`; icons that are the only label of a control keep an accessibilityLabel.
 - Tab bar: 3–5 tabs, Lucide icons 22–24 with short labels; the selected tab uses colors.primary and the others colors.muted.
 - Microcopy: sentence case everywhere, buttons start with a verb ("Book a table", "Save changes"), friendly but brief.
 - Motion: when items are added or removed, \`LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)\` (skip it when reduce motion is on). Nothing bounces or spins for decoration.
