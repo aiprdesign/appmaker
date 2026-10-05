@@ -153,6 +153,15 @@ export async function gradeApp(browser: Browser, files: FileMap, listing: Partia
   const allCode = Object.values(files).join("\n");
   add("content", "No placeholder or lorem ipsum content", !PLACEHOLDER.test(allCode), false, 4);
   add("storage", "Saves user data (AsyncStorage)", allCode.includes("@react-native-async-storage/async-storage"), false, 4);
+  // Craft and usability rules from the system prompt, checked in the code.
+  add("icons", "Uses Lucide icons, not emoji, for the interface", allCode.includes("lucide-react-native"), false, 3);
+  add("theme", "Reads its design from src/theme.js", /from\s*["'](?:\.{1,2}\/)+(?:src\/)?theme["']/.test(allCode), false, 3);
+  const hasTabs = /accessibilityRole=\{?["']tab["']/.test(allCode);
+  add("tab-roles", "Tabs announce themselves to screen readers", hasTabs || !/tab ?bar/i.test(allCode), false, 2);
+  const deletes = /\b(remove|delete)\w*\s*\(/i.test(allCode);
+  add("safe-delete", "Deleting asks first or can be undone", !deletes || /Alert\.alert|[Uu]ndo/.test(allCode), false, 3);
+  const inputs = (allCode.match(/<TextInput\b/g) ?? []).length;
+  add("keyboard", "Forms set keyboard types and keep taps with the keyboard open", !inputs || (/keyboardType|returnKeyType/.test(allCode) && /keyboardShouldPersistTaps/.test(allCode)), false, 2);
 
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true });
   await context.addInitScript({ content: SHIM });

@@ -310,6 +310,48 @@ function withDefault(mod, def) {
   return { __esModule: true, default: def, ...mod };
 }
 
+// React Native Web's Alert does nothing, so confirmations ("Delete this?")
+// would never show and their buttons never run. Use the browser's dialogs:
+// one button (or none) is a notice; with a Cancel button it's a yes/no
+// question whose "yes" runs the other button (the destructive one if several).
+const AlertShim = {
+  alert(title, message, buttons) {
+    const text = [title, message].filter(Boolean).join("\n\n");
+    const list = Array.isArray(buttons) ? buttons.filter(Boolean) : [];
+    const run = (b) => b && typeof b.onPress === "function" && setTimeout(() => b.onPress(), 0);
+    if (list.length <= 1) {
+      window.alert(text);
+      return run(list[0]);
+    }
+    const cancel = list.find((b) => b.style === "cancel") || list[0];
+    const actions = list.filter((b) => b !== cancel);
+    const chosen = actions.find((b) => b.style === "destructive") || actions[actions.length - 1];
+    run(window.confirm(`${text}${chosen && chosen.text ? `\n\n${chosen.text}?` : ""}`) ? chosen : cancel);
+  },
+  prompt(title, message, callbackOrButtons) {
+    const value = window.prompt([title, message].filter(Boolean).join("\n\n"));
+    if (typeof callbackOrButtons === "function" && value != null) setTimeout(() => callbackOrButtons(value), 0);
+  },
+};
+
+// Android's back button: apps register handlers; in the preview, Escape is "back".
+const backHandlers = [];
+window.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  for (let i = backHandlers.length - 1; i >= 0; i--) if (backHandlers[i]()) break;
+});
+const BackHandlerShim = {
+  addEventListener(_type, handler) {
+    backHandlers.push(handler);
+    return { remove: () => BackHandlerShim.removeEventListener(_type, handler) };
+  },
+  removeEventListener(_type, handler) {
+    const i = backHandlers.indexOf(handler);
+    if (i >= 0) backHandlers.splice(i, 1);
+  },
+  exitApp() {},
+};
+
 window.__APPMAKER_RUNTIME__ = {
   React,
   ReactDOMClient,
@@ -317,7 +359,7 @@ window.__APPMAKER_RUNTIME__ = {
     react: withDefault(React, React),
     "react/jsx-runtime": JSXRuntime,
     "react/jsx-dev-runtime": JSXRuntime,
-    "react-native": withDefault({ ...RNW, Appearance, useColorScheme }, RNW),
+    "react-native": withDefault({ ...RNW, Appearance, useColorScheme, Alert: AlertShim, BackHandler: BackHandlerShim }, RNW),
     "react-native-web": withDefault(RNW, RNW),
     "@react-native-async-storage/async-storage": withDefault({ AsyncStorage }, AsyncStorage),
     "expo-status-bar": { __esModule: true, StatusBar },
@@ -345,7 +387,29 @@ async function snap(scale) {
     imagePlaceholder: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
     onImageErrorHandler: () => undefined,
   });
-  return { dataUrl, text: (document.body.innerText || "").replace(/\s+/g, " ").slice(0, 400) };
+  return { dataUrl, text: (document.body.innerText || "").replace(/\s+/g, " ").slice(0, 400), heading: screenHeading() };
+}
+
+/** The screen's title: its first heading, or else its biggest text. */
+function screenHeading() {
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.top >= 0 && r.top < window.innerHeight * 0.6;
+  };
+  const clean = (t) => (t || "").replace(/\s+/g, " ").trim().slice(0, 40);
+  const heading = [...document.querySelectorAll('[role="heading"], h1, h2')].find((el) => visible(el) && clean(el.innerText));
+  if (heading) return clean(heading.innerText);
+  let best = null;
+  let size = 0;
+  for (const el of document.querySelectorAll("div, span")) {
+    if (el.children.length || !visible(el) || !clean(el.innerText) || /^\d/.test(clean(el.innerText))) continue;
+    const s = parseFloat(getComputedStyle(el).fontSize) || 0;
+    if (s > size) {
+      size = s;
+      best = el;
+    }
+  }
+  return best ? clean(best.innerText) : "";
 }
 
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));

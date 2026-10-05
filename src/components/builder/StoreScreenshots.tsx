@@ -13,6 +13,7 @@ import { loadShots, saveShots } from "@/lib/shots-store";
 import {
   captureFrame,
   defaultCaptions,
+  screenCaptions,
   tourFrame,
   MAX_SHOTS,
   renderFeatureGraphic,
@@ -130,7 +131,7 @@ export function StoreScreenshots({ project }: { project: Project }) {
         setPlatform(device);
         setNote({ ok: true, text: device === "ipad" ? "Capturing the iPad screens…" : "Capturing the iPhone and Android screens…" });
         const screens = (await tourFrame(await frameFor(device), device === "ipad" ? 2 : 3.31)).slice(0, MAX_SHOTS);
-        const captions = defaultCaptions(project.listing, screens.length);
+        const captions = screenCaptions(project.listing, screens.map((x) => x.heading));
         screens.forEach((c, i) => made.push({ id: uid(), screen: c.dataUrl, text: c.text, device: device === "ipad" ? "ipad" : "phone", ...captions[i] }));
         // Show them as they arrive.
         setShots([...made]);

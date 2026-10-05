@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { contrast, PALETTES } from "@/lib/design";
-import { defaultCaptions, palette, SHOT_SIZES, FEATURE_GRAPHIC } from "@/lib/store-shots";
+import { defaultCaptions, palette, screenCaptions, SHOT_SIZES, FEATURE_GRAPHIC } from "@/lib/store-shots";
 
 describe("store screenshots", () => {
   it("uses the sizes the stores ask for", () => {
@@ -40,5 +40,12 @@ describe("store screenshots", () => {
     expect(c[0]).toEqual({ title: "Build habits that stick", subtitle: "Streakly" });
     expect(c.slice(1).map((x) => x.title)).toEqual(["Check off habits in one tap", "See your longest streak", "Private by design"]);
     for (const x of c) expect(x.title.length).toBeLessThanOrEqual(38);
+  });
+});
+
+describe("starter headlines for generated screenshots", () => {
+  it("never repeats a headline: a repeat uses the screen's own title", () => {
+    const listing = { name: "Streakly", subtitle: "Build habits that stick", description: "Short." } as Parameters<typeof screenCaptions>[0];
+    expect(screenCaptions(listing, ["Today", "New habit", "Stats"]).map((c) => c.title)).toEqual(["Build habits that stick", "New habit", "Stats"]);
   });
 });

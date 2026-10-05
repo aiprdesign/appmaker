@@ -129,6 +129,10 @@ test("Generate screenshots opens every main screen on iPhone and iPad by itself"
   await expect(section.getByText(/the App Store also needs iPad screenshots/)).toHaveCount(0);
   // The preview is back on iPhone, and the screens differ (each tab was opened).
   await expect(section.getByRole("button", { name: "iPhone", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // Starter headlines don't repeat: later screens use their own titles.
+  const headlines = await Promise.all([1, 2, 3].map((n) => section.getByLabel(`Headline ${n}`, { exact: true }).inputValue()));
+  expect(new Set(headlines).size).toBe(3);
+  expect(headlines).toContain("Stats");
   // Each tab was really opened: the screens' text differs, and Stats is among them.
   let screens: string[] = [];
   await page.route("**/api/captions", async (route) => {

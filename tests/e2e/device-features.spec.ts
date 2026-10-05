@@ -126,3 +126,51 @@ export default function App() {
   await expect(app.getByText("London: 21.4°C")).toBeVisible({ timeout: 10_000 });
   expect(calls).toBeGreaterThan(0);
 });
+
+test("confirmations and the back button work in the preview", async ({ page }) => {
+  const app = await build(
+    page,
+    `import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, Alert, BackHandler } from 'react-native';
+export default function App() {
+  const [items, setItems] = useState(['Basil', 'Mint']);
+  const [open, setOpen] = useState(null);
+  useEffect(() => {
+    if (!open) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { setOpen(null); return true; });
+    return () => sub.remove();
+  }, [open]);
+  const remove = (name) => Alert.alert('Delete ' + name + '?', 'This can't be undone.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: () => setItems((x) => x.filter((i) => i !== name)) },
+  ]);
+  if (open) return (<View style={{ flex: 1, padding: 60 }}><Text>Details of {open}</Text></View>);
+  return (
+    <View style={{ flex: 1, padding: 60 }}>
+      {items.map((name) => (
+        <View key={name} style={{ flexDirection: 'row', gap: 12 }}>
+          <Pressable accessibilityRole="button" onPress={() => setOpen(name)}><Text>Open {name}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => remove(name)}><Text>Delete {name}</Text></Pressable>
+        </View>
+      ))}
+    </View>
+  );
+}`.replace("can't", "can not"),
+  );
+  await expect(app.getByText("Open Basil")).toBeVisible({ timeout: 30_000 });
+  // Cancel keeps the item; Delete removes it.
+  page.once("dialog", (d) => {
+    expect(d.message()).toContain("Delete Basil?");
+    void d.dismiss();
+  });
+  await app.getByText("Delete Basil").click();
+  await expect(app.getByText("Open Basil")).toBeVisible();
+  page.once("dialog", (d) => void d.accept());
+  await app.getByText("Delete Basil").click();
+  await expect(app.getByText("Open Basil")).toHaveCount(0);
+  // Escape acts as Android's back button.
+  await app.getByText("Open Mint").click();
+  await expect(app.getByText("Details of Mint")).toBeVisible();
+  await app.getByText("Details of Mint").press("Escape");
+  await expect(app.getByText("Open Mint")).toBeVisible();
+});

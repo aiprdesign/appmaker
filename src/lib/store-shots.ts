@@ -298,7 +298,7 @@ export function captureFrame(frame: HTMLIFrameElement, scale = 3.31): Promise<{ 
 }
 
 /** Captures each main screen of the app: the preview taps every tab in turn (or captures the one screen there is). */
-export function tourFrame(frame: HTMLIFrameElement, scale = 3.31): Promise<{ dataUrl: string; text: string }[]> {
+export function tourFrame(frame: HTMLIFrameElement, scale = 3.31): Promise<{ dataUrl: string; text: string; heading: string }[]> {
   return new Promise((resolve, reject) => {
     const id = Math.random().toString(36).slice(2);
     const timer = setTimeout(() => {
@@ -309,15 +309,29 @@ export function tourFrame(frame: HTMLIFrameElement, scale = 3.31): Promise<{ dat
       if (e.source !== frame.contentWindow || e.data?.source !== "appmaker-preview" || e.data.type !== "tour" || e.data.id !== id) return;
       clearTimeout(timer);
       window.removeEventListener("message", onMessage);
-      const shots = Array.isArray(e.data.shots) ? (e.data.shots as { dataUrl?: unknown; text?: unknown }[]) : [];
+      const shots = Array.isArray(e.data.shots) ? (e.data.shots as { dataUrl?: unknown; text?: unknown; heading?: unknown }[]) : [];
       const good = shots
         .filter((x) => typeof x.dataUrl === "string" && x.dataUrl.startsWith("data:image/png"))
-        .map((x) => ({ dataUrl: x.dataUrl as string, text: String(x.text ?? "").slice(0, 400) }));
+        .map((x) => ({ dataUrl: x.dataUrl as string, text: String(x.text ?? "").slice(0, 400), heading: String(x.heading ?? "").slice(0, 40) }));
       if (good.length) resolve(good);
       else reject(new Error(e.data.error ? `Couldn't capture the screens: ${e.data.error}` : "Couldn't capture the screens."));
     };
     window.addEventListener("message", onMessage);
     frame.contentWindow?.postMessage({ source: "appmaker-parent", type: "tour", id, scale }, "*");
+  });
+}
+
+/**
+ * Starter headlines for captured screens: the listing's lines, but never the
+ * same headline twice: a repeat uses the screen's own title instead.
+ */
+export function screenCaptions(listing: StoreListing, headings: string[]): { title: string; subtitle: string }[] {
+  const base = defaultCaptions(listing, headings.length);
+  const used = new Set<string>();
+  return base.map((c, i) => {
+    const title = used.has(c.title.toLowerCase()) && headings[i] ? headings[i] : c.title;
+    used.add(title.toLowerCase());
+    return { title, subtitle: title === c.title ? c.subtitle : "" };
   });
 }
 

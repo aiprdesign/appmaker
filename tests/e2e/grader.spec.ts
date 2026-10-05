@@ -24,6 +24,8 @@ function app(opts: { extra?: string; body?: string; styles?: string; save?: stri
     "App.js": `import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { List } from 'lucide-react-native';
+import { colors } from './src/theme';
 ${opts.imports ?? ""}
 export default function App() {
   const [tab, setTab] = useState('list');
@@ -34,11 +36,11 @@ export default function App() {
   ${opts.extra ?? ""}
   return (
     <View style={s.root}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 60 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingTop: 60 }}>
         ${
           opts.body ??
-          `{tab === 'list' && <View><Text style={s.title}>My list</Text>{items.map((i) => <Text key={i} style={s.item}>{i}</Text>)}</View>}
-        {tab === 'add' && <View><Text style={s.title}>New item</Text><TextInput style={s.input} value={draft} onChangeText={setDraft} placeholder="What needs doing?" /><TouchableOpacity style={s.button} onPress={add}><Text style={s.buttonText}>Save item</Text></TouchableOpacity></View>}
+          `{tab === 'list' && <View><List color={colors.text} size={28} accessible={false} /><Text style={s.title}>My list</Text>{items.map((i) => <Text key={i} style={s.item}>{i}</Text>)}</View>}
+        {tab === 'add' && <View><Text style={s.title}>New item</Text><TextInput style={s.input} value={draft} onChangeText={setDraft} placeholder="What needs doing?" returnKeyType="done" /><TouchableOpacity style={s.button} onPress={add}><Text style={s.buttonText}>Save item</Text></TouchableOpacity></View>}
         {tab === 'about' && <View><Text style={s.title}>About</Text><Text style={s.item}>Version 1.0</Text></View>}`
         }
       </ScrollView>
@@ -61,6 +63,7 @@ const s = StyleSheet.create({
   ${opts.styles ?? ""}
 });
 `,
+    "src/theme.js": "export const colors = { text: '#111827' };\n",
   };
 }
 
