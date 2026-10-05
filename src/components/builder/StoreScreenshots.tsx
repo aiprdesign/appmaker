@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
-import { AlertTriangle, ArrowLeft, ArrowRight, Camera, Download, ImageIcon, Loader2, Moon, Sparkles, Sun, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Camera, Download, ImageIcon, Loader2, Moon, Sparkles, Sun, Trash2, Wand2 } from "lucide-react";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Preview } from "@/components/Preview";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
@@ -13,6 +13,7 @@ import { loadShots, saveShots } from "@/lib/shots-store";
 import {
   captureFrame,
   defaultCaptions,
+  tourFrame,
   MAX_SHOTS,
   renderFeatureGraphic,
   renderPlain,
@@ -67,7 +68,7 @@ export function StoreScreenshots({ project }: { project: Project }) {
   const ipadOn = project.listing.ipad !== false;
   const platform = picked === "ipad" && !ipadOn ? "ios" : picked;
   const [scheme, setScheme] = useState<"light" | "dark">("light");
-  const [busy, setBusy] = useState<"capture" | "ai" | "zip" | null>(null);
+  const [busy, setBusy] = useState<"capture" | "generate" | "ai" | "zip" | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const phone = useRef<HTMLDivElement>(null);
   const brand = project.listing.primaryColor;
@@ -100,6 +101,51 @@ export function StoreScreenshots({ project }: { project: Project }) {
     } catch (e) {
       setNote({ ok: false, text: e instanceof Error ? e.message : "Couldn't capture the screen." });
     } finally {
+      setBusy(null);
+    }
+  };
+
+  /** The preview's frame once it shows the given device (it reloads when the device changes). */
+  const frameFor = async (device: "ios" | "ipad"): Promise<HTMLIFrameElement> => {
+    for (let i = 0; i < 60; i++) {
+      const frame = phone.current?.querySelector<HTMLIFrameElement>('iframe[title="App preview"]');
+      if (frame?.srcdoc.includes(`"device":"${device}"`)) {
+        await new Promise((r) => setTimeout(r, 900));
+        return frame;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    throw new Error("The preview didn't load. Try again.");
+  };
+
+  // Generate screenshots: Appmaker opens each main screen itself, on iPhone
+  // and (when the app runs on iPad) on iPad, and makes a listing image of each.
+  const generate = async () => {
+    setBusy("generate");
+    setNote(null);
+    const devices: ("ios" | "ipad")[] = ipadOn ? ["ios", "ipad"] : ["ios"];
+    const made: Shot[] = [];
+    try {
+      for (const device of devices) {
+        setPlatform(device);
+        setNote({ ok: true, text: device === "ipad" ? "Capturing the iPad screens…" : "Capturing the iPhone and Android screens…" });
+        const screens = (await tourFrame(await frameFor(device), device === "ipad" ? 2 : 3.31)).slice(0, MAX_SHOTS);
+        const captions = defaultCaptions(project.listing, screens.length);
+        screens.forEach((c, i) => made.push({ id: uid(), screen: c.dataUrl, text: c.text, device: device === "ipad" ? "ipad" : "phone", ...captions[i] }));
+        // Show them as they arrive.
+        setShots([...made]);
+      }
+      const phones = made.filter((x) => x.device !== "ipad").length;
+      const ipads = made.length - phones;
+      setNote({
+        ok: true,
+        text: `Made ${phones} phone image${phones === 1 ? "" : "s"}${ipadOn ? ` and ${ipads} iPad image${ipads === 1 ? "" : "s"}` : ""}. Check each one, remove any you don't want, and write the headlines with AI or by hand.`,
+      });
+    } catch (e) {
+      if (made.length) setShots(made);
+      setNote({ ok: false, text: e instanceof Error ? e.message : "Couldn't capture the screens." });
+    } finally {
+      setPlatform("ios");
       setBusy(null);
     }
   };
@@ -201,8 +247,9 @@ export function StoreScreenshots({ project }: { project: Project }) {
         <ImageIcon className="h-4 w-4 text-violet-300" /> Store screenshots
       </h2>
       <p className="mt-1 text-sm text-muted">
-        Tap through your app on the phone below and capture the screens you want to show. Appmaker turns them into listing images with headlines, at the sizes
-        the App Store and Google Play ask for, plus Google Play&apos;s feature graphic.
+        Press Generate screenshots and Appmaker opens each main screen of your app on iPhone{ipadOn ? " and iPad" : ""} and turns them into listing images with
+        headlines, at the sizes the App Store and Google Play ask for, plus Google Play&apos;s feature graphic. You can also tap to any screen and capture it
+        yourself.
       </p>
 
       <div className="mt-4 grid gap-5 @3xl:grid-cols-[260px_1fr]">
@@ -236,9 +283,17 @@ export function StoreScreenshots({ project }: { project: Project }) {
             </PhoneFrame>
           </div>
           <button
+            onClick={generate}
+            disabled={!!busy || !Object.keys(project.files).length}
+            className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-pink-600 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {busy === "generate" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            {busy === "generate" ? "Capturing screens…" : shots.length ? "Generate screenshots again" : "Generate screenshots"}
+          </button>
+          <button
             onClick={capture}
             disabled={!!busy || full || !Object.keys(project.files).length}
-            className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-black disabled:opacity-50"
+            className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-line text-sm font-medium text-foreground hover:border-white/20 disabled:opacity-50"
           >
             {busy === "capture" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             {full ? `${MAX_SHOTS} ${platform === "ipad" ? "iPad" : "phone"} screens captured` : "Capture this screen"}
@@ -280,8 +335,8 @@ export function StoreScreenshots({ project }: { project: Project }) {
           )}
           {needsIpad && (
             <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-200">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> The app runs on iPad, so the App Store also needs iPad screenshots: choose iPad above
-              the phone and capture a few screens.
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> The app runs on iPad, so the App Store also needs iPad screenshots: press Generate
+              screenshots, or choose iPad above the phone and capture a few screens.
             </p>
           )}
           {claims.length > 0 && (
@@ -296,8 +351,9 @@ export function StoreScreenshots({ project }: { project: Project }) {
           )}
           {shots.length === 0 ? (
             <p className="mt-6 rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">
-              No screens yet. Open the screens that show off your app best and press Capture this screen: up to {MAX_SHOTS} per device. Google Play needs at
-              least 2 phone screens{ipadOn ? ", and the App Store needs iPad screens too, because the app runs on iPad" : ""}.
+              No screens yet. Press Generate screenshots to capture every main screen automatically, or open a screen and press Capture this screen: up to{" "}
+              {MAX_SHOTS} per device. Google Play needs at least 2 phone screens
+              {ipadOn ? ", and the App Store needs iPad screens too, because the app runs on iPad" : ""}.
             </p>
           ) : (
             <ol className="mt-4 grid grid-cols-2 gap-4 @xl:grid-cols-3 @4xl:grid-cols-4">

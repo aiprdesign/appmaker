@@ -111,3 +111,32 @@ test("iPad: preview the app at iPad size, or turn iPad off in the listing", asyn
   await expect(page.getByRole("button", { name: "iPad", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "iPhone", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
+
+test("Generate screenshots opens every main screen on iPhone and iPad by itself", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("A habit tracker with streaks");
+  await page.keyboard.press("Enter");
+  await expect(page.frameLocator('iframe[title="App preview"]').getByText("Today").first()).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Publish" }).first().click();
+
+  const section = page.getByRole("region", { name: "Store screenshots" });
+  await section.scrollIntoViewIfNeeded();
+  await section.getByRole("button", { name: "Generate screenshots" }).click();
+  // The habit tracker has three tabs (Today, Add, Stats): three phone and three iPad images.
+  await expect(section.getByText(/Made 3 phone images and 3 iPad images/)).toBeVisible({ timeout: 90_000 });
+  await expect(section.getByRole("img", { name: /Store image:/ })).toHaveCount(6);
+  await expect(section.getByText(/the App Store also needs iPad screenshots/)).toHaveCount(0);
+  // The preview is back on iPhone, and the screens differ (each tab was opened).
+  await expect(section.getByRole("button", { name: "iPhone", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // Each tab was really opened: the screens' text differs, and Stats is among them.
+  let screens: string[] = [];
+  await page.route("**/api/captions", async (route) => {
+    screens = route.request().postDataJSON().screens;
+    await route.fulfill({ json: { captions: screens.map((_, i) => ({ title: `Headline ${i + 1}`, subtitle: "" })) } });
+  });
+  await section.getByRole("button", { name: "Write headlines with AI" }).click();
+  await expect.poll(() => screens.length).toBe(6);
+  expect(new Set(screens.slice(0, 3)).size).toBe(3);
+  expect(screens.slice(0, 3).some((t) => t.includes("Stats"))).toBe(true);
+});

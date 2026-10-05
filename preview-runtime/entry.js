@@ -330,26 +330,64 @@ window.__APPMAKER_RUNTIME__ = {
 };
 
 // Store screenshots: the Publish tab asks for a picture of the current
-// screen. Rendered here, inside the sandbox, and sent back as a PNG.
+// screen ("capture"), or of each main screen ("tour": taps every tab in turn).
+// Rendered here, inside the sandbox, and sent back as PNGs.
+async function snap(scale) {
+  const dataUrl = await toPng(document.body, {
+    pixelRatio: scale,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
+    cacheBust: false,
+    // Photos from other websites may refuse to be copied; show a blank
+    // (a valid 1×1 transparent GIF) instead of failing, and never let one
+    // broken image stop the whole picture.
+    imagePlaceholder: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    onImageErrorHandler: () => undefined,
+  });
+  return { dataUrl, text: (document.body.innerText || "").replace(/\s+/g, " ").slice(0, 400) };
+}
+
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** The app's main screens: its tabs, or failing that the buttons of a bottom bar. */
+function tourTargets() {
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight;
+  };
+  const tabs = [...document.querySelectorAll('[role="tab"]')].filter(visible);
+  if (tabs.length >= 2) return tabs.slice(0, 6);
+  // Tappable things (buttons, or React Native touchables, which are focusable) along the bottom edge.
+  const near = [...document.querySelectorAll('[role="button"], button, [tabindex="0"]')].filter(
+    (el) => visible(el) && el.getBoundingClientRect().top > window.innerHeight - 120,
+  );
+  const bar = near.filter((el) => !near.some((other) => other !== el && el.contains(other)));
+  return bar.length >= 2 && bar.length <= 6 ? bar : [];
+}
+
 window.addEventListener("message", async (e) => {
   const msg = e.data;
-  if (e.source !== window.parent || !msg || msg.source !== "appmaker-parent" || msg.type !== "capture") return;
-  const reply = (body) => window.parent.postMessage({ source: "appmaker-preview", type: "capture", id: msg.id, ...body }, "*");
+  if (e.source !== window.parent || !msg || msg.source !== "appmaker-parent" || (msg.type !== "capture" && msg.type !== "tour")) return;
+  const reply = (body) => window.parent.postMessage({ source: "appmaker-preview", type: msg.type, id: msg.id, ...body }, "*");
   try {
     const scale = Math.min(4, Math.max(1, Number(msg.scale) || 3));
-    const dataUrl = await toPng(document.body, {
-      pixelRatio: scale,
-      width: window.innerWidth,
-      height: window.innerHeight,
-      backgroundColor: getComputedStyle(document.body).backgroundColor || "#ffffff",
-      cacheBust: false,
-      // Photos from other websites may refuse to be copied; show a blank
-      // (a valid 1×1 transparent GIF) instead of failing, and never let one
-      // broken image stop the whole picture.
-      imagePlaceholder: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
-      onImageErrorHandler: () => undefined,
-    });
-    reply({ dataUrl, text: (document.body.innerText || "").replace(/\s+/g, " ").slice(0, 400) });
+    // Wait for the app to show something (it may still be starting).
+    for (let i = 0; i < 25 && !(document.body.innerText || "").trim(); i++) await pause(200);
+    if (msg.type === "capture") return reply(await snap(scale));
+    const targets = tourTargets();
+    const shots = [];
+    if (!targets.length) shots.push(await snap(scale));
+    for (let i = 0; i < targets.length; i++) {
+      // Find the tab again: the screen re-renders after each tap.
+      const target = tourTargets()[i] || targets[i];
+      target.click();
+      await pause(700);
+      shots.push(await snap(scale));
+    }
+    // Back to the first screen.
+    if (targets.length) (tourTargets()[0] || targets[0]).click();
+    reply({ shots });
   } catch (err) {
     // A failed image load rejects with a bare Event: say what it means.
     const message = err instanceof Event ? "the screen has an image the browser couldn't draw" : String((err && err.message) || err);

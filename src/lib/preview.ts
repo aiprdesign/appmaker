@@ -42,6 +42,13 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
     window.alert = function () {};
     window.confirm = function () { return true; };
     window.prompt = function () { return null; };
+    // Photo pickers never open in the hidden copy: they act as if the person cancelled.
+    var realClick = HTMLInputElement.prototype.click;
+    HTMLInputElement.prototype.click = function () {
+      if (this.type !== "file") return realClick.apply(this, arguments);
+      var input = this;
+      setTimeout(function () { input.dispatchEvent(new Event("cancel")); }, 0);
+    };
     var realFetch = window.fetch;
     window.fetch = function (input, init) {
       var method = ((init && init.method) || (input && input.method) || "GET").toUpperCase();
