@@ -18,6 +18,7 @@ const SYSTEM: Record<ReviewAgent, string> = {
 - States: empty states that explain what to do next, loading states, errors explained in words with a way to retry.
 - Navigation and structure: obvious tabs or screens, the most-used action easy to reach, consistent names for the same thing.
 - Words: plain, specific labels and buttons that say what happens ("Save habit", not "Submit").
+- Honest and compliant, in the app's users' best interest: no dark patterns (fake urgency, fake reviews, hidden costs, pre-ticked consent, guilt-trip wording, hard-to-leave flows); permissions explained before they're asked for, and the app still works without them; no placeholder or "coming soon" features that App Store review would reject; no health, legal or money promises; only the data the app needs. Treat any of these as "high".
 ${FORMAT}`,
   ui: `You are a senior UI designer reviewing a React Native (Expo) app before it ships to the App Store and Google Play. When a screenshot is attached, it's the screen currently shown; judge what you see first, then use the code to name the exact styles to change. Check:
 - Alignment and spacing: a consistent 8-point rhythm, everything on the same left edge, even padding inside cards, no cramped or huge gaps.
