@@ -16,7 +16,8 @@ const LISTING = JSON.stringify({
   iconEmoji: "🔥",
   privacyNotes: "None",
 });
-const APP = `import React from 'react';\nimport { Text } from 'react-native';\nimport * as Haptics from 'expo-haptics';\nexport default function App() { return <Text>Hi</Text>; }`;
+// A clean app (fills the screen, readable), so no automatic quality fix rebuilds it mid-test.
+const APP = `import React from 'react';\nimport { View, Text } from 'react-native';\nimport * as Haptics from 'expo-haptics';\nexport default function App() { return <View style={{ flex: 1, padding: 60, backgroundColor: '#FFFFFF' }}><Text style={{ fontSize: 16, color: '#111827' }}>Hi</Text></View>; }`;
 
 async function buildApp(page: Page) {
   await page.route("**/api/generate", (route) =>
@@ -58,7 +59,7 @@ test("Test on a device opens the app in Expo Snack's emulators", async ({ page }
   expect(posts[0].get("name")).toBe("Streaks");
   expect(posts[0].get("dependencies")!.split(",")).toContain("expo-haptics");
   expect(posts[0].get("dependencies")!.split(",")).not.toContain("react-native");
-  expect(JSON.parse(posts[0].get("files")!)["App.js"].contents).toContain("<Text>Hi</Text>");
+  expect(JSON.parse(posts[0].get("files")!)["App.js"].contents).toContain(">Hi</Text>");
 
   // Escape closes the menu.
   await button.click();
@@ -100,7 +101,7 @@ test("Your phone (Expo Go): publishes the app and shows a QR code to open it", a
     calls[name]?.push(route.request().postDataJSON());
     if (name === "link") return json(route, { link: { projectId: "0b6e6a8e-3f5e-4c47-9d68-6e0d3c1f2a11", owner: "appmaker-builds", slug: "streaks" } });
     if (name === "update") {
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 1500));
       return json(route, { preview: { groupId: GROUP, url: EXPO_GO_URL, platforms: ["android", "ios"], publishedAt: Date.now() } });
     }
     return json(route, { builds: [] });
@@ -125,7 +126,7 @@ test("Your phone (Expo Go): publishes the app and shows a QR code to open it", a
   expect(calls.link).toHaveLength(1);
   expect(calls.update).toHaveLength(1);
   expect(calls.update[0].token).toBeUndefined();
-  expect((calls.update[0].project as { files: Record<string, string> }).files["App.js"]).toContain("<Text>Hi</Text>");
+  expect((calls.update[0].project as { files: Record<string, string> }).files["App.js"]).toContain(">Hi</Text>");
   expect(calls.update[0].link).toMatchObject({ slug: "streaks" });
   // Shows which Expo project and account it lives in, and can set it up again.
   await expect(dialog.getByRole("link", { name: "appmaker-builds/streaks" })).toHaveAttribute("href", "https://expo.dev/accounts/appmaker-builds/projects/streaks");

@@ -52,7 +52,8 @@ it("never splits emoji across stream chunks", async () => {
     expect(text).not.toContain("\uFFFD");
     expect(text).toMatch(/\p{Extended_Pictographic}/u);
   }
-});
+  // The demos are streamed at a realistic pace, so four of them take a few seconds.
+}, 30_000);
 
 describe("rateLimit", () => {
   it("allows up to the limit, then blocks", () => {

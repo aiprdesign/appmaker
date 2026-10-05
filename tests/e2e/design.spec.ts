@@ -33,9 +33,30 @@ test("the Design panel restyles the app instantly and the change is kept", async
 });
 
 test("apps made before design settings offer to become customizable", async ({ page }) => {
-  const app = await buildApp(page, "A habit tracker with streaks");
+  // An app with its own hard-coded colors (it doesn't read src/theme.js).
+  const listing = JSON.stringify({
+    name: "Old Style",
+    subtitle: "Testing",
+    description: "d".repeat(120),
+    keywords: "a",
+    category: "Utilities",
+    bundleId: "com.example.old",
+    primaryColor: "#123456",
+    iconEmoji: "🧪",
+    privacyNotes: "None",
+  });
+  const code = `import React from 'react';\nimport { View, Text } from 'react-native';\nexport default function App() {\n  return (<View style={{ flex: 1, padding: 60, backgroundColor: '#FFFFFF' }}><Text style={{ fontSize: 24, color: '#111827' }}>Today</Text></View>);\n}`;
+  await page.route("**/api/generate", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/plain",
+      headers: { "X-Appmaker-Mode": "ai" },
+      body: `<plan>x</plan>\n<file path="App.js">\n${code}\n</file>\n<listing>${listing}</listing>\n<summary>ok</summary>`,
+    }),
+  );
+  const app = await buildApp(page, "An old-style app");
   await expect(app.getByText("Today").first()).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: "Design" }).click();
+  await page.getByRole("button", { name: "Design", exact: true }).click();
   await expect(page.getByRole("button", { name: "Make this app customizable" })).toBeVisible();
 });
 

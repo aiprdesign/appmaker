@@ -1,16 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StatusBar } from 'expo-status-bar';
+import * as Haptics from 'expo-haptics';
+import { Dumbbell, Trophy, Zap, Flame, Footprints, PersonStanding, Play, Pause, SkipForward, X, Timer, Clock } from 'lucide-react-native';
+import { colors, radius, font, card, mode } from './src/theme';
 
-const ACCENT = '#D23C17';
 const WORKOUTS = [
   { id: 'hiit', name: 'Morning HIIT', emoji: '⚡', minutes: 20, level: 'Intermediate', moves: ['Jumping jacks', 'Burpees', 'Mountain climbers', 'High knees', 'Squat jumps'] },
   { id: 'core', name: 'Core Crusher', emoji: '🔥', minutes: 15, level: 'Beginner', moves: ['Plank', 'Crunches', 'Leg raises', 'Russian twists'] },
   { id: 'legs', name: 'Leg Day', emoji: '🦵', minutes: 30, level: 'Advanced', moves: ['Squats', 'Lunges', 'Glute bridges', 'Calf raises', 'Wall sit'] },
   { id: 'yoga', name: 'Evening Stretch', emoji: '🧘', minutes: 12, level: 'All levels', moves: ["Child's pose", 'Cat-cow', 'Downward dog', 'Pigeon pose'] },
 ];
+const ICONS = { hiit: Zap, core: Flame, legs: Footprints, yoga: PersonStanding };
 const MOVE_SECONDS = 40;
+
+const iconFor = (name) => {
+  const w = WORKOUTS.find((x) => x.name === name);
+  return (w && ICONS[w.id]) || Dumbbell;
+};
+
+const tapLight = () => {
+  try {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  } catch (e) {
+    // Haptics aren't available everywhere.
+  }
+};
 
 export default function App() {
   const [tab, setTab] = useState('workouts');
@@ -42,6 +59,7 @@ export default function App() {
   }, [seconds]);
 
   const start = (w) => {
+    tapLight();
     setActive(w);
     setMoveIndex(0);
     setSeconds(MOVE_SECONDS);
@@ -50,6 +68,7 @@ export default function App() {
 
   const finish = () => {
     setRunning(false);
+    tapLight();
     const next = [{ id: String(Date.now()), name: active.name, emoji: active.emoji, minutes: active.minutes, date: Date.now() }, ...history];
     setHistory(next);
     AsyncStorage.setItem('fitness.history', JSON.stringify(next));
@@ -59,14 +78,21 @@ export default function App() {
 
   if (active) {
     const pct = 1 - seconds / MOVE_SECONDS;
+    const ActiveIcon = ICONS[active.id] || Dumbbell;
     return (
-      <View style={[styles.root, { backgroundColor: '#111' }]}>
+      <View style={styles.root}>
+        <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
         <SafeAreaView style={styles.player}>
+          <View style={styles.playerIcon} accessible={false}>
+            <ActiveIcon size={32} color={colors.primary} accessible={false} />
+          </View>
           <Text style={styles.playerKicker}>
             {active.name} · {moveIndex + 1}/{active.moves.length}
           </Text>
-          <Text style={styles.playerMove}>{active.moves[moveIndex]}</Text>
-          <View style={styles.ring}>
+          <Text style={styles.playerMove} accessibilityRole="header">
+            {active.moves[moveIndex]}
+          </Text>
+          <View style={styles.ring} accessibilityLabel={`${seconds} seconds left`}>
             <Text style={styles.ringText}>{seconds}</Text>
             <Text style={styles.ringSub}>seconds</Text>
           </View>
@@ -74,15 +100,33 @@ export default function App() {
             <View style={[styles.playerFill, { width: `${pct * 100}%` }]} />
           </View>
           <View style={styles.controls}>
-            <TouchableOpacity style={styles.ghost} onPress={() => setActive(null)}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="End workout"
+              style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
+              onPress={() => setActive(null)}
+            >
+              <X size={18} color={colors.text} accessible={false} />
               <Text style={styles.ghostText}>End</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.primary} onPress={() => setRunning((r) => !r)}>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={running ? 'Pause workout' : 'Resume workout'}
+              style={({ pressed }) => [styles.primary, pressed && styles.pressedScale]}
+              onPress={() => setRunning((r) => !r)}
+            >
+              {running ? <Pause size={20} color={colors.onPrimary} accessible={false} /> : <Play size={20} color={colors.onPrimary} accessible={false} />}
               <Text style={styles.primaryText}>{running ? 'Pause' : 'Resume'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.ghost} onPress={() => setSeconds(0)}>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Skip to next move"
+              style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
+              onPress={() => setSeconds(0)}
+            >
+              <SkipForward size={18} color={colors.text} accessible={false} />
               <Text style={styles.ghostText}>Skip</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </SafeAreaView>
       </View>
@@ -93,59 +137,122 @@ export default function App() {
 
   return (
     <View style={styles.root}>
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content}>
           {tab === 'workouts' ? (
             <>
               <Text style={styles.kicker}>Let&apos;s move</Text>
-              <Text style={styles.title}>Workouts</Text>
-              {WORKOUTS.map((w, i) => (
-                <TouchableOpacity key={w.id} onPress={() => start(w)} style={[styles.card, i === 0 && { backgroundColor: ACCENT }]}>
-                  <Text style={{ fontSize: 34 }}>{w.emoji}</Text>
-                  <Text style={[styles.cardTitle, i === 0 && { color: '#fff' }]}>{w.name}</Text>
-                  <Text style={[styles.cardMeta, i === 0 && { color: 'rgba(255,255,255,0.85)' }]}>
-                    {w.minutes} min · {w.level} · {w.moves.length} moves
-                  </Text>
-                  <View style={[styles.startPill, i === 0 && { backgroundColor: '#fff' }]}>
-                    <Text style={[styles.startText, i === 0 && { color: ACCENT }]}>Start ▶</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+              <Text style={styles.title} accessibilityRole="header">
+                Workouts
+              </Text>
+              {WORKOUTS.map((w, i) => {
+                const hero = i === 0;
+                const Icon = ICONS[w.id] || Dumbbell;
+                return (
+                  <Pressable
+                    key={w.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Start ${w.name}, ${w.minutes} minutes, ${w.level}, ${w.moves.length} moves`}
+                    onPress={() => start(w)}
+                    style={({ pressed }) => [card, styles.card, hero && styles.heroCard, pressed && styles.pressedScale]}
+                  >
+                    <View style={hero ? styles.cardTop : styles.cardRow}>
+                      <View style={hero ? styles.heroIcon : styles.iconBox} accessible={false}>
+                        <Icon size={hero ? 56 : 30} color={hero ? colors.onPrimary : colors.primary} accessible={false} />
+                      </View>
+                      <View style={hero ? null : { flex: 1 }}>
+                        <Text style={[styles.cardTitle, hero && styles.heroTitle]}>{w.name}</Text>
+                        <View style={styles.metaRow}>
+                          <Clock size={14} color={hero ? colors.onPrimary : colors.muted} accessible={false} />
+                          <Text style={[styles.cardMeta, hero && { color: colors.onPrimary }]}>
+                            {w.minutes} min · {w.level} · {w.moves.length} moves
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={[styles.startPill, hero && { backgroundColor: colors.surface }]}>
+                      <Play size={16} color={colors.primary} fill={colors.primary} accessible={false} />
+                      <Text style={styles.startText}>Start</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
             </>
           ) : (
             <>
-              <Text style={styles.title}>Progress</Text>
+              <Text style={styles.title} accessibilityRole="header">
+                Progress
+              </Text>
               <View style={styles.statRow}>
-                <View style={styles.stat}>
-                  <Text style={styles.statValue}>{history.length}</Text>
-                  <Text style={styles.statLabel}>Workouts</Text>
+                <View style={[card, styles.stat, styles.statHero]}>
+                  <Trophy size={24} color={colors.onPrimary} accessible={false} />
+                  <Text style={[styles.statValue, { color: colors.onPrimary }]}>{history.length}</Text>
+                  <Text style={[styles.statLabel, { color: colors.onPrimary }]}>Workouts</Text>
                 </View>
-                <View style={styles.stat}>
+                <View style={[card, styles.stat]}>
+                  <Timer size={24} color={colors.primary} accessible={false} />
                   <Text style={styles.statValue}>{totalMinutes}</Text>
                   <Text style={styles.statLabel}>Minutes</Text>
                 </View>
               </View>
-              {history.length === 0 && <Text style={styles.empty}>Finish a workout to see it here 💪</Text>}
-              {history.map((h) => (
-                <View key={h.id} style={styles.logRow}>
-                  <Text style={{ fontSize: 22 }}>{h.emoji}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.logTitle}>{h.name}</Text>
-                    <Text style={styles.logMeta}>{new Date(h.date).toLocaleString()}</Text>
+              {history.length === 0 && (
+                <View style={styles.emptyBox}>
+                  <View style={styles.emptyCircle} accessible={false}>
+                    <Trophy size={44} color={colors.primary} accessible={false} />
                   </View>
-                  <Text style={styles.logMin}>{h.minutes}m</Text>
+                  <Text style={styles.empty}>Finish a workout to see it here</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Choose a workout"
+                    onPress={() => setTab('workouts')}
+                    style={({ pressed }) => [styles.emptyButton, pressed && styles.pressedScale]}
+                  >
+                    <Dumbbell size={20} color={colors.onPrimary} accessible={false} />
+                    <Text style={styles.primaryText}>Choose a workout</Text>
+                  </Pressable>
                 </View>
-              ))}
+              )}
+              {history.map((h) => {
+                const Icon = iconFor(h.name);
+                return (
+                  <View key={h.id} style={[card, styles.logRow]}>
+                    <View style={styles.logIcon} accessible={false}>
+                      <Icon size={22} color={colors.primary} accessible={false} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.logTitle}>{h.name}</Text>
+                      <Text style={styles.logMeta}>{new Date(h.date).toLocaleString()}</Text>
+                    </View>
+                    <Text style={styles.logMin}>{h.minutes}m</Text>
+                  </View>
+                );
+              })}
             </>
           )}
         </ScrollView>
         <View style={styles.tabBar}>
-          {[['workouts', '🏋️', 'Workouts'], ['progress', '🏆', 'Progress']].map(([k, icon, label]) => (
-            <TouchableOpacity key={k} style={styles.tab} onPress={() => setTab(k)}>
-              <Text style={{ fontSize: 20, opacity: tab === k ? 1 : 0.45 }}>{icon}</Text>
-              <Text style={[styles.tabLabel, tab === k && { color: ACCENT }]}>{label}</Text>
-            </TouchableOpacity>
-          ))}
+          {[
+            ['workouts', Dumbbell, 'Workouts'],
+            ['progress', Trophy, 'Progress'],
+          ].map(([k, Icon, label]) => {
+            const selected = tab === k;
+            return (
+              <Pressable
+                key={k}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                accessibilityLabel={label}
+                style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+                onPress={() => setTab(k)}
+              >
+                <Icon size={24} color={selected ? colors.primary : colors.muted} accessible={false} />
+                <Text style={[styles.tabLabel, selected && { color: colors.primary }]} maxFontSizeMultiplier={1.4}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </SafeAreaView>
     </View>
@@ -153,38 +260,89 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFF8F5' },
+  root: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingBottom: 40 },
-  kicker: { color: ACCENT, fontWeight: '700', textTransform: 'uppercase', fontSize: 13 },
-  title: { fontSize: 34, fontWeight: '800', color: '#1A1110', marginBottom: 16 },
-  card: { backgroundColor: '#fff', borderRadius: 24, padding: 20, marginBottom: 12 },
-  cardTitle: { fontSize: 22, fontWeight: '800', color: '#1A1110', marginTop: 8 },
-  cardMeta: { color: '#7A6C68', marginTop: 4 },
-  startPill: { alignSelf: 'flex-start', backgroundColor: '#FFE8E1', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, marginTop: 14 },
-  startText: { color: ACCENT, fontWeight: '700' },
-  statRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  stat: { flex: 1, backgroundColor: '#fff', borderRadius: 20, padding: 18 },
-  statValue: { fontSize: 30, fontWeight: '800', color: '#1A1110' },
-  statLabel: { color: '#7A6C68' },
-  empty: { color: '#7A6C68', textAlign: 'center', marginTop: 20 },
-  logRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', padding: 14, borderRadius: 16, marginBottom: 8 },
-  logTitle: { fontWeight: '700', color: '#1A1110', fontSize: 16 },
-  logMeta: { color: '#7A6C68', fontSize: 12, marginTop: 2 },
-  logMin: { fontWeight: '800', color: ACCENT },
-  player: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  playerKicker: { color: '#999', fontWeight: '600' },
-  playerMove: { color: '#fff', fontSize: 32, fontWeight: '800', marginTop: 8, textAlign: 'center' },
-  ring: { width: 200, height: 200, borderRadius: 100, borderWidth: 10, borderColor: ACCENT, alignItems: 'center', justifyContent: 'center', marginVertical: 36 },
-  ringText: { color: '#fff', fontSize: 64, fontWeight: '800' },
-  ringSub: { color: '#999' },
-  playerTrack: { width: '100%', height: 6, backgroundColor: '#333', borderRadius: 3 },
-  playerFill: { height: 6, backgroundColor: ACCENT, borderRadius: 3 },
-  controls: { flexDirection: 'row', gap: 12, marginTop: 36 },
-  primary: { backgroundColor: ACCENT, paddingHorizontal: 28, paddingVertical: 16, borderRadius: 999 },
-  primaryText: { color: '#fff', fontWeight: '800', fontSize: 17 },
-  ghost: { borderWidth: 1, borderColor: '#444', paddingHorizontal: 20, paddingVertical: 16, borderRadius: 999 },
-  ghostText: { color: '#ddd', fontWeight: '700' },
-  tabBar: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#F1E4DF', paddingTop: 8, paddingBottom: 20 },
+  pressed: { opacity: 0.7 },
+  pressedScale: { opacity: 0.9, transform: [{ scale: 0.97 }] },
+  kicker: { color: colors.primary, fontWeight: font.heading, textTransform: 'uppercase', fontSize: 13, letterSpacing: 0.5 },
+  title: { fontSize: 34, fontWeight: font.heading, color: colors.text, letterSpacing: -0.5, marginBottom: 16 },
+  card: { padding: 20, marginBottom: 12 },
+  heroCard: { backgroundColor: colors.primary, padding: 24 },
+  cardTop: { gap: 12 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  heroIcon: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
+  iconBox: { width: 56, height: 56, borderRadius: radius.md, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { fontSize: 20, fontWeight: font.heading, color: colors.text },
+  heroTitle: { fontSize: 24, color: colors.onPrimary },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  cardMeta: { color: colors.muted, fontSize: 14, fontVariant: ['tabular-nums'], flexShrink: 1 },
+  startPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 16,
+    minHeight: 44,
+    borderRadius: radius.pill,
+    marginTop: 16,
+  },
+  startText: { color: colors.primary, fontWeight: font.heading, fontSize: 15 },
+  statRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  stat: { flex: 1, padding: 20, gap: 4 },
+  statHero: { backgroundColor: colors.primary },
+  statValue: { fontSize: 32, fontWeight: font.heading, color: colors.text, fontVariant: ['tabular-nums'], marginTop: 8 },
+  statLabel: { color: colors.muted, fontSize: 14 },
+  emptyBox: { alignItems: 'center', paddingVertical: 24, gap: 16 },
+  emptyCircle: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  empty: { color: colors.muted, textAlign: 'center', fontSize: 15 },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    height: 52,
+    paddingHorizontal: 24,
+    borderRadius: radius.md,
+  },
+  logRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, minHeight: 56, marginBottom: 12 },
+  logIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  logTitle: { fontWeight: font.heading, color: colors.text, fontSize: 16 },
+  logMeta: { color: colors.muted, fontSize: 13, marginTop: 2 },
+  logMin: { fontWeight: font.heading, color: colors.primary, fontSize: 16, fontVariant: ['tabular-nums'] },
+  player: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  playerIcon: { width: 64, height: 64, borderRadius: radius.lg, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  playerKicker: { color: colors.muted, fontWeight: '600', fontSize: 15, fontVariant: ['tabular-nums'] },
+  playerMove: { color: colors.text, fontSize: 32, fontWeight: font.heading, letterSpacing: -0.5, marginTop: 8, textAlign: 'center' },
+  ring: { width: 200, height: 200, borderRadius: 100, borderWidth: 10, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginVertical: 32 },
+  ringText: { color: colors.text, fontSize: 64, fontWeight: font.heading, fontVariant: ['tabular-nums'] },
+  ringSub: { color: colors.muted, fontSize: 15 },
+  playerTrack: { width: '100%', height: 6, backgroundColor: colors.border, borderRadius: 3 },
+  playerFill: { height: 6, backgroundColor: colors.primary, borderRadius: 3 },
+  controls: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginTop: 32 },
+  primary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    height: 52,
+    borderRadius: radius.pill,
+  },
+  primaryText: { color: colors.onPrimary, fontWeight: font.heading, fontSize: 17 },
+  ghost: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    paddingHorizontal: 14,
+    height: 52,
+    borderRadius: radius.pill,
+  },
+  ghostText: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  tabBar: { flexDirection: 'row', backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingTop: 8, paddingBottom: 20 },
   tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  tabLabel: { fontSize: 11, color: '#7A6C68', fontWeight: '600' },
+  tabLabel: { fontSize: 12, color: colors.muted, fontWeight: '600' },
 });

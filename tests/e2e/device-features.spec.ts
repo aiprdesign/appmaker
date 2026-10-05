@@ -80,7 +80,7 @@ export default function App() {
   };
   return (
     <View style={{ flex: 1, padding: 60 }}>
-      <TouchableOpacity onPress={pick}><Text>Choose photo</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" onPress={pick} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ color: '#111827' }}>Choose photo</Text></TouchableOpacity>
       {photo && <Image testID="photo" source={{ uri: photo.uri }} style={{ width: 120, height: 120 }} />}
       {photo && <Text>{photo.width}x{photo.height}</Text>}
     </View>

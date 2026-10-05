@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { Bell } from 'lucide-react-native';
+import { colors, radius, font, card } from '../theme';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
@@ -14,7 +16,7 @@ const TIMES = [
   { hour: 20, label: '8:00 PM' },
 ];
 
-export default function ReminderCard({ accent }) {
+export default function ReminderCard() {
   const [reminder, setReminder] = useState({ enabled: false, hour: 20, id: null });
   const [message, setMessage] = useState('');
 
@@ -44,32 +46,46 @@ export default function ReminderCard({ accent }) {
   };
 
   return (
-    <View style={styles.card}>
+    <View style={[card, styles.card]}>
       <View style={styles.header}>
+        <View style={styles.iconBox} accessible={false}>
+          <Bell size={24} color={colors.primary} accessible={false} />
+        </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>🔔 Daily reminder</Text>
+          <Text style={styles.title}>Daily reminder</Text>
           <Text style={styles.sub}>{reminder.enabled ? `Every day at ${TIMES.find((t) => t.hour === reminder.hour)?.label}` : 'Off'}</Text>
         </View>
-        <TouchableOpacity
+        <Pressable
           onPress={() => apply(!reminder.enabled, reminder.hour)}
-          style={[styles.toggle, reminder.enabled && { backgroundColor: accent }]}
+          style={({ pressed }) => [styles.toggle, reminder.enabled && { backgroundColor: colors.primary }, pressed && { opacity: 0.7 }]}
           accessibilityRole="switch"
+          accessibilityLabel="Daily reminder"
           accessibilityState={{ checked: reminder.enabled }}
         >
-          <View style={[styles.knob, reminder.enabled && { alignSelf: 'flex-end' }]} />
-        </TouchableOpacity>
+          <View style={[styles.knob, reminder.enabled && { alignSelf: 'flex-end', backgroundColor: colors.onPrimary }]} />
+        </Pressable>
       </View>
       {reminder.enabled && (
         <View style={styles.times}>
-          {TIMES.map((t) => (
-            <TouchableOpacity
-              key={t.hour}
-              onPress={() => apply(true, t.hour)}
-              style={[styles.time, reminder.hour === t.hour && { backgroundColor: accent, borderColor: accent }]}
-            >
-              <Text style={[styles.timeText, reminder.hour === t.hour && { color: '#fff' }]}>{t.label}</Text>
-            </TouchableOpacity>
-          ))}
+          {TIMES.map((t) => {
+            const selected = reminder.hour === t.hour;
+            return (
+              <Pressable
+                key={t.hour}
+                onPress={() => apply(true, t.hour)}
+                accessibilityRole="button"
+                accessibilityLabel={`Remind me at ${t.label}`}
+                accessibilityState={{ selected }}
+                style={({ pressed }) => [
+                  styles.time,
+                  selected && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={[styles.timeText, selected && { color: colors.onPrimary }]}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
       )}
       {!!message && <Text style={styles.message}>{message}</Text>}
@@ -78,14 +94,15 @@ export default function ReminderCard({ accent }) {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 20 },
+  card: { padding: 16, marginBottom: 20 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  title: { fontSize: 16, fontWeight: '700', color: '#16141F' },
-  sub: { fontSize: 13, color: '#625F73', marginTop: 2 },
-  toggle: { width: 56, height: 44, borderRadius: 22, backgroundColor: '#D5D1E3', padding: 6, justifyContent: 'center' },
-  knob: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#fff' },
-  times: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  time: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: '#E6E3F0', alignItems: 'center', justifyContent: 'center' },
-  timeText: { color: '#16141F', fontWeight: '600' },
-  message: { marginTop: 10, color: '#B42318', fontSize: 13 },
+  iconBox: { width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 16, lineHeight: 21, fontWeight: font.heading, color: colors.text },
+  sub: { fontSize: 13, lineHeight: 17, color: colors.muted, marginTop: 2, fontVariant: ['tabular-nums'] },
+  toggle: { width: 56, height: 44, borderRadius: radius.pill, backgroundColor: colors.outline, padding: 6, justifyContent: 'center' },
+  knob: { width: 32, height: 32, borderRadius: radius.pill, backgroundColor: colors.surface },
+  times: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  time: { flex: 1, minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.outline, alignItems: 'center', justifyContent: 'center' },
+  timeText: { color: colors.text, fontWeight: font.heading, fontSize: 14, fontVariant: ['tabular-nums'] },
+  message: { marginTop: 12, color: colors.danger, fontSize: 13, lineHeight: 17 },
 });
