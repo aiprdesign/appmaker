@@ -9,6 +9,7 @@ import type { Prices } from "@/lib/credits";
 import { AppsTab } from "./AppsTab";
 import { QualityTab } from "./QualityTab";
 import { LegalSection } from "./LegalSection";
+import { AccessSection } from "./AccessSection";
 
 type Tab = "overview" | "members" | "apps" | "quality" | "settings";
 
@@ -187,7 +188,7 @@ function AdminLogin({ onIn }: { onIn: () => void }) {
       <ShieldCheck className="h-8 w-8 text-violet-400" />
       <h1 className="mt-3 text-2xl font-semibold tracking-tight">Admin sign-in</h1>
       <p className="mt-2 text-sm text-muted">
-        Use the password set in the server&apos;s <code className="font-mono">ADMIN_PASSWORD</code> variable.
+        Use the password set in the server&apos;s <code className="font-mono">ADMIN_PASSWORD</code> variable. After 3 wrong tries, sign-in locks for 15 minutes.
       </p>
       <label className="mt-6 block">
         <span className="mb-1.5 block text-xs font-medium">Admin password</span>
@@ -638,6 +639,7 @@ function SettingsTab({
   return (
     <div className="max-w-2xl space-y-6">
       <PaymentsSection />
+      <AccessSection />
       <LegalSection />
       {error && (
         <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-200">
