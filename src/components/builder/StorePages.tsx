@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, CheckCircle2, Copy, Download, ExternalLink, FileText, Globe, Loader2, RefreshCw } from "lucide-react";
+import { Check, CheckCircle2, Copy, Download, ExternalLink, FileText, Globe, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 import { useCloud } from "@/lib/cloud";
 import { downloadBlob } from "@/lib/export";
 import { pageAsHtml, pageAsText, pageContentFor, type OwnPage, type StorePageContent } from "@/lib/store-pages";
@@ -118,9 +118,24 @@ export function StorePages({
         </div>
         <p className="text-xs text-muted">
           The privacy policy covers {covers.length ? covers.join(", ") : "an app that doesn't collect or store personal information"}. The support page includes
-          an accessibility section with your email. These pages are a starting point, not legal advice: read them, and have them checked if you&apos;re unsure,
-          before you publish.
+          an accessibility section with your email.
         </p>
+      </div>
+      <div
+        role="note"
+        aria-label="You're responsible for these pages"
+        className="mt-4 flex gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-relaxed text-amber-100/90"
+      >
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+        <div>
+          <p className="font-medium text-amber-100">You&apos;re responsible for what these pages say</p>
+          <p className="mt-1">
+            Appmaker drafts them from what your app&apos;s code does, but it can&apos;t see everything: services, tools or data you add outside Appmaker, how
+            your business handles information, or the laws where you publish. Before you publish, read every page, correct anything that isn&apos;t true for
+            your app, fill in any [placeholders], and update them whenever your app changes. This is a starting point, not legal advice: if you&apos;re unsure,
+            have a lawyer check them. Whether you use Appmaker&apos;s pages or host your own, what they say is your responsibility.
+          </p>
+        </div>
       </div>
       <h3 className="mt-5 text-sm font-semibold">Option 1: Appmaker hosts them (quickest)</h3>
       {cloud.enabled === false ? (
@@ -277,10 +292,6 @@ export function StorePages({
         !(isLink(project.listing.privacyPolicyUrl) && isLink(project.listing.supportUrl)) && (
           <p className="mt-2 text-xs text-amber-200">Both links need to be full web addresses starting with https:// so the stores can open them.</p>
         )}
-      <p className="mt-3 text-xs text-muted">
-        These pages are a starting point written from what your app does, not legal advice: read them, fill in any [placeholders], and have them checked if
-        you&apos;re unsure. Update them whenever your app starts collecting something new.
-      </p>
     </section>
   );
 }

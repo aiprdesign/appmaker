@@ -88,7 +88,8 @@ export function termsSections(): LegalSection[] {
       paragraphs: [
         "You're responsible for everything in your apps and their store listings: text, claims, prices, images and features. Make sure it's true, accurate and allowed, and that it follows the law and Apple's and Google's rules. That includes rules on advertising, consumer protection, privacy, health and financial claims, and intellectual property.",
         "Appmaker's claim-safe wording and its checks for health, medical and financial claims help, but they can't catch everything and aren't legal advice. Whether an app is accepted by Apple or Google is up to them.",
-        "If your app collects information from its users (for example bookings), you are responsible to those users for how it's handled, and for having a privacy policy that describes it. Appmaker can create one for you, which you should check.",
+        "If your app collects information from its users (for example bookings), you are responsible to those users for how it's handled, and for having a privacy policy that describes it.",
+        "Appmaker can draft your app's privacy policy, support page and terms of use from what its code does, but you are responsible for them, wherever they're hosted: what they say must be true and complete for your app and your business, including anything Appmaker can't see (such as services, tools or data you add outside it), and lawful where you publish. They're a starting point, not legal advice: read them, correct them, and keep them up to date.",
       ],
     },
     {

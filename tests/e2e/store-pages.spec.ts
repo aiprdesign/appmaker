@@ -68,6 +68,7 @@ test("without an account: copy or download the pages for your own website, then 
   const box = page.getByRole("region", { name: /Support page, privacy policy & terms/ });
   await box.getByLabel("Business or developer name").fill("Habit Co");
   await expect(box.getByRole("heading", { name: "Option 2: host them on your own site" })).toBeVisible();
+  await expect(box.getByRole("note", { name: "You're responsible for these pages" })).toContainText("not legal advice");
   await expect(box.getByRole("link", { name: "sites.google.com" })).toHaveAttribute("href", "https://sites.google.com/new");
 
   const download = page.waitForEvent("download");
