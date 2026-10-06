@@ -1,3 +1,4 @@
+import { getStyle } from "@/lib/styles";
 import { getProvider, type AiChoice } from "@/lib/ai/providers";
 import { aiErrorMessage, AiConfigError, canSeeImages, resolveAi, streamGeneration, type ResolvedAi } from "@/lib/ai/server";
 import { demoResponse } from "@/lib/demo";
@@ -37,6 +38,8 @@ interface GenerateRequest {
   ai?: Partial<AiChoice>;
   /** "claim-safe" (default) keeps app text free of marketing claims. */
   wording?: "claim-safe" | "standard";
+  /** The app's design style (see src/lib/styles.ts). */
+  style?: string;
   /** Sent by the builder's automatic quality fixes (free within a limit when credits are on). */
   auto?: boolean;
   /** Screenshots of the app (data URLs) for the AI to look at, used by "Polish design". */
@@ -84,6 +87,7 @@ function validateRequest(body: GenerateRequest): string | null {
     if (bytes > MAX_FILES_BYTES) return "the app is too large to edit in one request";
   }
   if (body.wording != null && body.wording !== "claim-safe" && body.wording !== "standard") return "wording must be claim-safe or standard";
+  if (body.style != null && !getStyle(body.style)) return "style is not a known design style";
   if (body.listing != null) {
     if (typeof body.listing !== "object" || Array.isArray(body.listing)) return "listing must be an object";
     if (JSON.stringify(body.listing).length > 10_000) return "listing is too large";
@@ -216,7 +220,7 @@ async function generate(req: Request): Promise<Response> {
       outcome = await streamGeneration({
         ai: resolved,
         system: systemPrompt(body.wording === "standard" ? "standard" : "claim-safe"),
-        messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site) }],
+        messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site, getStyle(body.style)) }],
         signal: req.signal,
         images,
         // A tiny "still thinking" signal at most every 1.5s, so the page can show the AI is busy.

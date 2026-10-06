@@ -148,8 +148,16 @@ export interface AppDesign {
   /** "auto" follows the phone's light or dark setting. */
   mode: "auto" | "light" | "dark";
   corners: "sharp" | "rounded" | "soft";
-  cards: "flat" | "raised" | "outlined" | "glass";
+  cards: "flat" | "raised" | "outlined" | "glass" | "brutal" | "clay";
   headings: "light" | "regular" | "bold";
+  /** The design style it came from (see src/lib/styles.ts); older designs have none. */
+  style?: string;
+  /** Heading typeface. */
+  font?: "system" | "serif" | "mono";
+  /** Screen background family. */
+  surface?: "default" | "paper" | "warm" | "cream" | "ink" | "tinted";
+  /** Small section labels: plain, or uppercase and letter-spaced. */
+  labels?: "normal" | "caps";
 }
 
 /** The app's hosted support page and privacy policy. */

@@ -1,4 +1,5 @@
 import type { AppDesign, StoreListing } from "./types";
+import { applyStyle, pickStyle } from "./styles";
 
 /**
  * Design settings for an app: color scheme, light or dark, corners, card
@@ -31,6 +32,22 @@ export const PALETTES: { id: string; name: string; primary: string; accent: stri
 export const CORNERS = { sharp: { sm: 4, md: 8, lg: 12 }, rounded: { sm: 8, md: 14, lg: 20 }, soft: { sm: 12, md: 20, lg: 28 } } as const;
 export const HEADINGS = { light: "600", regular: "700", bold: "800" } as const;
 
+/** Screen backgrounds and card surfaces for each surface family (light, dark). */
+const SURFACES = {
+  default: { light: ["#F7F7FA", "#FFFFFF"], dark: ["#0B0B10", "#16161F"] },
+  paper: { light: ["#FAFAF7", "#FFFFFF"], dark: ["#111111", "#1B1B1B"] },
+  warm: { light: ["#F4EFE6", "#FFFCF7"], dark: ["#15120F", "#221D18"] },
+  cream: { light: ["#FFF6E0", "#FFFFFF"], dark: ["#121212", "#1E1E1E"] },
+  ink: { light: ["#F5F4F0", "#FFFFFF"], dark: ["#09090B", "#141416"] },
+  tinted: { light: ["", "#FFFFFF"], dark: ["", "#16161F"] },
+} as const;
+
+/** Heading typefaces, as Platform.select options (no font files needed: these ship with the phones). */
+export const FONT_FAMILIES = {
+  serif: { ios: "Georgia", android: "serif", default: "Georgia, 'Times New Roman', serif" },
+  mono: { ios: "Menlo", android: "monospace", default: "ui-monospace, Menlo, monospace" },
+} as const;
+
 const HEX = /^#[0-9a-f]{6}$/i;
 
 export function defaultDesign(listing?: Pick<StoreListing, "primaryColor">): AppDesign {
@@ -38,18 +55,8 @@ export function defaultDesign(listing?: Pick<StoreListing, "primaryColor">): App
   return { primary, mode: "auto", corners: "rounded", cards: "raised", headings: "bold" };
 }
 
-type Look = Pick<AppDesign, "corners" | "cards" | "headings">;
-
-/** Looks people can ask for in the app brief ("Look and feel: …"). */
-const LOOKS: { match: RegExp; look: Look; palette?: string }[] = [
-  { match: /look and feel: clean and simple/i, look: { corners: "rounded", cards: "outlined", headings: "regular" } },
-  { match: /look and feel: bold and colorful/i, look: { corners: "soft", cards: "raised", headings: "bold" } },
-  { match: /look and feel: calm and soft/i, look: { corners: "soft", cards: "glass", headings: "regular" } },
-  { match: /look and feel: sleek and premium/i, look: { corners: "rounded", cards: "glass", headings: "light" }, palette: "midnight" },
-];
-
-/** What suits each kind of app: a color scheme and a style. */
-const KINDS: { match: RegExp; palette: string; look: Look }[] = [
+/** A color scheme for each kind of app, for when the AI names no brand color. */
+const KINDS: { match: RegExp; palette: string; look: Pick<AppDesign, "corners" | "cards" | "headings"> }[] = [
   {
     match: /\b(meditat|mindful|yoga|sleep|wellness|wellbeing|breath|calm|therapy|spa)/i,
     palette: "lagoon",
@@ -102,17 +109,20 @@ function hueOf(hex: string): number {
  * and paired with the accent of the closest scheme.
  */
 export function autoDesign(listing: Pick<StoreListing, "primaryColor">, prompt: string, fromWebsite = false): AppDesign {
-  const asked = LOOKS.find((l) => l.match.test(prompt));
+  const { style } = pickStyle(prompt);
   const kind = KINDS.find((k) => k.match.test(prompt));
-  const look: Look = asked?.look ?? kind?.look ?? { corners: "rounded", cards: "raised", headings: "bold" };
-  const scheme = PALETTES.find((p) => p.id === (asked?.palette ?? kind?.palette)) ?? PALETTES.find((p) => p.id === "aurora")!;
+  const scheme = PALETTES.find((p) => p.id === kind?.palette) ?? PALETTES.find((p) => p.id === "aurora")!;
   const own = HEX.test(listing.primaryColor) ? listing.primaryColor : null;
-  if (fromWebsite && own) return { primary: own, accent: rotateHue(own, 35), mode: "auto", ...look };
-  const primary = own ?? scheme.primary;
-  // The scheme whose brand color is closest in hue gives the accent.
+  const base: AppDesign = { primary: own ?? scheme.primary, mode: "auto", corners: "rounded", cards: "raised", headings: "bold" };
+  // A website's brand color is always kept.
+  if (fromWebsite && own) return applyStyle({ ...base, accent: rotateHue(own, 35) }, style, true);
+  // Styles with signature colors (dark luxe's gold, neon's glow) use them.
+  if (style.colors) return applyStyle(base, style, false);
+  // Otherwise the AI's color, with the accent of the scheme closest in hue.
+  const primary = base.primary;
   const distance = (h: number) => Math.min(Math.abs(h - hueOf(primary)), 360 - Math.abs(h - hueOf(primary)));
   const closest = own ? [...PALETTES].sort((a, b) => distance(hueOf(a.primary)) - distance(hueOf(b.primary)))[0] : scheme;
-  return { primary, accent: closest.accent, mode: "auto", ...look };
+  return applyStyle({ ...base, accent: closest.accent }, style, true);
 }
 
 function rgb(hex: string): [number, number, number] {
@@ -204,6 +214,12 @@ export interface Theme {
   backgroundGradient: [string, string];
   /** Cards are frosted glass: put them over backgroundGradient or a gradient hero. */
   glass: boolean;
+  /** Heading typeface (null: the phone's own). */
+  headingFamily: "serif" | "mono" | null;
+  /** Heading letter spacing. */
+  headingTracking: number;
+  /** Small section labels in uppercase with wide spacing. */
+  labelCaps: boolean;
 }
 
 /**
@@ -214,10 +230,12 @@ export interface Theme {
 export function themeFor(design: AppDesign, forMode?: "light" | "dark"): Theme {
   const mode = forMode ?? (design.mode === "dark" ? "dark" : "light");
   const dark = mode === "dark";
-  const background = dark ? "#0B0B10" : "#F7F7FA";
-  const surface = dark ? "#16161F" : "#FFFFFF";
-  const text = dark ? "#F5F5F7" : "#111827";
   const base = HEX.test(design.primary) ? design.primary : PALETTES[0].primary;
+  const family = SURFACES[design.surface ?? "default"] ?? SURFACES.default;
+  const [bg, surface] = family[mode];
+  // "tinted": the brand color, barely there, behind everything.
+  const background = bg || mix(base, dark ? "#0B0B10" : "#FFFFFF", dark ? 0.9 : 0.93);
+  const text = dark ? "#F5F5F7" : design.cards === "brutal" ? "#0A0A0A" : "#111827";
   // A soft tint of the brand color for chips and selected rows (text stays readable on it).
   let soft = dark ? 0.75 : 0.88;
   let primarySoft = mix(base, surface, soft);
@@ -231,9 +249,13 @@ export function themeFor(design: AppDesign, forMode?: "light" | "dark"): Theme {
   for (let i = 0; i < 4; i++) for (const bg of [background, surface, primarySoft]) primary = readableOn(primary, bg, 4.5);
   const onPrimary = contrast("#FFFFFF", primary) >= 4.5 ? "#FFFFFF" : "#111111";
   const border = dark ? "#2A2A38" : "#E5E7EB";
-  const outline = dark ? "#6B6B80" : "#8A8F98";
+  // Outlines of controls reach 3:1 on the style's background and cards.
+  let outline: string = dark ? "#6B6B80" : "#8A8F98";
+  for (const bgc of [background, surface]) outline = readableOn(outline, bgc, 3);
   const radius = { ...CORNERS[design.corners], pill: 999 };
-  const muted = dark ? "#A1A1AA" : "#5F6B7A";
+  // Muted text stays readable on whichever background the style uses.
+  let muted: string = dark ? "#A1A1AA" : "#5F6B7A";
+  for (const bgc of [background, surface]) muted = readableOn(muted, bgc, 4.5);
   // The gradient: brand color to accent, both dark enough for white text.
   const accentBase = design.accent && HEX.test(design.accent) ? design.accent : rotateHue(base, 40);
   const gradient: [string, string] = [readableOn(base, "#FFFFFF", 4.5), readableOn(accentBase, "#FFFFFF", 4.5)];
@@ -245,7 +267,17 @@ export function themeFor(design: AppDesign, forMode?: "light" | "dark"): Theme {
     backgroundGradient = [mix(base, background, tint), mix(accentBase, background, tint)];
   }
   const card =
-    design.cards === "glass"
+    design.cards === "brutal"
+      ? { backgroundColor: surface, borderRadius: radius.lg, borderWidth: 2, borderColor: text, boxShadow: `4px 4px 0px ${text}` }
+      : design.cards === "clay"
+        ? {
+            backgroundColor: surface,
+            borderRadius: radius.lg,
+            boxShadow: dark
+              ? "0px 10px 24px rgba(0, 0, 0, 0.45), inset 0px 2px 4px rgba(255, 255, 255, 0.06)"
+              : `0px 12px 24px ${alpha(base, 0.16)}, inset 0px -3px 6px ${alpha(base, 0.08)}, inset 0px 3px 6px rgba(255, 255, 255, 0.9)`,
+          }
+        : design.cards === "glass"
       ? {
           backgroundColor: alpha(surface, dark ? 0.62 : 0.72),
           borderRadius: radius.lg,
@@ -279,6 +311,9 @@ export function themeFor(design: AppDesign, forMode?: "light" | "dark"): Theme {
     },
     radius,
     font: { heading: HEADINGS[design.headings], body: "400" },
+    headingFamily: design.font && design.font !== "system" ? design.font : null,
+    headingTracking: design.font === "mono" ? 0 : design.font === "serif" ? -0.3 : design.headings === "light" ? 0.2 : -0.5,
+    labelCaps: design.labels === "caps",
     card,
     gradient,
     onGradient: "#FFFFFF",
@@ -310,9 +345,14 @@ const current = mode === 'dark' ? dark : light;`
       : `const current = ${one(design.mode === "dark" ? dark : light)};
 
 export const mode = ${JSON.stringify(design.mode)};`;
+  const family = light.headingFamily ? FONT_FAMILIES[light.headingFamily] : null;
+  const heading = `{ ${family ? "fontFamily: headingFamily, " : ""}fontWeight: ${JSON.stringify(light.font.heading)}, letterSpacing: ${light.headingTracking} }`;
+  const label = light.labelCaps
+    ? `{ fontSize: 12, fontWeight: '700', letterSpacing: 1.4, textTransform: 'uppercase' }`
+    : `{ fontSize: 13, fontWeight: '600', letterSpacing: 0.2 }`;
   return `// The app's design: colors, corners, card style and fonts.
 // Written by Appmaker from the Design tab — change the design there, not here.
-${pick}
+${family ? `import { Platform } from 'react-native';\n` : ""}${pick}
 export const colors = current.colors;
 export const card = current.card;
 export const radius = ${JSON.stringify(light.radius)};
@@ -324,8 +364,13 @@ export const onGradient = ${JSON.stringify(light.onGradient)};
 export const backgroundGradient = current.backgroundGradient;
 // True when cards are frosted glass.
 export const glass = ${JSON.stringify(light.glass)};
+// Text styles: titles and headings use heading (typeface, weight, spacing), small section labels use label.
+${family ? `const headingFamily = Platform.select(${JSON.stringify(family)});\n` : ""}export const heading = ${heading};
+export const label = ${label};
+// The design style (see the design_style notes).
+export const style = ${JSON.stringify(design.style ?? null)};
 
-const theme = { mode, colors, radius, font, card, gradient, onGradient, backgroundGradient, glass };
+const theme = { mode, colors, radius, font, card, gradient, onGradient, backgroundGradient, glass, heading, label, style };
 export default theme;
 `;
 }

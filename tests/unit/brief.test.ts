@@ -12,8 +12,8 @@ describe("app brief", () => {
   it("suggests features for the kind of app, and writes the answers into the prompt", () => {
     expect(suggestFeatures("my hair salon")).toContain("Book an appointment");
     expect(suggestFeatures("something new")).toContain("Search");
-    expect(briefPrompt("a salon app", { audience: "customers", business: "Cuts", features: ["Book an appointment"], style: "soft" })).toBe(
-      'a salon app\n\nWho it\'s for: for the customers of my business. The business is called "Cuts".\nMust-have features: Book an appointment.\nLook and feel: calm and soft, rounded shapes, gentle pastel colors.',
+    expect(briefPrompt("a salon app", { audience: "customers", business: "Cuts", features: ["Book an appointment"], style: "calm" })).toBe(
+      'a salon app\n\nWho it\'s for: for the customers of my business. The business is called "Cuts".\nMust-have features: Book an appointment.\nLook and feel: Calm pastel style (airy, soft and quiet, with gentle tints).',
     );
     expect(briefPrompt("a salon app", { features: [] })).toBe("a salon app");
   });

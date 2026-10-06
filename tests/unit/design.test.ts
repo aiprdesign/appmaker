@@ -123,11 +123,11 @@ describe("gradients, glass and automatic designs", () => {
   });
 
   it("chooses a look that suits the app, the brief's look first, and keeps a website's brand color", () => {
-    expect(autoDesign({ primaryColor: "" }, "A meditation and sleep app")).toMatchObject({ cards: "glass", corners: "soft", primary: "#0E7490" });
-    expect(autoDesign({ primaryColor: "" }, "A gym workout tracker")).toMatchObject({ cards: "raised", headings: "bold", primary: "#C2410C" });
+    expect(autoDesign({ primaryColor: "" }, "A meditation and sleep app")).toMatchObject({ style: "calm", cards: "raised", corners: "soft", primary: "#0E7490" });
+    expect(autoDesign({ primaryColor: "" }, "A gym workout tracker")).toMatchObject({ style: "bento", headings: "bold", primary: "#C2410C" });
     expect(autoDesign({ primaryColor: "" }, "a budget app\n\nLook and feel: clean and simple, lots of white space.")).toMatchObject({
+      style: "swiss",
       cards: "outlined",
-      headings: "regular",
     });
     const site = autoDesign({ primaryColor: "#E11D48" }, "Turn Luigi's (luigis.com) into a mobile app for its customers.", true);
     expect(site.primary).toBe("#E11D48");

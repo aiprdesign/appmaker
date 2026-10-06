@@ -204,6 +204,7 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
       {phase !== "asking" && (
         <fieldset className="mt-4">
           <legend className="text-sm font-medium">Look and feel</legend>
+          <p className="mt-0.5 text-xs text-muted">Optional: leave it and Appmaker picks the style that suits your app best.</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {STYLES.map((x) => (
               <button

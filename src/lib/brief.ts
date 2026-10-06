@@ -4,6 +4,8 @@
  * first version matches what the person had in mind. No AI involved.
  */
 
+import { DESIGN_STYLES } from "./styles";
+
 export const BRIEF_SKIP_KEY = "appmaker.brief.skip";
 
 export const AUDIENCES = [
@@ -13,12 +15,8 @@ export const AUDIENCES = [
   { id: "everyone", label: "Anyone", text: "for anyone who downloads it from the App Store and Google Play" },
 ] as const;
 
-export const STYLES = [
-  { id: "clean", label: "Clean & simple", text: "clean and simple, lots of white space, calm colors" },
-  { id: "bold", label: "Bold & colorful", text: "bold and colorful, big headings, playful accents" },
-  { id: "soft", label: "Calm & soft", text: "calm and soft, rounded shapes, gentle pastel colors" },
-  { id: "sleek", label: "Sleek & premium", text: "sleek and premium, refined typography and generous spacing" },
-] as const;
+/** Look and feel: the design styles (src/lib/styles.ts); with none chosen, Appmaker picks the best one. */
+export const STYLES = DESIGN_STYLES.map((x) => ({ id: x.id, label: x.name, text: `${x.name} style (${x.blurb.toLowerCase()})` }));
 
 const CATEGORIES: { match: RegExp; features: string[] }[] = [
   {
@@ -125,7 +123,7 @@ export interface BriefAnswers {
   business?: string;
   features: string[];
   extra?: string;
-  style?: (typeof STYLES)[number]["id"];
+  style?: string;
 }
 
 /** The prompt with the answers added, in plain words the AI can follow. */

@@ -2,6 +2,7 @@ import { CLAIM_SAFE_RULES, DEFAULT_WORDING, type Wording } from "./claims";
 import { REGULATED_RULES } from "./regulated";
 import { safeHttpsUrl, sanitizeContact, sanitizeImages } from "./site-details";
 import type { FileMap, SiteContact, SiteSummary, StoreListing } from "./types";
+import { styleBrief, type DesignStyle } from "./styles";
 
 export const SYSTEM_PROMPT = `You are Appmaker, an expert mobile product designer and React Native engineer. Users describe an app in plain language and you build a complete, polished Expo (React Native) app they can preview instantly and ship to the Apple App Store and Google Play.
 
@@ -59,12 +60,14 @@ The app runs in two places: a live in-browser preview (React Native Web) and a r
 
 ## Design theme
 Appmaker writes \`src/theme.js\` for every app from the user's Design settings (color scheme, light/dark, corners, card style, headings), so the user can restyle the app without you. Never write or delete \`src/theme.js\`; read the design from it:
-- \`import { colors, radius, font, card, mode } from './src/theme';\` (relative path, e.g. \`'../theme'\` from \`src/screens/\`).
+- \`import { colors, radius, font, card, mode, heading, label } from './src/theme';\` (relative path, e.g. \`'../theme'\` from \`src/screens/\`).
 - colors: \`primary\`, \`onPrimary\` (text/icons on primary buttons), \`primarySoft\` (tinted chips and selected rows), \`background\`, \`surface\`, \`text\`, \`muted\`, \`border\` (dividers), \`outline\` (borders of inputs, checkboxes and outlined buttons), \`success\`, \`danger\`. Every pair meets WCAG 2.1 AA, so use them as named: text on background or surface, onPrimary on primary. radius: \`sm\`, \`md\`, \`lg\`, \`pill\`. font: \`heading\` and \`body\` fontWeight strings. \`card\` is a ready style object for cards: \`style={[card, styles.item]}\`.
 - Don't hard-code UI colors, corner radii or heading weights anywhere else; use these values in StyleSheet.create. Photos, gradients over photos and content colors (a category tag, a chart series) may use their own colors.
 - Modern touches from the theme (always available; import them with the rest): \`gradient\` (the brand gradient, two colors), \`onGradient\` (text and icons on it), \`backgroundGradient\` (a soft screen background) and \`glass\` (true when the user picked glass cards).
   - Gradient: the hero card or header of the main screens, and optionally the one primary button, as \`<LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { borderRadius: radius.lg }]}>\` from \`expo-linear-gradient\`, with text and icons in onGradient. At most two gradient elements per screen; lists, forms and body text stay on plain surfaces.
   - Glass: when \`glass\` is true, each screen's background is \`<LinearGradient colors={backgroundGradient} style={{ flex: 1 }}>\` (instead of a plain colors.background View) so the translucent \`card\` style reads as frosted glass; a floating tab bar or sticky header can be a \`<BlurView intensity={40} tint={mode} style={…}>\` from \`expo-blur\`. When \`glass\` is false, use plain colors.background.
+- Type styles: \`heading\` (the style's typeface, weight and letter spacing) for screen titles, section titles and big numbers, e.g. \`style={[heading, { fontSize: 34, color: colors.text }]}\`; \`label\` for small section labels and overlines (it may be uppercase and letter-spaced), with a color from the theme. Body text uses the phone's font.
+- Design style: each request includes a <design_style> with the app's style (Swiss minimal, Liquid glass, Bento grid, Neo-brutalist, Editorial, Dark luxe…). It decides the layout and composition of every screen: follow its direction so the app has a distinct, modern look, not a generic template. When the user later picks another style, restyle the layouts to match it while keeping every feature and piece of content.
 - \`<StatusBar style={mode === 'dark' ? 'light' : 'dark'} />\`.
 - Dark mode: the theme follows the phone's light or dark setting, so the whole app must look right in both. Never hard-code white, black or grey UI colors (backgrounds, cards, text, borders, icons): always the theme's colors. Photos and brand logos keep their own colors.
 
@@ -244,9 +247,10 @@ export function buildUserMessage(
   files: FileMap,
   listing?: Partial<StoreListing>,
   site?: SiteSummary,
+  style?: DesignStyle,
 ): string {
   const paths = Object.keys(files);
-  const siteBlock = site ? `${formatSite(site)}\n\n` : "";
+  const siteBlock = `${site ? `${formatSite(site)}\n\n` : ""}${style ? `${styleBrief(style)}\n\n` : ""}`;
   if (paths.length === 0) {
     return `${siteBlock}Build this app:\n\n${prompt}`;
   }

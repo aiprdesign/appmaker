@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, Moon, Palette, RotateCcw, Sparkles, Sun, X } from "lucide-react";
-import { contrast, defaultDesign, PALETTES, themeFor, usesTheme } from "@/lib/design";
+import { Check, Moon, Palette, RotateCcw, Sparkles, Sun, Wand2, X } from "lucide-react";
+import { contrast, defaultDesign, FONT_FAMILIES, PALETTES, themeFor, usesTheme, type Theme } from "@/lib/design";
+import { applyStyle, DESIGN_STYLES, getStyle, pickStyle, STYLE_CATEGORIES, type DesignStyle } from "@/lib/styles";
 import type { AppDesign, Project } from "@/lib/types";
 
 function Segment<T extends string>({
@@ -40,6 +41,70 @@ function Segment<T extends string>({
   );
 }
 
+const cssFont = (t: Theme) => (t.headingFamily ? FONT_FAMILIES[t.headingFamily].default : undefined);
+
+/** A tiny sample of a style: its background, a card with a heading and a label, and a button. */
+function StyleSample({ theme, id }: { theme: Theme; id: string }) {
+  // Glass shows over color, so the sample puts real color behind it.
+  const glassBg = `linear-gradient(135deg, ${theme.gradient[0]}aa, ${theme.gradient[1]}88)`;
+  const hero = id === "aurora";
+  if (id === "bento") {
+    const tile = { borderRadius: Math.min(theme.radius.lg, 14), padding: 6 } as const;
+    return (
+      <div aria-hidden="true" className="grid h-[92px] grid-cols-3 grid-rows-2 gap-1 p-2" style={{ background: theme.colors.background }}>
+        <div className="col-span-2 row-span-2 flex flex-col justify-end" style={{ ...tile, background: theme.colors.primary, color: theme.colors.onPrimary }}>
+          <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>120</div>
+          <div style={{ fontSize: 8, fontWeight: 600 }}>kg record</div>
+        </div>
+        <div style={{ ...tile, background: theme.colors.primarySoft }} />
+        <div style={{ ...tile, background: `linear-gradient(135deg, ${theme.gradient[0]}, ${theme.gradient[1]})` }} />
+      </div>
+    );
+  }
+  return (
+    <div aria-hidden="true" className="h-[92px] overflow-hidden p-2" style={{ background: theme.glass && !hero ? glassBg : theme.colors.background }}>
+      <div
+        className="p-2"
+        style={{
+          ...(hero ? { color: theme.onGradient } : {}),
+          background: hero ? `linear-gradient(135deg, ${theme.gradient[0]}, ${theme.gradient[1]})` : ((theme.card.backgroundColor as string) ?? theme.colors.surface),
+          backdropFilter: theme.glass ? "blur(8px)" : undefined,
+          borderRadius: Math.min(theme.radius.lg, 16),
+          boxShadow: theme.card.boxShadow as string | undefined,
+          border: theme.card.borderWidth ? `${theme.card.borderWidth as number}px solid ${theme.card.borderColor as string}` : undefined,
+        }}
+      >
+        <div
+          style={{
+            color: hero ? theme.onGradient : theme.colors.muted,
+            fontSize: 8,
+            fontWeight: 700,
+            letterSpacing: theme.labelCaps ? 1 : 0,
+            textTransform: theme.labelCaps ? "uppercase" : undefined,
+          }}
+        >
+          Today
+        </div>
+        <div style={{ color: hero ? theme.onGradient : theme.colors.text, fontFamily: cssFont(theme), fontWeight: Number(theme.font.heading), fontSize: 15, letterSpacing: theme.headingTracking, lineHeight: 1.2 }}>
+          Aa Good morning
+        </div>
+        <div
+          className="mt-1.5 inline-block px-2 py-0.5"
+          style={{
+            background: hero ? "rgba(255,255,255,0.25)" : theme.glass ? `linear-gradient(135deg, ${theme.gradient[0]}, ${theme.gradient[1]})` : theme.colors.primary,
+            color: hero || theme.glass ? theme.onGradient : theme.colors.onPrimary,
+            borderRadius: Math.min(theme.radius.md, 999),
+            fontSize: 9,
+            fontWeight: 700,
+          }}
+        >
+          Start
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Change an app's look without the AI: color scheme, light or dark, corners,
  * card style and headings. Every change rewrites src/theme.js and shows in
@@ -49,12 +114,15 @@ export function DesignPanel({
   project,
   onChange,
   onMakeCustomizable,
+  onRestyle,
   onClose,
   busy,
 }: {
   project: Project;
   onChange: (design: AppDesign) => void;
   onMakeCustomizable: () => void;
+  /** Asks the AI to rework the layouts in a style (the theme changes instantly; layouts need the AI). */
+  onRestyle: (style: DesignStyle) => void;
   onClose: () => void;
   busy: boolean;
 }) {
@@ -65,6 +133,9 @@ export function DesignPanel({
   const siteColors = (project.source?.colors ?? [])
     .filter((c) => /^#[0-9a-f]{6}$/i.test(c) && !PALETTES.some((p) => p.primary.toLowerCase() === c.toLowerCase()))
     .slice(0, 4);
+  const current = getStyle(design.style);
+  const picked = pickStyle(project.prompt ?? "");
+  const chooseStyle = (style: DesignStyle) => onChange(applyStyle(design, style, !!project.source));
   // A scheme sets the brand color and the accent its gradient runs to; a single color gets a matching accent.
   const swatch = (color: string, name: string, accent?: string) => {
     const selected = design.primary.toLowerCase() === color.toLowerCase();
@@ -113,6 +184,59 @@ export function DesignPanel({
             </button>
           </div>
         )}
+        <div>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-muted">Style</span>
+            {current && <span className="truncate text-[11px] text-muted">{current.name}</span>}
+          </div>
+          <p className="mb-2 text-[11px] text-muted">
+            Auto-picked for this app: <span className="font-medium text-foreground">{picked.style.name}</span>, {picked.why}.
+          </p>
+          <div className="space-y-3">
+            {STYLE_CATEGORIES.map((c) => (
+              <div key={c.id} role="group" aria-label={c.name}>
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted/80">{c.name}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {DESIGN_STYLES.filter((x) => x.category === c.id).map((x) => {
+                    const selected = design.style === x.id;
+                    return (
+                      <button
+                        key={x.id}
+                        onClick={() => chooseStyle(x)}
+                        aria-pressed={selected}
+                        aria-label={`${x.name} style: ${x.blurb}`}
+                        className={`overflow-hidden rounded-xl border text-left transition ${selected ? "border-violet-400 ring-2 ring-violet-400/40" : "border-line hover:border-white/25"}`}
+                      >
+                        <StyleSample id={x.id} theme={themeFor(applyStyle(design, x, !!project.source), x.look.mode === "dark" ? "dark" : "light")} />
+                        <div className="bg-surface px-2 py-1.5">
+                          <div className="flex items-center gap-1 text-xs font-medium">
+                            {selected && <Check className="h-3 w-3 text-violet-300" />}
+                            {x.name}
+                            {picked.style.id === x.id && <span className="ml-auto rounded-full bg-violet-500/15 px-1.5 text-[9px] font-medium text-violet-200">Auto</span>}
+                          </div>
+                          <div className="line-clamp-2 text-[10px] leading-tight text-muted">{x.blurb}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          {current && themed && (
+            <div className="mt-3 rounded-xl border border-line bg-surface p-3 text-xs text-muted">
+              Colors, cards and type change straight away. To rework the layouts too (like {current.name}&apos;s{" "}
+              {current.id === "bento" ? "tile grid" : current.id === "editorial" ? "magazine layout" : "composition"}), let the AI restyle them.
+              <button
+                onClick={() => onRestyle(current)}
+                disabled={busy}
+                className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white px-3 text-xs font-medium text-black disabled:opacity-50"
+              >
+                <Wand2 className="h-3.5 w-3.5" /> Restyle layouts as {current.name}
+              </button>
+            </div>
+          )}
+        </div>
         <div>
           <div className="mb-1.5 text-xs font-medium text-muted">Color scheme</div>
           <div className="flex flex-wrap gap-2">{PALETTES.map((p) => swatch(p.primary, p.name, p.accent))}</div>

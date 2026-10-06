@@ -14,6 +14,7 @@ import { BOOKING_FILE, bookingModule } from "@/lib/booking";
 import { BRAND_FILE, brandModule } from "@/lib/branding";
 import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
+import { pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
@@ -256,6 +257,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             site: current.source,
             ai: aiChoiceFor(getAiSettings()),
             wording: current.wording ?? DEFAULT_WORDING,
+            // The design style: the app's own, or for a new app the one Appmaker picks for it (kept as its design afterwards).
+            ...(() => {
+              const style = hasEntry(current.files) ? current.design?.style : (current.design?.style ?? pickStyle(current.prompt).style.id);
+              return style ? { style } : {};
+            })(),
             ...(opts.autoFix ? { auto: true } : {}),
             ...(opts.images?.length ? { images: opts.images } : {}),
           }),
@@ -925,6 +931,12 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                       busy={generating || checking}
                       onChange={changeDesign}
                       onClose={() => setDesignOpen(false)}
+                      onRestyle={(style) => {
+                        setDesignOpen(false);
+                        send(
+                          `Restyle the app in the ${style.name} design style: ${style.direction} Keep every feature, screen and piece of content, and keep reading colors and type from src/theme.js; change the layout, composition and typography to match the style.`,
+                        );
+                      }}
                       onMakeCustomizable={() => {
                         setDesignOpen(false);
                         send(

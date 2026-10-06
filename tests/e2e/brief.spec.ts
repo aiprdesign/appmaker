@@ -23,7 +23,7 @@ test("a short idea gets three quick questions, and the answers go into the build
   await brief.getByRole("button", { name: "Exercise timer" }).click();
   await brief.getByRole("button", { name: "Class timetable" }).click();
   await brief.getByLabel("Anything else? (optional)").fill("Members can see how busy the gym is");
-  await brief.getByRole("button", { name: "Bold & colorful" }).click();
+  await brief.getByRole("button", { name: "Playful pop" }).click();
   await brief.getByRole("button", { name: "Build my app" }).click();
 
   await page.waitForURL(/\/build\//);
@@ -31,7 +31,7 @@ test("a short idea gets three quick questions, and the answers go into the build
   expect(prompt).toContain("a gym app");
   expect(prompt).toContain('for the customers of my business. The business is called "Iron Temple"');
   expect(prompt).toContain("Must-have features: Workout plans; Progress charts; Class timetable; Members can see how busy the gym is.");
-  expect(prompt).toContain("Look and feel: bold and colorful");
+  expect(prompt).toContain("Look and feel: Playful pop style");
   await expect(page.getByText("Iron Temple").first()).toBeVisible();
 });
 
@@ -87,7 +87,7 @@ test("the AI reads the idea and asks its own questions, and the answers go into 
   await brief.getByRole("button", { name: "Book a grooming" }).click();
   await brief.getByRole("button", { name: "Reminders" }).click();
   await brief.getByLabel("Anything else? (optional)").fill("Show before and after photos");
-  await brief.getByRole("button", { name: "Calm & soft" }).click();
+  await brief.getByRole("button", { name: "Calm pastel" }).click();
   await brief.getByRole("button", { name: "Build my app" }).click();
 
   await page.waitForURL(/\/build\//);
@@ -96,7 +96,7 @@ test("the AI reads the idea and asks its own questions, and the answers go into 
   expect(prompt).toContain("Who will use it: Both.");
   expect(prompt).toContain("What should it do: Book a grooming, Reminders.");
   expect(prompt).toContain("Must-have features: Show before and after photos.");
-  expect(prompt).toContain("Look and feel: calm and soft");
+  expect(prompt).toContain("Look and feel: Calm pastel style");
 });
 
 test("when the AI finds the idea clear, it builds straight away", async ({ page }) => {

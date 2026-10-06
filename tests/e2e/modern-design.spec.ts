@@ -47,7 +47,7 @@ test("gradients and frosted glass render in the preview, are measured fairly, an
   });
   await page.route("**/api/brief", (route) => route.fulfill({ json: { brief: null } }));
   await page.goto("/");
-  await page.getByLabel("Describe your app").fill("A meditation app with breathing exercises and sleep sounds");
+  await page.getByLabel("Describe your app").fill("A travel planner with trip itineraries and packing lists");
   await page.keyboard.press("Enter");
   const app = page.frameLocator('iframe[title="App preview"]');
   await expect(app.getByText("Good morning")).toBeVisible({ timeout: 30_000 });
@@ -56,7 +56,7 @@ test("gradients and frosted glass render in the preview, are measured fairly, an
   await expect.poll(() => app.getByTestId("hero").evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("linear-gradient");
   await expect.poll(() => app.getByTestId("bar").evaluate((el) => getComputedStyle(el).backdropFilter)).toContain("blur");
 
-  // A meditation app gets glass cards automatically, so the card is translucent.
+  // A travel app gets the Liquid glass style automatically, so the card is translucent.
   await expect.poll(() => app.getByTestId("card").evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/^rgba\(.*0\.\d+\)$/);
 
   // White text on the gradient isn't mistaken for low contrast: no automatic fix is sent.
@@ -70,4 +70,58 @@ test("gradients and frosted glass render in the preview, are measured fairly, an
   await expect(panel.getByRole("radio", { name: "Glass" })).toHaveAttribute("aria-checked", "true");
   await panel.getByRole("radio", { name: "Raised" }).click();
   await expect.poll(() => app.getByTestId("card").evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/^rgb\(255, 255, 255\)$/);
+});
+
+test("design styles: one is picked for the app, others restyle it instantly, and the AI can rework the layouts", async ({ page }) => {
+  const bodies: { prompt: string; style?: string }[] = [];
+  const styled = `import React from 'react';
+import { View, Text } from 'react-native';
+import { colors, card, heading, label } from './src/theme';
+export default function App() {
+  return (
+    <View style={{ flex: 1, padding: 24, paddingTop: 60, backgroundColor: colors.background }}>
+      <Text style={[label, { color: colors.muted }]}>Today</Text>
+      <Text testID="title" accessibilityRole="header" style={[heading, { color: colors.text, fontSize: 32 }]}>Your trips</Text>
+      <View testID="card" style={[card, { padding: 16, marginTop: 16 }]}>
+        <Text style={{ color: colors.text, fontSize: 16 }}>Lisbon in May</Text>
+      </View>
+    </View>
+  );
+}`;
+  await page.route("**/api/generate", async (route) => {
+    bodies.push(route.request().postDataJSON());
+    await route.fulfill({
+      status: 200,
+      contentType: "text/plain",
+      headers: { "X-Appmaker-Mode": "ai" },
+      body: `<plan>x</plan>\n<file path="App.js">\n${styled}\n</file>\n<listing>${LISTING}</listing>\n<summary>ok</summary>`,
+    });
+  });
+  await page.route("**/api/brief", (route) => route.fulfill({ json: { brief: null } }));
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("A workout tracker with personal records");
+  await page.keyboard.press("Enter");
+  const app = page.frameLocator('iframe[title="App preview"]');
+  await expect(app.getByText("Your trips")).toBeVisible({ timeout: 30_000 });
+  // A fitness app gets the Bento grid style, and the AI is told so.
+  expect(bodies[0].style).toBe("bento");
+
+  await page.getByRole("button", { name: "Design", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Design" });
+  await expect(panel.getByText(/Auto-picked for this app: Bento grid, a great fit for fitness trackers/)).toBeVisible();
+  await expect(panel.getByRole("button", { name: /^Bento grid style/ })).toHaveAttribute("aria-pressed", "true");
+
+  // Neo-brutalist: thick borders straight away.
+  await panel.getByRole("button", { name: /^Neo-brutalist style/ }).click();
+  await expect.poll(() => app.getByTestId("card").evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("2px");
+  // Editorial: serif headings.
+  await panel.getByRole("button", { name: /^Editorial style/ }).click();
+  await expect.poll(() => app.getByTestId("title").evaluate((el) => getComputedStyle(el).fontFamily)).toContain("Georgia");
+  await expect.poll(() => app.getByText("Today").evaluate((el) => getComputedStyle(el).textTransform)).toBe("uppercase");
+
+  // The AI reworks the layouts in the new style.
+  await panel.getByRole("button", { name: "Restyle layouts as Editorial" }).click();
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(bodies[1].prompt).toMatch(/^Restyle the app in the Editorial design style: Magazine layout/);
+  expect(bodies[1].style).toBe("editorial");
 });

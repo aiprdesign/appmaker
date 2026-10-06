@@ -19,6 +19,11 @@ export const onGradient = "#FFFFFF";
 export const backgroundGradient = current.backgroundGradient;
 // True when cards are frosted glass.
 export const glass = false;
+// Text styles: titles and headings use heading (typeface, weight, spacing), small section labels use label.
+export const heading = { fontWeight: "800", letterSpacing: -0.5 };
+export const label = { fontSize: 13, fontWeight: '600', letterSpacing: 0.2 };
+// The design style (see the design_style notes).
+export const style = null;
 
-const theme = { mode, colors, radius, font, card, gradient, onGradient, backgroundGradient, glass };
+const theme = { mode, colors, radius, font, card, gradient, onGradient, backgroundGradient, glass, heading, label, style };
 export default theme;
