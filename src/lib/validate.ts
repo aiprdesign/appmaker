@@ -83,6 +83,15 @@ function resolveRelative(from: string, spec: string, files: FileMap): boolean {
 const FAKE_CONFIRMATION =
   /\b(?:booking|reservation|appointment|order|table)\s+(?:is\s+|has\s+been\s+)?confirmed\b|\byou(?:'|’)?re\s+(?:all\s+)?booked\b|\b(?:booking|reservation|appointment)\s+(?:successful|complete)\b/i;
 
+/** A paging slider (swipe between slides) with no buttons that move it. */
+function swipeOnly(code: string): boolean {
+  if (!/\bpagingEnabled\b(?!\s*=\s*\{\s*false\s*\})/.test(code)) return false;
+  const moves = /\.(scrollTo|scrollToIndex|scrollToOffset)\s*\(/.test(code);
+  const next = /\bnext\b|ChevronRight|ArrowRight/i.test(code);
+  const back = /\b(previous|prev|back)\b|ChevronLeft|ArrowLeft/i.test(code);
+  return !(moves && next && back);
+}
+
 export function validateApp(files: FileMap): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const entry = files["App.js"] ?? files["App.jsx"];
@@ -127,6 +136,13 @@ export function validateApp(files: FileMap): ValidationIssue[] {
       issues.push({
         file: path,
         message: `tells the customer "${fake.slice(0, 60)}", but the app can't confirm bookings or orders — it only sends a request to the business. Say "Request sent — we'll confirm with you" instead`,
+      });
+    }
+    if (swipeOnly(code)) {
+      issues.push({
+        file: path,
+        message:
+          'has a slideshow that can only be swiped. Add round Back and Next arrow buttons over its left and right edges (ChevronLeft/ChevronRight, accessibilityLabel "Previous slide" and "Next slide") that move it with scrollTo or scrollToIndex, so everyone can move between slides',
       });
     }
     for (const [re, message] of WEB_ONLY) {

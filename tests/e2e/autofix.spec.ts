@@ -101,9 +101,10 @@ export default function Menu() { return <Text>Full menu is here</Text>; }`;
   await expect(page.getByText(/too large to finish/)).toHaveCount(0);
 });
 
-test("a hero slider built the way the AI is told works in the preview: slides, dots and auto-advance", async ({ page }) => {
+test("a hero slider built the way the AI is told works in the preview: arrows, mouse drag, dots and auto-advance", async ({ page }) => {
   const slider = `import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, Pressable, useWindowDimensions } from 'react-native';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 const SLIDES = ['Fresh pasta daily', 'Wood-fired pizza', 'Book your table'];
 export default function HeroSlider() {
   const { width } = useWindowDimensions();
@@ -111,7 +112,13 @@ export default function HeroSlider() {
   const ref = useRef(null);
   const [index, setIndex] = useState(0);
   const dragging = useRef(false);
+  const go = (i) => {
+    setIndex(i);
+    ref.current?.scrollTo({ x: i * w, animated: true });
+  };
+  const [paused, setPaused] = useState(false);
   useEffect(() => {
+    if (paused) return;
     const t = setInterval(() => {
       if (dragging.current) return;
       setIndex((i) => {
@@ -121,9 +128,10 @@ export default function HeroSlider() {
       });
     }, 4000);
     return () => clearInterval(t);
-  }, [w]);
+  }, [w, paused]);
   return (
     <View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Pause slideshow" onPress={() => setPaused(true)} style={{ minHeight: 44, minWidth: 88, justifyContent: 'center' }}><Text style={{ fontSize: 16 }}>Pause</Text></Pressable>
       <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false}
         onScrollBeginDrag={() => { dragging.current = true; }}
         onMomentumScrollEnd={(e) => { dragging.current = false; setIndex(Math.round(e.nativeEvent.contentOffset.x / w)); }}>
@@ -133,6 +141,16 @@ export default function HeroSlider() {
           </View>
         ))}
       </ScrollView>
+      {index > 0 && (
+        <Pressable accessibilityRole="button" accessibilityLabel="Previous slide" onPress={() => go(index - 1)} style={{ position: 'absolute', left: 8, top: 78, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}>
+          <ChevronLeft color="#fff" size={24} />
+        </Pressable>
+      )}
+      {index < SLIDES.length - 1 && (
+        <Pressable accessibilityRole="button" accessibilityLabel="Next slide" onPress={() => go(index + 1)} style={{ position: 'absolute', right: 8, top: 78, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}>
+          <ChevronRight color="#fff" size={24} />
+        </Pressable>
+      )}
       <Text accessibilityLabel="slide position">Slide {index + 1} of {SLIDES.length}</Text>
     </View>
   );
@@ -148,6 +166,55 @@ export default function App() { return <View style={{ flex: 1, paddingTop: 80, p
   await expect(preview.getByText("Fresh pasta daily")).toBeVisible({ timeout: 20_000 });
   await expect(preview.getByText("Slide 1 of 3")).toBeVisible();
   await expect(preview.getByText("Slide 2 of 3")).toBeVisible({ timeout: 6_000 });
+  // No "Previous" on the first slide; the arrows move it.
+  const frame = page.frames().find((f) => f.url() === "about:srcdoc")!;
+  // Waits for the slide to arrive, as a person would before tapping again.
+  const arrived = (n: number) =>
+    expect
+      .poll(() => frame.evaluate(() => [...document.querySelectorAll("div")].find((d) => getComputedStyle(d).overflowX === "auto")?.scrollLeft ?? -1))
+      .toBe(n * 350);
+  await preview.getByRole("button", { name: "Pause slideshow" }).click();
+  await arrived(1);
+  await preview.getByRole("button", { name: "Previous slide" }).click();
+  await expect(preview.getByText("Slide 1 of 3")).toBeVisible();
+  await expect(preview.getByRole("button", { name: "Previous slide" })).toHaveCount(0);
+  await arrived(0);
+  await preview.getByRole("button", { name: "Next slide" }).click();
+  await arrived(1);
+  await preview.getByRole("button", { name: "Next slide" }).click();
+  await expect(preview.getByText("Slide 3 of 3")).toBeVisible();
+  await arrived(2);
+  await expect(preview.getByRole("button", { name: "Next slide" })).toHaveCount(0);
+  // A mouse can drag the slides like a finger, and the dots follow.
+  const slide = preview.getByText("Book your table");
+  await slide.scrollIntoViewIfNeeded();
+  const box = (await slide.boundingBox())!;
+  await page.mouse.move(box.x + 10, box.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 110, box.y + 5, { steps: 8 });
+  await page.mouse.up();
+  await expect(preview.getByText("Slide 2 of 3")).toBeVisible();
+});
+
+test("tapping a link in the preview explains it works in the real app on a phone", async ({ page }) => {
+  const app = `import React from 'react';
+import { View, Text, Pressable, Linking, Alert } from 'react-native';
+export default function App() {
+  const open = (url) => Linking.openURL(url).catch(() => Alert.alert("Couldn't open", url));
+  return (
+    <View style={{ flex: 1, paddingTop: 80, paddingHorizontal: 20, gap: 12 }}>
+      <Pressable accessibilityRole="button" onPress={() => open('tel:+15551234567')} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ fontSize: 17 }}>Call us</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => open('https://www.example.com/menu')} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ fontSize: 17 }}>Website</Text></Pressable>
+    </View>
+  );
+}`;
+  await mockAI(page, [`<plan>Links</plan>\n<file path="App.js">\n${app}\n</file>\n<listing>${LISTING}</listing>\n<summary>ok</summary>`]);
+  const preview = await start(page);
+  await preview.getByRole("button", { name: "Call us" }).click();
+  await expect(preview.getByText("📞 Calls +15551234567")).toBeVisible();
+  await expect(preview.getByText(/Links work in the real app.*Test it on your phone/)).toBeVisible();
+  await preview.getByRole("button", { name: "Website" }).click();
+  await expect(preview.getByText("🌐 Opens example.com")).toBeVisible();
 });
 
 test("apps can use professional Lucide icons, drawn as SVG in the preview", async ({ page }) => {

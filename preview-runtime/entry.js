@@ -79,8 +79,11 @@ let nextId = 1;
 function banner(title, body, kind) {
   const el = document.createElement("div");
   el.setAttribute("role", "status");
+  if (kind === "link") el.setAttribute("data-link-note", "");
   el.style.cssText =
-    "position:fixed;left:10px;right:10px;top:52px;z-index:99999;border-radius:18px;padding:10px 14px;" +
+    "position:fixed;left:10px;right:10px;" +
+    (kind === "link" ? "bottom:28px;" : "top:52px;") +
+    "z-index:99999;border-radius:18px;padding:10px 14px;" +
     "font:13px -apple-system,BlinkMacSystemFont,Roboto,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.25);" +
     "backdrop-filter:blur(12px);transition:opacity .3s,transform .3s;cursor:pointer;" +
     (kind === "scheduled" ? "background:rgba(30,30,40,.92);color:#fff;" : "background:rgba(250,250,252,.96);color:#111;");
@@ -389,6 +392,154 @@ const BackHandlerShim = {
   exitApp() {},
 };
 
+// Links. The preview is sandboxed, so calls, emails, maps, WhatsApp and
+// websites can't open from it. Say what the link does, and that it works in
+// the real app on a phone, instead of silently doing nothing.
+function describeLink(raw) {
+  const url = String(raw || "");
+  const after = (prefix) => decodeURIComponent(url.slice(prefix.length).split("?")[0]);
+  try {
+    if (/^tel:/i.test(url)) return `📞 Calls ${after("tel:")}`;
+    if (/^(sms|smsto):/i.test(url)) return `💬 Texts ${after(url.split(":")[0] + ":")}`;
+    if (/^mailto:/i.test(url)) return `✉️ Emails ${after("mailto:") || "you"}`;
+    if (/^(whatsapp:|https?:\/\/(wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com)\b)/i.test(url)) return "💬 Opens a WhatsApp chat";
+    if (/^(geo:|maps:|comgooglemaps:|https?:\/\/(maps\.apple\.com|maps\.google\.|www\.google\.[a-z.]+\/maps|goo\.gl\/maps|maps\.app\.goo\.gl))/i.test(url)) return "🗺️ Opens directions in Maps";
+    if (/^https?:\/\//i.test(url)) return `🌐 Opens ${new URL(url).hostname.replace(/^www\./, "")}`;
+    if (/^app-settings:/i.test(url)) return "⚙️ Opens the phone's Settings";
+  } catch {
+    // An odd link: fall through to the general note.
+  }
+  return "🔗 Opens a link";
+}
+function linkNote(url) {
+  for (const old of document.querySelectorAll("[data-link-note]")) old.remove();
+  banner(describeLink(url), "Links work in the real app, not in this preview. Test it on your phone: Test on a device → Your phone (Expo Go).", "link");
+}
+const LinkingShim = {
+  ...RNW.Linking,
+  openURL: async (url) => {
+    linkNote(url);
+    return true;
+  },
+  canOpenURL: async () => true,
+  openSettings: async () => linkNote("app-settings:"),
+  getInitialURL: async () => null,
+};
+// Plain web links (an <a href> from Text with href) get the same note.
+document.addEventListener(
+  "click",
+  (e) => {
+    const a = e.target && e.target.closest && e.target.closest("a[href]");
+    if (!a || a.getAttribute("href").startsWith("#")) return;
+    e.preventDefault();
+    linkNote(a.href);
+  },
+  false,
+);
+
+// Sliders. React Native Web never fires onMomentumScrollEnd, where slideshows
+// update their dots, so it's called here once scrolling settles.
+const ScrollViewShim = React.forwardRef(function ScrollView({ onMomentumScrollEnd, onScroll, scrollEventThrottle, ...rest }, ref) {
+  const timer = React.useRef(null);
+  React.useEffect(() => () => clearTimeout(timer.current), []);
+  const handleScroll = onMomentumScrollEnd
+    ? (e) => {
+        if (onScroll) onScroll(e);
+        const nativeEvent = e.nativeEvent;
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => {
+          // Only once it has really stopped: an arrow tap may have just started the next slide moving.
+          const at = [nativeEvent.contentOffset.x, nativeEvent.contentOffset.y];
+          const mine = timer.current;
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              if (timer.current === mine && nativeEvent.contentOffset.x === at[0] && nativeEvent.contentOffset.y === at[1]) onMomentumScrollEnd({ nativeEvent });
+            }),
+          );
+        }, 140);
+      }
+    : onScroll;
+  return React.createElement(RNW.ScrollView, {
+    ...rest,
+    ref,
+    onScroll: handleScroll,
+    scrollEventThrottle: onMomentumScrollEnd ? (scrollEventThrottle ?? 16) : scrollEventThrottle,
+  });
+});
+
+// On a phone people swipe slides with a finger; in the preview a mouse can drag them too.
+let drag = null;
+let swallowClickUntil = 0;
+const sideScroller = (start) => {
+  for (let el = start; el && el !== document.body; el = el.parentElement) {
+    const s = getComputedStyle(el);
+    if ((s.overflowX === "auto" || s.overflowX === "scroll") && el.scrollWidth > el.clientWidth + 1) return el;
+  }
+  return null;
+};
+window.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    const el = sideScroller(e.target);
+    if (el) drag = { el, x: e.clientX, left: el.scrollLeft, moved: false, paging: /x|both|inline/.test(getComputedStyle(el).scrollSnapType) };
+  },
+  true,
+);
+window.addEventListener(
+  "pointermove",
+  (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved) {
+      if (Math.abs(dx) < 6) return;
+      drag.moved = true;
+      drag.el.style.scrollSnapType = "none";
+      document.body.style.userSelect = "none";
+    }
+    drag.el.scrollLeft = drag.left - dx;
+  },
+  true,
+);
+const endDrag = (e) => {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (!d.moved) return;
+  document.body.style.userSelect = "";
+  swallowClickUntil = Date.now() + 100;
+  const dx = e.clientX - d.x;
+  if (d.paging) {
+    // Like a swipe: a short drag is enough to move one slide.
+    const w = d.el.clientWidth;
+    const page = Math.round(d.left / w) + (Math.abs(dx) > w * 0.12 ? (dx < 0 ? 1 : -1) : 0);
+    const left = Math.max(0, Math.min(page * w, d.el.scrollWidth - w));
+    // The browser's own scrollTo: React Native Web puts its own, which takes { x }, on the element.
+    Element.prototype.scrollTo.call(d.el, { left, behavior: "smooth" });
+    // Snapping comes back once the slide has arrived; turned on mid-way, the browser snaps somewhere else.
+    const settle = setInterval(() => {
+      if (Math.abs(d.el.scrollLeft - left) < 1 || drag) {
+        clearInterval(settle);
+        if (!drag || drag.el !== d.el) d.el.style.scrollSnapType = "";
+      }
+    }, 50);
+    setTimeout(() => clearInterval(settle), 3000);
+  } else d.el.style.scrollSnapType = "";
+};
+window.addEventListener("pointerup", endDrag, true);
+window.addEventListener("pointercancel", endDrag, true);
+// A drag isn't a tap on the slide's button.
+window.addEventListener(
+  "click",
+  (e) => {
+    if (Date.now() < swallowClickUntil) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  },
+  true,
+);
+
 window.__APPMAKER_RUNTIME__ = {
   React,
   ReactDOMClient,
@@ -396,7 +547,7 @@ window.__APPMAKER_RUNTIME__ = {
     react: withDefault(React, React),
     "react/jsx-runtime": JSXRuntime,
     "react/jsx-dev-runtime": JSXRuntime,
-    "react-native": withDefault({ ...RNW, Appearance, useColorScheme, Alert: AlertShim, BackHandler: BackHandlerShim }, RNW),
+    "react-native": withDefault({ ...RNW, Appearance, useColorScheme, Alert: AlertShim, BackHandler: BackHandlerShim, ScrollView: ScrollViewShim, Linking: LinkingShim }, RNW),
     "react-native-web": withDefault(RNW, RNW),
     "@react-native-async-storage/async-storage": withDefault({ AsyncStorage }, AsyncStorage),
     "expo-status-bar": { __esModule: true, StatusBar },

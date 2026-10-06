@@ -35,6 +35,20 @@ describe("validateApp", () => {
     expect(validateApp({ "App.js": OK_APP, "src/Card.js": "export default function Card() { return null; }" })).toEqual([]);
   });
 
+  it("asks for Back and Next arrows on a slideshow that can only be swiped", () => {
+    const swipe = `import React from 'react';
+import { ScrollView, View } from 'react-native';
+export default function Slider() { return <ScrollView horizontal pagingEnabled><View /></ScrollView>; }`;
+    const issues = validateApp({ "App.js": OK_APP, "src/Card.js": swipe });
+    expect(issues).toEqual([expect.objectContaining({ file: "src/Card.js", message: expect.stringMatching(/can only be swiped.*Previous slide/) })]);
+    const withArrows = swipe.replace(
+      "<View /></ScrollView>",
+      `<View /></ScrollView><Pressable accessibilityLabel="Previous slide" onPress={() => ref.current.scrollTo({ x: 0 })}><ChevronLeft /></Pressable><Pressable accessibilityLabel="Next slide" onPress={() => ref.current.scrollTo({ x: w })}><ChevronRight /></Pressable>`,
+    );
+    expect(validateApp({ "App.js": OK_APP, "src/Card.js": withArrows })).toEqual([]);
+    expect(validateApp({ "App.js": OK_APP, "src/Card.js": swipe.replace("pagingEnabled", "pagingEnabled={false}") })).toEqual([]);
+  });
+
   it("requires App.js with a default export", () => {
     expect(validateApp({})[0].message).toMatch(/missing/);
     expect(validateApp({ "App.js": "export const App = 1;" })[0].message).toMatch(/export default/);
