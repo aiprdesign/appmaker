@@ -14,6 +14,7 @@ import { BOOKING_FILE, bookingModule } from "@/lib/booking";
 import { BRAND_FILE, brandModule } from "@/lib/branding";
 import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
+import { AppSidebar } from "./AppSidebar";
 import { pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
@@ -665,7 +666,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   ];
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
+    <AppSidebar currentId={project.id} />
+    <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 sm:gap-3">
         <Logo href="/projects" compact />
         <span className="hidden text-line sm:inline">/</span>
@@ -988,6 +991,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           )}
         </main>
       </div>
+    </div>
     </div>
   );
 }
