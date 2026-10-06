@@ -65,17 +65,18 @@ export function DesignPanel({
   const siteColors = (project.source?.colors ?? [])
     .filter((c) => /^#[0-9a-f]{6}$/i.test(c) && !PALETTES.some((p) => p.primary.toLowerCase() === c.toLowerCase()))
     .slice(0, 4);
-  const swatch = (color: string, name: string) => {
+  // A scheme sets the brand color and the accent its gradient runs to; a single color gets a matching accent.
+  const swatch = (color: string, name: string, accent?: string) => {
     const selected = design.primary.toLowerCase() === color.toLowerCase();
     return (
       <button
         key={color}
-        onClick={() => set({ primary: color })}
+        onClick={() => set({ primary: color, accent })}
         aria-label={name}
         aria-pressed={selected}
         title={name}
         className={`grid h-9 w-9 place-items-center rounded-full ring-offset-2 ring-offset-background ${selected ? "ring-2 ring-white" : "hover:ring-2 hover:ring-white/40"}`}
-        style={{ background: color }}
+        style={{ background: accent ? `linear-gradient(135deg, ${color}, ${accent})` : color }}
       >
         {selected && <Check className="h-4 w-4" style={{ color: contrast("#FFFFFF", color) >= 3 ? "#FFFFFF" : "#111111" }} />}
       </button>
@@ -114,7 +115,7 @@ export function DesignPanel({
         )}
         <div>
           <div className="mb-1.5 text-xs font-medium text-muted">Color scheme</div>
-          <div className="flex flex-wrap gap-2">{PALETTES.map((p) => swatch(p.primary, p.name))}</div>
+          <div className="flex flex-wrap gap-2">{PALETTES.map((p) => swatch(p.primary, p.name, p.accent))}</div>
           {siteColors.length > 0 && (
             <>
               <div className="mb-1.5 mt-3 text-xs font-medium text-muted">From your website</div>
@@ -125,7 +126,7 @@ export function DesignPanel({
             <input
               type="color"
               value={design.primary}
-              onChange={(e) => set({ primary: e.target.value })}
+              onChange={(e) => set({ primary: e.target.value, accent: undefined })}
               className="h-9 w-12 cursor-pointer rounded-lg border border-line bg-surface"
               aria-label="Custom brand color"
             />
@@ -142,7 +143,9 @@ export function DesignPanel({
             { value: "dark", label: "Dark" },
           ]}
         />
-        {design.mode === "auto" && <p className="-mt-3 text-[11px] text-muted">Follows the phone&apos;s light or dark setting. Use the sun/moon button to preview both.</p>}
+        {design.mode === "auto" && (
+          <p className="-mt-3 text-[11px] text-muted">Follows the phone&apos;s light or dark setting. Use the sun/moon button to preview both.</p>
+        )}
         <Segment
           label="Corners"
           value={design.corners}
@@ -161,6 +164,7 @@ export function DesignPanel({
             { value: "flat", label: "Flat" },
             { value: "raised", label: "Raised" },
             { value: "outlined", label: "Outlined" },
+            { value: "glass", label: "Glass" },
           ]}
         />
         <Segment
@@ -174,14 +178,31 @@ export function DesignPanel({
           ]}
         />
         {/* A small sample of the result, so the choices make sense before looking at the phone. */}
-        <div aria-hidden="true" className="p-3" style={{ background: theme.colors.background, borderRadius: theme.radius.lg }}>
+        <div
+          aria-hidden="true"
+          className="space-y-2 p-3"
+          style={{ background: `linear-gradient(160deg, ${theme.backgroundGradient[0]}, ${theme.backgroundGradient[1]})`, borderRadius: theme.radius.lg }}
+        >
           <div
             style={{
-              background: theme.colors.surface,
+              background: `linear-gradient(135deg, ${theme.gradient[0]}, ${theme.gradient[1]})`,
+              color: theme.onGradient,
+              borderRadius: theme.radius.lg,
+              padding: "10px 12px",
+              fontSize: 13,
+              fontWeight: Number(theme.font.heading),
+            }}
+          >
+            Gradient header
+          </div>
+          <div
+            style={{
+              background: (theme.card.backgroundColor as string) ?? theme.colors.surface,
               borderRadius: theme.radius.lg,
               padding: 12,
               boxShadow: theme.card.boxShadow as string | undefined,
-              border: design.cards === "outlined" ? `1px solid ${theme.colors.border}` : undefined,
+              border: theme.card.borderWidth ? `1px solid ${theme.card.borderColor as string}` : undefined,
+              backdropFilter: theme.glass ? "blur(12px)" : undefined,
             }}
           >
             <div style={{ color: theme.colors.text, fontWeight: Number(theme.font.heading), fontSize: 15 }}>Your app</div>

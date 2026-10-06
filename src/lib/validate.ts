@@ -18,6 +18,8 @@ export const ALLOWED_PACKAGES = [
   "expo-haptics",
   "expo-notifications",
   "expo-image-picker",
+  "expo-linear-gradient",
+  "expo-blur",
   "lucide-react-native",
 ] as const;
 

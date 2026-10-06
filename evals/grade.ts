@@ -85,13 +85,19 @@ async function measure(page: Page) {
       };
       return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
     };
-    const background = (el: Element | null): { r: number; g: number; b: number } => {
+    // Every color behind an element: a solid color, or each color of a gradient.
+    const backgrounds = (el: Element | null): { r: number; g: number; b: number }[] => {
       while (el) {
-        const c = parse(getComputedStyle(el).backgroundColor);
-        if (c.a > 0.5) return c;
+        const cs = getComputedStyle(el);
+        if (cs.backgroundImage.includes("gradient")) {
+          const stops = (cs.backgroundImage.match(/rgba?\([^)]*\)/g) ?? []).map(parse).filter((c) => c.a > 0.5);
+          if (stops.length) return stops;
+        }
+        const c = parse(cs.backgroundColor);
+        if (c.a > 0.5) return [c];
         el = el.parentElement;
       }
-      return { r: 255, g: 255, b: 255 };
+      return [{ r: 255, g: 255, b: 255 }];
     };
     const vw = window.innerWidth;
     let textEls = 0;
@@ -126,8 +132,12 @@ async function measure(page: Page) {
       if (size < 11) tinyText++;
       const fg = parse(style.color);
       const L1 = lum(fg);
-      const L2 = lum(background(el));
-      const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+      const ratio = Math.min(
+        ...backgrounds(el).map((b) => {
+          const L2 = lum(b);
+          return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+        }),
+      );
       const large = size >= 18 || (size >= 14 && Number(style.fontWeight) >= 700);
       if (ratio < (large ? 3 : 4.5) && fg.a > 0.3) {
         lowContrast++;

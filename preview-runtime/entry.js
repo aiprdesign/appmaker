@@ -310,6 +310,43 @@ function withDefault(mod, def) {
   return { __esModule: true, default: def, ...mod };
 }
 
+// expo-linear-gradient and expo-blur, drawn with CSS so the preview looks
+// like the phone: the gradient (or the frosted backdrop) is set on the
+// View's own element, so children stay on top exactly as on a device.
+function useDomStyle(css) {
+  const ref = React.useRef(null);
+  const key = JSON.stringify(css);
+  React.useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node || !node.style) return;
+    for (const [k, v] of Object.entries(css)) if (v != null) node.style[k] = v;
+  }, [key]);
+  return ref;
+}
+const point = (p, fallback) => (Array.isArray(p) ? { x: p[0], y: p[1] } : p && typeof p === "object" ? { x: p.x ?? fallback.x, y: p.y ?? fallback.y } : fallback);
+function LinearGradient({ colors, start, end, locations, style, children, ...rest }) {
+  const s = point(start, { x: 0.5, y: 0 });
+  const e = point(end, { x: 0.5, y: 1 });
+  // CSS angles: 0deg points up, clockwise; React Native's y grows downwards.
+  const angle = (Math.atan2(e.x - s.x, -(e.y - s.y)) * 180) / Math.PI;
+  const list = Array.isArray(colors) && colors.length ? colors : ["transparent", "transparent"];
+  const stops = list.map((c, i) => (locations && locations[i] != null ? `${c} ${locations[i] * 100}%` : c)).join(", ");
+  const ref = useDomStyle({ backgroundImage: `linear-gradient(${angle}deg, ${stops})` });
+  return React.createElement(RNW.View, { ...rest, ref, style }, children);
+}
+function BlurView({ intensity = 50, tint = "default", style, children, ...rest }) {
+  const scheme = window.__APPMAKER_SCHEME__ || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const dark = /dark/i.test(tint) || (!/light/i.test(tint) && scheme === "dark");
+  const flat = RNW.StyleSheet.flatten(style) || {};
+  const blur = `blur(${Math.max(0, Math.min(100, intensity)) / 4}px) saturate(1.5)`;
+  const ref = useDomStyle({
+    backdropFilter: blur,
+    webkitBackdropFilter: blur,
+    backgroundColor: flat.backgroundColor ? null : dark ? "rgba(22, 22, 31, 0.55)" : "rgba(255, 255, 255, 0.6)",
+  });
+  return React.createElement(RNW.View, { ...rest, ref, style }, children);
+}
+
 // React Native Web's Alert does nothing, so confirmations ("Delete this?")
 // would never show and their buttons never run. Use the browser's dialogs:
 // one button (or none) is a notice; with a Cancel button it's a yes/no
@@ -365,6 +402,8 @@ window.__APPMAKER_RUNTIME__ = {
     "expo-status-bar": { __esModule: true, StatusBar },
     "react-native-safe-area-context": { __esModule: true, ...safeArea },
     "expo-haptics": withDefault(Haptics, Haptics),
+    "expo-linear-gradient": withDefault({ LinearGradient }, LinearGradient),
+    "expo-blur": withDefault({ BlurView }, BlurView),
     "expo-notifications": withDefault(Notifications, Notifications),
     "expo-image-picker": withDefault(ImagePicker, ImagePicker),
     "lucide-react-native": LucideModule,

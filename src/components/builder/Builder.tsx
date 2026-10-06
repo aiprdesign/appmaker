@@ -9,7 +9,7 @@ import { SyncBadge } from "@/components/AccountButton";
 import { AccessibilityMenu } from "@/components/AccessibilityMenu";
 import { LIVE_FILE, liveModule } from "@/lib/live";
 import { hasEntry } from "@/lib/validate";
-import { defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
+import { autoDesign, defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
 import { BOOKING_FILE, bookingModule } from "@/lib/booking";
 import { BRAND_FILE, brandModule } from "@/lib/branding";
 import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
@@ -321,7 +321,10 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       if (base.source && isApp) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
       // Every app carries Appmaker's theme file too, written from the Design settings.
-      if (isApp) files[THEME_FILE] = themeModule(base.design ?? defaultDesign(listing));
+      // A new app gets a look chosen for it (kept as its design, changeable in the Design tab).
+      // (Older apps without a saved design keep the look they had.)
+      const design = base.design ?? (!isApp ? undefined : hasEntry(base.files) ? defaultDesign(listing) : autoDesign(listing, base.prompt, !!base.source));
+      if (isApp && design) files[THEME_FILE] = themeModule(design);
       // Apps with bookings always carry Appmaker's booking screen, whatever the AI wrote.
       if (base.booking && isApp) files[BOOKING_FILE] = bookingModule(base.booking.apiUrl);
       if (isApp) files[BRAND_FILE] = brandModule(brandedRef.current);
@@ -336,7 +339,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           .join("\n\n") || "I couldn't produce an app for that. Try describing it differently.";
 
       const wrote = Object.keys(complete).length > 0;
-      let next: Project = { ...base, name: listing.name || base.name, files, listing, pending: undefined };
+      let next: Project = { ...base, name: listing.name || base.name, files, listing, pending: undefined, ...(design ? { design } : {}) };
       let versionId: string | undefined;
       if (wrote) ({ project: next, versionId } = withVersion(next, opts.autoFix ? "Automatic quality fix" : text));
       const assistantMsg: ChatMessage = {

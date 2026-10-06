@@ -143,10 +143,12 @@ export interface CloudBuild {
 /** Design settings, applied through src/theme.js (see src/lib/design.ts). */
 export interface AppDesign {
   primary: string;
+  /** Second color of the brand gradient (derived from primary when missing). */
+  accent?: string;
   /** "auto" follows the phone's light or dark setting. */
   mode: "auto" | "light" | "dark";
   corners: "sharp" | "rounded" | "soft";
-  cards: "flat" | "raised" | "outlined";
+  cards: "flat" | "raised" | "outlined" | "glass";
   headings: "light" | "regular" | "bold";
 }
 

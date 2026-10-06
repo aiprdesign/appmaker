@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { checkCodeSafety } from "@/lib/code-safety";
-import { contrast, defaultDesign, PALETTES, THEME_FILE, themeFor, themeModule, usesTheme } from "@/lib/design";
+import { autoDesign, contrast, defaultDesign, PALETTES, THEME_FILE, themeFor, themeModule, usesTheme } from "@/lib/design";
 import { SYSTEM_PROMPT } from "@/lib/prompt";
 import type { AppDesign } from "@/lib/types";
 import { validateApp } from "@/lib/validate";
@@ -25,7 +25,8 @@ describe("app design", () => {
     for (const d of designs) {
       const { colors } = themeFor(d);
       // The brand color is used as small text (links, tab labels, chips) on every background.
-      for (const bg of [colors.background, colors.surface, colors.primarySoft]) expect(contrast(colors.primary, bg), `${d.primary} ${d.mode} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      for (const bg of [colors.background, colors.surface, colors.primarySoft])
+        expect(contrast(colors.primary, bg), `${d.primary} ${d.mode} on ${bg}`).toBeGreaterThanOrEqual(4.5);
       // Outlines of inputs and controls (1.4.11 non-text contrast).
       for (const bg of [colors.background, colors.surface]) expect(contrast(colors.outline, bg), `${d.primary} ${d.mode} outline`).toBeGreaterThanOrEqual(3);
       const label = `${d.primary} ${d.mode}`;
@@ -93,5 +94,46 @@ describe("booking rules", () => {
     expect(SYSTEM_PROMPT).toContain("Bookings, reservations and orders (every business app");
     expect(SYSTEM_PROMPT).toContain("Never build a booking screen that goes nowhere");
     expect(SYSTEM_PROMPT).toMatch(/don't change any files\. Reply with only <plan> and <summary>/);
+  });
+});
+
+describe("gradients, glass and automatic designs", () => {
+  it("keeps white text readable on every scheme's gradient, and text on the background gradient, in light and dark", () => {
+    for (const p of PALETTES) {
+      for (const mode of ["light", "dark"] as const) {
+        const t = themeFor({ primary: p.primary, accent: p.accent, mode, corners: "rounded", cards: "glass", headings: "bold" }, mode);
+        for (const stop of t.gradient) expect(contrast(t.onGradient, stop), `${p.id} ${mode} gradient`).toBeGreaterThanOrEqual(4.5);
+        for (const stop of t.backgroundGradient) {
+          expect(contrast(t.colors.text, stop), `${p.id} ${mode} text`).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(t.colors.muted, stop), `${p.id} ${mode} muted`).toBeGreaterThanOrEqual(4.5);
+        }
+        expect(t.glass).toBe(true);
+        expect(String(t.card.backgroundColor)).toMatch(/^rgba\(/);
+      }
+    }
+  });
+
+  it("writes the gradient and glass settings into src/theme.js", () => {
+    const code = themeModule({ ...defaultDesign({ primaryColor: "#6D28D9" }), cards: "glass" });
+    expect(code).toContain("export const gradient = current.gradient;");
+    expect(code).toContain("export const backgroundGradient = current.backgroundGradient;");
+    expect(code).toContain("export const glass = true;");
+    expect(SYSTEM_PROMPT).toContain("expo-linear-gradient");
+    expect(SYSTEM_PROMPT).toContain("expo-blur");
+  });
+
+  it("chooses a look that suits the app, the brief's look first, and keeps a website's brand color", () => {
+    expect(autoDesign({ primaryColor: "" }, "A meditation and sleep app")).toMatchObject({ cards: "glass", corners: "soft", primary: "#0E7490" });
+    expect(autoDesign({ primaryColor: "" }, "A gym workout tracker")).toMatchObject({ cards: "raised", headings: "bold", primary: "#C2410C" });
+    expect(autoDesign({ primaryColor: "" }, "a budget app\n\nLook and feel: clean and simple, lots of white space.")).toMatchObject({
+      cards: "outlined",
+      headings: "regular",
+    });
+    const site = autoDesign({ primaryColor: "#E11D48" }, "Turn Luigi's (luigis.com) into a mobile app for its customers.", true);
+    expect(site.primary).toBe("#E11D48");
+    // The AI's own color is kept, with a matching accent.
+    const own = autoDesign({ primaryColor: "#2563EB" }, "a notes app");
+    expect(own.primary).toBe("#2563EB");
+    expect(own.accent).toMatch(/^#[0-9A-F]{6}$/i);
   });
 });

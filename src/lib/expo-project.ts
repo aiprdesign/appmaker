@@ -20,6 +20,9 @@ export const EXPO_DEPS: Record<string, string> = {
   "expo-haptics": "~57.0.3",
   "expo-notifications": "~57.0.21",
   "expo-image-picker": "~57.0.20",
+  // Gradients and frosted glass (used through src/theme.js's gradient and glass styles).
+  "expo-linear-gradient": "~57.0.2",
+  "expo-blur": "~57.0.3",
   // Not imported by apps: installed on the server so previews can be
   // published with EAS Update for Expo Go.
   "expo-updates": "~57.0.24",

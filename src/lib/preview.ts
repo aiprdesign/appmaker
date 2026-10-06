@@ -202,9 +202,19 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
         var f = function (v) { var x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
         return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
       };
-      var background = function (el) {
-        while (el) { var c = parse(getComputedStyle(el).backgroundColor); if (c.a > 0.5) return c; el = el.parentElement; }
-        return { r: 255, g: 255, b: 255 };
+      // The colors behind an element: a solid color, or every color of a gradient (text must be readable on all of them).
+      var backgrounds = function (el) {
+        while (el) {
+          var cs = getComputedStyle(el);
+          if (cs.backgroundImage && cs.backgroundImage.indexOf("gradient") !== -1) {
+            var stops = (cs.backgroundImage.match(/rgba?\([^)]*\)/g) || []).map(parse).filter(function (c) { return c.a > 0.5; });
+            if (stops.length) return stops;
+          }
+          var c = parse(cs.backgroundColor);
+          if (c.a > 0.5) return [c];
+          el = el.parentElement;
+        }
+        return [{ r: 255, g: 255, b: 255 }];
       };
       var textEls = 0, low = [], tiny = [], overflow = 0, buttons = 0, small = [], unlabeled = 0;
       Array.prototype.forEach.call(root.querySelectorAll("*"), function (el) {
@@ -232,8 +242,8 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
         var size = parseFloat(style.fontSize);
         if (size < 11) tiny.push('"' + text.slice(0, 20) + '" ' + size + "px");
         var fg = parse(style.color);
-        var L1 = lum(fg), L2 = lum(background(el));
-        var ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+        var L1 = lum(fg);
+        var ratio = Math.min.apply(null, backgrounds(el).map(function (b) { var L2 = lum(b); return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05); }));
         var large = size >= 18 || (size >= 14 && Number(style.fontWeight) >= 700);
         if (ratio < (large ? 3 : 4.5) && fg.a > 0.3) low.push('"' + text.slice(0, 20) + '" ' + ratio.toFixed(1) + ":1");
       });

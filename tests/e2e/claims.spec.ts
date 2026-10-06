@@ -124,7 +124,7 @@ test("the wording menu, the Publish checklist and the FAQ say the app owner is r
   await page.keyboard.press("Enter");
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Kicked off the project")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Publish" }).first().click();
-  const note = page.getByRole("note");
+  const note = page.getByRole("note").filter({ hasText: /^Your responsibility/ });
   await expect(note).toContainText("Your responsibility");
   await expect(note).toContainText("Make sure it's true, accurate and allowed");
 });
