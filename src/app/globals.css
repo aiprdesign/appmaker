@@ -217,6 +217,15 @@ body {
   }
 }
 
+/* Parts of the app popping in while it's being made. */
+@keyframes build-pop {
+  from { opacity: 0; transform: scale(0.85) translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .build-pop { animation: build-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+}
+
 /* Cards lift with a soft glow on hover. */
 .lift {
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;

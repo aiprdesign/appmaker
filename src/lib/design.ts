@@ -140,7 +140,7 @@ export function contrast(a: string, b: string): number {
   return (x + 0.05) / (y + 0.05);
 }
 /** The same color with its hue turned by some degrees (for an accent when none is set). */
-function rotateHue(hex: string, degrees: number): string {
+export function rotateHue(hex: string, degrees: number): string {
   const [r, g, b] = rgb(hex).map((c) => c / 255);
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);

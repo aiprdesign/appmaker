@@ -39,7 +39,7 @@ test("the phone shows the app being made, then the app", async ({ page }) => {
   const progress = page.getByRole("status", { name: "Your app is being made" });
   await expect(progress).toBeVisible({ timeout: 30_000 });
   await expect(progress).toContainText("Your new app");
-  await expect(progress.getByRole("list", { name: "Steps" })).toContainText("Understanding your idea");
+  await expect(progress).toContainText("Understanding your idea");
   release();
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Garden")).toBeVisible({ timeout: 30_000 });
   await expect(progress).toHaveCount(0);

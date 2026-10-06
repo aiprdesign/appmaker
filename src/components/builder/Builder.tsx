@@ -906,7 +906,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   {hasApp || hasEntry(previewFiles) ? (
                     <Preview files={previewFiles} platform={device} reloadKey={reloadKey} onError={onPreviewError} onQualityIssues={onQualityIssues} scheme={scheme} />
                   ) : generating && !checking ? (
-                    <PhoneBuilding live={live} startedAt={startedAt} />
+                    <PhoneBuilding live={live} startedAt={startedAt} source={project.source} design={project.design} prompt={project.prompt} />
                   ) : (
                     <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-600">
                       <div>
