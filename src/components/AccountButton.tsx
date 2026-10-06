@@ -159,7 +159,8 @@ export function AccountButton() {
           onConfirm={async () => {
             try {
               await deleteAccount(cloud.user!.email);
-              window.location.assign("/?account=deleted");
+              // A full page load on purpose (not router.push): nothing from the deleted account stays in memory.
+              window.location.assign(new URL("/?account=deleted", window.location.origin).href);
             } catch (e) {
               setDeleting(false);
               setError(e instanceof Error ? e.message : "Couldn't delete the account.");
