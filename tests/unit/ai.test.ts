@@ -5,7 +5,7 @@ import { POST as generate } from "@/app/api/generate/route";
 import { POST as models } from "@/app/api/ai/models/route";
 import { POST as testRoute } from "@/app/api/ai/test/route";
 import { KNOWN_ENDPOINTS, PROVIDERS, detectApiFormat, detectProviderFromKey, isValidModelId, normalizeBaseURL } from "@/lib/ai/providers";
-import { AiConfigError, aiErrorMessage, listModels, resolveAi, serverConfig, streamGeneration } from "@/lib/ai/server";
+import { AiConfigError, aiErrorMessage, cleanKey, listModels, resolveAi, serverConfig, streamGeneration } from "@/lib/ai/server";
 import { makeSafeLookup } from "@/lib/net-guard";
 
 const ENV_KEYS = [
@@ -35,7 +35,7 @@ interface Captured {
   body: Record<string, unknown>;
 }
 let captured: Captured[] = [];
-let mode: "ok" | "length" | "unauthorized" | "rate-once" | "rate-always" | "reasoning" = "ok";
+let mode: "ok" | "length" | "unauthorized" | "key-limit" | "rate-once" | "rate-always" | "reasoning" = "ok";
 
 const sse = (res: http.ServerResponse, events: [string | null, unknown][]) => {
   res.writeHead(200, { "Content-Type": "text/event-stream" });
@@ -52,6 +52,13 @@ const server = http.createServer((req, res) => {
       if (mode === "rate-once") mode = "ok";
       res.writeHead(429, { "Content-Type": "application/json", "retry-after-ms": "10" });
       return res.end(JSON.stringify({ error: { message: "deepseek/deepseek-chat is temporarily rate-limited upstream", code: 429 } }));
+    }
+    if (mode === "key-limit") {
+      // How OpenRouter answers when a key's spending limit is used up: a 403 that isn't about a wrong key.
+      res.writeHead(403, { "Content-Type": "application/json" });
+      return res.end(
+        JSON.stringify({ error: { message: "Key limit exceeded (total limit). Manage it using https://openrouter.ai/settings/keys", code: 403 } }),
+      );
     }
     if (mode === "unauthorized") {
       res.writeHead(401, { "Content-Type": "application/json" });
@@ -381,7 +388,37 @@ describe("streamGeneration", () => {
   it("turns provider errors into friendly messages", async () => {
     mode = "unauthorized";
     const err = await run({ provider: "openai", model: "gpt-5.5", apiKey: "bad", baseURL: `${base}/v1`, usingServerKey: false }).catch((e) => e);
-    expect(aiErrorMessage(err, "OpenAI")).toMatch(/OpenAI rejected the API key/);
+    expect(aiErrorMessage(err, "OpenAI")).toMatch(/OpenAI rejected your API key. OpenAI said: “invalid x-api-key”/);
+    expect(aiErrorMessage(err, "OpenAI", { serverKey: true })).toMatch(/This site's OpenAI key was rejected, so the site owner needs to update it/);
+  });
+
+  it("doesn't blame the key for a 403 that's about something else", async () => {
+    mode = "key-limit";
+    const err = await run({ provider: "openrouter", model: "openrouter/auto", apiKey: "k", baseURL: `${base}/v1`, usingServerKey: false }).catch((e) => e);
+    const msg = aiErrorMessage(err, "OpenRouter");
+    expect(msg).not.toMatch(/rejected/);
+    expect(msg).toMatch(/OpenRouter refused the request. OpenRouter said: “Key limit exceeded/);
+    mode = "ok";
+  });
+});
+
+describe("cleanKey", () => {
+  it("removes copy-paste leftovers but keeps the key", () => {
+    const key = "sk-or-v1-abc123";
+    for (const raw of [
+      key,
+      ` ${key}\n`,
+      `"${key}"`,
+      `Bearer ${key}`,
+      `OPENROUTER_API_KEY=${key}`,
+      `OPENROUTER_API_KEY="${key}"`,
+      `sk-or-v1-\u200Babc123`,
+      `sk-or-v1-\nabc123`,
+    ]) {
+      expect(cleanKey(raw), JSON.stringify(raw)).toBe(key);
+    }
+    expect(cleanKey("  ")).toBeUndefined();
+    expect(cleanKey(undefined)).toBeUndefined();
   });
 });
 

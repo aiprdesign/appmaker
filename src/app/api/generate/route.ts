@@ -52,7 +52,7 @@ function textStream(ai: ResolvedAi | null, produce: (write: (s: string) => void)
       try {
         await produce(write);
       } catch (err) {
-        if ((err as Error)?.name !== "AbortError") write(`\n<error>${aiErrorMessage(err, providerName)}</error>`);
+        if ((err as Error)?.name !== "AbortError") write(`\n<error>${aiErrorMessage(err, providerName, { serverKey: ai?.usingServerKey })}</error>`);
       } finally {
         controller.close();
       }

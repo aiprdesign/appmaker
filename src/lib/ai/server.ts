@@ -43,10 +43,25 @@ function guardedFetchOptions() {
   return { fetch: undiciFetch as unknown as typeof fetch, fetchOptions: { dispatcher: guardedAgent, redirect: "error" } as never };
 }
 
+/**
+ * Tidies a pasted key: keys never contain spaces, so copy-paste leftovers
+ * (line breaks, invisible characters, quotes, a "Bearer " prefix, a
+ * "NAME=" from an .env line) are removed instead of being rejected as wrong.
+ */
+export function cleanKey(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const key = raw
+    .replace(/[\s\u200B-\u200D\u2060\uFEFF]+/g, "")
+    .replace(/^[A-Z][A-Z0-9_]*_(API_KEY|TOKEN|KEY)=/, "")
+    .replace(/^bearer/i, "")
+    .replace(/^["'`]+|["'`]+$/g, "");
+  return key || undefined;
+}
+
 function serverKey(provider: ProviderId): string | undefined {
-  if (provider === "anthropic") return process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || undefined;
-  if (provider === "custom") return process.env.CUSTOM_AI_BASE_URL ? process.env.CUSTOM_AI_API_KEY || "none" : undefined;
-  return process.env[getProvider(provider)!.envKey] || undefined;
+  if (provider === "anthropic") return cleanKey(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+  if (provider === "custom") return process.env.CUSTOM_AI_BASE_URL ? cleanKey(process.env.CUSTOM_AI_API_KEY) || "none" : undefined;
+  return cleanKey(process.env[getProvider(provider)!.envKey]);
 }
 
 /** Checks a user-supplied endpoint URL before any request is made to it. */
@@ -100,7 +115,7 @@ export function resolveAi(choice: Partial<AiChoice> | undefined): ResolvedAi | n
   const model = choice?.model?.trim() || (provider === config.defaultProvider ? config.defaultModel : info.models[0]?.id) || "";
   if (!isValidModelId(model)) throw new AiConfigError("Choose a valid model in AI settings.");
 
-  const userKey = choice?.apiKey?.trim();
+  const userKey = cleanKey(choice?.apiKey);
   if (provider === "custom") {
     const apiFormat: ApiFormat = choice?.apiFormat === "anthropic" ? "anthropic" : "openai";
     const userURL = choice?.baseURL?.trim();
@@ -284,7 +299,7 @@ export async function listModels(ai: ResolvedAi): Promise<string[]> {
     .sort();
 }
 
-export function aiErrorMessage(err: unknown, providerName = "the AI provider"): string {
+export function aiErrorMessage(err: unknown, providerName = "the AI provider", { serverKey = false }: { serverKey?: boolean } = {}): string {
   if (err instanceof AiConfigError) return err.message;
   const cause = (err as { cause?: { code?: string; cause?: { code?: string } } })?.cause;
   if (cause?.code === "EBLOCKED" || cause?.cause?.code === "EBLOCKED") {
@@ -292,9 +307,18 @@ export function aiErrorMessage(err: unknown, providerName = "the AI provider"): 
   }
   const status =
     err instanceof Anthropic.APIError || err instanceof OpenAI.APIError || err instanceof ProviderHttpError ? err.status : undefined;
-  if (status === 401 || status === 403) return `${providerName} rejected the API key. Check it in AI settings.`;
-  if (status === 404) return `${providerName} doesn't recognise that model. Pick another in AI settings.`;
   const detail = (err as Error)?.message?.replace(/^\d{3}\s*/, "").slice(0, 300);
+  const said = detail ? ` ${providerName} said: “${detail.replace(/[.\s]+$/, "")}”.` : "";
+  // 401 is always the key. 403 often isn't: OpenRouter, for one, uses it for a key's
+  // spending limit, moderation and region blocks, so only blame the key when it says so.
+  if (status === 401 || (status === 403 && (!detail || /api.?key|credential|unauthori[sz]ed|invalid.*(key|token)|(key|token).*invalid/i.test(detail)))) {
+    return serverKey
+      ? `This site's ${providerName} key was rejected, so the site owner needs to update it.${said} You can also add your own key in AI settings.`
+      : `${providerName} rejected your API key.${said} Check that you copied the whole key and that it's still active on ${providerName}, then paste it again in AI settings.`;
+  }
+  if (status === 403)
+    return `${providerName} refused the request.${said} Check your key's limits and settings on ${providerName}, or pick another model in AI settings.`;
+  if (status === 404) return `${providerName} doesn't recognise that model. Pick another in AI settings.`;
   if (status === 429) {
     return `${providerName} is rate limiting requests (it still refused after several automatic retries). Wait a minute and press Try again, or check your credit and limits on ${providerName}.${detail ? ` ${providerName} said: ${detail}` : ""}`;
   }

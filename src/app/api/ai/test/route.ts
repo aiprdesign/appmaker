@@ -37,6 +37,6 @@ export async function POST(req: Request) {
     return Response.json({ ok: true, model: ai.model, reply, ms });
   } catch (e) {
     const status = e instanceof AiConfigError ? 400 : 502;
-    return Response.json({ error: aiErrorMessage(e, provider.name) }, { status });
+    return Response.json({ error: aiErrorMessage(e, provider.name, { serverKey: !choice.apiKey?.trim() && !choice.baseURL?.trim() }) }, { status });
   }
 }
