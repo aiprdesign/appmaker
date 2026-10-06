@@ -282,3 +282,68 @@ export function termsSections(c: StorePageContent): PageSection[] {
     },
   ];
 }
+
+/**
+ * For people who host the pages on their own site (Google Sites, Hostinger,
+ * WordPress…): the same pages as plain text to paste into a page editor, or
+ * as a complete web page to upload. Missing details become [placeholders].
+ */
+function withPlaceholders(c: StorePageContent): StorePageContent {
+  return { ...c, developer: c.developer || "[your business name]", email: c.email || "[your email]" };
+}
+
+export type OwnPage = "privacy" | "support";
+
+const OWN_PAGES: Record<OwnPage, { title: (c: StorePageContent) => string; sections: (c: StorePageContent) => PageSection[] }> = {
+  privacy: { title: (c) => `Privacy policy for ${c.appName}`, sections: privacySections },
+  support: { title: (c) => `${c.appName}: help and support`, sections: supportSections },
+};
+
+/** The page as plain text: headings, paragraphs and "•" bullets, ready to paste. */
+export function pageAsText(page: OwnPage, content: StorePageContent): string {
+  const c = withPlaceholders(content);
+  const lines = [OWN_PAGES[page].title(c), `Last updated: ${c.updated}`, ""];
+  for (const s of OWN_PAGES[page].sections(c)) {
+    lines.push(s.heading, ...s.paragraphs, ...(s.bullets ?? []).map((b) => `• ${b}`), "");
+  }
+  return lines.join("\n").trim() + "\n";
+}
+
+const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** The page as a complete, simple web page that works on any host. */
+export function pageAsHtml(page: OwnPage, content: StorePageContent): string {
+  const c = withPlaceholders(content);
+  const title = escapeHtml(OWN_PAGES[page].title(c));
+  const body = OWN_PAGES[page]
+    .sections(c)
+    .map(
+      (s) =>
+        `<h2>${escapeHtml(s.heading)}</h2>\n${s.paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("\n")}${
+          s.bullets?.length ? `\n<ul>${s.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>` : ""
+        }`,
+    )
+    .join("\n");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.6; color: #1f2937; background: #ffffff; max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 1.8rem; line-height: 1.25; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 28px 0 8px; }
+  .updated { color: #4b5563; margin: 0 0 24px; }
+  a { color: #1d4ed8; }
+  @media (prefers-color-scheme: dark) { body { color: #e5e7eb; background: #111827; } .updated { color: #9ca3af; } a { color: #93c5fd; } }
+</style>
+</head>
+<body>
+<h1>${title}</h1>
+<p class="updated">Last updated: ${escapeHtml(c.updated)}</p>
+${body}
+</body>
+</html>
+`;
+}

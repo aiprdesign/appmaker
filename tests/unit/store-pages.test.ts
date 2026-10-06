@@ -3,7 +3,17 @@ import { POST as signup } from "@/app/api/auth/signup/route";
 import { POST as savePagesRoute } from "@/app/api/pages/route";
 import { closeDatabase, query } from "@/lib/server/db";
 import { getPages } from "@/lib/server/store-pages";
-import { appFacts, PageInputError, parsePageContent, privacySections, supportSections, type StorePageContent } from "@/lib/store-pages";
+import {
+  appFacts,
+  PageInputError,
+  pageAsHtml,
+  pageAsText,
+  pageContentFor,
+  parsePageContent,
+  privacySections,
+  supportSections,
+  type StorePageContent,
+} from "@/lib/store-pages";
 
 const FILES = {
   "App.js": [
@@ -117,5 +127,43 @@ describe.skipIf(!DB)("hosted store pages (PostgreSQL)", () => {
 
     expect((await savePagesRoute(req("/api/pages", { projectId: "proj123abc", content: content({ email: "nope" }) }, cookie))).status).toBe(400);
     expect(await getPages("../../etc")).toBeNull();
+  });
+});
+
+describe("pages for your own website", () => {
+  const project = {
+    id: "p1",
+    name: "Garden Pal",
+    prompt: "",
+    files: { "App.js": "import AsyncStorage from '@react-native-async-storage/async-storage';\nexport default () => null;" },
+    listing: {
+      name: "Garden <Pal>",
+      subtitle: "Plants",
+      description: "",
+      keywords: "",
+      category: "Lifestyle",
+      bundleId: "com.x.y",
+      primaryColor: "#123456",
+      iconEmoji: "🌱",
+      privacyNotes: "",
+    },
+    messages: [],
+    createdAt: 0,
+    updatedAt: 0,
+  } as unknown as Parameters<typeof pageContentFor>[0];
+
+  it("gives the privacy policy as text to paste, with placeholders for missing details", () => {
+    const text = pageAsText("privacy", pageContentFor(project, { developer: "", email: "" }));
+    expect(text).toMatch(/^Privacy policy for Garden <Pal>\nLast updated: \d{4}-\d{2}-\d{2}/);
+    expect(text).toContain("[your business name]");
+    expect(text).toContain("[your email]");
+  });
+
+  it("gives a complete web page, with the app's details escaped", () => {
+    const html = pageAsHtml("support", pageContentFor(project, { developer: "Ana's Plants", email: "ana@example.com" }));
+    expect(html).toMatch(/^<!doctype html>/);
+    expect(html).toContain("<title>Garden &lt;Pal&gt;: help and support</title>");
+    expect(html).toContain("ana@example.com");
+    expect(html).not.toContain("<Pal>");
   });
 });

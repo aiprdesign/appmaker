@@ -348,7 +348,7 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
 
           <Bookings project={project} onChange={onBookingChange} onAddScreen={onAddBookingScreen} busy={busy} />
 
-          <StorePages project={project} onChange={onStorePagesChange} />
+          <StorePages project={project} onChange={onStorePagesChange} onListing={onChange} />
 
           <section className="rounded-2xl border border-line bg-surface p-5">
             <h2 className="font-semibold">App icon</h2>

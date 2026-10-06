@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 // Hosted support page and privacy policy. Needs TEST_DATABASE_URL (accounts).
@@ -30,7 +31,7 @@ test("creates the support page and privacy policy, links them in the listing, an
   const supportUrl = await page.getByLabel("Support page URL").inputValue();
   expect(privacyUrl).toMatch(/\/legal\/[\w-]+\/privacy$/);
   expect(supportUrl).toMatch(/\/legal\/[\w-]+\/support$/);
-  await expect(page.getByText("Privacy policy link")).toBeVisible();
+  await expect(page.getByText("Privacy policy link", { exact: true })).toBeVisible();
 
   // The pages are public and readable.
   const pub = await page.context().newPage();
@@ -55,4 +56,36 @@ test("creates the support page and privacy policy, links them in the listing, an
 test("unknown store pages are not found", async ({ page }) => {
   const res = await page.goto("/legal/nothing-here-123/privacy");
   expect(res?.status()).toBe(404);
+});
+
+test("without an account: copy or download the pages for your own website, then paste the links", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("A habit tracker");
+  await page.keyboard.press("Enter");
+  await expect(page.frameLocator('iframe[title="App preview"]').getByText(/habit/i).first()).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Publish" }).first().click();
+
+  const box = page.getByRole("region", { name: /Support page, privacy policy & terms/ });
+  await box.getByLabel("Business or developer name").fill("Habit Co");
+  await expect(box.getByRole("heading", { name: "Option 2: host them on your own site" })).toBeVisible();
+  await expect(box.getByRole("link", { name: "sites.google.com" })).toHaveAttribute("href", "https://sites.google.com/new");
+
+  const download = page.waitForEvent("download");
+  await box.getByRole("button", { name: "Download privacy-policy.html" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe("privacy-policy.html");
+  const html = readFileSync((await file.path())!, "utf8");
+  expect(html).toContain("<!doctype html>");
+  expect(html).toContain("Habit Co");
+  expect(html).toContain("[your email]");
+
+  // A link pasted here goes into the store listing.
+  await box.getByLabel("Your privacy policy link").fill("https://habitco.example/privacy");
+  await expect(page.getByLabel("Privacy policy URL")).toHaveValue("https://habitco.example/privacy");
+  await expect(box.getByText(/Both links need to be full web addresses/)).toBeVisible();
+  await box.getByLabel("Your support page link").fill("https://habitco.example/support");
+  await expect(box.getByText(/Both links need to be full web addresses/)).toHaveCount(0);
+
+  const axe = await new AxeBuilder({ page }).include('[aria-labelledby="store-pages-title"]').withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
 });
