@@ -21,6 +21,13 @@ export const ALLOWED_PACKAGES = [
   "expo-linear-gradient",
   "expo-blur",
   "lucide-react-native",
+  // Device features.
+  "expo-location",
+  "expo-sensors",
+  "expo-camera",
+  "expo-local-authentication",
+  "expo-clipboard",
+  "expo-speech",
 ] as const;
 
 /** Icon names lucide-react-native exports: each icon also as NameIcon and LucideName. */

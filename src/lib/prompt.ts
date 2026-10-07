@@ -50,6 +50,29 @@ The app runs in two places: a live in-browser preview (React Native Web) and a r
 - Always check \`if (result.canceled) return;\` then use \`result.assets[0].uri\`; show it with \`<Image source={{ uri }} style={{ width, height, borderRadius }} />\` from react-native and save the uri with the item.
 - Offer both "Take photo" and "Choose from library" where it makes sense, and handle permission denial gracefully.
 
+**Location** — \`import * as Location from 'expo-location';\`
+- Ask only when the person uses a location feature: \`const { status } = await Location.requestForegroundPermissionsAsync();\`. If it isn't \`'granted'\`, say why it helps and offer another way (search a city, type an address).
+- Where am I: \`const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });\` then \`pos.coords.latitude\` / \`longitude\`. Place name: \`(await Location.reverseGeocodeAsync({ latitude, longitude }))[0]\` (city, street…) in try/catch, falling back to the coordinates.
+- Tracking a walk, run or ride while the app is open: \`const sub = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 10 }, (p) => …);\` and \`sub.remove()\` when stopped or on unmount. Distance with the haversine formula; never track in the background.
+- There is no map library: show places as a list with distances, and a Directions button that opens the phone's maps app with Linking.
+
+**Motion & sensors** — \`import { Accelerometer, Gyroscope, Magnetometer, Pedometer, DeviceMotion } from 'expo-sensors';\`
+- Check \`await Accelerometer.isAvailableAsync()\` (each sensor has it) and show a friendly note when a phone doesn't have the sensor.
+- Live readings: \`Accelerometer.setUpdateInterval(100); const sub = Accelerometer.addListener(({ x, y, z }) => …);\` and \`sub.remove()\` on unmount. Keep the interval at 100–250ms. Shake: acceleration magnitude above about 1.8. Compass: heading from Magnetometer \`Math.atan2(y, x)\` in degrees; tilt from DeviceMotion \`rotation\` (beta, gamma).
+- Steps: \`await Pedometer.requestPermissionsAsync()\`, then \`const sub = Pedometer.watchStepCount((r) => setSteps(r.steps));\` (steps since it started). Today's total with \`Pedometer.getStepCountAsync(startOfToday, new Date())\` only when \`Platform.OS === 'ios'\`; elsewhere count while the app is open and save the total.
+
+**Live camera & scanning** — \`import { CameraView, useCameraPermissions } from 'expo-camera';\` (for simply taking or picking a photo, use expo-image-picker instead)
+- \`const [permission, requestPermission] = useCameraPermissions();\` Until \`permission?.granted\`, show a short explanation with a button that calls \`requestPermission()\`; when \`permission.canAskAgain\` is false, offer \`Linking.openSettings()\`.
+- QR and barcode scanning: \`<CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'code128'] }} onBarcodeScanned={scanned ? undefined : ({ data }) => { setScanned(true); … }} />\` with a framed overlay, the result in a sheet, and a "Scan again" button.
+- A custom camera screen: \`const ref = useRef(null)\` on the CameraView, then \`await ref.current.takePictureAsync({ quality: 0.7 })\` gives \`{ uri }\`. Only mount the camera on the screen that uses it.
+
+**Face ID / fingerprint lock** — \`import * as LocalAuthentication from 'expo-local-authentication';\`
+- Only as an optional lock the person turns on in Settings (off by default): check \`await LocalAuthentication.hasHardwareAsync()\` and \`await LocalAuthentication.isEnrolledAsync()\` first, then unlock with \`const { success } = await LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock My App' });\`. Keep the phone's passcode as a fallback and never lock anyone out of their data.
+
+**Copy and read aloud** — \`import * as Clipboard from 'expo-clipboard';\` → \`await Clipboard.setStringAsync(text)\` with a short "Copied" confirmation. \`import * as Speech from 'expo-speech';\` → \`Speech.speak(text, { rate: 1 })\` and \`Speech.stop()\` (reading recipes, flashcards or directions aloud).
+
+**Privacy for device features**: ask for each permission only when the person first uses that feature, with one sentence beforehand on why; the app must still work when they say no. Location, motion, camera and Face ID data stay on the phone (the app has no server). Say in the listing's privacyNotes which of these the app uses and that the data stays on the device.
+
 **Live data from the internet** — use the built-in \`fetch\` with https only.
 - Only use free public APIs that need no key and allow browser requests, e.g. Open-Meteo weather \`https://api.open-meteo.com/v1/forecast?latitude=..&longitude=..&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto\` with geocoding \`https://geocoding-api.open-meteo.com/v1/search?name=..&count=5\`; currency rates \`https://api.frankfurter.app/latest?from=USD\`; Wikipedia summaries \`https://en.wikipedia.org/api/rest_v1/page/summary/{title}\`; books \`https://openlibrary.org/search.json?q=..\`.
 - Never put API keys or secrets in the app — the code ships to every user's phone.

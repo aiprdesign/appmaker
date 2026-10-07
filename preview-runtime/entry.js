@@ -437,6 +437,264 @@ document.addEventListener(
   false,
 );
 
+// Device features. Inside the preview the browser can't reach GPS, motion
+// sensors, a live camera or Face ID, so these stand in with sample data and
+// say so once; on a phone the real ones run.
+const shownNotes = new Set();
+function sampleNote(key, title) {
+  if (shownNotes.has(key)) return;
+  shownNotes.add(key);
+  banner(title, "This preview uses sample data. Test the real thing on your phone: Test on a device → Your phone (Expo Go).", "link");
+}
+const SAMPLE_PLACE = { latitude: 37.7793, longitude: -122.4193 };
+const position = (c) => ({ coords: { ...c, altitude: 16, accuracy: 8, altitudeAccuracy: 5, heading: 0, speed: 1.4 }, timestamp: Date.now() });
+const Location = {
+  Accuracy: { Lowest: 1, Low: 2, Balanced: 3, High: 4, Highest: 5, BestForNavigation: 6 },
+  PermissionStatus: { GRANTED: "granted", DENIED: "denied", UNDETERMINED: "undetermined" },
+  requestForegroundPermissionsAsync: async () => granted,
+  getForegroundPermissionsAsync: async () => granted,
+  requestBackgroundPermissionsAsync: async () => ({ ...granted, status: "denied", granted: false }),
+  getBackgroundPermissionsAsync: async () => ({ ...granted, status: "denied", granted: false }),
+  hasServicesEnabledAsync: async () => true,
+  getCurrentPositionAsync: async () => {
+    sampleNote("location", "📍 Sample location (San Francisco)");
+    return position(SAMPLE_PLACE);
+  },
+  getLastKnownPositionAsync: async () => position(SAMPLE_PLACE),
+  // A short simulated walk, so tracking screens show movement.
+  watchPositionAsync: async (_options, callback) => {
+    sampleNote("location", "📍 Sample location (a simulated walk)");
+    let step = 0;
+    callback(position(SAMPLE_PLACE));
+    const timer = setInterval(() => {
+      step += 1;
+      callback(position({ latitude: SAMPLE_PLACE.latitude + step * 0.00012, longitude: SAMPLE_PLACE.longitude + step * 0.00008 }));
+    }, 1000);
+    return { remove: () => clearInterval(timer) };
+  },
+  reverseGeocodeAsync: async () => [
+    {
+      name: "1 Dr Carlton B Goodlett Pl",
+      street: "Dr Carlton B Goodlett Pl",
+      streetNumber: "1",
+      district: "Civic Center",
+      city: "San Francisco",
+      subregion: "San Francisco County",
+      region: "CA",
+      postalCode: "94102",
+      country: "United States",
+      isoCountryCode: "US",
+      timezone: "America/Los_Angeles",
+      formattedAddress: "1 Dr Carlton B Goodlett Pl, San Francisco, CA 94102, United States",
+    },
+  ],
+  geocodeAsync: async () => [{ ...SAMPLE_PLACE, altitude: 16, accuracy: 10 }],
+  getHeadingAsync: async () => ({ magHeading: 42, trueHeading: 42, accuracy: 3 }),
+  watchHeadingAsync: async (callback) => {
+    let heading = 0;
+    const timer = setInterval(() => {
+      heading = (heading + 3) % 360;
+      callback({ magHeading: heading, trueHeading: heading, accuracy: 3 });
+    }, 200);
+    return { remove: () => clearInterval(timer) };
+  },
+};
+
+/** A simulated sensor: gentle, realistic readings at the requested rate. */
+function sensor(sample) {
+  let interval = 250;
+  let timer = null;
+  const started = Date.now();
+  const listeners = new Set();
+  const tick = () => {
+    const reading = { ...sample((Date.now() - started) / 1000), timestamp: Date.now() / 1000 };
+    listeners.forEach((l) => l(reading));
+  };
+  const restart = () => {
+    clearInterval(timer);
+    timer = listeners.size ? setInterval(tick, interval) : null;
+  };
+  return {
+    isAvailableAsync: async () => true,
+    requestPermissionsAsync: async () => granted,
+    getPermissionsAsync: async () => granted,
+    setUpdateInterval: (ms) => {
+      interval = Math.max(16, Number(ms) || 250);
+      restart();
+    },
+    addListener: (listener) => {
+      sampleNote("sensors", "📳 Simulated motion");
+      listeners.add(listener);
+      restart();
+      return { remove: () => (listeners.delete(listener), restart()) };
+    },
+    removeAllListeners: () => (listeners.clear(), restart()),
+    hasListeners: () => listeners.size > 0,
+    getListenerCount: () => listeners.size,
+  };
+}
+const wave = (t, speed, size) => Math.sin(t * speed) * size;
+const Sensors = {
+  Accelerometer: sensor((t) => ({ x: wave(t, 1.3, 0.03), y: -0.98 + wave(t, 0.9, 0.02), z: 0.05 + wave(t, 1.7, 0.02) })),
+  Gyroscope: sensor((t) => ({ x: wave(t, 1.1, 0.02), y: wave(t, 0.7, 0.02), z: wave(t, 0.5, 0.01) })),
+  // The heading turns slowly, so compass screens move.
+  Magnetometer: sensor((t) => {
+    const a = ((t * 12) % 360) * (Math.PI / 180);
+    return { x: 30 * Math.cos(a), y: 30 * Math.sin(a), z: -20 };
+  }),
+  MagnetometerUncalibrated: sensor(() => ({ x: 30, y: 0, z: -20 })),
+  Barometer: sensor((t) => ({ pressure: 1013.2 + wave(t, 0.2, 0.3), relativeAltitude: 0 })),
+  LightSensor: sensor(() => ({ illuminance: 320 })),
+  DeviceMotion: sensor((t) => {
+    const acceleration = { x: wave(t, 1.3, 0.05), y: wave(t, 0.9, 0.05), z: wave(t, 1.7, 0.05) };
+    return {
+      acceleration,
+      accelerationIncludingGravity: { ...acceleration, y: acceleration.y - 9.81 },
+      rotation: { alpha: (t * 0.2) % (2 * Math.PI), beta: wave(t, 0.6, 0.15), gamma: wave(t, 0.8, 0.15) },
+      rotationRate: { alpha: wave(t, 1, 2), beta: wave(t, 1.2, 2), gamma: wave(t, 0.8, 2) },
+      orientation: 0,
+      interval: 250,
+    };
+  }),
+  Pedometer: {
+    isAvailableAsync: async () => true,
+    requestPermissionsAsync: async () => granted,
+    getPermissionsAsync: async () => granted,
+    getStepCountAsync: async () => {
+      sampleNote("steps", "👟 Sample step count");
+      return { steps: 4231 };
+    },
+    // Steps since watching started: a steady walking pace.
+    watchStepCount: (callback) => {
+      sampleNote("steps", "👟 Simulated steps");
+      let steps = 0;
+      const timer = setInterval(() => callback({ steps: (steps += 2) }), 1000);
+      return { remove: () => clearInterval(timer) };
+    },
+  },
+};
+
+const SAMPLE_PHOTO =
+  "data:image/svg+xml;charset=utf-8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1440" viewBox="0 0 1080 1440"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#4338ca"/></linearGradient></defs><rect width="1080" height="1440" fill="url(#g)"/><circle cx="780" cy="360" r="140" fill="#fde68a"/><path d="M0 1100 L360 700 L640 1000 L820 820 L1080 1100 V1440 H0 Z" fill="#1e3a8a" opacity=".85"/></svg>',
+  );
+const SAMPLE_CODES = { qr: "https://example.com/hello", ean13: "4006381333931", ean8: "96385074", upc_a: "036000291452", code128: "APPMAKER-123" };
+const CameraView = React.forwardRef(function CameraView(
+  { style, children, onBarcodeScanned, barcodeScannerSettings, onCameraReady, facing = "back" },
+  ref,
+) {
+  React.useImperativeHandle(ref, () => ({
+    takePictureAsync: async () => {
+      sampleNote("camera", "📷 Sample photo");
+      return { uri: SAMPLE_PHOTO, width: 1080, height: 1440 };
+    },
+    pausePreview: async () => {},
+    resumePreview: async () => {},
+    getAvailablePictureSizesAsync: async () => ["1920x1080"],
+  }));
+  const ready = React.useRef(onCameraReady);
+  React.useEffect(() => {
+    sampleNote("camera", "📷 Camera");
+    if (ready.current) ready.current();
+  }, []);
+  const type = (barcodeScannerSettings && barcodeScannerSettings.barcodeTypes && barcodeScannerSettings.barcodeTypes[0]) || "qr";
+  const scan = () => onBarcodeScanned && onBarcodeScanned({ type, data: SAMPLE_CODES[type] || SAMPLE_CODES.qr, raw: SAMPLE_CODES[type] || SAMPLE_CODES.qr, cornerPoints: [], bounds: { origin: { x: 0, y: 0 }, size: { width: 0, height: 0 } } });
+  return React.createElement(
+    RNW.View,
+    { style: [{ backgroundColor: "#0b1020", overflow: "hidden" }, style], accessibilityLabel: `Camera (${facing})` },
+    React.createElement(
+      RNW.View,
+      { style: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center", padding: 24 } },
+      React.createElement(RNW.Text, { style: { color: "#cbd5e1", fontSize: 14, textAlign: "center" } }, "Camera preview: the live camera shows on your phone"),
+      onBarcodeScanned
+        ? React.createElement(
+            RNW.Pressable,
+            {
+              accessibilityRole: "button",
+              accessibilityLabel: "Simulate a scan",
+              onPress: scan,
+              style: { marginTop: 14, minHeight: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center" },
+            },
+            React.createElement(RNW.Text, { style: { color: "#111827", fontSize: 15, fontWeight: "700" } }, "Simulate a scan"),
+          )
+        : null,
+    ),
+    children,
+  );
+});
+const cameraPermission = () => [granted, async () => granted, async () => granted];
+const CameraModule = {
+  CameraView,
+  useCameraPermissions: cameraPermission,
+  useMicrophonePermissions: cameraPermission,
+  requestCameraPermissionsAsync: async () => granted,
+  getCameraPermissionsAsync: async () => granted,
+  requestMicrophonePermissionsAsync: async () => granted,
+  scanFromURLAsync: async () => [],
+};
+CameraModule.Camera = CameraModule;
+
+// Face ID / fingerprint: an OK/Cancel prompt stands in for the phone's own.
+const LocalAuthentication = {
+  AuthenticationType: { FINGERPRINT: 1, FACIAL_RECOGNITION: 2, IRIS: 3 },
+  SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
+  hasHardwareAsync: async () => true,
+  isEnrolledAsync: async () => true,
+  supportedAuthenticationTypesAsync: async () => [2],
+  getEnrolledLevelAsync: async () => 3,
+  authenticateAsync: async (options) => {
+    const ok = window.confirm(`${(options && options.promptMessage) || "Unlock"}\n\nFace ID in the preview: press OK to unlock, Cancel to fail.`);
+    return ok ? { success: true } : { success: false, error: "user_cancel" };
+  },
+  cancelAuthenticate: async () => {},
+};
+
+let clipboardText = "";
+const Clipboard = {
+  setStringAsync: async (text) => {
+    clipboardText = String(text);
+    try {
+      await navigator.clipboard.writeText(clipboardText);
+    } catch {
+      // The sandbox may not allow it; the app still has the text.
+    }
+    return true;
+  },
+  setString: (text) => void Clipboard.setStringAsync(text),
+  getStringAsync: async () => clipboardText,
+  hasStringAsync: async () => clipboardText.length > 0,
+};
+
+const Speech = {
+  speak: (text, options = {}) => {
+    try {
+      const u = new SpeechSynthesisUtterance(String(text));
+      if (options.language) u.lang = options.language;
+      if (options.rate) u.rate = options.rate;
+      if (options.pitch) u.pitch = options.pitch;
+      u.onend = () => options.onDone && options.onDone();
+      u.onerror = () => options.onError && options.onError(new Error("speech failed"));
+      if (options.onStart) u.onstart = options.onStart;
+      window.speechSynthesis.speak(u);
+    } catch {
+      if (options.onDone) setTimeout(options.onDone, 0);
+    }
+  },
+  stop: async () => {
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      // No speech in this browser.
+    }
+  },
+  pause: async () => window.speechSynthesis && window.speechSynthesis.pause(),
+  resume: async () => window.speechSynthesis && window.speechSynthesis.resume(),
+  isSpeakingAsync: async () => !!(window.speechSynthesis && window.speechSynthesis.speaking),
+  getAvailableVoicesAsync: async () => [],
+  maxSpeechInputLength: 4000,
+};
+
 // Sliders. React Native Web never fires onMomentumScrollEnd, where slideshows
 // update their dots, so it's called here once scrolling settles.
 const ScrollViewShim = React.forwardRef(function ScrollView({ onMomentumScrollEnd, onScroll, scrollEventThrottle, ...rest }, ref) {
@@ -558,6 +816,12 @@ window.__APPMAKER_RUNTIME__ = {
     "expo-notifications": withDefault(Notifications, Notifications),
     "expo-image-picker": withDefault(ImagePicker, ImagePicker),
     "lucide-react-native": LucideModule,
+    "expo-location": withDefault(Location, Location),
+    "expo-sensors": withDefault(Sensors, Sensors),
+    "expo-camera": withDefault(CameraModule, CameraModule),
+    "expo-local-authentication": withDefault(LocalAuthentication, LocalAuthentication),
+    "expo-clipboard": withDefault(Clipboard, Clipboard),
+    "expo-speech": withDefault(Speech, Speech),
   },
 };
 

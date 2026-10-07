@@ -23,6 +23,13 @@ export const EXPO_DEPS: Record<string, string> = {
   // Gradients and frosted glass (used through src/theme.js's gradient and glass styles).
   "expo-linear-gradient": "~57.0.2",
   "expo-blur": "~57.0.3",
+  // Device features.
+  "expo-location": "~57.0.20",
+  "expo-sensors": "~57.0.3",
+  "expo-camera": "~57.0.5",
+  "expo-local-authentication": "~57.0.3",
+  "expo-clipboard": "~57.0.2",
+  "expo-speech": "~57.0.3",
   // Not imported by apps: installed on the server so previews can be
   // published with EAS Update for Expo Go.
   "expo-updates": "~57.0.24",
@@ -86,6 +93,14 @@ function plugins(project: Project): unknown[] {
       },
     ]);
   }
+  if (uses("expo-location")) {
+    list.push(["expo-location", { locationWhenInUsePermission: `${name} uses your location while you use the app, to show what's near you.` }]);
+  }
+  if (uses("expo-camera")) {
+    list.push(["expo-camera", { cameraPermission: `${name} uses the camera to scan codes and take pictures.`, recordAudioAndroid: false }]);
+  }
+  if (uses("expo-sensors")) list.push(["expo-sensors", { motionPermission: `${name} uses motion data to count your steps and movement.` }]);
+  if (uses("expo-local-authentication")) list.push(["expo-local-authentication", { faceIDPermission: `${name} uses Face ID to unlock the app.` }]);
   return list;
 }
 

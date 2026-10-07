@@ -174,3 +174,124 @@ export default function App() {
   await app.getByText("Details of Mint").press("Escape");
   await expect(app.getByText("Open Mint")).toBeVisible();
 });
+
+const SENSOR_LISTING = JSON.stringify({
+  name: "Trail Mate",
+  subtitle: "Testing",
+  description: "d".repeat(120),
+  keywords: "a",
+  category: "Health & Fitness",
+  bundleId: "com.example.trail",
+  primaryColor: "#15803D",
+  iconEmoji: "🥾",
+  privacyNotes: "Location and motion stay on the device.",
+});
+const SENSOR_APP = `import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import * as Location from 'expo-location';
+import { Pedometer, Magnetometer } from 'expo-sensors';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as Clipboard from 'expo-clipboard';
+
+function Button({ label, onPress }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.button}>
+      <Text style={styles.buttonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export default function App() {
+  const [place, setPlace] = useState('');
+  const [steps, setSteps] = useState(0);
+  const [heading, setHeading] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [code, setCode] = useState('');
+  const [unlocked, setUnlocked] = useState('');
+  const [permission, requestPermission] = useCameraPermissions();
+
+  useEffect(() => {
+    const sub = Pedometer.watchStepCount((r) => setSteps(r.steps));
+    Magnetometer.setUpdateInterval(200);
+    const mag = Magnetometer.addListener(({ x, y }) => setHeading(Math.round((Math.atan2(y, x) * 180) / Math.PI + 360) % 360));
+    return () => { sub.remove(); mag.remove(); };
+  }, []);
+
+  const locate = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return;
+    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    const [addr] = await Location.reverseGeocodeAsync(pos.coords);
+    setPlace(addr.city + ' ' + pos.coords.latitude.toFixed(2));
+  };
+
+  if (scanning) {
+    return (
+      <View style={{ flex: 1 }}>
+        <CameraView style={StyleSheet.absoluteFill} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => { setCode(data); setScanning(false); }} />
+      </View>
+    );
+  }
+  return (
+    <View style={styles.screen}>
+      <Text style={styles.text}>Steps: {steps}</Text>
+      <Text style={styles.text}>{heading === null ? 'No heading' : 'Heading set'}</Text>
+      <Text style={styles.text}>{place ? 'Near ' + place : 'Where am I?'}</Text>
+      <Text style={styles.text}>{code ? 'Scanned ' + code : 'Nothing scanned'}</Text>
+      <Text style={styles.text}>{unlocked || 'Locked'}</Text>
+      <Button label="Find me" onPress={locate} />
+      <Button label="Scan a code" onPress={async () => { if (!permission?.granted) await requestPermission(); setScanning(true); }} />
+      <Button label="Unlock" onPress={async () => { const r = await LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock Trail Mate' }); setUnlocked(r.success ? 'Unlocked' : 'Still locked'); }} />
+      <Button label="Copy code" onPress={() => Clipboard.setStringAsync(code)} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, padding: 24, paddingTop: 60, backgroundColor: '#FFFFFF', gap: 8 },
+  text: { fontSize: 17, color: '#111827' },
+  button: { minHeight: 48, borderRadius: 12, backgroundColor: '#15803D', alignItems: 'center', justifyContent: 'center' },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+});`;
+
+test("apps can use location, motion sensors, the camera scanner and Face ID, with sample data in the preview", async ({ page }) => {
+  const prompts: string[] = [];
+  await page.route("**/api/brief", (route) => route.fulfill({ json: { brief: null } }));
+  await page.route("**/api/generate", async (route) => {
+    prompts.push(route.request().postDataJSON().prompt);
+    await route.fulfill({
+      status: 200,
+      contentType: "text/plain",
+      headers: { "X-Appmaker-Mode": "ai" },
+      body: `<plan>x</plan>\n<file path="App.js">\n${SENSOR_APP}\n</file>\n<listing>${SENSOR_LISTING}</listing>\n<summary>ok</summary>`,
+    });
+  });
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("A hiking companion that counts steps, scans trail QR codes and locks with Face ID");
+  await page.keyboard.press("Enter");
+  const app = page.frameLocator('iframe[title="App preview"]');
+  await expect(app.getByText(/^Steps: /)).toBeVisible({ timeout: 30_000 });
+
+  // Simulated steps and compass.
+  await expect(app.getByText(/^Steps: [1-9]/)).toBeVisible({ timeout: 10_000 });
+  await expect(app.getByText("Heading set")).toBeVisible();
+  // A sample location, said to be a sample.
+  await app.getByRole("button", { name: "Find me" }).click();
+  await expect(app.getByText("Near San Francisco 37.78")).toBeVisible();
+  await expect(app.getByText(/This preview uses sample data/).first()).toBeVisible();
+  // The camera scanner, with a simulated scan.
+  await app.getByRole("button", { name: "Scan a code" }).click();
+  await expect(app.getByText("Camera preview: the live camera shows on your phone")).toBeVisible();
+  await app.getByRole("button", { name: "Simulate a scan" }).click();
+  await expect(app.getByText("Scanned https://example.com/hello")).toBeVisible();
+  // Face ID: OK unlocks.
+  page.once("dialog", (d) => d.accept());
+  await app.getByRole("button", { name: "Unlock" }).click();
+  await expect(app.getByText("Unlocked")).toBeVisible();
+  await app.getByRole("button", { name: "Copy code" }).click();
+
+  // None of it counts as a problem: no automatic fix was needed.
+  await page.waitForTimeout(4000);
+  expect(prompts).toHaveLength(1);
+});
