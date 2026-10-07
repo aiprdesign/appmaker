@@ -667,7 +667,14 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
 
   return (
     <div className="flex h-dvh overflow-hidden">
-    <AppSidebar currentId={project.id} />
+    <AppSidebar
+      currentId={project.id}
+      busy={generating || checking}
+      onRenameCurrent={(name) => {
+        const p = projectRef.current ?? project;
+        commit({ ...p, name, listing: { ...p.listing, name } });
+      }}
+    />
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 sm:gap-3">
         <Logo href="/projects" compact />

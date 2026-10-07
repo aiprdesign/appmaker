@@ -54,3 +54,44 @@ test("the sidebar lists every app, makes new ones, and collapses to icons", asyn
   await expect(page).toHaveURL(/\/#start$/);
   await expect(page.getByLabel("Describe your app")).toBeVisible();
 });
+
+test("each app in the sidebar has a menu to rename, duplicate and delete it", async ({ page }) => {
+  await page.route("**/api/brief", (route) => route.fulfill({ json: { brief: null } }));
+  await page.route("**/api/generate", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/plain",
+      headers: { "X-Appmaker-Mode": "ai" },
+      body: `<plan>x</plan>\n<file path="App.js">\n${app("Garden Pal")}\n</file>\n<listing>${listing("Garden Pal", "#15803D")}</listing>\n<summary>ok</summary>`,
+    }),
+  );
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("a garden planner");
+  await page.keyboard.press("Enter");
+  const preview = page.frameLocator('iframe[title="App preview"]');
+  await expect(preview.getByText("Garden Pal")).toBeVisible({ timeout: 30_000 });
+  const sidebar = page.getByRole("navigation", { name: "Your apps" });
+
+  // Rename the open app: the header follows.
+  await sidebar.getByRole("button", { name: "More actions for Garden Pal" }).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  await sidebar.getByLabel("New name for Garden Pal").fill("Backyard Buddy");
+  await page.keyboard.press("Enter");
+  await expect(sidebar.getByRole("link", { name: /Backyard Buddy/ })).toBeVisible();
+  await expect(page.locator("header").getByText("Backyard Buddy")).toBeVisible();
+
+  // Duplicate: opens the copy, with the same app inside.
+  await sidebar.getByRole("button", { name: "More actions for Backyard Buddy" }).click();
+  await page.getByRole("menuitem", { name: "Duplicate" }).click();
+  await expect(sidebar.getByRole("link", { name: /Backyard Buddy copy/ })).toHaveAttribute("aria-current", "page");
+  await expect(preview.getByText("Garden Pal")).toBeVisible({ timeout: 30_000 });
+  await expect(sidebar.getByRole("listitem")).toHaveCount(2);
+
+  // Delete (with a confirmation): the open copy goes, and so do we.
+  await sidebar.getByRole("button", { name: "More actions for Backyard Buddy copy" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Delete app" }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(page.getByText("Backyard Buddy copy")).toHaveCount(0);
+  await expect(page.getByText("Backyard Buddy", { exact: true })).toBeVisible();
+});
