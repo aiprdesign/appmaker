@@ -800,6 +800,12 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           {tab === "preview" && (
             <div className="stage relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="flex flex-wrap items-center justify-center gap-2 p-3">
+                {(generating || checking) && (
+                  <span role="status" aria-label={generating ? "Building your app" : "Checking your app"} className="inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 py-1 pl-1.5 pr-3 text-xs font-medium text-violet-100">
+                    <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-violet-300/25 border-t-violet-300 border-r-pink-400" />
+                    {generating ? "Building…" : "Checking…"}
+                  </span>
+                )}
                 <div className="flex rounded-lg border border-line bg-surface p-0.5 text-xs">
                   {(["ios", "android", ...(project.listing.ipad === false ? [] : (["ipad"] as const))] as const).map((p) => (
                     <button
