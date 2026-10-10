@@ -4,6 +4,8 @@
  * opens in Snack's emulators by link.
  */
 
+import { SNACK_PINS } from "../snack";
+
 const api = () => process.env.APPMAKER_SNACK_API || "https://exp.host";
 
 export class SnackError extends Error {}
@@ -35,13 +37,14 @@ async function sdkVersions(): Promise<string[]> {
 }
 
 async function save(app: SnackApp, sdkVersion: string): Promise<string> {
-  const dependencies = Object.fromEntries(app.dependencies.map((name) => [name, { version: "*" }]));
+  const version = (name: string) => SNACK_PINS[name] ?? "*";
+  const dependencies = Object.fromEntries(app.dependencies.map((name) => [name, { version: version(name) }]));
   const res = await fetch(`${api()}/--/api/v2/snack/save`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     signal: AbortSignal.timeout(30_000),
     body: JSON.stringify({
-      manifest: { sdkVersion, name: app.name, description: app.description, dependencies: Object.fromEntries(app.dependencies.map((d) => [d, "*"])) },
+      manifest: { sdkVersion, name: app.name, description: app.description, dependencies: Object.fromEntries(app.dependencies.map((d) => [d, version(d)])) },
       code: Object.fromEntries(Object.entries(app.files).map(([path, contents]) => [path, { type: "CODE", contents }])),
       dependencies,
       isDraft: false,

@@ -44,10 +44,10 @@ describe("big apps in Snack", () => {
     const res = await call({ name: "Fresh Keeper", description: "d", dependencies: ["lucide-react-native"], files: { "App.js": `// ${big}\nexport default () => null;`, "../evil.js": "no", "package.json": "no" } });
     expect(await res.json()).toEqual({ id: "@snack/abc123", sdkVersion: "57.0.0" });
     const body = saved.at(-1) as { manifest: Record<string, unknown>; code: Record<string, { type: string; contents: string }>; dependencies: Record<string, unknown> };
-    expect(body.manifest).toMatchObject({ sdkVersion: "57.0.0", name: "Fresh Keeper", dependencies: { "lucide-react-native": "*" } });
+    expect(body.manifest).toMatchObject({ sdkVersion: "57.0.0", name: "Fresh Keeper", dependencies: { "lucide-react-native": "0.544.0" } });
     expect(Object.keys(body.code)).toEqual(["App.js"]);
     expect(body.code["App.js"].type).toBe("CODE");
-    expect(body.dependencies).toEqual({ "lucide-react-native": { version: "*" } });
+    expect(body.dependencies).toEqual({ "lucide-react-native": { version: "0.544.0" } });
   });
 
   it("falls back to an older SDK when Snack doesn't run the newest yet", async () => {

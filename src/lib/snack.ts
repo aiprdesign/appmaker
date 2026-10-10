@@ -12,6 +12,12 @@ import type { Project } from "./types";
 export const SNACK_URL = "https://snack.expo.dev";
 export type SnackPlatform = "ios" | "android" | "mydevice" | "web";
 
+/**
+ * Versions Snack can build. Its bundler runs an older Expo SDK than the apps,
+ * and fails on the newest icon library, so these are pinned for Snack only.
+ */
+export const SNACK_PINS: Record<string, string> = { "lucide-react-native": "0.544.0", "react-native-svg": "15.12.1" };
+
 /** Packages Snack always provides; everything else is listed as a dependency. */
 const BUILT_IN = new Set(["expo", "react", "react-dom", "react-native", "react-native-web"]);
 
@@ -40,6 +46,7 @@ export function snackPayload(project: Project, platform: SnackPlatform, { compac
     description: (project.listing.subtitle || "Made with Appmaker").slice(0, 200),
     dependencies: Object.keys(usedDependencies(project))
       .filter((d) => !BUILT_IN.has(d))
+      .map((d) => (SNACK_PINS[d] ? `${d}@${SNACK_PINS[d]}` : d))
       .join(","),
     files: JSON.stringify(files),
   };
@@ -59,7 +66,7 @@ async function openSavedSnack(project: Project, platform: SnackPlatform): Promis
       body: JSON.stringify({
         name: payload.name,
         description: payload.description,
-        dependencies: payload.dependencies ? payload.dependencies.split(",") : [],
+        dependencies: payload.dependencies ? payload.dependencies.split(",").map((d) => d.replace(/(.)@.*$/, "$1")) : [],
         files: Object.fromEntries(Object.entries(project.files).filter(([p]) => isAllowedPath(p))),
       }),
     });
