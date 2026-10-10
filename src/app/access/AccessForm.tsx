@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Loader2, LockKeyhole } from "lucide-react";
 
-export function AccessForm({ next }: { next: string }) {
+export function AccessForm({ next, kind = "pin" }: { next: string; kind?: "password" | "pin" }) {
+  const word = kind === "password" ? "password" : "PIN";
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,22 +25,22 @@ export function AccessForm({ next }: { next: string }) {
         setBusy(false);
         setPin("");
         setLocked(!!data?.locked);
-        setError(data?.error || "Couldn't check the PIN. Check your connection and try again.");
+        setError(data?.error || `Couldn't check the ${word}. Check your connection and try again.`);
       }}
     >
       <LockKeyhole className="h-8 w-8 text-violet-400" />
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Enter the PIN</h1>
-      <p className="mt-2 text-sm text-muted">This site is private for now. Enter the PIN you were given to continue.</p>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Enter the {word}</h1>
+      <p className="mt-2 text-sm text-muted">This site is private for now. Enter the {word} you were given to continue.</p>
       <label className="mt-6 block">
-        <span className="mb-1.5 block text-xs font-medium">PIN</span>
+        <span className="mb-1.5 block text-xs font-medium">{kind === "password" ? "Password" : "PIN"}</span>
         <input
-          className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-center font-mono text-lg tracking-[0.4em] outline-none focus:border-violet-500/60"
+          className={`w-full rounded-lg border border-line bg-surface px-3 py-2.5 outline-none focus:border-violet-500/60 ${kind === "pin" ? "text-center font-mono text-lg tracking-[0.4em]" : "text-base"}`}
           type="password"
-          inputMode="numeric"
-          autoComplete="one-time-code"
+          inputMode={kind === "pin" ? "numeric" : "text"}
+          autoComplete={kind === "pin" ? "one-time-code" : "current-password"}
           required
           autoFocus
-          maxLength={32}
+          maxLength={128}
           value={pin}
           onChange={(e) => setPin(e.target.value)}
           disabled={locked}

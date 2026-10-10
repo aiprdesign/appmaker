@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 /**
- * The site lock: when SITE_PIN is set (a variable on the host, such as
+ * The site lock: when SITE_PASSWORD (or SITE_PIN) is set (a variable on the host, such as
  * Railway), every page needs the PIN once per device. Access cookies are
  * signed with a key derived from the PIN, so changing it signs everyone out.
  */
@@ -9,7 +9,9 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 export const ACCESS_COOKIE = "appmaker_access";
 const DAYS = 30;
 
-const pin = () => (process.env.SITE_PIN ?? "").trim();
+const pin = () => (process.env.SITE_PASSWORD || process.env.SITE_PIN || "").trim();
+/** SITE_PASSWORD asks for a password (any keyboard); SITE_PIN for a PIN (number pad). */
+export const lockKind = (): "password" | "pin" => (process.env.SITE_PASSWORD?.trim() ? "password" : "pin");
 export const siteLocked = (): boolean => pin().length > 0;
 
 const key = () => createHash("sha256").update(`appmaker-access:${pin()}`).digest();

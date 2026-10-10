@@ -1,7 +1,7 @@
 import { assertSameOrigin } from "@/lib/server/auth";
 import { accountError, readBody } from "@/lib/server/respond";
 import { attemptState, clearFailures, lockedMessage, recordFailure, triesLeftMessage } from "@/lib/server/attempts";
-import { accessCookie, checkPin, safeNext, siteLocked, trustedIp } from "@/lib/server/site-access";
+import { accessCookie, checkPin, lockKind, safeNext, siteLocked, trustedIp } from "@/lib/server/site-access";
 
 /** Unlocks the site for this device when the PIN is right. */
 export async function POST(req: Request) {
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       const after = recordFailure(key);
       return Response.json(
         {
-          error: triesLeftMessage("That's not the PIN.", after),
+          error: triesLeftMessage(lockKind() === "password" ? "That's not the password." : "That's not the PIN.", after),
           left: after.left,
           locked: after.locked,
         },

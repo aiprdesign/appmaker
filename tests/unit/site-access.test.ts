@@ -178,3 +178,18 @@ describe("admin password", () => {
     expect((await accessStatus(new Request("http://localhost:3000/api/admin/access"))).status).toBe(401);
   });
 });
+
+describe("password instead of PIN", () => {
+  it("SITE_PASSWORD locks the site with a password, and wins over SITE_PIN", async () => {
+    process.env.SITE_PIN = "4321";
+    process.env.SITE_PASSWORD = "Open Sesame 2026";
+    try {
+      expect(proxy(page("/")).status).toBe(307);
+      const wrong = await unlock(post("/api/access", { pin: "4321" }, nextIp()));
+      expect((await wrong.json()).error).toMatch(/^That's not the password\./);
+      expect((await unlock(post("/api/access", { pin: "Open Sesame 2026" }, nextIp()))).status).toBe(200);
+    } finally {
+      delete process.env.SITE_PASSWORD;
+    }
+  });
+});
