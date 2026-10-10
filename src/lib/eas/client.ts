@@ -90,7 +90,14 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     throw new EasRequestError("Couldn't reach the server. Check your connection and try again.");
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new EasRequestError(data.error || `Request failed (HTTP ${res.status})`, data.code, data.signing);
+  if (!res.ok) {
+    // No message from Appmaker: the host's proxy gave up waiting (a long first publish or build after a deploy).
+    const timedOut = !data.error && [502, 503, 504].includes(res.status);
+    const message = timedOut
+      ? "The server took too long to answer (the first one after an update can be slow while it sets up). Wait a minute, then try again: it's usually quick the second time."
+      : data.error || `Request failed (HTTP ${res.status})`;
+    throw new EasRequestError(message, data.code, data.signing);
+  }
   return data as T;
 }
 
