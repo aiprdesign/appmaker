@@ -541,8 +541,17 @@ export async function publishUpdate(req: { token: string; project: Project; icon
     const out = await runEas(updateArgs(), { cwd: dir, token: req.token, timeoutMs: 4.5 * 60_000, action: "publish the preview" });
     const updates = parseJsonOutput<RawUpdate[] | RawUpdate>(out);
     const list = (Array.isArray(updates) ? updates : [updates]).filter((u) => u?.group);
-    const group = list.find((u) => u.runtimeVersion === EXPO_GO_RUNTIME)?.group ?? list[0]?.group;
-    if (!group) throw new EasError("Expo didn't return the published preview. Try again.", 502);
+    if (!list.length) throw new EasError("Expo didn't return the published preview. Try again.", 502);
+    // Expo Go only opens updates made for its own SDK; anything else shows "not compatible".
+    const group = list.find((u) => u.runtimeVersion === EXPO_GO_RUNTIME)?.group;
+    if (!group) {
+      const got = [...new Set(list.map((u) => u.runtimeVersion).filter(Boolean))].join(", ") || "none";
+      console.warn(`Expo Go preview: published runtime ${got}, expected ${EXPO_GO_RUNTIME}`);
+      throw new EasError(
+        `Expo published the preview for runtime ${got}, but Expo Go needs ${EXPO_GO_RUNTIME}, so it would say "not compatible". Press Set up again; if it keeps happening, tell the site owner.`,
+        502,
+      );
+    }
     return {
       groupId: group,
       url: expoGoUrl(group),
