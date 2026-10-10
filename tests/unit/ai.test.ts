@@ -699,5 +699,6 @@ describe("POST /api/ai/test", () => {
     const res = await call({ provider: "openai", model: "gpt-5.5", apiKey: "bad" });
     expect(res.status).toBe(502);
     expect((await res.json()).error).toMatch(/OpenAI/);
-  });
+    // Without network access the SDK retries the connection a few times first.
+  }, 30_000);
 });
