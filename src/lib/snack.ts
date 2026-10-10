@@ -47,11 +47,43 @@ export function snackPayload(project: Project, platform: SnackPlatform, { compac
 
 const payloadBytes = (payload: Record<string, string>) => new TextEncoder().encode(new URLSearchParams(payload).toString()).length;
 
-/** Submits the app to Snack in a new tab; false when the app is too big for Snack. */
-export function openInSnack(project: Project, platform: SnackPlatform): boolean {
+/** A big app: Appmaker's server saves it to Snack, then the tab opens it by link. */
+async function openSavedSnack(project: Project, platform: SnackPlatform): Promise<string | null> {
+  // Opened now, while the click still counts, so the browser doesn't block it.
+  const tab = window.open("about:blank", "_blank");
+  const payload = snackPayload(project, platform);
+  try {
+    const res = await fetch("/api/snack", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: payload.name,
+        description: payload.description,
+        dependencies: payload.dependencies ? payload.dependencies.split(",") : [],
+        files: Object.fromEntries(Object.entries(project.files).filter(([p]) => isAllowedPath(p))),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.id) throw new Error(data.error || "Couldn't open Expo Snack.");
+    const url = `${SNACK_URL}/${String(data.id).replace(/^\//, "")}?platform=${platform}&supportedPlatforms=ios,android,web`;
+    if (tab) tab.location.href = url;
+    else window.open(url, "_blank");
+    return null;
+  } catch (e) {
+    tab?.close();
+    return (e as Error).message;
+  }
+}
+
+/**
+ * Opens the app in Snack in a new tab. Small apps go by form post (Snack picks
+ * its Expo version); bigger ones are saved through Appmaker's server first.
+ * Resolves to an error message, or null when it opened.
+ */
+export async function openInSnack(project: Project, platform: SnackPlatform): Promise<string | null> {
   let payload = snackPayload(project, platform);
   if (payloadBytes(payload) > SNACK_MAX_BYTES) payload = snackPayload(project, platform, { compact: true });
-  if (payloadBytes(payload) > SNACK_MAX_BYTES) return false;
+  if (payloadBytes(payload) > SNACK_MAX_BYTES) return openSavedSnack(project, platform);
   const form = document.createElement("form");
   form.method = "POST";
   form.action = SNACK_URL;
@@ -67,5 +99,5 @@ export function openInSnack(project: Project, platform: SnackPlatform): boolean 
   document.body.appendChild(form);
   form.submit();
   form.remove();
-  return true;
+  return null;
 }
