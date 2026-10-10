@@ -515,8 +515,9 @@ export async function startBuild(req: BuildRequest): Promise<BuildResult> {
 // Previews on a phone with Expo Go (EAS Update)
 
 /** The link Expo Go opens for an update group; shown as a QR code. */
-export function expoGoUrl(groupId: string): string {
-  return `exp://u.expo.dev/update/${encodeURIComponent(groupId)}`;
+export function expoGoUrl(projectId: string, groupId: string): string {
+  // The format expo.dev itself shows as the update's deep link.
+  return `exp://u.expo.dev/${encodeURIComponent(projectId)}/group/${encodeURIComponent(groupId)}`;
 }
 
 export function updateArgs(): string[] {
@@ -554,7 +555,7 @@ export async function publishUpdate(req: { token: string; project: Project; icon
     }
     return {
       groupId: group,
-      url: expoGoUrl(group),
+      url: expoGoUrl(req.link.projectId, group),
       platforms: list.filter((u) => u.group === group && u.platform).map((u) => u.platform!),
       publishedAt: Date.now(),
     };

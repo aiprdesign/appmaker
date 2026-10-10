@@ -21,7 +21,12 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
   const [error, setError] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const expo = project.expo ?? {};
-  const preview = expo.phone;
+  const saved = expo.phone;
+  // Previews published before the link format changed: rebuild the link Expo Go understands.
+  const preview =
+    saved && expo.link && saved.url.startsWith("exp://u.expo.dev/update/")
+      ? { ...saved, url: `exp://u.expo.dev/${encodeURIComponent(expo.link.projectId)}/group/${encodeURIComponent(saved.groupId)}` }
+      : saved;
   const upToDate = !!preview && preview.source === previewSource(project);
   const canPublish = !!server && server.available && !server.off && (server.hosted || !!token);
 

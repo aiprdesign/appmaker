@@ -376,7 +376,7 @@ describe("phone previews with Expo Go (EAS Update)", () => {
     const preview = await publishUpdate({ token: TOKEN, project: project(), icon: PNG, link });
     expect(preview).toMatchObject({
       groupId: "7a1b2c3d-0000-4000-8000-00000000abcd",
-      url: "exp://u.expo.dev/update/7a1b2c3d-0000-4000-8000-00000000abcd",
+      url: `exp://u.expo.dev/${PROJECT_ID}/group/7a1b2c3d-0000-4000-8000-00000000abcd`,
       platforms: ["android", "ios"],
     });
     const [rec] = records();
@@ -413,7 +413,7 @@ describe("phone previews with Expo Go (EAS Update)", () => {
     expect((await call({ link, project: app, icon: PNG.toString("base64") })).status).toBe(400);
     const ok = await call({ token: TOKEN, link, project: app, icon: PNG.toString("base64") });
     expect(ok.status).toBe(200);
-    expect((await ok.json()).preview.url).toMatch(/^exp:\/\/u\.expo\.dev\/update\//);
+    expect((await ok.json()).preview.url).toMatch(/^exp:\/\/u\.expo\.dev\/[0-9a-f-]+\/group\//);
   });
 });
 

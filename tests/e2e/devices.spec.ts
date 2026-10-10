@@ -91,7 +91,7 @@ test("a finished Android test build shows a QR code to install it", async ({ pag
 });
 
 const GROUP = "7a1b2c3d-0000-4000-8000-00000000abcd";
-const EXPO_GO_URL = `exp://u.expo.dev/update/${GROUP}`;
+const EXPO_GO_URL = `exp://u.expo.dev/0b6e6a8e-3f5e-4c47-9d68-6e0d3c1f2a11/group/${GROUP}`;
 
 test("Your phone (Expo Go): publishes the app and shows a QR code to open it", async ({ page }) => {
   const calls: Record<string, Record<string, unknown>[]> = { link: [], update: [] };
