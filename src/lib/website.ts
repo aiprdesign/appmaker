@@ -121,15 +121,91 @@ export function websiteStyleBrief(style: DesignStyle): string {
   return `<design_style name="${style.name}">\nDesign this website in the ${style.name} style. Translate it to the web (Tailwind classes, page sections, responsive grids):\n${style.direction}\nAll the accessibility and contrast rules still apply.\n</design_style>`;
 }
 
-/** The redesigned site as a ZIP, ready to upload to a web host. */
-export async function siteZip(files: FileMap): Promise<Blob> {
+const IMAGE_URL = /https:\/\/[^\s"'()<>]+?\.(?:jpe?g|png|webp|gif|avif|svg)(?:\?[^\s"'()<>]*)?(?=["')\s>])/gi;
+const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/avif": "avif", "image/svg+xml": "svg" };
+const MAX_IMAGES = 60;
+const MAX_IMAGE_BYTES = 8_000_000;
+
+/** Every https image address the pages and stylesheets use, in order. */
+export function siteImageUrls(files: FileMap): string[] {
+  const urls: string[] = [];
+  for (const [path, code] of Object.entries(files)) {
+    if (!/\.(html|css)$/.test(path)) continue;
+    for (const m of code.matchAll(IMAGE_URL)) if (!urls.includes(m[0])) urls.push(m[0]);
+  }
+  return urls.slice(0, MAX_IMAGES);
+}
+
+/** A short, safe file name for a downloaded image. */
+export function imageFileName(url: string, type: string, taken: Set<string>): string {
+  const base =
+    decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "")
+      .replace(/\.[a-z0-9]+$/i, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || "image";
+  const ext = EXT[type] ?? (/\.([a-z0-9]{3,4})(?:\?|$)/i.exec(url)?.[1]?.toLowerCase() || "jpg");
+  let name = `images/${base}.${ext}`;
+  for (let i = 2; taken.has(name); i++) name = `images/${base}-${i}.${ext}`;
+  taken.add(name);
+  return name;
+}
+
+/**
+ * The redesigned site as a ZIP, ready to upload to a web host. Its images are
+ * fetched by the browser straight from the business's own website (never
+ * through Appmaker's server) and saved in images/, so the site stands alone.
+ * An image that website doesn't allow to be downloaded stays linked to it.
+ */
+export async function siteZip(files: FileMap, fetcher: typeof fetch = fetch): Promise<{ blob: Blob; saved: number; linked: number }> {
   const zip = new JSZip();
-  for (const [path, code] of Object.entries(files)) if (isAllowedSitePath(path)) zip.file(path, code);
+  const taken = new Set<string>();
+  const local = new Map<string, string>();
+  await Promise.all(
+    siteImageUrls(files).map(async (url) => {
+      try {
+        const res = await fetcher(url, { mode: "cors", signal: AbortSignal.timeout(20_000) });
+        if (!res.ok) return;
+        const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+        if (type && !type.startsWith("image/")) return;
+        const data = await res.arrayBuffer();
+        if (!data.byteLength || data.byteLength > MAX_IMAGE_BYTES) return;
+        const name = imageFileName(url, type, taken);
+        zip.file(name, data);
+        local.set(url, name);
+      } catch {
+        // Not allowed or unreachable: the page keeps the link to the original.
+      }
+    }),
+  );
+  for (const [path, code] of Object.entries(files)) {
+    if (!isAllowedSitePath(path)) continue;
+    let out = code;
+    if (/\.(html|css)$/.test(path)) {
+      // Pages one folder deep reach the images folder one level up.
+      const prefix = path.includes("/") ? "../" : "";
+      for (const [url, name] of local) out = out.split(url).join(prefix + name);
+    }
+    zip.file(path, out);
+  }
+  const linked = siteImageUrls(files).length - local.size;
   zip.file(
     "README.txt",
-    "Your redesigned website, made with Appmaker.\n\nTo put it online, upload every file in this folder (keeping index.html at the top) to your web host's public folder, often called public_html or www. On Netlify, drag this folder onto app.netlify.com/drop.\n",
+    [
+      "Your redesigned website, made with Appmaker.",
+      "",
+      "To put it online, upload every file and folder here (keeping index.html at the top) to your web host's public folder, often called public_html or www. On Netlify, drag this folder onto app.netlify.com/drop.",
+      "",
+      local.size ? `The images folder has ${local.size} photo${local.size === 1 ? "" : "s"} from your current website.` : "",
+      linked
+        ? `${linked} image${linked === 1 ? " is" : "s are"} still loaded from your current website (it didn't allow downloading ${linked === 1 ? "it" : "them"} here). Keep that website's images online, or save them into the images folder and update the links.`
+        : "",
+    ]
+      .filter((l, i, all) => l || all[i - 1])
+      .join("\n"),
   );
-  return zip.generateAsync({ type: "blob" });
+  return { blob: await zip.generateAsync({ type: "blob" }), saved: local.size, linked };
 }
 
 /** The default request for a redesign. */

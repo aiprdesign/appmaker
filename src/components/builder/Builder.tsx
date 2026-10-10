@@ -126,6 +126,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [demoMode, setDemoMode] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
+  // Website download: packing its images, and a note when some stay linked.
+  const [zipping, setZipping] = useState(false);
+  const [siteNote, setSiteNote] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const projectRef = useRef<Project | null>(null);
   const started = useRef(false);
@@ -741,11 +744,21 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         <HistoryMenu versions={project.versions ?? []} disabled={generating} onRestore={restore} />
         {isSite ? (
           <button
-            onClick={async () => downloadBlob(await siteZip(project.files), `${slugify(project.listing.name || project.name)}-website.zip`)}
-            disabled={!hasApp || generating}
+            onClick={async () => {
+              setZipping(true);
+              try {
+                const { blob, linked } = await siteZip(project.files);
+                downloadBlob(blob, `${slugify(project.listing.name || project.name)}-website.zip`);
+                if (linked) setSiteNote(`${linked} image${linked === 1 ? "" : "s"} couldn't be saved into the ZIP (that website doesn't allow it), so ${linked === 1 ? "it stays" : "they stay"} linked to your current site. The ZIP's README explains.`);
+              } finally {
+                setZipping(false);
+              }
+            }}
+            disabled={!hasApp || generating || zipping}
             className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
           >
-            <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Download website</span>
+            {zipping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}{" "}
+            <span className="hidden sm:inline">{zipping ? "Packing images…" : "Download website"}</span>
           </button>
         ) : (
         <>
@@ -768,6 +781,14 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         )}
       </header>
 
+      {siteNote && (
+        <div role="status" className="flex items-center gap-2 border-b border-line bg-white/5 px-4 py-2 text-xs text-muted">
+          {siteNote}
+          <button onClick={() => setSiteNote(null)} className="ml-auto underline underline-offset-2">
+            OK
+          </button>
+        </div>
+      )}
       {saveFailed && (
         <div role="alert" className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />

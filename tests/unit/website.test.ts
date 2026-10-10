@@ -56,3 +56,32 @@ describe("website redesign", () => {
     expect(validateSite(parsed.files)).toEqual([]);
   });
 });
+
+describe("website download", () => {
+  it("saves the site's images into the ZIP, straight from the business's website", async () => {
+    const JSZip = (await import("jszip")).default;
+    const { siteZip } = await import("@/lib/website");
+    const files = {
+      "index.html": `<img src="https://luigis.example/img/Pasta%20Dish.jpg?w=800" alt="Pasta"><img src="https://cdn.locked.example/a.png" alt="x">`,
+      "blog/post.html": `<img src="https://luigis.example/img/Pasta%20Dish.jpg?w=800" alt="Pasta">`,
+      "styles.css": `.hero{background:url('https://luigis.example/hero.webp')}`,
+    };
+    const asked: string[] = [];
+    const fetcher = (async (url: string) => {
+      asked.push(url);
+      if (url.includes("locked")) throw new TypeError("Failed to fetch (CORS)");
+      const type = url.endsWith(".webp") ? "image/webp" : "image/jpeg";
+      return new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": type } });
+    }) as typeof fetch;
+    const { blob, saved, linked } = await siteZip(files, fetcher);
+    expect({ saved, linked }).toEqual({ saved: 2, linked: 1 });
+    expect(asked.every((u) => !u.includes("appmaker"))).toBe(true);
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+    expect(Object.keys(zip.files).sort()).toEqual(["README.txt", "blog/", "blog/post.html", "images/", "images/hero.webp", "images/pasta-dish.jpg", "index.html", "styles.css"]);
+    expect(await zip.file("index.html")!.async("string")).toContain('src="images/pasta-dish.jpg"');
+    expect(await zip.file("index.html")!.async("string")).toContain("https://cdn.locked.example/a.png");
+    expect(await zip.file("blog/post.html")!.async("string")).toContain('src="../images/pasta-dish.jpg"');
+    expect(await zip.file("styles.css")!.async("string")).toContain("url('images/hero.webp')");
+    expect(await zip.file("README.txt")!.async("string")).toMatch(/1 image is still loaded from your current website/);
+  });
+});
