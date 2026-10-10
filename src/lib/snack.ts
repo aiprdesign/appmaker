@@ -15,10 +15,23 @@ export type SnackPlatform = "ios" | "android" | "mydevice" | "web";
 /** Packages Snack always provides; everything else is listed as a dependency. */
 const BUILT_IN = new Set(["expo", "react", "react-dom", "react-native", "react-native-web"]);
 
-export function snackPayload(project: Project, platform: SnackPlatform): Record<string, string> {
+/** Snack's server refuses form posts over about 100 KB ("request entity too large"). */
+export const SNACK_MAX_BYTES = 95_000;
+
+/** Smaller code that runs the same: no indentation, no comment-only or blank lines. */
+export function compactCode(code: string): string {
+  return code
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !/^\/\/(?!\s*@)/.test(l))
+    .join("\n");
+}
+
+export function snackPayload(project: Project, platform: SnackPlatform, { compact = false } = {}): Record<string, string> {
   const files: Record<string, { type: "CODE"; contents: string }> = {};
   for (const [path, contents] of Object.entries(project.files)) {
-    if (isAllowedPath(path)) files[path] = { type: "CODE", contents };
+    // JSON keeps its exact text; template strings in code only lose indentation.
+    if (isAllowedPath(path)) files[path] = { type: "CODE", contents: compact && !path.endsWith(".json") ? compactCode(contents) : contents };
   }
   return {
     platform,
@@ -32,14 +45,19 @@ export function snackPayload(project: Project, platform: SnackPlatform): Record<
   };
 }
 
-/** Submits the app to Snack in a new tab. */
-export function openInSnack(project: Project, platform: SnackPlatform): void {
+const payloadBytes = (payload: Record<string, string>) => new TextEncoder().encode(new URLSearchParams(payload).toString()).length;
+
+/** Submits the app to Snack in a new tab; false when the app is too big for Snack. */
+export function openInSnack(project: Project, platform: SnackPlatform): boolean {
+  let payload = snackPayload(project, platform);
+  if (payloadBytes(payload) > SNACK_MAX_BYTES) payload = snackPayload(project, platform, { compact: true });
+  if (payloadBytes(payload) > SNACK_MAX_BYTES) return false;
   const form = document.createElement("form");
   form.method = "POST";
   form.action = SNACK_URL;
   form.target = "_blank";
   form.rel = "noopener";
-  for (const [name, value] of Object.entries(snackPayload(project, platform))) {
+  for (const [name, value] of Object.entries(payload)) {
     const input = document.createElement("input");
     input.type = "hidden";
     input.name = name;
@@ -49,4 +67,5 @@ export function openInSnack(project: Project, platform: SnackPlatform): void {
   document.body.appendChild(form);
   form.submit();
   form.remove();
+  return true;
 }

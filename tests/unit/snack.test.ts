@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { snackPayload } from "@/lib/snack";
+import { compactCode, snackPayload } from "@/lib/snack";
 import { emptyListing } from "@/lib/storage";
 import type { Project } from "@/lib/types";
 
@@ -38,5 +38,12 @@ describe("snackPayload", () => {
     expect(deps).toContain("@react-native-async-storage/async-storage");
     expect(deps).not.toContain("expo");
     expect(deps).not.toContain("react-native");
+  });
+});
+
+describe("apps too big for Snack", () => {
+  it("compacts code without changing what it does", () => {
+    const code = "// A comment\nimport React from 'react';\n\n    export default function App() {\n      return null; // keeps trailing comments\n    }\n";
+    expect(compactCode(code)).toBe("import React from 'react';\nexport default function App() {\nreturn null; // keeps trailing comments\n}");
   });
 });

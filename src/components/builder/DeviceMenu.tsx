@@ -66,8 +66,13 @@ export function DeviceMenu({ project, disabled, onExpoChange }: { project: Proje
               key={o.platform}
               role="menuitem"
               onClick={() => {
-                openInSnack(project, o.platform);
+                const opened = openInSnack(project, o.platform);
                 setOpen(false);
+                if (!opened) {
+                  window.alert(
+                    "This app is too big for Expo Snack's emulators (Snack only accepts small apps). Use Your phone (Expo Go) instead: it runs the full app, on the same Expo version as your store builds.",
+                  );
+                }
               }}
               className="flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-white/5"
             >
