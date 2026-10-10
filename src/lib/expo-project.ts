@@ -138,7 +138,8 @@ export function appJson(project: Project, link: ExpoLink | undefined = project.e
       web: { favicon: `./${ICON_PATH}` },
       ...(nativePlugins.length ? { plugins: nativePlugins } : {}),
       ...(link ? { extra: { eas: { projectId: link.projectId } } } : {}),
-      ...(expoGo && link ? { runtimeVersion: EXPO_GO_RUNTIME, updates: { url: `https://u.expo.dev/${link.projectId}` } } : {}),
+      // Expo Go checks both: the update's runtime and the SDK its app config names.
+      ...(expoGo && link ? { sdkVersion: EXPO_SDK, runtimeVersion: EXPO_GO_RUNTIME, updates: { url: `https://u.expo.dev/${link.projectId}` } } : {}),
     },
   };
 }
