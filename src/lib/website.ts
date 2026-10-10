@@ -96,6 +96,17 @@ Write a complete multi-page site, one .html file per page, with the same header,
 ## Accessibility (WCAG 2.1 AA)
 Text contrast at least 4.5:1, visible focus styles, a "Skip to content" link, buttons and links at least 44px tall on phones, alt text on images, labels on form fields, and motion that respects prefers-reduced-motion.
 
+## Craft (world-class web design)
+- Layout: a 12-column grid with a max content width (about 1200px), generous section padding (py-20 to py-32 on desktop), and a clear rhythm: alternate full-bleed photo sections, quiet text sections and tinted bands.
+- Type: a confident scale (display 48–72px on desktop, 36–44px on phones), tight letter spacing on big headings, 60–75 characters per line for body text, and at most two typefaces.
+- Hierarchy: each section has one job: an eyebrow label, a heading, one or two sentences, then one call to action. The main call to action is repeated at the top and bottom of every page.
+- Imagery: real photos large, with consistent aspect ratios (object-cover), subtle overlays where text sits on them, and rounded corners or full-bleed edges used consistently.
+- Details: hover and focus states on everything interactive, smooth anchor scrolling, sticky header that condenses on scroll, and small reveal-on-scroll animations that respect prefers-reduced-motion.
+- Performance: no heavy libraries, lazy-loaded images below the fold, and nothing that blocks the first paint except Tailwind.
+
+## Commercially safe resources only
+Use only open resources the owner may use commercially: Tailwind CSS (MIT), icons drawn as inline SVG in the style of Lucide or Heroicons (ISC/MIT), and Google Fonts (SIL Open Font License). Never copy another company's design, text, logo or photos, never use stock photos or icon fonts from services that need a licence or key, and use only the business's own images from <website_content>.
+
 ## Design
 Modern and premium, not a template: generous spacing, a clear type scale, strong hierarchy, real photos large where they exist, subtle hover and scroll effects. Fully responsive from 360px phones to wide desktops. Follow the <design_style> given with the request for the look and layout.
 
@@ -245,4 +256,42 @@ ${page("contact.html", "Contact", `<h1 class="text-4xl font-bold">Contact</h1><p
 </file>
 <listing>{"name":"${name.replace(/"/g, "")}","primaryColor":"#1C1917","iconEmoji":"🌐"}</listing>
 <summary>This is a sample redesign, because no AI is set up on this site yet. Download the website to see how it works.</summary>`;
+}
+
+// ---------------------------------------------------------------------------
+// Three design concepts first: a home page and one inside page in three
+// different styles. The owner picks one, then the AI writes the other pages.
+
+export interface SiteConcept {
+  style: string;
+  files: FileMap;
+  /** Still being written, or failed. */
+  status: "writing" | "ready" | "failed";
+  error?: string;
+}
+
+/** The style picked for the site, plus two that look clearly different (other categories). */
+export function conceptStyles(picked: DesignStyle, all: DesignStyle[]): DesignStyle[] {
+  const order = ["editorial", "liquid-glass", "bento", "swiss", "luxe", "organic", "aurora", "brutalist", "calm", "pop"];
+  const out = [picked];
+  for (const id of order) {
+    const s = all.find((x) => x.id === id);
+    if (s && out.length < 3 && !out.some((o) => o.category === s.category)) out.push(s);
+  }
+  return out;
+}
+
+/** The request for one concept. */
+export function conceptPrompt(prompt: string, style: DesignStyle, n: number): string {
+  return `${prompt}
+
+Design concept ${n} of 3, in the ${style.name} style. Write ONLY two pages so the owner can choose between three designs before the rest is made:
+- index.html, the complete home page, and
+- one inside page: the most important section of the site (services.html, menu.html or products.html, whichever fits; otherwise about.html).
+Make both complete and polished, with the full header, navigation and footer. The navigation already links to every page the finished site will have; those pages are written after the owner picks a design. No sitemap.xml or robots.txt yet. Make this concept look clearly different from a generic template: commit fully to the ${style.name} style.`;
+}
+
+/** After the owner picks a concept: write the rest of the site in that design. */
+export function finishSitePrompt(style: DesignStyle, pages: string[]): string {
+  return `The owner chose design "${style.name}" (${pages.join(" and ")} are already written). Now write every other page linked in the navigation, plus sitemap.xml and robots.txt, matching the chosen design exactly: the same header, footer, colors, typography, spacing and components. Keep ${pages.join(" and ")} as they are, changing them only where a link needs fixing.`;
 }

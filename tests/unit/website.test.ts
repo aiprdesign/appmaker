@@ -85,3 +85,20 @@ describe("website download", () => {
     expect(await zip.file("README.txt")!.async("string")).toMatch(/1 image is still loaded from your current website/);
   });
 });
+
+describe("three design concepts", () => {
+  it("offers the picked style plus two from other categories", async () => {
+    const { conceptStyles, conceptPrompt, finishSitePrompt } = await import("@/lib/website");
+    const { DESIGN_STYLES } = await import("@/lib/styles");
+    for (const picked of DESIGN_STYLES) {
+      const three = conceptStyles(picked, DESIGN_STYLES);
+      expect(three[0]).toBe(picked);
+      expect(three).toHaveLength(3);
+      expect(new Set(three.map((s) => s.category)).size).toBe(3);
+    }
+    const style = getStyle("editorial")!;
+    expect(conceptPrompt("Redesign Luigi's", style, 2)).toMatch(/Design concept 2 of 3, in the Editorial style\. Write ONLY two pages/);
+    expect(finishSitePrompt(style, ["index.html", "menu.html"])).toMatch(/index\.html and menu\.html are already written.*sitemap\.xml and robots\.txt/s);
+    expect(websiteSystemPrompt()).toContain("Commercially safe resources only");
+  });
+});

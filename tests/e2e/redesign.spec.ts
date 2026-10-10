@@ -50,10 +50,24 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await expect(page.getByText("Luigi's Trattoria")).toBeVisible({ timeout: 20_000 });
   await page.getByLabel("Describe your app").press("Enter");
 
-  await expect.poll(() => bodies.length).toBe(1);
-  expect(bodies[0]).toMatchObject({ kind: "website", site: { siteName: "Luigi's Trattoria" } });
-  expect(String(bodies[0].prompt)).toMatch(/^Redesign Luigi's Trattoria .* as a modern, beautiful multi-page website/);
-  expect(typeof bodies[0].style).toBe("string");
+  // Three designs of the home page and one inside page, in three different styles.
+  await expect.poll(() => bodies.length).toBe(3);
+  const styles = bodies.map((b) => b.style);
+  expect(new Set(styles).size).toBe(3);
+  for (const [i, b] of bodies.entries()) {
+    expect(b).toMatchObject({ kind: "website", site: { siteName: "Luigi's Trattoria" } });
+    expect(String(b.prompt)).toMatch(/^Redesign Luigi's Trattoria .* as a modern, beautiful multi-page website/);
+    expect(String(b.prompt)).toContain(`Design concept ${i + 1} of 3`);
+  }
+  await expect(page.getByRole("heading", { name: "Choose a design" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Design 3/ })).toBeVisible();
+  await page.getByRole("tab", { name: /Design 2/ }).click();
+  await expect(page.frameLocator('iframe[title="Website preview"]').getByRole("heading", { name: "Luigi's Trattoria" })).toBeVisible({ timeout: 30_000 });
+  // Choosing one makes the other pages in that design.
+  await page.getByRole("button", { name: "Use design 2 and make the other pages" }).click();
+  await expect.poll(() => bodies.length).toBe(4);
+  expect(bodies[3]).toMatchObject({ kind: "website", style: styles[1], files: { "index.html": expect.any(String) } });
+  expect(String(bodies[3].prompt)).toMatch(/^The owner chose design ".+" \(index\.html and contact\.html are already written\)/);
 
   // The new site, with its own stylesheet and script working in the preview.
   const site = page.frameLocator('iframe[title="Website preview"]');
@@ -82,6 +96,6 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   // Edits are website edits too.
   await page.getByLabel("Message").fill("Make the hero bigger");
   await page.keyboard.press("Enter");
-  await expect.poll(() => bodies.length).toBe(2);
-  expect(bodies[1]).toMatchObject({ kind: "website", files: { "index.html": expect.stringContaining("Luigi's Trattoria") } });
+  await expect.poll(() => bodies.length).toBe(5);
+  expect(bodies[4]).toMatchObject({ kind: "website", files: { "index.html": expect.stringContaining("Luigi's Trattoria") } });
 });

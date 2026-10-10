@@ -16,8 +16,9 @@ import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
 import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
-import { hasSiteEntry, isAllowedSitePath, siteZip, validateSite } from "@/lib/website";
-import { pickStyle } from "@/lib/styles";
+import { ConceptPicker } from "./ConceptPicker";
+import { conceptPrompt, conceptStyles, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
+import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
@@ -451,6 +452,82 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     },
     [commit],
   );
+  // Website redesign: three design concepts (home page + one inside page) first.
+  const conceptsRunning = useRef(false);
+  const makeConcepts = useCallback(
+    async (only?: number) => {
+      const current = projectRef.current;
+      if (!current || conceptsRunning.current) return;
+      conceptsRunning.current = true;
+      const styles = conceptStyles(getStyle(current.design?.style) ?? pickStyle(current.prompt).style, DESIGN_STYLES);
+      const start: SiteConcept[] =
+        current.concepts && only != null
+          ? current.concepts.map((c, i) => (i === only ? { ...c, status: "writing", error: undefined } : c))
+          : styles.map((st) => ({ style: st.id, files: {}, status: "writing" }));
+      const intro: ChatMessage = {
+        id: uid(),
+        role: "assistant",
+        content: "Designing three options for your home page and one inside page. Look through them on the right and choose one; then I'll make the other pages in that design.",
+        createdAt: Date.now(),
+      };
+      commit({
+        ...current,
+        concepts: start,
+        messages: only == null && !current.messages.some((m) => m.role === "user") ? [...current.messages, { id: uid(), role: "user", content: current.prompt, createdAt: Date.now() }, intro] : current.messages,
+      });
+      setTab("preview");
+      setMobileView("app");
+      const update = (i: number, patch: Partial<SiteConcept>) => {
+        const p = projectRef.current;
+        if (!p?.concepts) return;
+        commit({ ...p, concepts: p.concepts.map((c, n) => (n === i ? { ...c, ...patch } : c)) });
+      };
+      await Promise.all(
+        start.map(async (c, i) => {
+          if (c.status !== "writing") return;
+          const style = getStyle(c.style)!;
+          try {
+            const res = await fetch("/api/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prompt: conceptPrompt(current.prompt, style, i + 1),
+                files: {},
+                site: current.source,
+                ai: aiChoiceFor(getAiSettings()),
+                wording: current.wording ?? DEFAULT_WORDING,
+                kind: "website",
+                style: style.id,
+              }),
+            });
+            if (!res.ok || !res.body) throw new Error((await res.json().catch(() => ({}))).error || `Request failed (${res.status})`);
+            const raw = takeSignals(await res.text()).text;
+            const err = /<error>([\s\S]*?)<\/error>/.exec(raw)?.[1];
+            const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
+            const files = Object.fromEntries(Object.entries(parsed.files).filter(([p]) => p !== parsed.writing && isAllowedSitePath(p)));
+            if (!files["index.html"]) throw new Error(err ? friendlyError(err) : "the AI didn't write a home page");
+            update(i, { status: "ready", files });
+          } catch (e) {
+            update(i, { status: "failed", error: (e as Error).message.slice(0, 200) });
+          }
+        }),
+      );
+      conceptsRunning.current = false;
+      window.dispatchEvent(new Event(PLAN_CHANGED));
+    },
+    [commit],
+  );
+  const chooseConcept = (i: number) => {
+    const p = projectRef.current;
+    const c = p?.concepts?.[i];
+    if (!p || !c || c.status !== "ready") return;
+    const style = getStyle(c.style)!;
+    const design = applyStyle(p.design ?? defaultDesign(p.listing), style, !!p.source);
+    commit({ ...p, files: c.files, design, concepts: undefined });
+    setPreviewFiles(c.files);
+    send(finishSitePrompt(style, Object.keys(c.files).filter((f) => f.endsWith(".html"))));
+  };
+
   const sendRef = useRef(send);
   useEffect(() => {
     sendRef.current = send;
@@ -461,9 +538,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     started.current = true;
     if (autoStart && project.messages.length === 0 && project.prompt) {
       window.history.replaceState(null, "", `/build/${project.id}`);
-      send(project.prompt);
+      // A new website starts with three designs to choose from.
+      if (project.kind === "website") void makeConcepts();
+      else send(project.prompt);
     }
-  }, [project, autoStart, send]);
+  }, [project, autoStart, send, makeConcepts]);
 
   /** Re-runs the last request the user made (not an automatic fix). */
   // Polish design: screenshot the screen in the preview and let the AI fix what looks off.
@@ -861,7 +940,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   {generating ? (live?.writing ? `Writing ${live.writing}…` : "Redesigning your website…") : "Checking…"}
                 </span>
               )}
-              {hasSiteEntry(previewFiles) ? (
+              {project.concepts && !hasApp ? (
+                <ConceptPicker concepts={project.concepts} busy={generating} onChoose={chooseConcept} onRetry={(i) => void makeConcepts(i)} />
+              ) : hasSiteEntry(previewFiles) ? (
                 <SitePreview files={previewFiles} />
               ) : (
                 <div className="grid flex-1 place-items-center text-center text-sm text-muted">
