@@ -121,8 +121,11 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
                     . Expo Go only opens it when signed in to the <span className="font-medium text-foreground">{expo.link.owner}</span> account or one of
                     its members.{" "}
                     {canPublish && !phase && (
-                      <button onClick={() => publish(true)} className="underline underline-offset-2 hover:text-foreground">
-                        Set up again
+                      <button
+                        onClick={() => publish(true)}
+                        className="mt-2 flex min-h-8 items-center rounded-lg border border-line px-3 text-xs font-medium text-foreground hover:border-white/20"
+                      >
+                        Set up again in the site&apos;s current Expo account
                       </button>
                     )}
                   </p>
