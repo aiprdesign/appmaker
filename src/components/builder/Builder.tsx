@@ -15,6 +15,8 @@ import { BRAND_FILE, brandModule } from "@/lib/branding";
 import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
 import { AppSidebar } from "./AppSidebar";
+import { SitePreview } from "./SitePreview";
+import { hasSiteEntry, isAllowedSitePath, siteZip, validateSite } from "@/lib/website";
 import { pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
@@ -40,6 +42,9 @@ import type { AppDesign, ChatMessage, FileMap, Project } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
 import { CodePanel } from "./CodePanel";
 import { AppIcon, PublishPanel } from "./PublishPanel";
+
+/** Whether a project has its entry file yet: App.js for an app, index.html for a website. */
+const entryOf = (p: Project) => (p.kind === "website" ? p.files["index.html"] != null : hasEntry(p.files));
 
 type Tab = "preview" | "code" | "publish";
 
@@ -251,8 +256,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           body: JSON.stringify({
             prompt: text,
             // Until there's an App.js this is a new app, even if helper files were left behind.
-            files: hasEntry(current.files) ? current.files : {},
-            listing: hasEntry(current.files) ? current.listing : undefined,
+            files: entryOf(current) ? current.files : {},
+            listing: entryOf(current) ? current.listing : undefined,
+            ...(current.kind === "website" ? { kind: "website" } : {}),
             // The review agents' notes are for the person; the fix request carries what the AI needs.
             history: current.messages.filter((m) => !m.error && m.kind !== "review").map((m) => ({ role: m.role, content: m.content })),
             site: current.source,
@@ -260,7 +266,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             wording: current.wording ?? DEFAULT_WORDING,
             // The design style: the app's own, or for a new app the one Appmaker picks for it (kept as its design afterwards).
             ...(() => {
-              const style = hasEntry(current.files) ? current.design?.style : (current.design?.style ?? pickStyle(current.prompt).style.id);
+              const style = entryOf(current) ? current.design?.style : (current.design?.style ?? pickStyle(current.prompt).style.id);
               return style ? { style } : {};
             })(),
             ...(opts.autoFix ? { auto: true } : {}),
@@ -312,31 +318,43 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // Keep only files that finished streaming, and never accept paths
       // outside App.js / src/ (they could overwrite export config or escape
       // the project folder when the zip is extracted).
+      const isSite = base.kind === "website";
+      const allowed = isSite ? isAllowedSitePath : isAllowedPath;
       const rejected: ValidationIssue[] = [];
       const complete: FileMap = {};
       for (const [p, code] of Object.entries(parsed.files)) {
         if (p === parsed.writing) continue;
-        if (isAllowedPath(p)) complete[p] = code;
-        else rejected.push({ file: p, message: "was ignored; only App.js and files under src/ are allowed" });
+        if (allowed(p)) complete[p] = code;
+        else rejected.push({ file: p, message: isSite ? "was ignored; only website files (.html, .css, .js, sitemap.xml, robots.txt) are allowed" : "was ignored; only App.js and files under src/ are allowed" });
       }
       const files: FileMap = { ...base.files, ...complete };
-      for (const p of parsed.deleted) if (isAllowedPath(p)) delete files[p];
+      for (const p of parsed.deleted) if (allowed(p)) delete files[p];
       // Appmaker's own files are only added once there is an app to add them to:
       // a failed first build must not leave a "project" without App.js.
-      const isApp = hasEntry(files);
+      const isApp = !isSite && hasEntry(files);
       // Website apps always carry Appmaker's live-content file, whatever the AI wrote.
       if (base.source && isApp) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
       // Every app carries Appmaker's theme file too, written from the Design settings.
       // A new app gets a look chosen for it (kept as its design, changeable in the Design tab).
       // (Older apps without a saved design keep the look they had.)
-      const design = base.design ?? (!isApp ? undefined : hasEntry(base.files) ? defaultDesign(listing) : autoDesign(listing, base.prompt, !!base.source));
+      const design =
+        base.design ??
+        (isSite
+          ? hasSiteEntry(files)
+            ? autoDesign(listing, base.prompt, !!base.source)
+            : undefined
+          : !isApp
+            ? undefined
+            : hasEntry(base.files)
+              ? defaultDesign(listing)
+              : autoDesign(listing, base.prompt, !!base.source));
       if (isApp && design) files[THEME_FILE] = themeModule(design);
       // Apps with bookings always carry Appmaker's booking screen, whatever the AI wrote.
       if (base.booking && isApp) files[BOOKING_FILE] = bookingModule(base.booking.apiUrl);
       if (isApp) files[BRAND_FILE] = brandModule(brandedRef.current);
 
-      const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && isAllowedPath(p)) && continueBudget.current > 0 && !demoRef.current;
+      const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && allowed(p)) && continueBudget.current > 0 && !demoRef.current;
       if (continuing) error = "";
       const reply = continuing
         ? `${parsed.plan || "Building your app."}\n\nThat was a big one, so I'm writing it in parts. Part done — continuing with the rest…`
@@ -371,7 +389,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         setChecking(false);
         setPreviewFiles(files);
         setReloadKey((k) => k + 1);
-        if (hasEntry(files)) setMobileView("app");
+        if (isSite ? hasSiteEntry(files) : hasEntry(files)) setMobileView("app");
       };
 
       // The three checks run on every new version before it's shown:
@@ -386,7 +404,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         reportQuality(["cutoff"]);
         continueBudget.current -= 1;
         setChecking(true);
-        const missing = validateApp(files).filter((i) => /doesn't exist|is missing/.test(i.message));
+        const missing = (isSite ? validateSite(files) : validateApp(files)).filter((i) => /doesn't exist|is missing/.test(i.message));
         sendRef.current?.(
           [
             "Your previous reply was cut off before it finished. Keep every file you already wrote exactly as it is, and write only the files that are still missing or incomplete, then the <listing> and <summary>.",
@@ -399,9 +417,10 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         );
         return;
       }
-      const issues = [...rejected, ...validateApp(files)];
-      const claims = (next.wording ?? DEFAULT_WORDING) === "claim-safe" ? checkClaims(files, next.listing) : [];
-      const regulated = checkRegulatedClaims(files, next.listing);
+      const issues = [...rejected, ...(isSite ? validateSite(files) : validateApp(files))];
+      // Wording checks read app code; a website's wording rules are in its AI instructions.
+      const claims = !isSite && (next.wording ?? DEFAULT_WORDING) === "claim-safe" ? checkClaims(files, next.listing) : [];
+      const regulated = isSite ? [] : checkRegulatedClaims(files, next.listing);
       reportQuality([
         ...(issues.length ? (["check:code"] as const) : []),
         ...(claims.length ? (["check:claims"] as const) : []),
@@ -422,6 +441,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         return;
       }
       reveal();
+      // The phone tests and review agents are for apps.
+      if (isSite) return;
       runtimeWatchUntil.current = Date.now() + RUNTIME_WATCH_MS;
       setTapFiles(files);
     },
@@ -645,7 +666,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   }
 
   // An app exists once it has its entry file (helper files alone don't count).
-  const hasApp = hasEntry(project.files);
+  const isSite = project.kind === "website";
+  const hasApp = isSite ? hasSiteEntry(project.files) : hasEntry(project.files);
   // iPad turned off in the listing: show the iPhone instead.
   const device = platform === "ipad" && project.listing.ipad === false ? "ios" : platform;
 
@@ -662,7 +684,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const tabs: { key: Tab; label: string; icon: typeof Smartphone }[] = [
     { key: "preview", label: "Preview", icon: Smartphone },
     { key: "code", label: "Code", icon: Code2 },
-    { key: "publish", label: "Publish", icon: Rocket },
+    ...(isSite ? [] : [{ key: "publish" as Tab, label: "Publish", icon: Rocket }]),
   ];
 
   return (
@@ -711,12 +733,22 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           <SyncBadge />
         </span>
         <AccessibilityMenu inline />
-        <DeviceMenu
+        {!isSite && <DeviceMenu
           project={project}
           disabled={!Object.keys(project.files).length || generating || checking}
           onExpoChange={(expo) => commit({ ...(projectRef.current ?? project), expo })}
-        />
+        />}
         <HistoryMenu versions={project.versions ?? []} disabled={generating} onRestore={restore} />
+        {isSite ? (
+          <button
+            onClick={async () => downloadBlob(await siteZip(project.files), `${slugify(project.listing.name || project.name)}-website.zip`)}
+            disabled={!hasApp || generating}
+            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+          >
+            <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Download website</span>
+          </button>
+        ) : (
+        <>
         <button
           onClick={async () => downloadBlob(await exportProjectZip(project), `${slugify(project.listing.name)}-expo.zip`)}
           disabled={!hasApp}
@@ -732,6 +764,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         >
           <Rocket className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Publish</span>
         </button>
+        </>
+        )}
       </header>
 
       {saveFailed && (
@@ -778,6 +812,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             onSend={send}
             onStop={() => abortRef.current?.abort()}
             hasApp={hasApp}
+            website={isSite}
             startedAt={startedAt}
             interrupted={!generating ? (project.pending ?? null) : null}
             onRetry={retry}
@@ -797,7 +832,30 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         </aside>
 
         <main className={`${mobileView === "app" ? "flex" : "hidden"} min-w-0 flex-1 flex-col lg:flex`}>
-          {tab === "preview" && (
+          {tab === "preview" && isSite && (
+            <div className="stage relative flex min-h-0 flex-1 flex-col overflow-hidden p-3">
+              {(generating || checking) && (
+                <span role="status" aria-label={generating ? "Building your website" : "Checking your website"} className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 py-1 pl-1.5 pr-3 text-xs font-medium text-violet-100">
+                  <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-violet-300/25 border-t-violet-300 border-r-pink-400" />
+                  {generating ? (live?.writing ? `Writing ${live.writing}…` : "Redesigning your website…") : "Checking…"}
+                </span>
+              )}
+              {hasSiteEntry(previewFiles) ? (
+                <SitePreview files={previewFiles} />
+              ) : (
+                <div className="grid flex-1 place-items-center text-center text-sm text-muted">
+                  <div>
+                    <Wand2 className="mx-auto h-8 w-8 text-violet-400" />
+                    <p className="mt-4">{generating ? "Your new website appears here as soon as it's written." : "Your redesigned website will appear here"}</p>
+                    {generating && live && Object.keys(live.files).length > 0 && (
+                      <p className="mt-2 text-xs">Pages so far: {Object.keys(live.files).join(", ")}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {tab === "preview" && !isSite && (
             <div className="stage relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="flex flex-wrap items-center justify-center gap-2 p-3">
                 {(generating || checking) && (

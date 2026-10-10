@@ -200,6 +200,8 @@ export interface ExpoState {
 
 export interface Project {
   id: string;
+  /** What's being made: an app (default) or a redesigned website. */
+  kind?: "app" | "website";
   name: string;
   prompt: string;
   files: FileMap;

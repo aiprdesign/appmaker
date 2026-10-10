@@ -1,4 +1,5 @@
 import { getStyle } from "@/lib/styles";
+import { demoWebsiteResponse, isAllowedSitePath, SITE_MAX_BYTES, SITE_MAX_FILES, websiteSystemPrompt } from "@/lib/website";
 import { getProvider, type AiChoice } from "@/lib/ai/providers";
 import { aiErrorMessage, AiConfigError, canSeeImages, resolveAi, streamGeneration, type ResolvedAi } from "@/lib/ai/server";
 import { demoResponse } from "@/lib/demo";
@@ -40,6 +41,8 @@ interface GenerateRequest {
   wording?: "claim-safe" | "standard";
   /** The app's design style (see src/lib/styles.ts). */
   style?: string;
+  /** "website": redesign a website (HTML pages) instead of building an app. */
+  kind?: "app" | "website";
   /** Sent by the builder's automatic quality fixes (free within a limit when credits are on). */
   auto?: boolean;
   /** Screenshots of the app (data URLs) for the AI to look at, used by "Polish design". */
@@ -78,16 +81,18 @@ function validateRequest(body: GenerateRequest): string | null {
   if (body.files != null) {
     if (typeof body.files !== "object" || Array.isArray(body.files)) return "files must be an object";
     const entries = Object.entries(body.files);
-    if (entries.length > MAX_FILES) return `an app can have at most ${MAX_FILES} files`;
+    const site = body.kind === "website";
+    if (entries.length > (site ? SITE_MAX_FILES : MAX_FILES)) return `at most ${site ? SITE_MAX_FILES : MAX_FILES} files`;
     let bytes = 0;
     for (const [path, code] of entries) {
-      if (typeof code !== "string" || !isAllowedPath(path)) return `invalid file: ${path}`;
+      if (typeof code !== "string" || !(site ? isAllowedSitePath(path) : isAllowedPath(path))) return `invalid file: ${path}`;
       bytes += code.length;
     }
-    if (bytes > MAX_FILES_BYTES) return "the app is too large to edit in one request";
+    if (bytes > (site ? SITE_MAX_BYTES : MAX_FILES_BYTES)) return "too large to edit in one request";
   }
   if (body.wording != null && body.wording !== "claim-safe" && body.wording !== "standard") return "wording must be claim-safe or standard";
   if (body.style != null && !getStyle(body.style)) return "style is not a known design style";
+  if (body.kind != null && body.kind !== "app" && body.kind !== "website") return "kind must be app or website";
   if (body.listing != null) {
     if (typeof body.listing !== "object" || Array.isArray(body.listing)) return "listing must be an object";
     if (JSON.stringify(body.listing).length > 10_000) return "listing is too large";
@@ -153,7 +158,7 @@ async function generate(req: Request): Promise<Response> {
   }
 
   if (!ai) {
-    const text = demoResponse(prompt, isEdit, body.site);
+    const text = body.kind === "website" ? demoWebsiteResponse(body.site) : demoResponse(prompt, isEdit, body.site);
     return textStream(null, async (write) => {
       // Stream in chunks so the demo feels like live generation. Chunk by
       // code point so emoji (surrogate pairs) are never split in half.
@@ -219,8 +224,8 @@ async function generate(req: Request): Promise<Response> {
     try {
       outcome = await streamGeneration({
         ai: resolved,
-        system: systemPrompt(body.wording === "standard" ? "standard" : "claim-safe"),
-        messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site, getStyle(body.style)) }],
+        system: (body.kind === "website" ? websiteSystemPrompt : systemPrompt)(body.wording === "standard" ? "standard" : "claim-safe"),
+        messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site, getStyle(body.style), body.kind === "website" ? "website" : "app") }],
         signal: req.signal,
         images,
         // A tiny "still thinking" signal at most every 1.5s, so the page can show the AI is busy.

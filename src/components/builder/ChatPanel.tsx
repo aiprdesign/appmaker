@@ -10,7 +10,7 @@ import { ModelButton } from "@/components/AiSettings";
 import { WordingControl } from "@/components/WordingControl";
 import type { Wording } from "@/lib/claims";
 import { SiteCard } from "@/components/SiteCard";
-import { EDIT_SUGGESTIONS } from "@/lib/templates";
+import { EDIT_SUGGESTIONS, WEBSITE_EDIT_SUGGESTIONS } from "@/lib/templates";
 import { Markdown } from "./Markdown";
 
 const MAX_PROMPT = 8000;
@@ -26,6 +26,8 @@ interface Props {
   onSend: (text: string) => void;
   onStop: () => void;
   hasApp: boolean;
+  /** A redesigned website instead of an app: website suggestions. */
+  website?: boolean;
   /** When the running request started, for the progress timer. */
   startedAt: number | null;
   /** A request that was cut off when the page closed. */
@@ -135,7 +137,7 @@ export function ChatPanel(props: Props) {
   };
 
   const tailored = suggestionsFrom(messages);
-  const chips = tailored.length ? tailored : EDIT_SUGGESTIONS;
+  const chips = tailored.length ? tailored : props.website ? WEBSITE_EDIT_SUGGESTIONS : EDIT_SUGGESTIONS;
   const lastMessage = messages.at(-1);
 
   return (

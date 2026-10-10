@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Globe, Loader2, Sparkles } from "lucide-react";
+import { ArrowUp, Globe, LayoutTemplate, Loader2, Sparkles } from "lucide-react";
 import { createProject, emptyListing } from "@/lib/storage";
 import { appTitle } from "@/lib/title";
 import { BRIEF_SKIP_KEY, briefPrompt, type BriefAnswers } from "@/lib/brief";
@@ -16,6 +16,7 @@ import { SiteCard } from "./SiteCard";
 import { defaultWording, rememberWording, WordingControl } from "./WordingControl";
 import { DEFAULT_WORDING, type Wording } from "@/lib/claims";
 import { useFeatures } from "@/lib/use-features";
+import { redesignPrompt } from "@/lib/website";
 
 /** A link typed into the prompt: an explicit URL, a www. host, or a common TLD (not "Node.js"). */
 const URL_IN_TEXT =
@@ -59,6 +60,8 @@ export function PromptBox() {
   const [busy, setBusy] = useState(false);
   const [brief, setBrief] = useState(false);
   const [showUrl, setShowUrl] = useState(false);
+  // "Redesign website": the same site import, but it makes a new website instead of an app.
+  const [redesign, setRedesign] = useState(false);
   const [url, setUrl] = useState("");
   const [site, setSite] = useState<SiteSummary | null>(null);
   const [importing, setImporting] = useState(false);
@@ -181,13 +184,21 @@ export function PromptBox() {
     // Named straight away from the website or the idea (or the business name from the brief).
     const name = answers?.business?.trim() ? appTitle(answers.business, null) : appTitle(text, site);
     const full = answers ? briefPrompt(text, answers) : text;
-    const project = createProject(full, site ?? undefined, wording, { name, listing: emptyListing(name) });
+    const project = createProject(full, site ?? undefined, wording, { name, listing: emptyListing(name), ...(redesign ? { kind: "website" as const } : {}) });
     router.push(`/build/${project.id}?auto=1`);
   };
 
   const start = () => {
     if (bareUrl) return switchToUrl(bareUrl);
-    const text = value.trim() || (site ? `Turn ${site.siteName} (${site.url}) into a mobile app for its customers.` : "");
+    const text = redesign
+      ? site
+        ? [redesignPrompt(site), value.trim()].filter(Boolean).join("\n\n")
+        : ""
+      : value.trim() || (site ? `Turn ${site.siteName} (${site.url}) into a mobile app for its customers.` : "");
+    if (redesign && !site) {
+      if (url.trim()) importSite(url);
+      return;
+    }
     if (!text || busy || importing || tooLong) return;
     // The AI reads the idea first and asks what it needs to know (unless turned off);
     // a clear idea goes straight to building.
@@ -205,10 +216,15 @@ export function PromptBox() {
     <div id="start" className="mx-auto w-full max-w-2xl">
       <div role="tablist" aria-label="How do you want to start?" className="mb-3 flex justify-center gap-1">
         {[
-          { key: false, label: "Prompt to App", icon: Sparkles },
-          ...(features.websiteImport ? [{ key: true, label: "URL to App", icon: Globe }] : []),
+          { key: "prompt", label: "Prompt to App", icon: Sparkles },
+          ...(features.websiteImport
+            ? [
+                { key: "url", label: "URL to App", icon: Globe },
+                { key: "redesign", label: "Redesign website", icon: LayoutTemplate },
+              ]
+            : []),
         ].map((t) => {
-          const selected = (showUrl || !!site) === t.key;
+          const selected = (redesign ? "redesign" : showUrl || site ? "url" : "prompt") === t.key;
           return (
             <button
               key={t.label}
@@ -216,9 +232,10 @@ export function PromptBox() {
               role="tab"
               aria-selected={selected}
               onClick={() => {
-                setShowUrl(t.key);
+                setRedesign(t.key === "redesign");
+                setShowUrl(t.key !== "prompt" && !site);
                 setImportError("");
-                if (!t.key) {
+                if (t.key === "prompt") {
                   setSite(null);
                   setTimeout(() => ref.current?.focus(), 0);
                 }
@@ -278,7 +295,9 @@ export function PromptBox() {
               <p className="mt-1.5 px-1 text-xs text-rose-400">{importError}</p>
             ) : (
               <p className="mt-1.5 px-1 text-xs text-muted">
-                Appmaker reads your site&apos;s pages, brand colours and content, then builds an app for your customers.
+                {redesign
+                  ? "Appmaker reads your site's pages, photos, brand colours and contact details, then designs a modern new website you can download and upload to any host."
+                  : "Appmaker reads your site's pages, brand colours and content, then builds an app for your customers."}
               </p>
             )}
           </div>
@@ -308,7 +327,9 @@ export function PromptBox() {
           rows={3}
           placeholder={
             site
-              ? `What should the ${site.siteName} app do? (optional — press Enter to let AI decide)`
+              ? redesign
+                ? `Anything to change in the ${site.siteName} redesign? (optional — press Enter to start)`
+                : `What should the ${site.siteName} app do? (optional — press Enter to let AI decide)`
               : showUrl
                 ? "Optional: what should the app do? e.g. bookings, the menu, a loyalty card…"
                 : `Describe your app idea — e.g. ${IDEAS[idea]}…`

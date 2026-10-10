@@ -3,6 +3,7 @@ import { REGULATED_RULES } from "./regulated";
 import { safeHttpsUrl, sanitizeContact, sanitizeImages } from "./site-details";
 import type { FileMap, SiteContact, SiteSummary, StoreListing } from "./types";
 import { styleBrief, type DesignStyle } from "./styles";
+import { websiteStyleBrief } from "./website";
 
 export const SYSTEM_PROMPT = `You are Appmaker, an expert mobile product designer and React Native engineer. Users describe an app in plain language and you build a complete, polished Expo (React Native) app they can preview instantly and ship to the Apple App Store and Google Play.
 
@@ -271,17 +272,19 @@ export function buildUserMessage(
   listing?: Partial<StoreListing>,
   site?: SiteSummary,
   style?: DesignStyle,
+  kind: "app" | "website" = "app",
 ): string {
   const paths = Object.keys(files);
-  const siteBlock = `${site ? `${formatSite(site)}\n\n` : ""}${style ? `${styleBrief(style)}\n\n` : ""}`;
+  const brief = style ? (kind === "website" ? websiteStyleBrief(style) : styleBrief(style)) : "";
+  const siteBlock = `${site ? `${formatSite(site)}\n\n` : ""}${brief ? `${brief}\n\n` : ""}`;
   if (paths.length === 0) {
-    return `${siteBlock}Build this app:\n\n${prompt}`;
+    return `${siteBlock}${kind === "website" ? "Redesign this website" : "Build this app"}:\n\n${prompt}`;
   }
   const current = paths
     .sort()
     .map((p) => `<file path="${p}">\n${files[p]}\n</file>`)
     .join("\n");
-  return `${siteBlock}Here is the current app.\n\n<current_files>\n${current}\n</current_files>\n\n<current_listing>${JSON.stringify(
+  return `${siteBlock}Here is the current ${kind === "website" ? "website" : "app"}.\n\n<current_files>\n${current}\n</current_files>\n\n<current_listing>${JSON.stringify(
     listing ?? {},
   )}</current_listing>\n\nRequested change:\n${prompt}`;
 }

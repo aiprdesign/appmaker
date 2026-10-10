@@ -159,6 +159,14 @@ export const BUSINESS_TEMPLATES: Template[] = [
   },
 ];
 
+/** Follow-ups for a redesigned website. */
+export const WEBSITE_EDIT_SUGGESTIONS = [
+  "Make the home page hero bolder, with a photo background",
+  "Add a frequently asked questions page",
+  "Add a gallery page with the site's photos",
+  "Make it feel more premium and minimal",
+];
+
 export const EDIT_SUGGESTIONS = [
   "Add a dark mode toggle in settings",
   "Add an onboarding flow with 3 screens",
