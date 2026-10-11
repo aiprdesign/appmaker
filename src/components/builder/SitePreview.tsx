@@ -21,7 +21,25 @@ document.addEventListener("click", function (e) {
 </script>`;
 
 /** One page with the site's own stylesheet and script put inline (the preview has no server). */
-export function previewDocument(files: FileMap, page: string): string {
+/** Runs axe-core (WCAG 2.2 AA rules) in the page once it has settled, and reports what it finds. */
+const auditScript = (src: string) => `<script>
+window.addEventListener("load", function () {
+  setTimeout(function () {
+    var s = document.createElement("script");
+    s.src = ${JSON.stringify(src)};
+    s.onload = function () {
+      window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] }, exclude: [[".a11y-ui"]] }).then(function (r) {
+        parent.postMessage({ type: "appmaker:site-a11y", violations: r.violations.map(function (v) {
+          return { id: v.id, impact: v.impact, help: v.help, count: v.nodes.length, sample: v.nodes.slice(0, 2).map(function (n) { return String(n.target[0]).slice(0, 80); }) };
+        }) }, "*");
+      });
+    };
+    document.head.appendChild(s);
+  }, 900);
+});
+</script>`;
+
+export function previewDocument(files: FileMap, page: string, audit?: string): string {
   let html = files[page] ?? files["index.html"] ?? "";
   html = html.replace(/<link[^>]*href=["']\.?\/?([a-z0-9_\/-]+\.css)["'][^>]*>/gi, (tag, path: string) =>
     files[path] != null ? `<style>${files[path].replace(/<\/style/gi, "<\\/style")}</style>` : tag,
@@ -29,11 +47,29 @@ export function previewDocument(files: FileMap, page: string): string {
   html = html.replace(/<script([^>]*)\ssrc=["']\.?\/?([a-z0-9_\/-]+\.js)["']([^>]*)><\/script>/gi, (tag, a: string, path: string, b: string) =>
     files[path] != null ? `<script${a}${b}>${files[path].replace(/<\/script/gi, "<\\/script")}</script>` : tag,
   );
-  return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${NAV_SCRIPT}</body>`) : html + NAV_SCRIPT;
+  const tail = NAV_SCRIPT + (audit ? auditScript(audit) : "");
+  return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${tail}</body>`) : html + tail;
 }
 
 /** The redesigned website, page by page, at desktop, tablet or phone width. */
-export function SitePreview({ files }: { files: FileMap }) {
+export interface SiteA11yIssue {
+  id: string;
+  impact: string | null;
+  help: string;
+  count: number;
+  sample: string[];
+}
+
+/** The audit's findings as a request the AI can act on. */
+export function a11yFixRequest(page: string, issues: SiteA11yIssue[]): string {
+  return `Accessibility check (axe-core, WCAG 2.2 AA) on ${page} found:\n${issues
+    .map((i) => `- ${i.help} (${i.id}, ${i.impact ?? "minor"}, ${i.count} place${i.count === 1 ? "" : "s"}${i.sample.length ? `, e.g. ${i.sample.join(", ")}` : ""})`)
+    .join("\n")}\nFix these on every page where they occur, keeping the design and content the same.`;
+}
+
+export function SitePreview({ files, onFix }: { files: FileMap; onFix?: (request: string) => void }) {
+  const [audit, setAudit] = useState<{ page: string; issues: SiteA11yIssue[] } | null>(null);
+  const [showIssues, setShowIssues] = useState(false);
   const pages = Object.keys(files)
     .filter((p) => p.endsWith(".html"))
     .sort((a, b) => (a === "index.html" ? -1 : b === "index.html" ? 1 : a.localeCompare(b)));
@@ -44,7 +80,8 @@ export function SitePreview({ files }: { files: FileMap }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [boxWidth, setBoxWidth] = useState(1000);
   const current = files[page] != null ? page : "index.html";
-  const doc = useMemo(() => previewDocument(files, current), [files, current]);
+  const auditSrc = typeof window === "undefined" ? undefined : `${window.location.origin}/preview/axe.min.js`;
+  const doc = useMemo(() => previewDocument(files, current, auditSrc), [files, current, auditSrc]);
 
   useEffect(() => {
     const el = box.current;
@@ -62,13 +99,19 @@ export function SitePreview({ files }: { files: FileMap }) {
         if (files[target] != null) setPage(target);
         else setNote(`This link goes to ${target}, which the site doesn't have yet.`);
       }
+      if (e.data.type === "appmaker:site-a11y" && Array.isArray(e.data.violations)) {
+        const issues = (e.data.violations as SiteA11yIssue[])
+          .filter((v) => v && typeof v.id === "string" && typeof v.help === "string")
+          .map((v) => ({ id: v.id.slice(0, 60), impact: typeof v.impact === "string" ? v.impact : null, help: v.help.slice(0, 200), count: Number(v.count) || 1, sample: (Array.isArray(v.sample) ? v.sample : []).map(String).slice(0, 2) }));
+        setAudit({ page: current, issues });
+      }
       if (e.data.type === "appmaker:site-link" && typeof e.data.href === "string") {
         setNote(`On the live site this opens ${e.data.href.replace(/^(tel|mailto|sms):/i, "")} (calls and emails don't open from the preview).`);
       }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [files]);
+  }, [files, current]);
 
   const width = WIDTHS[viewport];
   const scale = Math.min(1, (boxWidth - 8) / width);
@@ -111,6 +154,37 @@ export function SitePreview({ files }: { files: FileMap }) {
           </select>
         </label>
       </div>
+      {audit && audit.page === current && (
+        <div className="mx-auto w-full max-w-3xl">
+          {audit.issues.length === 0 ? (
+            <p role="status" className="text-center text-xs text-emerald-300">
+              ✓ Accessibility: no WCAG 2.2 AA problems found on {current} by the automatic check.
+            </p>
+          ) : (
+            <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-100">
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={() => setShowIssues((v) => !v)} aria-expanded={showIssues} className="underline underline-offset-2">
+                  Accessibility: {audit.issues.length} WCAG 2.2 AA problem{audit.issues.length === 1 ? "" : "s"} on {current}
+                </button>
+                {onFix && (
+                  <button onClick={() => onFix(a11yFixRequest(current, audit.issues))} className="ml-auto min-h-8 rounded-lg bg-amber-400 px-3 font-medium text-black hover:bg-amber-300">
+                    Fix with AI
+                  </button>
+                )}
+              </div>
+              {showIssues && (
+                <ul className="mt-2 list-disc space-y-0.5 pl-5">
+                  {audit.issues.map((i) => (
+                    <li key={i.id}>
+                      {i.help} <span className="text-amber-200/70">({i.count})</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {note && (
         <p role="status" className="mx-auto rounded-lg bg-white/5 px-3 py-1.5 text-xs text-muted">
           {note}{" "}

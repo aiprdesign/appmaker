@@ -17,4 +17,7 @@ await build({
 });
 
 copyFileSync(require.resolve("@babel/standalone/babel.min.js"), "public/preview/babel.min.js");
+// axe-core (MPL-2.0, used unmodified) audits redesigned websites for WCAG 2.2 AA in the preview.
+copyFileSync(require.resolve("axe-core/axe.min.js"), "public/preview/axe.min.js");
+copyFileSync(require.resolve("axe-core/LICENSE"), "public/preview/axe-core-LICENSE.txt");
 console.log("preview runtime built -> public/preview/");

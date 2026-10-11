@@ -12,13 +12,14 @@ const head = (title: string) => `<!doctype html>
 </head>`;
 const INDEX = `${head("Home")}
 <body>
+<a href="#main">Skip to content</a>
 <header><nav><a href="index.html" aria-current="page">Home</a> <a href="contact.html">Contact</a> <button id="menu" aria-expanded="false">Menu</button></nav></header>
-<main><h1 class="hero">Luigi's Trattoria</h1><p>Fresh pasta daily.</p><a href="tel:+15551234567">Call us</a></main>
+<main id="main"><h1 class="hero">Luigi's Trattoria</h1><p>Fresh pasta daily.</p><a href="tel:+15551234567">Call us</a></main>
 <script src="script.js"></script>
 </body>
 </html>`;
 const CONTACT = `${head("Contact")}
-<body><main><h1>Contact Luigi's</h1><a href="index.html">Back home</a></main><script src="script.js"></script></body>
+<body><a href="#main">Skip to content</a><main id="main"><h1>Contact Luigi's</h1><a href="index.html">Back home</a></main><script src="script.js"></script></body>
 </html>`;
 const REPLY = `<plan>A modern redesign.</plan>
 <file path="index.html">
@@ -98,6 +99,8 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await page.getByLabel("Page").selectOption("index.html");
   await site.getByRole("link", { name: "Call us" }).click();
   await expect(page.getByText(/On the live site this opens \+15551234567/)).toBeVisible();
+  // A real WCAG 2.2 AA audit (axe-core) runs on the page in the preview.
+  await expect(page.getByRole("status").filter({ hasText: /Accessibility: / })).toBeVisible({ timeout: 20_000 });
   // Every site has the accessibility widget; its settings change the page.
   await site.getByRole("button", { name: "Accessibility settings" }).click();
   await site.getByRole("button", { name: /Bigger text/ }).click();

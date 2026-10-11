@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { parse } from "node-html-parser";
 import { CLAIM_SAFE_RULES, DEFAULT_WORDING, type Wording } from "./claims";
 import { REGULATED_RULES } from "./regulated";
 import type { DesignStyle } from "./styles";
@@ -37,6 +38,61 @@ function resolveFrom(page: string, ref: string): string {
   return parts.join("/");
 }
 
+/** WCAG 2.2 AA problems that can be found in the HTML itself (contrast and layout are checked live with axe-core in the preview). */
+export function pageA11yIssues(path: string, html: string): string[] {
+  const root = parse(html);
+  const out: string[] = [];
+  const text = (el: { text: string } | null | undefined) => (el?.text ?? "").replace(/\s+/g, " ").trim();
+  if (!root.querySelector("main")) out.push("has no <main> landmark");
+  const skip = root.querySelectorAll('a[href^="#"]').some((a) => /skip/i.test(text(a)));
+  if (!skip) out.push('has no "Skip to content" link');
+  const h1 = root.querySelectorAll("h1").length;
+  if (h1 !== 1) out.push(h1 ? `has ${h1} <h1> headings; use exactly one` : "has no <h1> heading");
+  let last = 0;
+  for (const h of root.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    const level = Number(h.tagName[1]);
+    if (last && level > last + 1) {
+      out.push(`skips a heading level (h${last} to h${level} at "${text(h).slice(0, 40)}")`);
+      break;
+    }
+    last = level;
+  }
+  for (const field of root.querySelectorAll("input, select, textarea")) {
+    const type = (field.getAttribute("type") ?? "").toLowerCase();
+    if (["hidden", "submit", "button", "reset", "image"].includes(type)) continue;
+    const id = field.getAttribute("id");
+    const labelled =
+      field.getAttribute("aria-label") ||
+      field.getAttribute("aria-labelledby") ||
+      field.closest("label") ||
+      (id && root.querySelector(`label[for="${id}"]`));
+    if (!labelled) out.push(`has a form field without a label (${field.getAttribute("name") ?? type ?? field.tagName.toLowerCase()})`);
+    if (["email", "tel"].includes(type) && !field.getAttribute("autocomplete")) out.push(`has a ${type} field without autocomplete`);
+  }
+  for (const b of root.querySelectorAll("button")) {
+    if (!text(b) && !b.getAttribute("aria-label") && !b.getAttribute("aria-labelledby") && !b.querySelector("img[alt]:not([alt=''])")) {
+      out.push("has a button with no name (add text or aria-label)");
+      break;
+    }
+  }
+  for (const a of root.querySelectorAll("a[href]")) {
+    const name = text(a) || a.getAttribute("aria-label") || a.querySelector("img")?.getAttribute("alt") || "";
+    if (!name.trim()) {
+      out.push(`has a link with no name (${(a.getAttribute("href") ?? "").slice(0, 40)})`);
+      break;
+    }
+    if (/^(click here|here|read more|more|learn more)$/i.test(name.trim()) && !a.getAttribute("aria-label")) {
+      out.push(`has a link that only says "${name.trim()}"; say where it goes`);
+      break;
+    }
+  }
+  if (root.querySelectorAll("[tabindex]").some((el) => Number(el.getAttribute("tabindex")) > 0)) out.push("uses tabindex greater than 0");
+  if (root.querySelectorAll("iframe").some((f) => !f.getAttribute("title"))) out.push("has an <iframe> without a title");
+  const dupes = root.querySelectorAll("[id]").map((el) => el.getAttribute("id")).filter((id, i, all) => all.indexOf(id) !== i);
+  if (dupes.length) out.push(`repeats the id "${dupes[0]}"`);
+  return [...new Set(out)].map((m) => `${m} (WCAG 2.2 AA)`);
+}
+
 export function validateSite(files: FileMap): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   if (files["index.html"] == null) issues.push({ file: "index.html", message: "index.html (the home page) is missing" });
@@ -66,6 +122,10 @@ export function validateSite(files: FileMap): ValidationIssue[] {
       if (!/^https?:\/\//i.test(href) && files[resolveFrom(path, href)] == null) issues.push({ file: path, message: `links to ${href}, which doesn't exist` });
     }
     if (/\beval\s*\(|new\s+Function\s*\(/.test(code)) issues.push({ file: path, message: "uses eval or new Function; write plain JavaScript" });
+    for (const message of pageA11yIssues(path, code)) issues.push({ file: path, message });
+    if (/outline\s*:\s*(none|0)\b/i.test(code) && !/focus-visible|:focus/.test(Object.values(files).join("\n"))) {
+      issues.push({ file: path, message: "removes focus outlines without a visible focus style (WCAG 2.2 AA 2.4.7)" });
+    }
     if (/<img(?![^>]*\salt=)[^>]*>/i.test(code)) issues.push({ file: path, message: "has an <img> without alt text (add a short description, or alt=\"\" for decoration)" });
   }
   // Animated sites must respect people who turn motion off.
@@ -113,8 +173,18 @@ Write a complete multi-page site, one .html file per page, with the same header,
 - On index.html, JSON-LD structured data (LocalBusiness or the closest type) with the real name, address, phone, hours and URL.
 - sitemap.xml listing every page with the site's base URL, and robots.txt allowing all and pointing to the sitemap.
 
-## Accessibility (WCAG 2.1 AA)
-Text contrast at least 4.5:1, visible focus styles, a "Skip to content" link, buttons and links at least 44px tall on phones, alt text on images, labels on form fields, and motion that respects prefers-reduced-motion.
+## Accessibility (WCAG 2.2 AA, a hard requirement)
+- Structure: one <h1> per page and headings in order (no skipped levels); landmarks <header>, <nav aria-label="Main">, <main id="main">, <footer>; a "Skip to content" link as the first focusable element, visible on focus; <html lang>; a unique <title> per page.
+- Text and contrast: body text 4.5:1, large text and icons/borders of controls 3:1, in every state (hover, focus, on photos with an overlay). Text resizes to 200% and reflows at 320px wide without horizontal scrolling or overlap; no text in images.
+- Keyboard: everything works with Tab, Shift+Tab, Enter, Space and Escape in a logical order; no keyboard traps; the mobile menu and any dialog move focus in and return it on close, and close with Escape. Never tabindex greater than 0.
+- Focus visible (2.4.7) and not obscured (2.4.11): a clear focus ring on every interactive element (for example focus-visible:outline-2 outline-offset-2 in a colour with 3:1 contrast); never outline:none without a replacement. The sticky header must not cover focused elements: set scroll-padding-top on html to the header's height.
+- Target size (2.5.8): every link and button at least 24×24px, and main buttons and menu items at least 44px tall on phones, with space between small targets.
+- Dragging (2.5.7): anything done by dragging (sliders, carousels) also works with buttons (previous/next, arrows).
+- Consistent help (3.2.6): contact details or a contact link sit in the same place (header or footer) on every page.
+- Forms (3.3.x): a visible <label for> on every field, the right type and autocomplete (name, email, tel, street-address), required fields marked in text, errors shown in text next to the field and announced (aria-live or aria-describedby), and nothing the visitor already entered asked again (3.3.7). No CAPTCHAs or memory puzzles (3.3.8).
+- Links and buttons: link text says where it goes (never "click here" or "read more" alone; add visually hidden context); links that open a new tab say so; icon-only buttons have an aria-label; <button> for actions, <a href> for navigation.
+- Images and media: meaningful alt text, alt="" for decoration, captions or transcripts for video, no autoplaying sound, and any moving content (carousels, marquees) has a pause button and stops under prefers-reduced-motion.
+- Status messages (4.1.3): form confirmations and errors use role="status" or aria-live="polite" so screen readers hear them.
 
 ## Craft (world-class web design)
 - Layout: a 12-column grid with a max content width (about 1200px), generous section padding (py-20 to py-32 on desktop), and a clear rhythm: alternate full-bleed photo sections, quiet text sections and tinted bands.

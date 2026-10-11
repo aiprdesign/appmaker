@@ -5,7 +5,7 @@ import { getStyle } from "@/lib/styles";
 import { demoWebsiteResponse, isAllowedSitePath, validateSite, websiteSystemPrompt } from "@/lib/website";
 import { parseGeneration } from "@/lib/parse";
 
-const good = `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width"><title>Home · Luigi's</title><meta name="description" content="Pasta."><link rel="stylesheet" href="styles.css"><script src="https://cdn.tailwindcss.com"></script></head><body><a href="contact.html">Contact</a><img src="https://x/a.jpg" alt="Pasta"><script src="script.js"></script></body></html>`;
+const good = `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width"><title>Home · Luigi's</title><meta name="description" content="Pasta."><link rel="stylesheet" href="styles.css"><script src="https://cdn.tailwindcss.com"></script></head><body><a href="#main">Skip to content</a><main id="main"><h1>Luigi's</h1><a href="contact.html">Contact</a><img src="https://x/a.jpg" alt="Pasta"></main><script src="script.js"></script></body></html>`;
 
 describe("website redesign", () => {
   it("accepts website files only", () => {
@@ -150,5 +150,33 @@ describe("accessibility widget", () => {
     expect(validateSite({ ...files, "contact.html": good })).toEqual([]);
     // No requests anywhere (the only address is the SVG namespace, which isn't fetched).
     expect(A11Y_WIDGET.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, "")).not.toMatch(/fetch\(|XMLHttpRequest|https?:\/\//);
+  });
+});
+
+describe("WCAG 2.2 AA page checks", () => {
+  it("finds structural accessibility problems in the HTML", async () => {
+    const { pageA11yIssues } = await import("@/lib/website");
+    expect(pageA11yIssues("index.html", good)).toEqual([]);
+    const bad = `<html lang="en"><body><h1>A</h1><h1>B</h1><h4>Deep</h4>
+      <input type="email" name="email"><button><svg></svg></button><a href="/x">click here</a><a href="/y"></a>
+      <div tabindex="3">x</div><iframe src="https://maps"></iframe><p id="a"></p><p id="a"></p></body></html>`;
+    const found = pageA11yIssues("index.html", bad).join("\n");
+    for (const m of [
+      "has no <main> landmark",
+      'has no "Skip to content" link',
+      "has 2 <h1> headings",
+      "skips a heading level (h1 to h4",
+      "form field without a label (email)",
+      "email field without autocomplete",
+      "button with no name",
+      'only says "click here"',
+      "tabindex greater than 0",
+      "<iframe> without a title",
+      'repeats the id "a"',
+    ]) {
+      expect(found, m).toContain(m);
+    }
+    const labelled = '<a href="#main">Skip to content</a><main id="main"><h1>C</h1><label for="e">Email</label><input id="e" type="email" autocomplete="email"><label>Name <input name="n"></label><button aria-label="Open menu"><svg></svg></button></main>';
+    expect(pageA11yIssues("contact.html", labelled)).toEqual([]);
   });
 });

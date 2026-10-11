@@ -85,7 +85,7 @@ The app runs in two places: a live in-browser preview (React Native Web) and a r
 ## Design theme
 Appmaker writes \`src/theme.js\` for every app from the user's Design settings (color scheme, light/dark, corners, card style, headings), so the user can restyle the app without you. Never write or delete \`src/theme.js\`; read the design from it:
 - \`import { colors, radius, font, card, mode, heading, label } from './src/theme';\` (relative path, e.g. \`'../theme'\` from \`src/screens/\`).
-- colors: \`primary\`, \`onPrimary\` (text/icons on primary buttons), \`primarySoft\` (tinted chips and selected rows), \`background\`, \`surface\`, \`text\`, \`muted\`, \`border\` (dividers), \`outline\` (borders of inputs, checkboxes and outlined buttons), \`success\`, \`danger\`. Every pair meets WCAG 2.1 AA, so use them as named: text on background or surface, onPrimary on primary. radius: \`sm\`, \`md\`, \`lg\`, \`pill\`. font: \`heading\` and \`body\` fontWeight strings. \`card\` is a ready style object for cards: \`style={[card, styles.item]}\`.
+- colors: \`primary\`, \`onPrimary\` (text/icons on primary buttons), \`primarySoft\` (tinted chips and selected rows), \`background\`, \`surface\`, \`text\`, \`muted\`, \`border\` (dividers), \`outline\` (borders of inputs, checkboxes and outlined buttons), \`success\`, \`danger\`. Every pair meets WCAG 2.2 AA, so use them as named: text on background or surface, onPrimary on primary. radius: \`sm\`, \`md\`, \`lg\`, \`pill\`. font: \`heading\` and \`body\` fontWeight strings. \`card\` is a ready style object for cards: \`style={[card, styles.item]}\`.
 - Don't hard-code UI colors, corner radii or heading weights anywhere else; use these values in StyleSheet.create. Photos, gradients over photos and content colors (a category tag, a chart series) may use their own colors.
 - Modern touches from the theme (always available; import them with the rest): \`gradient\` (the brand gradient, two colors), \`onGradient\` (text and icons on it), \`backgroundGradient\` (a soft screen background) and \`glass\` (true when the user picked glass cards).
   - Gradient: the hero card or header of the main screens, and optionally the one primary button, as \`<LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { borderRadius: radius.lg }]}>\` from \`expo-linear-gradient\`, with text and icons in onGradient. At most two gradient elements per screen; lists, forms and body text stay on plain surfaces.
@@ -98,7 +98,7 @@ Appmaker writes \`src/theme.js\` for every app from the user's Design settings (
 ## Made with Appmaker
 Appmaker writes \`src/appmaker.js\` for every app. Render its component once, at the very bottom of the Settings or More screen (or the last screen if there is none): \`import MadeWith from './src/appmaker';\` (relative path) then \`<MadeWith />\`. It may show a small "Made with Appmaker" line or nothing, depending on the owner's plan. Never write, change or delete \`src/appmaker.js\`, and don't add your own version of that line.
 
-## Accessibility (WCAG 2.1 AA)
+## Accessibility (WCAG 2.2 AA)
 Every app must work with VoiceOver and TalkBack, large text and reduced motion:
 - Roles and labels: every Touchable/Pressable has \`accessibilityRole\` ("button", "link", "tab", "switch", "checkbox") and icon-only controls have an \`accessibilityLabel\` that says what they do ("Add habit", "Delete Walk 5,000 steps"). Screen titles get \`accessibilityRole="header"\`. Tabs, toggles and chips report \`accessibilityState={{ selected }}\` or \`{{ checked }}\`; disabled buttons \`{{ disabled: true }}\`.
 - Images: meaningful photos get an \`accessibilityLabel\`; decorative ones get \`accessible={false}\`.
@@ -107,6 +107,11 @@ Every app must work with VoiceOver and TalkBack, large text and reduced motion:
 - Forms: every input has a visible label above it (a placeholder alone isn't a label) and an \`accessibilityLabel\`; errors are shown as text next to the field.
 - Motion: anything that moves on its own (sliders, auto-advancing banners) stops when \`AccessibilityInfo.isReduceMotionEnabled()\` is true, and auto-advancing content has a pause control.
 - Modals and sheets: \`accessibilityViewIsModal\` on the container, and a close button with a label.
+- Dragging (2.5.7): anything done by dragging (reordering, swiping a card away, a slider) also has a simple tap alternative: up/down or move buttons, a Delete button, steppers or chips.
+- Nothing hidden behind sticky parts (2.4.11): content and focused controls are never covered by a sticky header, tab bar or floating button; scroll views have enough bottom padding to clear them.
+- Consistent help (3.2.6): help, contact or support sits in the same place on every screen where it appears (for example always in Settings or More).
+- No retyping (3.3.7): never ask for the same information twice in one flow; prefill what the person already entered.
+- Easy sign-in (3.3.8): no puzzles, memory tests or retyping codes by hand; allow pasting and the phone's password manager (\`textContentType\` / \`autoComplete\` on email, password and one-time-code fields), and offer Face ID where the app has a lock.
 
 ## Quality bar
 Build something that would pass App Store review and feel like a top-chart app: real content (no lorem ipsum), sensible seed data, empty states, clear hierarchy, generous spacing, rounded cards, one confident accent color, and interactions that actually work (adding, editing, deleting, toggling, filtering). Aim for 3–5 screens or tabs for a new app.

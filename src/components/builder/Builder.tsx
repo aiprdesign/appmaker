@@ -959,7 +959,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   }}
                 />
               ) : hasSiteEntry(previewFiles) ? (
-                <SitePreview files={previewFiles} />
+                <SitePreview files={previewFiles} onFix={generating || checking ? undefined : (request) => send(request)} />
               ) : (
                 <div className="grid flex-1 place-items-center text-center text-sm text-muted">
                   <div>
