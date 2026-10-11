@@ -18,7 +18,7 @@ import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
 import { ConceptPicker, SiteColorsPanel } from "./ConceptPicker";
 import { withA11yWidget } from "@/lib/site-a11y";
-import { conceptPrompt, conceptStyles, contentIssues, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
+import { conceptPrompt, conceptStyles, contentIssues, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
@@ -52,6 +52,8 @@ type Tab = "preview" | "code" | "publish";
 
 /** Automatic repair passes allowed after each request the user sends. */
 const AUTO_FIX_BUDGET = 2;
+/** Requests the content keeper may make to get the owner's content back, before restoring it itself. */
+const CONTENT_FIX_BUDGET = 3;
 /** Extra requests allowed to finish an app the model couldn't write in one reply. */
 const CONTINUE_BUDGET = 3;
 /** How long after a generation a preview crash counts as caused by it. */
@@ -145,6 +147,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   // The content keeper checks the full site made from a chosen design (not later edits,
   // where the owner may remove a section on purpose).
   const keepContent = useRef(false);
+  const contentBudget = useRef(CONTENT_FIX_BUDGET);
   const demoRef = useRef(false);
   const unloading = useRef(false);
 
@@ -230,6 +233,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       if (!current || abortRef.current) return;
       if (!opts.autoFix) {
         keepContent.current = !!opts.keepContent;
+        contentBudget.current = CONTENT_FIX_BUDGET;
         reviewPending.current = true;
         fixBudget.current = AUTO_FIX_BUDGET;
         continueBudget.current = CONTINUE_BUDGET;
@@ -406,11 +410,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       setSelectedFile(files["App.js"] != null ? "App.js" : null);
       abortRef.current = null;
 
-      const reveal = () => {
+      const reveal = (shown: FileMap = files) => {
         setChecking(false);
-        setPreviewFiles(files);
+        setPreviewFiles(shown);
         setReloadKey((k) => k + 1);
-        if (isSite ? hasSiteEntry(files) : hasEntry(files)) setMobileView("app");
+        if (isSite ? hasSiteEntry(shown) : hasEntry(shown)) setMobileView("app");
       };
 
       // The three checks run on every new version before it's shown:
@@ -449,13 +453,16 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         ...(regulated.length ? (["check:regulated"] as const) : []),
         ...((issues.length || regulated.length) && fixBudget.current === 0 ? (["unfixed:checks"] as const) : []),
       ]);
-      if ((issues.length || claims.length || regulated.length || lostContent.length) && fixBudget.current > 0) {
-        fixBudget.current -= 1;
+      const fixChecks = (issues.length || claims.length || regulated.length) > 0 && fixBudget.current > 0;
+      const fixContent = lostContent.length > 0 && contentBudget.current > 0;
+      if (fixChecks || fixContent) {
+        if (fixChecks) fixBudget.current -= 1;
+        if (fixContent) contentBudget.current -= 1;
         setChecking(true);
         const parts = [
           issues.length && `Automatic quality check found ${issues.length} problem${issues.length === 1 ? "" : "s"}:\n${describeIssues(issues)}`,
           lostContent.length &&
-            `Content keeper (checks the redesign kept the owner's content): ${lostContent.length} problem${lostContent.length === 1 ? "" : "s"}. Put the owner's content back exactly, in the same order and with each section's images, keeping the new design (fold long text behind "Read more" instead of cutting it):\n${describeIssues(lostContent)}`,
+            `Content keeper (checks the redesign kept the owner's content): ${lostContent.length} problem${lostContent.length === 1 ? "" : "s"}. Put the owner's content back, in the same order and with each section's images, keeping the new design. You may present it better, but keep their words and every fact (fold long text behind "Read more" instead of cutting it):\n${describeIssues(lostContent)}`,
           claims.length &&
             `Claim-safe wording is on. Rewrite these phrases as neutral, descriptive text (no superlatives, absolutes, speed promises or unsupported comparisons), in the app and in the listing:\n${describeClaims(claims)}`,
           regulated.length &&
@@ -463,6 +470,24 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         ].filter(Boolean);
         sendRef.current?.(`${parts.join("\n\n")}\n\nFix all of them.`, { autoFix: true });
         return;
+      }
+      // The AI still left some of the owner's content out: Appmaker puts it back itself,
+      // word for word with its pictures, in its place, so nothing is ever lost.
+      if (lostContent.length) {
+        const { files: kept, restored } = restoreContent(files, base.source);
+        const p = projectRef.current;
+        if (restored && p) {
+          const { project: withKept, versionId: keptVersion } = withVersion({ ...p, files: kept }, "Content keeper: restored the owner's content");
+          const note: ChatMessage = {
+            id: uid(),
+            role: "assistant",
+            content: `🧩 Content keeper: the AI left out ${restored} section${restored === 1 ? "" : "s"} of your current site, so I put ${restored === 1 ? "it" : "them"} back word for word, with ${restored === 1 ? "its" : "their"} pictures, in the original place. Ask for a design touch-up if you'd like ${restored === 1 ? "it" : "them"} styled differently.`,
+            createdAt: Date.now(),
+            versionId: keptVersion,
+          };
+          commit({ ...withKept, messages: [...withKept.messages, note] });
+          return reveal(kept);
+        }
       }
       reveal();
       // The phone tests and review agents are for apps.

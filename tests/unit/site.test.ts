@@ -305,7 +305,8 @@ describe("page sections (keeping the owner's content)", () => {
     const site = { ...summary, pages: [page] } as SiteSummary;
     const kept = `<h1>Fresh bread every morning</h1><p>Baked by hand in Leeds since 1998, with flour from local mills.</p><img src="https://rosa.example/img/hero.jpg">
       <h2>Our Story</h2><p>Rosa opened the bakery with her grandmother&rsquo;s recipes…</p>
-      <details><summary>Read more</summary><p>Rosa opened the bakery with her grandmother's recipes and one wood oven. Today…</p></details>
+      <details><summary>Read more</summary><p>Rosa opened the bakery with her grandmother's recipes and one wood oven.</p>
+      <ul><li><strong>400+ loaves</strong> a day</li><li>baked today in that same oven for the neighbourhood</li></ul></details>
       <img src="https://cdn.example.com/oven.jpg"><h3>What&nbsp;we bake</h3><ul><li class="card">Sourdough loaf <b>£4.50</b></li><li class="card">Rye bread £3.80</li></ul>`;
     expect(contentIssues({ "index.html": kept }, site).map((i) => i.message)).toEqual([]);
     const lossy = `<h1>Fresh bread every morning</h1><p>Baked by hand in Leeds since 1998, with flour from local mills.</p><h2>Our story</h2><p>A family bakery.</p>`;
@@ -316,5 +317,80 @@ describe("page sections (keeping the owner's content)", () => {
     expect(issues[2].message).toMatch(/"What we bake".*its heading/);
     expect(issues.every((i) => i.file === "index.html")).toBe(true);
     expect(contentIssues({ "index.html": lossy }, undefined)).toEqual([]);
+  });
+});
+
+describe("page sections from page builders", () => {
+  it("reads text in plain divs, background pictures, <picture> sources and lazy-loaded images, each once", async () => {
+    const { summarizeHtml } = await import("@/lib/site");
+    const html = `<html><body><div class="elementor">
+      <div class="elementor-section" style="background-image: url('/uploads/kitchen.jpg')">
+        <div class="elementor-widget-heading"><h2 class="elementor-heading-title">Our kitchen</h2></div>
+        <div class="elementor-text-editor">Every dish is cooked to order with <span>seasonal produce</span> from the valley.</div>
+        <div class="elementor-button"><a href="/book">Book</a></div>
+      </div>
+      <div class="gallery"><h3>Gallery</h3>
+        <picture><source srcset="/img/pasta-800.webp 800w, /img/pasta-1600.webp 1600w"><img src="/img/pasta.jpg" alt="Pasta"></picture>
+        <img src="data:image/gif;base64,R0lGOD" data-lazy-src="/img/terrace.jpg" alt="Terrace">
+        <div data-bg="/img/wine.jpg"></div>
+      </div></div></body></html>`;
+    const { page } = summarizeHtml(html, new URL("https://trattoria.example/"));
+    expect(page.sections).toEqual([
+      { heading: "Our kitchen", text: "Every dish is cooked to order with seasonal produce from the valley.", images: ["https://trattoria.example/uploads/kitchen.jpg"] },
+      { heading: "Gallery", text: "", images: ["https://trattoria.example/img/pasta-1600.webp", "https://trattoria.example/img/terrace.jpg", "https://trattoria.example/img/wine.jpg"] },
+    ]);
+  });
+});
+
+describe("content keeper's safety net", () => {
+  const site = {
+    siteName: "Rosa's Bakery",
+    url: "https://rosa.example/",
+    pages: [
+      {
+        url: "https://rosa.example/",
+        sections: [
+          { heading: "Fresh bread every morning", text: "Baked by hand in Leeds since 1998.", images: [] },
+          { heading: "Our story", text: "Rosa opened the bakery with her grandmother's recipes & one wood oven.", images: ["https://cdn.example.com/oven.jpg"] },
+          { heading: "What we bake", text: "- Sourdough loaf £4.50\n- Rye bread £3.80", images: ["https://cdn.example.com/rye.jpg"] },
+          { heading: "Visit us", text: "Open every day from seven in the morning until the bread runs out.", images: [] },
+        ],
+      },
+    ],
+  } as unknown as SiteSummary;
+
+  it("puts back what the AI left out, word for word with its pictures, in its original place", async () => {
+    const { restoreContent, contentIssues } = await import("@/lib/website");
+    const page = `<html><body><header>Rosa</header><main>
+<section class="hero"><h1>Fresh bread every morning</h1><p>Baked by hand in Leeds since 1998.</p></section>
+<section><h2>What we bake</h2><ul><li>Sourdough loaf £4.50</li><li>Rye bread £3.80</li></ul></section>
+<section><h2>Visit us</h2><p>Open every day from seven in the morning until the bread runs out.</p></section>
+</main><footer>©</footer></body></html>`;
+    const { files, restored } = restoreContent({ "index.html": page, "styles.css": "x" }, site);
+    expect(restored).toBe(2);
+    expect(files["styles.css"]).toBe("x");
+    const html = files["index.html"];
+    // "Our story" comes back between the hero and "What we bake", escaped, with its photo.
+    expect(html.indexOf("Our story")).toBeGreaterThan(html.indexOf("Fresh bread"));
+    expect(html.indexOf("Our story")).toBeLessThan(html.indexOf("What we bake"));
+    expect(html).toContain("grandmother's recipes &amp; one wood oven");
+    expect(html).toMatch(/<img src="https:\/\/cdn\.example\.com\/oven\.jpg" alt="Our story" width="1200" height="800" loading="lazy"/);
+    // The missing rye photo joins its own section, before "Visit us".
+    expect(html.indexOf("rye.jpg")).toBeGreaterThan(html.indexOf("Rye bread"));
+    expect(html.indexOf("rye.jpg")).toBeLessThan(html.indexOf("Visit us"));
+    expect(contentIssues(files, site)).toEqual([]);
+    expect(restoreContent(files, site).restored).toBe(0);
+  });
+
+  it("folds long restored text behind Read more and never lets page text become markup", async () => {
+    const { restoreContent } = await import("@/lib/website");
+    const long = Array.from({ length: 8 }, (_, i) => `Paragraph ${i + 1} of the owner's long story about bread, ovens and the people of the town.`).join("\n");
+    const evil = { ...site, pages: [{ url: "https://rosa.example/about", sections: [{ heading: "<script>alert(1)</script> History", text: long, images: [] }] }] } as unknown as SiteSummary;
+    const { files } = restoreContent({ "index.html": "<main></main>", "about.html": "<html><body><main><h1>About</h1></main></body></html>" }, evil);
+    expect(files["about.html"]).toContain("&lt;script&gt;alert(1)&lt;/script&gt; History");
+    expect(files["about.html"]).not.toContain("<script>alert(1)");
+    expect(files["about.html"]).toMatch(/<p>Paragraph 1 [^<]*<\/p>\n<details class="group"><summary[^>]*>Read more<\/summary>/);
+    expect(files["about.html"]).toContain("Paragraph 8 of the owner's long story");
+    expect(files["index.html"]).toBe("<main></main>");
   });
 });

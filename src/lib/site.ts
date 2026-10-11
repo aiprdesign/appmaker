@@ -352,7 +352,16 @@ function stylesheetUrls(root: HTMLElement, base: URL): URL[] {
 
 /** A content picture's address (src, lazy-loading attributes or srcset), or null for logos, icons and trackers. */
 function imageUrl(img: HTMLElement, base: URL): string | null {
-  const src = img.getAttribute("src") || img.getAttribute("data-src") || img.getAttribute("data-lazy-src") || fromSrcset(img.getAttribute("srcset") ?? img.getAttribute("data-srcset"));
+  // A <picture>'s best <source> wins over its fallback <img>; lazy loaders keep the real
+  // address in data-* attributes while src holds a tiny placeholder.
+  const source = img.parentNode && (img.parentNode as HTMLElement).tagName === "PICTURE" ? (img.parentNode as HTMLElement).querySelector("source[srcset]") : null;
+  const lazy = img.getAttribute("data-src") || img.getAttribute("data-lazy-src") || img.getAttribute("data-original") || fromSrcset(img.getAttribute("data-srcset") ?? img.getAttribute("data-lazy-srcset"));
+  const plain = img.getAttribute("src");
+  const src =
+    lazy ||
+    fromSrcset(source?.getAttribute("srcset")) ||
+    (plain && !/^data:/i.test(plain) ? plain : undefined) ||
+    fromSrcset(img.getAttribute("srcset"));
   const url = absolute(src, base);
   if (!url || /\.(svg|gif|ico)(\?|$)/i.test(url) || JUNK_IMAGE.test(url)) return null;
   const w = Number(img.getAttribute("width")) || 0;
@@ -361,7 +370,15 @@ function imageUrl(img: HTMLElement, base: URL): string | null {
   return url;
 }
 
-const BLOCKS = "h1, h2, h3, h4, p, li, blockquote, figcaption, dt, dd, td, img";
+const BLOCKS = "h1, h2, h3, h4, h5, h6, p, li, blockquote, figcaption, dt, dd, td, img, div, [style*=background], [data-bg], [data-background-image]";
+/** Elements that hold other text blocks: their own text is read through those. */
+const HOLDS_BLOCKS = "p, li, blockquote, h1, h2, h3, h4, h5, h6, div, section, article, ul, ol, table, figure, dl";
+/** A background picture set in a style or by a lazy loader (common in page builders). */
+function backgroundUrl(el: HTMLElement, base: URL): string | null {
+  const attr = el.getAttribute("data-bg") || el.getAttribute("data-background-image") || /background(?:-image)?\s*:[^;]*url\(\s*['"]?([^'")]+)['"]?\s*\)/i.exec(el.getAttribute("style") ?? "")?.[1];
+  const url = absolute(attr?.replace(/^url\(\s*['"]?|['"]?\s*\)$/g, ""), base);
+  return url && !/\.(svg|gif|ico)(\?|$)/i.test(url) && !JUNK_IMAGE.test(url) && !/logo/i.test(url) ? url : null;
+}
 const SKIP_AREAS = "nav, footer, script, style, noscript, template, form, [aria-hidden=true], .cookie, #cookie, [class*=cookie]";
 
 /**
@@ -381,20 +398,31 @@ function extractSections(body: HTMLElement, base: URL): SiteSection[] {
     if (sections.length >= MAX_SECTIONS) break;
     if (el.closest(SKIP_AREAS)) continue;
     const tag = el.tagName.toLowerCase();
+    const addImage = (url: string | null) => {
+      if (url && current.images.length < SECTION_IMAGES && !current.images.includes(url)) current.images.push(url);
+    };
     if (tag === "img") {
       const url = imageUrl(el, base);
       const label = `${url} ${el.getAttribute("alt") ?? ""} ${el.getAttribute("class") ?? ""}`;
-      if (url && !/logo/i.test(label) && current.images.length < SECTION_IMAGES && !current.images.includes(url)) current.images.push(url);
+      if (!/logo/i.test(label)) addImage(url);
       continue;
     }
-    // Only the innermost text blocks (a paragraph inside a list item is read once).
-    if (tag !== "h1" && tag !== "h2" && tag !== "h3" && tag !== "h4" && el.querySelector("p, li, blockquote, h1, h2, h3, h4")) continue;
+    addImage(backgroundUrl(el, base));
+    const heading = /^h[1-6]$/.test(tag) || el.getAttribute("role") === "heading";
+    // Only the innermost text blocks (a paragraph inside a list item is read once);
+    // a <div> counts only when it holds text directly (page builders often skip <p>).
+    if (!heading && el.querySelector(HOLDS_BLOCKS)) continue;
+    if (tag !== "div" && !heading && !/^(p|li|blockquote|figcaption|dt|dd|td|h5|h6)$/.test(tag)) continue;
+    if (tag === "div" && (el.closest("p, li, blockquote, h1, h2, h3, h4, h5, h6, td, dd, figcaption, a, button") || el.querySelector("img"))) continue;
     const t = clean(el.text);
-    if (!t) continue;
-    if (/^h[1-4]$/.test(tag)) {
+    if (!t || (tag === "div" && t.length < 25)) continue;
+    if (heading && !/^h[56]$/.test(tag)) {
       if (t.length > 160) continue;
-      push();
-      current = { heading: t, text: "", images: [] };
+      // Pictures just before a heading with no text of their own (a section's background
+      // or banner) belong to that heading's section.
+      const lead = !current.heading && !current.text ? current.images : [];
+      if (!lead.length) push();
+      current = { heading: t, text: "", images: lead };
       continue;
     }
     if (seenText.has(t) || budget <= 0) continue;

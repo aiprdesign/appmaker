@@ -3,7 +3,7 @@ import { parse } from "node-html-parser";
 import { CLAIM_SAFE_RULES, DEFAULT_WORDING, type Wording } from "./claims";
 import { REGULATED_RULES } from "./regulated";
 import type { DesignStyle } from "./styles";
-import type { FileMap, SiteColors, SiteSummary } from "./types";
+import type { FileMap, SiteColors, SiteSection, SiteSummary } from "./types";
 import type { ValidationIssue } from "./validate";
 
 /**
@@ -149,8 +149,9 @@ export const WEBSITE_PROMPT = `You are Appmaker's website designer. You redesign
 - Honest and helpful for the site's visitors: clear prices, easy contact, no dark patterns (fake urgency, hidden costs, pre-ticked boxes).
 
 ## Keep the content, redesign the look (hard rules)
-The owner's content is the site; the redesign changes how it looks, never what it says.
-- Every section listed in <website_content> appears in the new site, in the same order, on the page that matches its source page (the home page's sections on index.html, the about page's on about.html, and so on). Its heading and text keep the owner's own words; fix only obvious typos.
+The owner's content is the site. The redesign may present it better, but always respects it.
+- Every section listed in <website_content> appears in the new site, in the same order, on the page that matches its source page (the home page's sections on index.html, the about page's on about.html, and so on).
+- Present it better, the owner's way: clearer headings, shorter paragraphs, bullet points for lists hidden in sentences, key facts (years, prices, hours, numbers) pulled out and highlighted, a short lead line, fixed typos and grammar, and lightly tightened wording. Keep every fact, the meaning, the names and the owner's voice and tone; never add claims, change prices or details, or replace their words with generic marketing copy. When in doubt, keep the original sentence.
 - Never drop, merge away or summarize a section into something shorter that loses information. A long section may be shown shorter for a cleaner design, but then the full text is right there behind a "Read more" toggle: a <button aria-expanded="false" aria-controls="…"> that reveals the rest of the owner's exact text (a hidden panel toggled in script.js, or <details><summary>Read more</summary>…</details>). Nothing is lost, only folded away.
 - Each section's own images ("Images for this section") stay with that section's content: next to its paragraphs, in its cards, or as its background. Use every one; never move a picture to a different section or leave one out.
 - Lists stay lists (every item), prices stay with their items, questions stay with their answers.
@@ -487,10 +488,67 @@ function pageFile(path: string): string {
   return last ? `${last.replace(/[^a-z0-9-]+/g, "-")}.html` : "index.html";
 }
 
+/** How much of a text's meaningful words (and every number) the site still has, 0 to 1. */
+function coverage(part: string, site: string): number {
+  const want = [...new Set(part.split(" ").filter((w) => w.length > 3 || /\d/.test(w)))];
+  if (!want.length) return 1;
+  return want.filter((w) => site.includes(` ${w} `)).length / want.length;
+}
+
 /** The first words of a text, enough to recognise it (or "" for a very short one). */
 function opening(text: string, n = 10): string {
   const w = words(text).split(" ").filter(Boolean);
   return w.length >= 5 ? w.slice(0, n).join(" ") : "";
+}
+
+interface LostContent {
+  /** The new site's page it belongs on. */
+  file: string;
+  /** The current site's page path. */
+  from: string;
+  section: SiteSection;
+  /** The sections before it on the same page (to put it back in its place). */
+  before: SiteSection[];
+  heading: boolean;
+  text: boolean;
+  images: string[];
+}
+
+function siteText(files: FileMap): { raw: string; text: string } {
+  const raw = Object.entries(files)
+    .filter(([p]) => p.endsWith(".html"))
+    .map(([, code]) => code)
+    .join("\n");
+  return { raw, text: ` ${words(raw.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " "))} ` };
+}
+
+/** Every section of the imported site whose heading, text or pictures the new site doesn't have. */
+function findLost(files: FileMap, site: SiteSummary | undefined): LostContent[] {
+  if (!site?.pages?.length || !Object.keys(files).some((p) => p.endsWith(".html"))) return [];
+  const { raw, text } = siteText(files);
+  const lost: LostContent[] = [];
+  for (const page of site.pages) {
+    let from: string;
+    try {
+      from = new URL(page.url).pathname;
+    } catch {
+      from = page.url;
+    }
+    const sections = page.sections ?? [];
+    sections.forEach((section, i) => {
+      const head = words(section.heading);
+      // Headings may be reworded a little; text may be polished and re-laid out. What
+      // counts is that the owner's words are still there: most of the heading's, and
+      // most of the section's meaningful words (names, numbers, facts).
+      const missingHeading = !!head && !text.includes(` ${head} `) && coverage(head, text) < 0.6;
+      const missingText = !!opening(section.text) && coverage(words(section.text), text) < 0.7;
+      const images = section.images.filter((u) => !raw.includes(u) && !raw.includes(u.replace(/&/g, "&amp;")));
+      if (missingHeading || missingText || images.length) {
+        lost.push({ file: pageFile(from), from, section, before: sections.slice(0, i), heading: missingHeading, text: missingText, images });
+      }
+    });
+  }
+  return lost;
 }
 
 /**
@@ -499,35 +557,109 @@ function opening(text: string, n = 10): string {
  * there (text in a "Read more" panel counts). Problems go back to the AI.
  */
 export function contentIssues(files: FileMap, site: SiteSummary | undefined, max = 12): ValidationIssue[] {
-  if (!site?.pages?.length) return [];
-  const html = Object.entries(files).filter(([p]) => p.endsWith(".html"));
-  if (!html.length) return [];
-  const raw = html.map(([, code]) => code).join("\n");
-  const text = ` ${words(raw.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " "))} `;
-  const missing: ValidationIssue[] = [];
-  for (const page of site.pages) {
-    const from = (() => {
-      try {
-        return new URL(page.url).pathname;
-      } catch {
-        return page.url;
-      }
-    })();
-    for (const sec of page.sections ?? []) {
-      const name = sec.heading ? `"${sec.heading.slice(0, 80)}"` : `the section starting "${sec.text.slice(0, 60)}…"`;
-      const head = words(sec.heading);
-      const lost: string[] = [];
-      if (head && !text.includes(` ${head} `)) lost.push("its heading");
-      const start = opening(sec.text);
-      if (start && !text.includes(` ${start} `)) lost.push("its text (keep the owner's words; fold long text behind Read more instead of cutting it)");
-      const pics = sec.images.filter((u) => !raw.includes(u) && !raw.includes(u.replace(/&/g, "&amp;")));
-      if (pics.length) lost.push(`its image${pics.length === 1 ? "" : "s"} ${pics.join(" ")}`);
-      if (lost.length) missing.push({ file: pageFile(from), message: `section ${name} from the current site's ${from} page is missing ${lost.join(", ")}` });
-    }
-  }
+  const missing = findLost(files, site).map((l) => {
+    const name = l.section.heading ? `"${l.section.heading.slice(0, 80)}"` : `the section starting "${l.section.text.slice(0, 60)}…"`;
+    const parts = [
+      l.heading && "its heading",
+      l.text && "most of its text (present it better if you like, but keep the owner's words and every fact; fold long text behind Read more instead of cutting it)",
+      l.images.length && `its image${l.images.length === 1 ? "" : "s"} ${l.images.join(" ")}`,
+    ].filter(Boolean);
+    return { file: l.file, message: `section ${name} from the current site's ${l.from} page is missing ${parts.join(", ")}` };
+  });
   if (missing.length > max) {
     const more = missing.length - max;
     return [...missing.slice(0, max), { file: "index.html", message: `and ${more} more section${more === 1 ? "" : "s"} of the current site's content are missing: add every section, in order` }];
   }
   return missing;
+}
+
+const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** Where a heading's text sits in a page: the end of its <hN> element, or -1. */
+function headingEnd(html: string, heading: string): number {
+  const want = words(heading);
+  if (!want) return -1;
+  for (const m of html.matchAll(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi)) {
+    if (words(m[1].replace(/<[^>]+>/g, " ")) === want) return m.index! + m[0].length;
+  }
+  return -1;
+}
+
+/** The owner's text as HTML: paragraphs and lists, long text folded behind Read more. */
+function textHtml(text: string): string {
+  const blocks: string[] = [];
+  let list: string[] = [];
+  const flush = () => {
+    if (list.length) blocks.push(`<ul class="list-disc space-y-1 pl-6">${list.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`);
+    list = [];
+  };
+  for (const line of text.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    if (line.startsWith("- ")) list.push(line.slice(2));
+    else {
+      flush();
+      blocks.push(`<p>${escapeHtml(line)}</p>`);
+    }
+  }
+  flush();
+  if (text.length <= 500 || blocks.length < 2) return blocks.join("\n");
+  return `${blocks[0]}\n<details class="group"><summary class="cursor-pointer font-semibold underline underline-offset-4">Read more</summary>\n<div class="mt-4 space-y-4">${blocks.slice(1).join("\n")}</div></details>`;
+}
+
+function imagesHtml(images: string[], alt: string): string {
+  if (!images.length) return "";
+  return `<div class="grid gap-4 ${images.length > 1 ? "sm:grid-cols-2" : ""}">${images
+    .map((u) => `<img src="${escapeHtml(u)}" alt="${escapeHtml(alt)}" width="1200" height="800" loading="lazy" class="h-full w-full rounded-2xl object-cover">`)
+    .join("")}</div>`;
+}
+
+/**
+ * The last safety net: whatever the AI still left out is put back by Appmaker,
+ * word for word with its own pictures, in its place on its page (after the
+ * section that comes before it on the current site). Returns the new files and
+ * how many sections were restored.
+ */
+export function restoreContent(files: FileMap, site: SiteSummary | undefined): { files: FileMap; restored: number } {
+  const out = { ...files };
+  let restored = 0;
+  for (const l of findLost(out, site)) {
+    const file = out[l.file] != null ? l.file : "index.html";
+    let html = out[file];
+    if (html == null) continue;
+    const alt = l.section.heading || site?.siteName || "";
+    // Only pictures missing: they go at the end of their own section.
+    if (!l.heading && !l.text) {
+      const at = headingEnd(html, l.section.heading);
+      const close = at >= 0 ? html.indexOf("</section>", at) : -1;
+      const block = `\n<div class="restored-content mt-8">${imagesHtml(l.images, alt)}</div>\n`;
+      html = close >= 0 ? html.slice(0, close) + block + html.slice(close) : insertInMain(html, block, l.before);
+    } else {
+      const head = l.section.heading ? `<h2 class="text-3xl font-bold tracking-tight sm:text-4xl">${escapeHtml(l.section.heading)}</h2>` : "";
+      const pictures = imagesHtml(l.images, alt);
+      const block = `\n<section class="restored-content mx-auto max-w-6xl px-6 py-16 sm:py-20">\n<div class="grid items-start gap-10 ${pictures ? "lg:grid-cols-2" : ""}">\n<div class="space-y-4 text-lg leading-relaxed">${head}\n${textHtml(l.section.text)}</div>\n${pictures}\n</div>\n</section>\n`;
+      html = insertInMain(html, block, l.before);
+    }
+    out[file] = html;
+    restored += 1;
+  }
+  return { files: out, restored };
+}
+
+/** Puts a block after the section before it (found by its heading), else at the end of <main>. */
+function insertInMain(html: string, block: string, before: SiteSection[]): string {
+  for (const prev of [...before].reverse()) {
+    const at = headingEnd(html, prev.heading);
+    if (at < 0) continue;
+    const close = html.indexOf("</section>", at);
+    const end = close >= 0 ? close + "</section>".length : at;
+    return html.slice(0, end) + block + html.slice(end);
+  }
+  if (!before.length) {
+    const main = /<main\b[^>]*>/i.exec(html);
+    if (main) return html.slice(0, main.index + main[0].length) + block + html.slice(main.index + main[0].length);
+  }
+  for (const marker of [/<\/main>/i, /<footer\b/i, /<\/body>/i]) {
+    const m = marker.exec(html);
+    if (m) return html.slice(0, m.index) + block + html.slice(m.index);
+  }
+  return html + block;
 }
