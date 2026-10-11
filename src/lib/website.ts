@@ -57,6 +57,11 @@ export function validateSite(files: FileMap): ValidationIssue[] {
     if (/\beval\s*\(|new\s+Function\s*\(/.test(code)) issues.push({ file: path, message: "uses eval or new Function; write plain JavaScript" });
     if (/<img(?![^>]*\salt=)[^>]*>/i.test(code)) issues.push({ file: path, message: "has an <img> without alt text (add a short description, or alt=\"\" for decoration)" });
   }
+  // Animated sites must respect people who turn motion off.
+  const all = Object.values(files).join("\n");
+  if (/@keyframes|animation\s*:|transition\s*:|\.animate\(/.test(all) && !/prefers-reduced-motion/.test(all)) {
+    issues.push({ file: "styles.css", message: "has animations but never checks prefers-reduced-motion; switch motion off for people who turn it off in their settings" });
+  }
   // De-duplicate repeated messages.
   return issues.filter((i, n) => issues.findIndex((j) => j.file === i.file && j.message === i.message) === n);
 }
@@ -103,6 +108,19 @@ Text contrast at least 4.5:1, visible focus styles, a "Skip to content" link, bu
 - Imagery: real photos large, with consistent aspect ratios (object-cover), subtle overlays where text sits on them, and rounded corners or full-bleed edges used consistently.
 - Details: hover and focus states on everything interactive, smooth anchor scrolling, sticky header that condenses on scroll, and small reveal-on-scroll animations that respect prefers-reduced-motion.
 - Performance: no heavy libraries, lazy-loaded images below the fold, and nothing that blocks the first paint except Tailwind.
+
+## Motion design (the site should feel alive, smooth and premium)
+Motion explains and delights; it never slows anyone down. Write it with CSS and a little vanilla JavaScript in script.js (no animation libraries).
+- Principles: motion has a purpose (guide the eye, show what changed, give feedback, add a sense of place). Animate only transform and opacity (and filter sparingly), never width, height, top or margin, so it stays at 60fps with no layout shift. Things enter from where they come from and leave quickly.
+- Timing: micro-interactions 150–200ms; entrances 400–700ms; page transitions about 300–400ms; nothing longer than 900ms. Easing: cubic-bezier(0.22, 1, 0.36, 1) for entrances (fast start, soft landing), cubic-bezier(0.4, 0, 0.2, 1) for state changes; linear only for continuous loops.
+- Choreography: stagger groups by 60–100ms (cards, list items, gallery tiles) so they arrive as a wave, not all at once; the headline first, then supporting text, then the call to action.
+- Load: the hero animates in once on load (fade and rise 16–24px, or a gentle scale from 1.04 for the hero photo); nothing else moves until scrolled to.
+- Scroll reveals: sections and cards fade and rise as they enter the viewport: IntersectionObserver in script.js adds an "is-visible" class (once, threshold about 0.15) and CSS transitions do the rest on [data-reveal]. Where supported, enhance with scroll-driven CSS (animation-timeline: view()) inside @supports, e.g. a subtle parallax on large photos (translateY up to 40px) or a reading progress bar.
+- Page transitions: @view-transition { navigation: auto; } in the stylesheet with a short cross-fade (::view-transition-old/new(root), about 300ms), so moving between pages feels smooth. Browsers without it navigate normally.
+- Micro-interactions: buttons lift slightly (translateY(-2px), deeper shadow) on hover and press down (scale 0.97) on click; links get an underline that grows from the left; cards lift and their image zooms gently (scale 1.04 inside overflow-hidden); fields glow softly on focus; the mobile menu slides and fades in.
+- Living details, used sparingly: numbers that count up when they come into view (real figures only), a slowly drifting gradient or soft blurred shapes behind the hero, a marquee of real services, a sticky header that shrinks and gains a background after scrolling.
+- Respect people who turn motion off: put animations and transitions under @media (prefers-reduced-motion: no-preference) (or switch them off under reduce), and in script.js check window.matchMedia('(prefers-reduced-motion: reduce)') before starting any motion. Content is visible by default: only script.js adds the hidden starting state, so nothing stays hidden if JavaScript fails.
+- Never: motion that plays forever without a pause, flashing more than three times a second, scroll-jacking, or animations that delay reading or clicking.
 
 ## Commercially safe resources only
 Use only open resources the owner may use commercially: Tailwind CSS (MIT), icons drawn as inline SVG in the style of Lucide or Heroicons (ISC/MIT), and Google Fonts (SIL Open Font License). Never copy another company's design, text, logo or photos, never use stock photos or icon fonts from services that need a licence or key, and use only the business's own images from <website_content>.
@@ -279,21 +297,21 @@ export const CONCEPT_TIERS: { tier: ConceptTier; name: string; styles: string[];
     name: "Simple",
     styles: ["swiss", "calm", "editorial"],
     brief:
-      "SIMPLE: calm, minimal and refined. Lots of white space, a restrained palette (mostly neutrals and one accent), elegant typography doing the work, few sections, no decoration for its own sake. Beautiful through restraint and precision.",
+      "SIMPLE: calm, minimal and refined. Lots of white space, a restrained palette (mostly neutrals and one accent), elegant typography doing the work, few sections, no decoration for its own sake. Beautiful through restraint and precision. Motion: subtle and quiet (soft fades and small rises, gentle hover states, smooth page transitions).",
   },
   {
     tier: "balanced",
     name: "Balanced",
     styles: ["liquid-glass", "organic", "luxe", "editorial", "calm"],
     brief:
-      "BALANCED: a polished middle ground. Confident color used with care, large photos, some depth (soft shadows, subtle gradients or glass), varied section layouts and tasteful motion. Beautiful, modern and professional.",
+      "BALANCED: a polished middle ground. Confident color used with care, large photos, some depth (soft shadows, subtle gradients or glass), varied section layouts and tasteful motion. Beautiful, modern and professional. Motion: smooth and confident (staggered scroll reveals, image zoom on hover, a subtle hero parallax, page transitions).",
   },
   {
     tier: "bold",
     name: "Bold & colorful",
     styles: ["aurora", "pop", "brutalist", "bento"],
     brief:
-      "BOLD & COLORFUL: heavily designed and expressive. Rich color and gradients, big display type, layered compositions (overlapping cards, shapes, bento grids), striking section transitions, playful details and lively motion. Memorable and full of energy while staying readable and accessible.",
+      "BOLD & COLORFUL: heavily designed and expressive. Rich color and gradients, big display type, layered compositions (overlapping cards, shapes, bento grids), striking section transitions, playful details and lively motion. Memorable and full of energy while staying readable and accessible. Motion: expressive and lively (a dramatic hero entrance, staggered reveals with more travel, drifting gradient shapes, counters, a marquee, playful hover effects), always smooth and never in the way.",
   },
 ];
 

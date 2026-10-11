@@ -120,3 +120,20 @@ describe("website colours", () => {
     expect(conceptPrompt("Redesign", getStyle("swiss")!, 1, "simple", { mode: "custom", primary: "#123456" })).toContain("the owner chose these colours: #123456");
   });
 });
+
+describe("motion design", () => {
+  it("tells the designer how to animate, per direction, and checks reduced motion", async () => {
+    const { conceptPrompt, validateSite, websiteSystemPrompt } = await import("@/lib/website");
+    for (const t of ["Motion design", "IntersectionObserver", "@view-transition", "cubic-bezier(0.22, 1, 0.36, 1)", "prefers-reduced-motion", "Animate only transform and opacity"]) {
+      expect(websiteSystemPrompt()).toContain(t);
+    }
+    expect(conceptPrompt("x", getStyle("swiss")!, 1, "simple")).toContain("Motion: subtle and quiet");
+    expect(conceptPrompt("x", getStyle("aurora")!, 3, "bold")).toContain("Motion: expressive and lively");
+    const page = good;
+    const animated = { "index.html": page, "contact.html": page, "styles.css": ".card{transition: transform .2s}", "script.js": "1" };
+    expect(validateSite(animated).map((i) => i.message)).toContain(
+      "has animations but never checks prefers-reduced-motion; switch motion off for people who turn it off in their settings",
+    );
+    expect(validateSite({ ...animated, "styles.css": "@media (prefers-reduced-motion: no-preference){.card{transition: transform .2s}}" })).toEqual([]);
+  });
+});
