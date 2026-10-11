@@ -47,6 +47,8 @@ test("connect Expo, set up Apple upload, build for the App Store and follow its 
     const name = new URL(route.request().url()).pathname.split("/").pop()!;
     if (route.request().method() === "GET") return json(route, { available: true });
     const body = route.request().postDataJSON();
+    // The build check (tested in unit tests) answers "all clear" here.
+    if (name === "check") return json(route, { hosted: false, account: "alice", checks: [{ id: "token", label: "Your Expo token is accepted", ok: true }] });
     calls[name].push(body);
     if (name === "account") {
       return body.token === "expo_good_token_123456" ? json(route, { name: "alice", account: "alice", available: true }) : json(route, { error: "Expo didn't accept this access token.", code: "auth" }, 401);
@@ -80,6 +82,9 @@ test("connect Expo, set up Apple upload, build for the App Store and follow its 
   await expect(section).toBeVisible();
   const buildButton = section.getByRole("button", { name: "Build for iPhone" });
   await expect(buildButton).toBeDisabled();
+  // The build check runs as the step opens, and says what it found.
+  await expect(section.getByRole("heading", { name: "Check before building" })).toBeVisible();
+  await expect(section.getByText(/All clear: ready to build on the “alice” Expo account|thing.? to fix before building|with a note below/)).toBeVisible();
 
   // A wrong token is explained, a right one connects.
   await section.getByLabel("Expo access token").fill("expo_bad_token_1234567");

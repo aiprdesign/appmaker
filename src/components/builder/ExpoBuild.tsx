@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { BuildTarget, CloudBuild, ExpoState, Project } from "@/lib/types";
 import { slugify } from "@/lib/expo-project";
+import { ExpoCheckPanel } from "./ExpoCheckPanel";
 import { QrCode } from "@/components/QrCode";
 import {
   buildPageUrl,
@@ -379,6 +380,8 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
           </p>
         </div>
       </div>
+
+      <ExpoCheckPanel project={project} token={token || undefined} hasPreviewError={hasPreviewError} />
 
       {server?.off && (
         <div role="status" className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-100/90">

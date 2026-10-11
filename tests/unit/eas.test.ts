@@ -189,12 +189,16 @@ beforeAll(async () => {
     let body = "";
     req.on("data", (d) => (body += d));
     req.on("end", () => {
-      const { query } = JSON.parse(body);
+      const { query, variables } = JSON.parse(body);
       graphqlCalls.push({ auth: req.headers.authorization, query });
       res.setHeader("content-type", "application/json");
       if (req.headers.authorization !== `Bearer ${TOKEN}`) {
         res.statusCode = 401;
         return res.end(JSON.stringify({ errors: [{ message: "Unauthorized", extensions: { errorCode: "UNAUTHORIZED_ERROR" } }] }));
+      }
+      if (query.includes("AppmakerProject")) {
+        const found = variables?.id === "proj-alive" ? { slug: "streakly", ownerAccount: { name: "alice" } } : null;
+        return res.end(JSON.stringify({ data: { app: { byId: found } } }));
       }
       if (query.includes("meActor")) {
         return res.end(JSON.stringify({ data: { meActor: { __typename: "User", username: "alice", accounts: [{ name: "alice" }, { name: "acme-team" }] } } }));
@@ -241,7 +245,7 @@ beforeEach(() => {
 
 describe("cloud builds (fake Expo)", () => {
   it("checks the token with Expo", async () => {
-    expect(await whoami(TOKEN)).toEqual({ name: "alice", account: "alice" });
+    expect(await whoami(TOKEN)).toEqual({ name: "alice", account: "alice", accounts: ["alice", "acme-team"] });
     await expect(whoami("expo_wrong_token_123456")).rejects.toMatchObject({ code: "auth", status: 401 });
     expect(graphqlCalls[0].auth).toBe(`Bearer ${TOKEN}`);
   });
@@ -494,5 +498,63 @@ describe("hosted builds (site's Expo account)", () => {
     expect((await third.json()).error).toMatch(/today's build limit/);
     // A user's own Expo account isn't held to the site's daily limit.
     expect((await post(buildRoute, { ...body, token: TOKEN }, "10.3.3.3")).status).toBe(200);
+  });
+});
+
+describe("build check (can this app reach Expo without errors?)", () => {
+  const byId = (r: { checks: { id: string; ok: boolean | null; detail?: string; label: string }[] }, id: string) => r.checks.find((c) => c.id === id)!;
+
+  it("all clear with a good token, a reachable Expo and a linked project that exists", async () => {
+    const { checkExpo } = await import("@/lib/eas/check");
+    const r = await checkExpo({ token: TOKEN, link: { projectId: "proj-alive", owner: "alice", slug: "streakly" }, cloudBuilds: true });
+    expect(r.hosted).toBe(false);
+    expect(r.account).toBe("alice");
+    expect(r.checks.every((c) => c.ok === true)).toBe(true);
+    expect(byId(r, "project").label).toContain("alice/streakly");
+  });
+
+  it("says how to fix a rejected token, a missing project and a wrong site account", async () => {
+    const { checkExpo } = await import("@/lib/eas/check");
+    const bad = await checkExpo({ token: "expo_wrong_token_123456789", cloudBuilds: true });
+    expect(byId(bad, "reach").ok).toBe(true);
+    expect(byId(bad, "token")).toMatchObject({ ok: false, detail: expect.stringMatching(/Create a new one at expo\.dev/) });
+
+    const gone = await checkExpo({ token: TOKEN, link: { projectId: "proj-deleted", owner: "alice", slug: "old" }, cloudBuilds: true });
+    expect(byId(gone, "project")).toMatchObject({ ok: false, detail: expect.stringMatching(/Set up again/) });
+
+    process.env.EXPO_TOKEN = TOKEN;
+    process.env.APPMAKER_EXPO_ACCOUNT = "prdesign";
+    try {
+      const site = await checkExpo({ cloudBuilds: true });
+      expect(site.hosted).toBe(true);
+      expect(byId(site, "token").label).toBe("The site's Expo token is accepted");
+      expect(byId(site, "account")).toMatchObject({ ok: false, detail: expect.stringMatching(/can use: alice, acme-team.*APPMAKER_EXPO_ACCOUNT/) });
+      // An app set up on the user's own account is moved, not reported as broken.
+      const moved = await checkExpo({ link: { projectId: "proj-alive", owner: "alice", slug: "streakly" }, cloudBuilds: true });
+      expect(byId(moved, "project").ok).toBeNull();
+    } finally {
+      delete process.env.EXPO_TOKEN;
+      delete process.env.APPMAKER_EXPO_ACCOUNT;
+    }
+  });
+
+  it("without any Expo account, or with cloud builds off, says what to do", async () => {
+    const { checkExpo } = await import("@/lib/eas/check");
+    const none = await checkExpo({ cloudBuilds: false });
+    expect(byId(none, "feature").ok).toBe(false);
+    expect(byId(none, "token")).toMatchObject({ ok: false, detail: expect.stringMatching(/Connect your Expo account.*EXPO_TOKEN/) });
+  });
+
+  it("checks the app itself: code, preview, name and bundle ID", async () => {
+    const { appBuildChecks } = await import("@/lib/eas/app-check");
+    const project = {
+      files: { "App.js": "import X from './src/missing';\nexport default function App() { return null; }" },
+      listing: { ...emptyListing("Streakly"), bundleId: "com.appmaker.streakly" },
+    } as unknown as Project;
+    const checks = appBuildChecks(project, true);
+    expect(checks.find((c) => c.id === "code")).toMatchObject({ ok: false, detail: expect.stringMatching(/src\/missing.*Ask the AI/) });
+    expect(checks.find((c) => c.id === "preview")?.ok).toBe(false);
+    expect(checks.find((c) => c.id === "name")?.ok).toBe(true);
+    expect(checks.find((c) => c.id === "bundle")).toMatchObject({ ok: null, detail: expect.stringMatching(/before a store build/) });
   });
 });

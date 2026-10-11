@@ -83,6 +83,8 @@ export interface ExpoAccount {
   name: string;
   /** The account new projects are created under. */
   account: string;
+  /** Every account this token can create projects in. */
+  accounts?: string[];
 }
 
 export async function whoami(token: string): Promise<ExpoAccount> {
@@ -93,7 +95,26 @@ export async function whoami(token: string): Promise<ExpoAccount> {
   if (!actor) throw new EasError("Expo didn't accept this access token.", 401, "auth");
   const account = actor.username ?? actor.accounts[0]?.name;
   if (!account) throw new EasError("This Expo token has no account to build under.", 400, "auth");
-  return { name: actor.username ?? `${actor.firstName || "Robot"} (robot)`, account };
+  return { name: actor.username ?? `${actor.firstName || "Robot"} (robot)`, account, accounts: actor.accounts.map((a) => a.name) };
+}
+
+/** The Expo project an app is linked to, as Expo sees it now (null when it's gone or out of this token's reach). */
+export async function expoProject(token: string, projectId: string): Promise<{ owner: string; slug: string } | null> {
+  try {
+    const data = await graphql<{ app: { byId: { slug: string; ownerAccount: { name: string } } | null } }>(
+      token,
+      `query AppmakerProject($id: String!) { app { byId(appId: $id) { slug ownerAccount { name } } } }`,
+      { id: projectId },
+    );
+    const app = data.app?.byId;
+    return app ? { owner: app.ownerAccount.name, slug: app.slug } : null;
+  } catch (e) {
+    if (e instanceof EasError && (e.code === "auth" || e.status === 502)) {
+      if (e.code === "auth") throw e;
+      if (/not found|could not find|doesn't exist|does not exist/i.test(e.message)) return null;
+    }
+    throw e;
+  }
 }
 
 interface RawBuild {
@@ -296,13 +317,29 @@ export function parseJsonOutput<T>(stdout: string): T {
 
 let depsInstall: Promise<string | null> | null = null;
 
+let depsState: { state: "idle" | "installing" | "ready" | "failed"; error?: string } = { state: "idle" };
+
 export function ensureExpoDeps(): Promise<string | null> {
   if (process.env.APPMAKER_EAS_SKIP_DEPS === "1") return Promise.resolve(null);
-  depsInstall ??= installDeps().catch((e) => {
-    depsInstall = null;
-    throw e;
-  });
+  if (!depsInstall) depsState = { state: "installing" };
+  depsInstall ??= installDeps().then(
+    (dir) => {
+      depsState = { state: "ready" };
+      return dir;
+    },
+    (e) => {
+      depsInstall = null;
+      depsState = { state: "failed", error: e instanceof Error ? e.message : String(e) };
+      throw e;
+    },
+  );
   return depsInstall;
+}
+
+/** Whether the Expo packages builds need are installed on this server (for the build check). */
+export function expoDepsState(): { state: "idle" | "installing" | "ready" | "failed" | "skipped"; error?: string } {
+  if (process.env.APPMAKER_EAS_SKIP_DEPS === "1") return { state: "skipped" };
+  return depsState;
 }
 
 async function installDeps(): Promise<string> {

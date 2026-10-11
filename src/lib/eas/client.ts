@@ -1,5 +1,6 @@
 "use client";
 
+import type { ExpoCheckResult } from "./check";
 import { useSyncExternalStore } from "react";
 import { renderIcon } from "../export";
 import type { AppleSigning, BuildTarget, CloudBuild, ExpoLink, PhonePreview, Project } from "../types";
@@ -195,4 +196,9 @@ export function isActive(b: CloudBuild): boolean {
 
 export function buildPageUrl(link: ExpoLink, id: string): string {
   return `https://expo.dev/accounts/${encodeURIComponent(link.owner)}/projects/${encodeURIComponent(link.slug)}/builds/${encodeURIComponent(id)}`;
+}
+
+/** The server half of the build check (Expo, the token, the account, the packages, the linked project). */
+export function checkExpoBuild(token: string | undefined, link: ExpoLink | undefined) {
+  return post<ExpoCheckResult>("/api/eas/check", { token, link });
 }
