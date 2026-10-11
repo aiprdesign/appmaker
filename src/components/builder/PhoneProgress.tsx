@@ -85,6 +85,7 @@ export function PhoneBuilding({
       <div className="min-h-0 flex-1 space-y-3 overflow-hidden px-4 pt-3">
         {/* The hero photo, or a gradient until there is one. */}
         <div className="relative h-28 overflow-hidden rounded-2xl" style={{ background: `linear-gradient(135deg, ${primary}33, ${accent}33)` }}>
+          {!hero && <span className="skel absolute inset-0" aria-hidden="true" />}
           {hero && (
             // eslint-disable-next-line @next/next/no-img-element -- photos from the app's own code or website, any host
             <img key={hero} src={hero} alt="" referrerPolicy="no-referrer" className="build-pop h-full w-full object-cover" onError={(e) => (e.currentTarget.style.display = "none")} />
@@ -101,7 +102,7 @@ export function PhoneBuilding({
                   <DynamicIcon name={kebabIcon(actions[i]) as IconName} size={20} fallback={() => <Sparkles size={20} />} />
                 </span>
               ) : (
-                <span className="h-9 w-9 rounded-xl bg-neutral-100" />
+                <span className="skel h-9 w-9 rounded-xl bg-neutral-100" />
               )}
             </div>
           ))}
@@ -110,16 +111,16 @@ export function PhoneBuilding({
         {/* Cards fill in as screens are written; photos join them. */}
         <div className="space-y-2">
           {Array.from({ length: rows }, (_, i) => (
-            <div key={i} className={`flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm transition-opacity duration-700 ${i < files.length ? "opacity-100" : "opacity-40"}`}>
+            <div key={i} className={`flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm transition-opacity duration-700 ${i < files.length ? "opacity-100" : "skel-blink opacity-40"}`}>
               {photos[i] ? (
                 // eslint-disable-next-line @next/next/no-img-element -- see above
                 <img key={photos[i]} src={photos[i]} alt="" referrerPolicy="no-referrer" className="build-pop h-10 w-10 shrink-0 rounded-xl object-cover" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
               ) : (
-                <span className="h-10 w-10 shrink-0 rounded-xl" style={{ backgroundColor: `${accent}22` }} />
+                <span className="skel h-10 w-10 shrink-0 rounded-xl" style={{ backgroundColor: `${accent}22` }} />
               )}
               <span className="flex-1 space-y-1.5">
-                <span className="block h-2.5 w-3/5 rounded-full bg-neutral-200" />
-                <span className="block h-2 w-2/5 rounded-full bg-neutral-100" />
+                <span className="skel block h-2.5 w-3/5 rounded-full bg-neutral-200" />
+                <span className="skel block h-2 w-2/5 rounded-full bg-neutral-100" />
               </span>
             </div>
           ))}
@@ -160,7 +161,7 @@ export function PhoneBuilding({
             {tabs[i] ? (
               <DynamicIcon className="build-pop" name={kebabIcon(tabs[i]) as IconName} size={22} fallback={() => <Circle size={20} />} />
             ) : (
-              <span className="h-5 w-5 rounded-md bg-neutral-200" />
+              <span className="skel h-5 w-5 rounded-md bg-neutral-200" />
             )}
           </span>
         ))}
