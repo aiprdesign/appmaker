@@ -157,6 +157,20 @@ The owner's content is the site. The redesign may present it better, but always 
 - Lists stay lists (every item), prices stay with their items, questions stay with their answers.
 - The design is built from the content: pick the layout of each section to suit what it holds (a list of services becomes cards, a story becomes text with its photo, questions become an accordion), keeping the page's order and structure.
 
+## Logo strips: clients, partners, press, "trusted by" (when <website_content> lists client logos)
+Show every listed logo, never the business's own logo and never invented ones, using Appmaker's built-in logo strip (a11y.js, already on every page, runs it):
+<section aria-labelledby="clients-title">
+  <h2 id="clients-title">Trusted by…</h2> (the site's own wording when it has one, e.g. "Our clients")
+  <div data-logo-marquee aria-label="Our clients"><ul><li><img src="…exact URL…" alt="Company name" loading="lazy" decoding="async"></li>…</ul></div>
+</section>
+- Write each logo once, in a plain <ul>: the strip repeats them for a seamless endless scroll, fades the edges, pauses on hover and keyboard focus, adds a pause button, and shows a calm centred row for 3 or fewer logos or when motion is turned off. Don't write your own marquee animation, duplicate the list, or add a slider script for logos.
+- Optional: data-direction="right" scrolls the other way; data-speed="slow" or "fast". Style the <li> and <img> with Tailwind for the look (keep logos one height, about h-8 to h-12, width auto, object-contain).
+- Make it look designed, in this concept's direction:
+  - Simple: one quiet row on the page background, logos in grayscale at about 60% opacity turning full colour on hover (grayscale opacity-60 transition hover:grayscale-0 hover:opacity-100), a small uppercase "Trusted by" label above.
+  - Balanced: logos on soft white chips (rounded-2xl, a hairline border, gentle shadow, px-6 py-4) on a lightly tinted band, with a short line about the clients from the site's own words.
+  - Bold & colorful: a full-bleed band in the brand colour or gradient, slightly tilted (-rotate-1 or -rotate-2, with overflow hidden on the section), two strips scrolling in opposite directions (split the logos between them, or the same logos with data-direction="right" on the second), logos on glassy tiles or turned white (brightness-0 invert) when they're one colour on the band.
+- Logos that are dark on a dark band, or light on a light one, get a light or dark chip behind them so every logo stays visible.
+
 ## Technology (hard rules)
 - Plain static files only: .html pages, an optional styles.css and script.js, sitemap.xml and robots.txt. No build step, no frameworks, no server code, no package.json.
 - Styling with Tailwind via its CDN in every page's <head>: <script src="https://cdn.tailwindcss.com"></script>, configured inline with the brand colors (tailwind.config = { theme: { extend: { colors: { brand: '#…', accent: '#…' } } } }). Extra CSS goes in styles.css.
@@ -556,7 +570,31 @@ function findLost(files: FileMap, site: SiteSummary | undefined): LostContent[] 
  * the start of every section's text, and every section's pictures must still be
  * there (text in a "Read more" panel counts). Problems go back to the AI.
  */
+/** Client, partner and press logos the new site doesn't show. */
+function lostLogos(files: FileMap, site: SiteSummary | undefined): { src: string; alt: string }[] {
+  // Only the logos the AI is given (https addresses).
+  const logos = (site?.clientLogos ?? []).filter((l) => typeof l?.src === "string" && /^https:\/\/[^\s"'<>]+$/i.test(l.src));
+  if (!logos.length || !Object.keys(files).some((p) => p.endsWith(".html"))) return [];
+  const { raw } = siteText(files);
+  return logos.filter((l) => !raw.includes(l.src) && !raw.includes(l.src.replace(/&/g, "&amp;")));
+}
+
 export function contentIssues(files: FileMap, site: SiteSummary | undefined, max = 12): ValidationIssue[] {
+  const logos = lostLogos(files, site);
+  const logoIssue: ValidationIssue[] = logos.length
+    ? [
+        {
+          file: "index.html",
+          message: `${logos.length} client/partner logo${logos.length === 1 ? " is" : "s are"} missing: ${logos
+            .map((l) => `${l.src}${l.alt ? ` (${l.alt})` : ""}`)
+            .join(" ")}. Show every one in the built-in logo strip (<div data-logo-marquee aria-label="…"><ul><li><img …></li></ul></div>)`,
+        },
+      ]
+    : [];
+  return [...logoIssue, ...sectionIssues(files, site, max)];
+}
+
+function sectionIssues(files: FileMap, site: SiteSummary | undefined, max: number): ValidationIssue[] {
   const missing = findLost(files, site).map((l) => {
     const name = l.section.heading ? `"${l.section.heading.slice(0, 80)}"` : `the section starting "${l.section.text.slice(0, 60)}…"`;
     const parts = [
@@ -621,6 +659,31 @@ function imagesHtml(images: string[], alt: string): string {
 export function restoreContent(files: FileMap, site: SiteSummary | undefined): { files: FileMap; restored: number } {
   const out = { ...files };
   let restored = 0;
+  // Missing client logos join the site's logo strip, or get one of their own after the hero.
+  const logos = lostLogos(out, site);
+  if (logos.length && out["index.html"] != null) {
+    const items = logos
+      .map((l) => `<li><img src="${escapeHtml(l.src)}" alt="${escapeHtml(l.alt || "Client logo")}" loading="lazy" decoding="async" class="h-10 w-auto object-contain"></li>`)
+      .join("");
+    let html = out["index.html"];
+    const strip = /<div[^>]*data-logo-marquee[^>]*>[\s\S]*?<\/(ul|ol)>/i.exec(html);
+    if (strip) {
+      const at = strip.index + strip[0].lastIndexOf("</");
+      html = html.slice(0, at) + items + html.slice(at);
+    } else {
+      const block = `\n<section class="restored-content py-12" aria-labelledby="clients-title">\n<h2 id="clients-title" class="mb-6 text-center text-sm font-semibold uppercase tracking-widest opacity-70">Trusted by</h2>\n<div data-logo-marquee aria-label="Our clients" class="mx-auto max-w-6xl px-6"><ul>${items}</ul></div>\n</section>\n`;
+      const main = /<main\b[^>]*>/i.exec(html);
+      const afterHero = main ? html.indexOf("</section>", main.index) : -1;
+      html =
+        afterHero >= 0
+          ? html.slice(0, afterHero + 10) + block + html.slice(afterHero + 10)
+          : main
+            ? html.slice(0, main.index + main[0].length) + block + html.slice(main.index + main[0].length)
+            : insertInMain(html, block, []);
+    }
+    out["index.html"] = html;
+    restored += 1;
+  }
   for (const l of findLost(out, site)) {
     const file = out[l.file] != null ? l.file : "index.html";
     let html = out[file];

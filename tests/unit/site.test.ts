@@ -394,3 +394,53 @@ describe("content keeper's safety net", () => {
     expect(files["index.html"]).toBe("<main></main>");
   });
 });
+
+describe("client and partner logos", () => {
+  const html = `<html><body><header><img src="/brand/rosa-logo.svg" alt="Rosa"></header><main>
+    <section><h2>Trusted by local businesses</h2><div class="row">
+      <img src="/clients/acme-logo.png" alt="Acme logo"><img src="/clients/globex.svg" alt="Globex">
+      <img data-src="https://cdn.example.com/initech.webp" src="data:image/gif;base64,R0" alt="Initech">
+      <img src="/clients/acme-logo.png" alt="Acme again"></div></section>
+    <section class="gallery"><h2>Our bakes</h2><img src="/p1.jpg" alt=""><img src="/p2.jpg" alt=""><img src="/p3.jpg" alt=""></section>
+  </main></body></html>`;
+
+  it("finds the logo strip (SVGs included), not the business's own logo or a photo gallery", async () => {
+    const { summarizeHtml } = await import("@/lib/site");
+    const { details } = summarizeHtml(html, new URL("https://rosa.example/"));
+    expect(details.clientLogos).toEqual([
+      { src: "https://rosa.example/clients/acme-logo.png", alt: "Acme" },
+      { src: "https://rosa.example/clients/globex.svg", alt: "Globex" },
+      { src: "https://cdn.example.com/initech.webp", alt: "Initech" },
+    ]);
+    expect(details.logos).not.toContain("https://rosa.example/clients/acme-logo.png");
+  });
+
+  it("gives the AI the logos, and the content keeper puts missing ones in a logo strip", async () => {
+    const { contentIssues, restoreContent } = await import("@/lib/website");
+    const site = {
+      siteName: "Rosa",
+      url: "https://rosa.example/",
+      colors: [],
+      pages: [],
+      clientLogos: [
+        { src: "https://rosa.example/clients/acme-logo.png", alt: "Acme" },
+        { src: "https://rosa.example/clients/globex.svg", alt: "Globex" },
+        { src: "javascript:alert(1)", alt: "x" },
+      ],
+    } as unknown as SiteSummary;
+    expect(formatSite(site)).toMatch(/Client, partner and press logos[^\n]*\n- https:\/\/rosa\.example\/clients\/acme-logo\.png \(Acme\)\n- https:\/\/rosa\.example\/clients\/globex\.svg \(Globex\)/);
+    expect(formatSite(site)).not.toContain("javascript:");
+
+    const page = `<main><section class="hero"><h1>Rosa</h1></section><section><h2>About</h2></section></main>`;
+    expect(contentIssues({ "index.html": page }, site)[0].message).toMatch(/2 client\/partner logos are missing/);
+    const { files } = restoreContent({ "index.html": page }, site);
+    expect(files["index.html"]).toMatch(/<section class="hero"><h1>Rosa<\/h1><\/section>\n<section class="restored-content[^"]*" aria-labelledby="clients-title">/);
+    expect(files["index.html"]).toMatch(/data-logo-marquee aria-label="Our clients"[^>]*><ul><li><img src="https:\/\/rosa\.example\/clients\/acme-logo\.png" alt="Acme"/);
+
+    // A strip that already exists gets the missing logo added to it.
+    const withStrip = `<main><div data-logo-marquee aria-label="Clients"><ul><li><img src="https://rosa.example/clients/acme-logo.png" alt="Acme"></li></ul></div></main>`;
+    const fixed = restoreContent({ "index.html": withStrip }, site).files["index.html"];
+    expect(fixed).toMatch(/alt="Acme"><\/li><li><img src="https:\/\/rosa\.example\/clients\/globex\.svg" alt="Globex"[^>]*><\/li><\/ul>/);
+    expect(contentIssues({ "index.html": fixed }, site)).toEqual([]);
+  });
+});

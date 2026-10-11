@@ -472,6 +472,7 @@ const JUNK_IMAGE = /(pixel|spacer|tracking|sprite|blank|placeholder|loader|lazy|
 
 interface Details {
   logos: string[];
+  clientLogos: { src: string; alt: string }[];
   images: string[];
   contact: Partial<SiteContact> & { phones: string[]; emails: string[]; hours: string[]; social: string[] };
 }
@@ -509,17 +510,59 @@ function readJsonLd(root: HTMLElement, add: (o: Record<string, unknown>) => void
   }
 }
 
+const LOGO_AREA = /(client|partner|brand|logo|trust|customer|sponsor|carousel|slider|marquee|swiper|accredit|award|featured|press|certif|member)/i;
+const LOGO_HEADING = /\b(clients?|partners?|trusted by|brands?|as seen|featured (in|on)|our customers|accredit\w*|certifi\w*|(we('ve)?|who we('ve)?) work(ed)? with|sponsors?|members? of|awards?|in the press)\b/i;
+const MAX_CLIENT_LOGOS = 24;
+
+/**
+ * Logos of clients, partners, press and certifications: a group of at least three
+ * pictures in an area named like a logo strip, or under a heading such as
+ * "Trusted by" or "Our clients". SVG files count (logos often are).
+ */
+function extractClientLogos(root: HTMLElement, base: URL): { src: string; alt: string }[] {
+  const found = new Map<string, string>();
+  const header = new Set(root.querySelectorAll("header img, nav img").map((i) => i.getAttribute("src") ?? ""));
+  const groups = root.querySelectorAll("section, div, ul").filter((el) => {
+    if (el.closest("header, nav, footer") && !LOGO_HEADING.test(el.querySelector("h2, h3, h4, p")?.text ?? "")) return false;
+    const named = LOGO_AREA.test(`${el.getAttribute("class") ?? ""} ${el.getAttribute("id") ?? ""}`);
+    const heading = el.querySelector("h2, h3, h4, h5, p");
+    return named || (!!heading && LOGO_HEADING.test(clean(heading.text).slice(0, 80)));
+  });
+  for (const group of groups) {
+    const imgs = group.querySelectorAll("img");
+    // A logo strip is a row of small pictures, not a gallery of photos or one big image.
+    if (imgs.length < 3 || imgs.length > 60) continue;
+    for (const img of imgs) {
+      if (header.has(img.getAttribute("src") ?? "")) continue;
+      const src = img.getAttribute("data-src") || img.getAttribute("data-lazy-src") || img.getAttribute("src") || fromSrcset(img.getAttribute("srcset") ?? undefined);
+      const url = absolute(src && !/^data:/i.test(src) ? src : undefined, base);
+      if (!url || JUNK_IMAGE.test(url.replace(/logo/gi, "")) || /\.(gif|ico)(\?|$)/i.test(url)) continue;
+      const w = Number(img.getAttribute("width")) || 0;
+      if (w && w < 24) continue;
+      const alt = clean(img.getAttribute("alt") || img.getAttribute("title") || "")
+        .replace(/\s*(logo|icon)$/i, "")
+        .slice(0, 80);
+      if (!found.has(url)) found.set(url, alt);
+      if (found.size >= MAX_CLIENT_LOGOS) break;
+    }
+    if (found.size >= MAX_CLIENT_LOGOS) break;
+  }
+  return found.size >= 3 ? [...found].map(([src, alt]) => ({ src, alt })) : [];
+}
+
 function extractDetails(root: HTMLElement, base: URL): Details {
-  const d: Details = { logos: [], images: [], contact: { phones: [], emails: [], hours: [], social: [] } };
+  const d: Details = { logos: [], clientLogos: extractClientLogos(root, base), images: [], contact: { phones: [], emails: [], hours: [], social: [] } };
   const c = d.contact;
 
   for (const name of ["og:image", "og:image:secure_url", "twitter:image"]) {
     const url = absolute(meta(root, name), base);
     if (url) d.images.push(url);
   }
+  const clients = new Set(d.clientLogos.map((l) => l.src));
   for (const img of root.querySelectorAll("img").slice(0, 200)) {
     const url = imageUrl(img, base);
-    if (!url) continue;
+    // Clients' logos are theirs, not the business's logo or its photos.
+    if (!url || clients.has(url)) continue;
     const label = `${url} ${img.getAttribute("alt") ?? ""} ${img.getAttribute("class") ?? ""} ${img.getAttribute("id") ?? ""}`;
     if (/logo/i.test(label)) d.logos.push(url);
     else d.images.push(url);
@@ -578,8 +621,13 @@ function extractDetails(root: HTMLElement, base: URL): Details {
 }
 
 /** Merges what was found on each page: the logo, photos, and each contact detail once. */
-function mergeDetails(all: Details[]): { logo?: string; images: string[]; contact?: SiteContact } {
+function mergeDetails(all: Details[]): { logo?: string; images: string[]; contact?: SiteContact; clientLogos?: { src: string; alt: string }[] } {
   const logo = all.flatMap((d) => d.logos)[0];
+  const seenLogos = new Set<string>();
+  const clientLogos = all
+    .flatMap((d) => d.clientLogos)
+    .filter((l) => l.src !== logo && !seenLogos.has(l.src) && seenLogos.add(l.src))
+    .slice(0, MAX_CLIENT_LOGOS);
   const images = [...new Set(all.flatMap((d) => d.images))].filter((u) => u !== logo).slice(0, MAX_SITE_IMAGES);
   const c = all.map((d) => d.contact);
   const pick = <K extends "address" | "whatsapp" | "booking" | "maps">(k: K) => c.find((x) => x[k])?.[k];
@@ -593,7 +641,7 @@ function mergeDetails(all: Details[]): { logo?: string; images: string[]; contac
     booking: pick("booking"),
     maps: pick("maps"),
   });
-  return { ...(logo ? { logo } : {}), images, ...(contact ? { contact } : {}) };
+  return { ...(logo ? { logo } : {}), images, ...(contact ? { contact } : {}), ...(clientLogos.length ? { clientLogos } : {}) };
 }
 
 const KEY_PAGES = /(about|menu|service|product|pricing|price|plan|feature|shop|store|collection|course|class|program|team|faq|work|portfolio|book|reserv|order)/i;

@@ -237,6 +237,14 @@ function contactLines(c: SiteContact): string {
 }
 
 /** Formats an imported website as reference data for the model. */
+/** Clients' logos, checked again (https only, short names). */
+function clientLogos(site: SiteSummary): { src: string; alt: string }[] {
+  return (Array.isArray(site.clientLogos) ? site.clientLogos : []).slice(0, 24).flatMap((l) => {
+    const src = l && typeof l === "object" ? safeHttpsUrl(l.src) : null;
+    return src ? [{ src, alt: typeof l.alt === "string" ? l.alt.replace(/\s+/g, " ").trim().slice(0, 80) : "" }] : [];
+  });
+}
+
 /** A page's sections, checked again (the browser sends the imported site back with each request). */
 function sections(page: SitePage): SiteSection[] {
   return (Array.isArray(page.sections) ? page.sections : []).slice(0, 30).flatMap((s) => {
@@ -289,6 +297,11 @@ export function formatSite(site: SiteSummary): string {
     site.language && `Language: ${fence(site.language)}`,
     logo && `Logo: ${logo}`,
     images.length ? `Images (use only these exact URLs):\n${images.map((u) => `- ${u}`).join("\n")}` : "",
+    clientLogos(site).length
+      ? `Client, partner and press logos (show every one in a logo strip, with these exact URLs and names as alt text):\n${clientLogos(site)
+          .map((l) => `- ${l.src}${l.alt ? ` (${fence(l.alt)})` : ""}`)
+          .join("\n")}`
+      : "",
     contact ? `Contact details:\n${contactLines(contact)}` : "",
     pages,
     "</website_content>",

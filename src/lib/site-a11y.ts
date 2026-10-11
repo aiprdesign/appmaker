@@ -128,6 +128,98 @@ export const A11Y_WIDGET = `/* Accessibility settings for visitors. Added by App
   if (document.body) build();
   else document.addEventListener("DOMContentLoaded", build);
 })();
+
+/* Logo strips (clients, partners, "trusted by"): a smooth, endless scroll. Added by Appmaker.
+   Markup: <div data-logo-marquee aria-label="Our clients"><ul><li><img src="…" alt="Company"></li>…</ul></div>
+   Optional: data-direction="right", data-speed="slow" | "fast". */
+(function () {
+  var strips = document.querySelectorAll("[data-logo-marquee]");
+  if (!strips.length) return;
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var css = document.createElement("style");
+  css.textContent =
+    ".am-marquee{position:relative;overflow:hidden;--am-gap:3.5rem;-webkit-mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}" +
+    ".am-marquee-track{display:flex;width:max-content;gap:var(--am-gap);animation:am-marquee var(--am-dur,40s) linear infinite;will-change:transform}" +
+    ".am-marquee[data-direction=right] .am-marquee-track{animation-direction:reverse}" +
+    ".am-marquee:hover .am-marquee-track,.am-marquee:focus-within .am-marquee-track,.am-marquee.is-paused .am-marquee-track{animation-play-state:paused}" +
+    ".am-marquee-track>ul,.am-marquee-track>ol{display:flex;flex-wrap:nowrap;align-items:center;gap:var(--am-gap);margin:0;padding:0;list-style:none;flex-shrink:0}" +
+    ".am-marquee-track li{flex-shrink:0;display:flex;align-items:center}" +
+    // :where() keeps these as defaults: the site's own classes (h-8, h-12…) win.
+    ":where(.am-marquee) img{height:var(--am-logo-h,2.5rem);width:auto;max-width:10rem;object-fit:contain}" +
+    ".am-marquee.is-static{-webkit-mask-image:none;mask-image:none}" +
+    ".am-marquee.is-static .am-marquee-track{animation:none;width:auto;justify-content:center}" +
+    ".am-marquee.is-static .am-marquee-track>ul,.am-marquee.is-static .am-marquee-track>ol{flex-wrap:wrap;justify-content:center;row-gap:1.5rem}" +
+    ".am-marquee-toggle{position:absolute;right:.25rem;top:50%;transform:translateY(-50%);width:2rem;height:2rem;border-radius:999px;border:0;background:rgba(0,0,0,.55);color:#fff;font:600 11px/1 system-ui;cursor:pointer;opacity:0;transition:opacity .2s}" +
+    ".am-marquee:hover .am-marquee-toggle,.am-marquee-toggle:focus-visible,.am-marquee.is-paused .am-marquee-toggle{opacity:1}" +
+    ".am-marquee-toggle:focus-visible{outline:2px solid #fff;outline-offset:2px}" +
+    "@keyframes am-marquee{to{transform:translateX(calc(-50% - var(--am-gap) / 2))}}" +
+    "@media (prefers-reduced-motion:reduce){.am-marquee-track{animation:none!important}}";
+  document.head.appendChild(css);
+
+  function quiet(node) {
+    node.setAttribute("aria-hidden", "true");
+    var focusable = node.querySelectorAll("a,button,input,select,textarea,[tabindex]");
+    for (var i = 0; i < focusable.length; i++) focusable[i].setAttribute("tabindex", "-1");
+    var imgs = node.querySelectorAll("img");
+    for (var j = 0; j < imgs.length; j++) imgs[j].setAttribute("alt", "");
+  }
+
+  function setUp(strip) {
+    if (strip.getAttribute("data-am-ready")) return;
+    var list = strip.querySelector("ul,ol");
+    if (!list) return;
+    strip.setAttribute("data-am-ready", "1");
+    strip.classList.add("am-marquee");
+    if (!strip.getAttribute("role")) strip.setAttribute("role", "region");
+    var items = list.children.length;
+    var track = document.createElement("div");
+    track.className = "am-marquee-track";
+    list.parentNode.insertBefore(track, list);
+    track.appendChild(list);
+    // Too few logos to scroll, or motion turned off: a calm, centred row instead.
+    if (items < 4 || reduce) {
+      strip.classList.add("is-static");
+      return;
+    }
+    // Repeat the logos inside the list until it's wider than the strip, then add one
+    // copy of the whole list: moving by half of the track loops without a jump.
+    var originals = Array.prototype.slice.call(list.children);
+    var guard = 0;
+    while (list.scrollWidth < strip.clientWidth * 1.1 && guard++ < 6) {
+      for (var k = 0; k < originals.length; k++) {
+        var extra = originals[k].cloneNode(true);
+        quiet(extra);
+        list.appendChild(extra);
+      }
+    }
+    var copy = list.cloneNode(true);
+    quiet(copy);
+    track.appendChild(copy);
+    var speed = { slow: 25, fast: 70 }[strip.getAttribute("data-speed")] || 40;
+    strip.style.setProperty("--am-dur", Math.max(15, Math.round(list.scrollWidth / speed)) + "s");
+    // A pause button for moving content (WCAG 2.2.2), shown on hover and keyboard focus.
+    var toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "am-marquee-toggle";
+    toggle.setAttribute("aria-label", "Pause the logos");
+    toggle.setAttribute("aria-pressed", "false");
+    toggle.textContent = "II";
+    toggle.addEventListener("click", function () {
+      var paused = strip.classList.toggle("is-paused");
+      toggle.setAttribute("aria-pressed", paused ? "true" : "false");
+      toggle.setAttribute("aria-label", paused ? "Play the logos" : "Pause the logos");
+      toggle.textContent = paused ? "\u25B6" : "II";
+    });
+    strip.appendChild(toggle);
+  }
+
+  function all() {
+    for (var i = 0; i < strips.length; i++) setUp(strips[i]);
+  }
+  // Logos without a set size are measured once they've loaded.
+  if (document.readyState === "complete") all();
+  else window.addEventListener("load", all);
+})();
 `;
 
 const TAG = /<script[^>]*src=["']\.?\/?(?:\.\.\/)?a11y\.js["'][^>]*>\s*<\/script>/i;

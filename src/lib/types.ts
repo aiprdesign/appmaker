@@ -104,6 +104,8 @@ export interface SiteSummary {
   logo?: string;
   /** Photo links from the site (https only). Older imports don't have them. */
   images?: string[];
+  /** Logos of clients, partners, press or certifications ("trusted by"), shown as a logo strip. */
+  clientLogos?: { src: string; alt: string }[];
   contact?: SiteContact;
 }
 
