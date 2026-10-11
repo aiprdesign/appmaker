@@ -84,7 +84,12 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   // Choosing one makes the other pages in that design, in those colours.
   await page.getByRole("tab", { name: /Design 2/ }).click();
   await page.getByRole("button", { name: "Use design 2 and make the other pages" }).click();
-  await expect.poll(() => bodies.length).toBe(7);
+  // Then the content keeper: this mock reply leaves out most of the site's sections and
+  // pictures, so it asks for them back (twice, its limit), naming what's missing.
+  await expect.poll(() => bodies.length).toBe(9);
+  expect(String(bodies[7].prompt)).toMatch(/Content keeper \(checks the redesign kept the owner's content\)/);
+  expect(String(bodies[7].prompt)).toMatch(/section ".+" from the current site's \/ page is missing/);
+  expect(String(bodies[6].prompt)).toMatch(/every section of its matching current page/);
   expect(bodies[6]).toMatchObject({ kind: "website", style: styles[1], files: { "index.html": expect.any(String) } });
   expect(String(bodies[6].prompt)).toContain("the owner chose these colours: #123456");
   expect(String(bodies[6].prompt)).toMatch(/The owner chose design ".+" \(index\.html and contact\.html are already written\)/);
@@ -128,6 +133,9 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   // Edits are website edits too.
   await page.getByLabel("Message").fill("Make the hero bigger");
   await page.keyboard.press("Enter");
-  await expect.poll(() => bodies.length).toBe(8);
-  expect(bodies[7]).toMatchObject({ kind: "website", files: { "index.html": expect.stringContaining("Luigi's Trattoria") } });
+  // (The content keeper doesn't run on edits: the owner may remove a section on purpose.)
+  await expect.poll(() => bodies.length).toBe(10);
+  await page.waitForTimeout(1500);
+  expect(bodies).toHaveLength(10);
+  expect(bodies[9]).toMatchObject({ kind: "website", files: { "index.html": expect.stringContaining("Luigi's Trattoria") } });
 });

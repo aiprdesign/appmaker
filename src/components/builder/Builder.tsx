@@ -18,7 +18,7 @@ import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
 import { ConceptPicker, SiteColorsPanel } from "./ConceptPicker";
 import { withA11yWidget } from "@/lib/site-a11y";
-import { conceptPrompt, conceptStyles, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
+import { conceptPrompt, conceptStyles, contentIssues, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
@@ -142,6 +142,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const runtimeWatchUntil = useRef(0);
   // Apps already repaired automatically this session (self-healing tries each once).
   const healed = useRef(new Set<string>());
+  // The content keeper checks the full site made from a chosen design (not later edits,
+  // where the owner may remove a section on purpose).
+  const keepContent = useRef(false);
   const demoRef = useRef(false);
   const unloading = useRef(false);
 
@@ -222,10 +225,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   }, [project, generating]);
 
   const send = useCallback(
-    async (text: string, opts: { autoFix?: boolean; retry?: boolean; images?: string[] } = {}) => {
+    async (text: string, opts: { autoFix?: boolean; retry?: boolean; images?: string[]; keepContent?: boolean } = {}) => {
       const current = projectRef.current;
       if (!current || abortRef.current) return;
       if (!opts.autoFix) {
+        keepContent.current = !!opts.keepContent;
         reviewPending.current = true;
         fixBudget.current = AUTO_FIX_BUDGET;
         continueBudget.current = CONTINUE_BUDGET;
@@ -435,6 +439,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         return;
       }
       const issues = [...rejected, ...(isSite ? validateSite(files) : validateApp(files))];
+      const lostContent = isSite && keepContent.current ? contentIssues(files, base.source) : [];
       // Wording checks read app code; a website's wording rules are in its AI instructions.
       const claims = !isSite && (next.wording ?? DEFAULT_WORDING) === "claim-safe" ? checkClaims(files, next.listing) : [];
       const regulated = isSite ? [] : checkRegulatedClaims(files, next.listing);
@@ -444,11 +449,13 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         ...(regulated.length ? (["check:regulated"] as const) : []),
         ...((issues.length || regulated.length) && fixBudget.current === 0 ? (["unfixed:checks"] as const) : []),
       ]);
-      if ((issues.length || claims.length || regulated.length) && fixBudget.current > 0) {
+      if ((issues.length || claims.length || regulated.length || lostContent.length) && fixBudget.current > 0) {
         fixBudget.current -= 1;
         setChecking(true);
         const parts = [
           issues.length && `Automatic quality check found ${issues.length} problem${issues.length === 1 ? "" : "s"}:\n${describeIssues(issues)}`,
+          lostContent.length &&
+            `Content keeper (checks the redesign kept the owner's content): ${lostContent.length} problem${lostContent.length === 1 ? "" : "s"}. Put the owner's content back exactly, in the same order and with each section's images, keeping the new design (fold long text behind "Read more" instead of cutting it):\n${describeIssues(lostContent)}`,
           claims.length &&
             `Claim-safe wording is on. Rewrite these phrases as neutral, descriptive text (no superlatives, absolutes, speed promises or unsupported comparisons), in the app and in the listing:\n${describeClaims(claims)}`,
           regulated.length &&
@@ -540,7 +547,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     const files = withA11yWidget(c.files);
     commit({ ...p, files, design, concepts: undefined });
     setPreviewFiles(files);
-    send(finishSitePrompt(style, Object.keys(c.files).filter((f) => f.endsWith(".html")), resolveSiteColors(p.siteColors, p.source?.colors)));
+    send(finishSitePrompt(style, Object.keys(c.files).filter((f) => f.endsWith(".html")), resolveSiteColors(p.siteColors, p.source?.colors)), { keepContent: true });
   };
 
   const sendRef = useRef(send);

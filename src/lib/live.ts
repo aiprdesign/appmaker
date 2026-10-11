@@ -45,7 +45,9 @@ function findItems(site: SiteSummary): LiveItem[] {
   const items = new Map<string, LiveItem>();
   for (const page of site.pages) {
     const section = cleanText(page.title.split(/\s[|\-–—·]\s/)[0], 40) ?? undefined;
-    for (const line of [...page.headings, ...page.text.split("\n")]) {
+    // Sections carry the full text of newer imports (the plain text is then a short fallback).
+    const sectionLines = (page.sections ?? []).flatMap((s) => [s.heading, ...s.text.split("\n").map((l) => l.replace(/^- /, ""))]);
+    for (const line of [...page.headings, ...page.text.split("\n"), ...sectionLines]) {
       const m = ITEM_LINE.exec(line.trim());
       if (!m) continue;
       const name = cleanText(m[1].replace(/[\s.:—–-]+$/, ""), 60);

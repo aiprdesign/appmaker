@@ -102,7 +102,8 @@ function validateRequest(body: GenerateRequest): string | null {
     if (typeof site !== "object" || Array.isArray(site) || typeof site.url !== "string" || !Array.isArray(site.pages)) {
       return "site is invalid";
     }
-    if (JSON.stringify(site).length > 40_000) return "site content is too large";
+    // Room for every section of up to six pages, word for word.
+    if (JSON.stringify(site).length > 150_000) return "site content is too large";
   }
   if (body.ai != null) {
     const ai = body.ai;

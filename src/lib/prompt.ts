@@ -1,7 +1,7 @@
 import { CLAIM_SAFE_RULES, DEFAULT_WORDING, type Wording } from "./claims";
 import { REGULATED_RULES } from "./regulated";
 import { safeHttpsUrl, sanitizeContact, sanitizeImages } from "./site-details";
-import type { FileMap, SiteContact, SiteSummary, StoreListing } from "./types";
+import type { FileMap, SiteContact, SitePage, SiteSection, SiteSummary, StoreListing } from "./types";
 import { styleBrief, type DesignStyle } from "./styles";
 import { websiteStyleBrief } from "./website";
 
@@ -210,7 +210,7 @@ Listing rules: name ≤ 30 characters, subtitle ≤ 30 characters, description 3
 When editing an existing app, only emit files that change, keep everything else intact, and keep the listing consistent unless the user asks to change it.`;
 
 /** Stops website text from closing or forging the tags that fence it in. */
-const fence = (text: string) => text.replace(/<(\/?)\s*(website_content|page)\b/gi, "‹$1$2");
+const fence = (text: string) => text.replace(/<(\/?)\s*(website_content|page|section)\b/gi, "‹$1$2");
 
 function contactLines(c: SiteContact): string {
   return [
@@ -228,6 +228,17 @@ function contactLines(c: SiteContact): string {
 }
 
 /** Formats an imported website as reference data for the model. */
+/** A page's sections, checked again (the browser sends the imported site back with each request). */
+function sections(page: SitePage): SiteSection[] {
+  return (Array.isArray(page.sections) ? page.sections : []).slice(0, 30).flatMap((s) => {
+    if (!s || typeof s !== "object") return [];
+    const heading = typeof s.heading === "string" ? s.heading.replace(/\s+/g, " ").trim().slice(0, 160) : "";
+    const text = typeof s.text === "string" ? s.text.slice(0, 2_500) : "";
+    const images = sanitizeImages(s.images).slice(0, 4);
+    return heading || text || images.length ? [{ heading, text, images }] : [];
+  });
+}
+
 export function formatSite(site: SiteSummary): string {
   // Checked again here: the browser sends the imported site back with each request.
   const logo = safeHttpsUrl(site.logo);
@@ -239,8 +250,22 @@ export function formatSite(site: SiteSummary): string {
         `<page url="${encodeURI(p.url)}">`,
         p.title && `Title: ${fence(p.title)}`,
         p.navigation.length ? `Navigation: ${fence(p.navigation.join(" | "))}` : "",
-        p.headings.length ? `Headings:\n${fence(p.headings.map((h) => `- ${h}`).join("\n"))}` : "",
-        p.text && `Text:\n${fence(p.text)}`,
+        ...(sections(p).length
+          ? [
+              "Sections, in page order (keep every one, in this order, with its full text and its own images):",
+              ...sections(p).map((s, i) =>
+                [
+                  `<section n="${i + 1}">`,
+                  s.heading && `Heading: ${fence(s.heading)}`,
+                  s.text && fence(s.text),
+                  s.images.length ? `Images for this section: ${s.images.join(" ")}` : "",
+                  "</section>",
+                ]
+                  .filter(Boolean)
+                  .join("\n"),
+              ),
+            ]
+          : [p.headings.length ? `Headings:\n${fence(p.headings.map((h) => `- ${h}`).join("\n"))}` : "", p.text && `Text:\n${fence(p.text)}`]),
         "</page>",
       ]
         .filter(Boolean)

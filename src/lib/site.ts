@@ -4,7 +4,7 @@ import zlib from "node:zlib";
 import { parse, type HTMLElement } from "node-html-parser";
 import { isPrivateHost, isPublicAddress, makeSafeLookup } from "./net-guard";
 import { cleanEmail, cleanPhone, cleanText, MAX_SITE_IMAGES, safeHttpsUrl, sanitizeContact } from "./site-details";
-import type { SiteContact, SitePage, SiteSummary } from "./types";
+import type { SiteContact, SitePage, SiteSection, SiteSummary } from "./types";
 
 export { isPublicAddress };
 
@@ -21,8 +21,13 @@ export { isPublicAddress };
 const MAX_BYTES = 2_000_000;
 const TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 4;
-const MAX_EXTRA_PAGES = 3;
+const MAX_EXTRA_PAGES = 5;
 const PAGE_TEXT_CHARS = 5_000;
+/** Section limits: enough to keep every section of a page, word for word. */
+const MAX_SECTIONS = 30;
+const SECTION_TEXT_CHARS = 2_500;
+const PAGE_SECTIONS_CHARS = 9_000;
+const SECTION_IMAGES = 4;
 
 export class SiteError extends Error {}
 
@@ -345,6 +350,64 @@ function stylesheetUrls(root: HTMLElement, base: URL): URL[] {
     .slice(0, 5);
 }
 
+/** A content picture's address (src, lazy-loading attributes or srcset), or null for logos, icons and trackers. */
+function imageUrl(img: HTMLElement, base: URL): string | null {
+  const src = img.getAttribute("src") || img.getAttribute("data-src") || img.getAttribute("data-lazy-src") || fromSrcset(img.getAttribute("srcset") ?? img.getAttribute("data-srcset"));
+  const url = absolute(src, base);
+  if (!url || /\.(svg|gif|ico)(\?|$)/i.test(url) || JUNK_IMAGE.test(url)) return null;
+  const w = Number(img.getAttribute("width")) || 0;
+  const h = Number(img.getAttribute("height")) || 0;
+  if ((w && w < 64) || (h && h < 64)) return null;
+  return url;
+}
+
+const BLOCKS = "h1, h2, h3, h4, p, li, blockquote, figcaption, dt, dd, td, img";
+const SKIP_AREAS = "nav, footer, script, style, noscript, template, form, [aria-hidden=true], .cookie, #cookie, [class*=cookie]";
+
+/**
+ * The page's sections in reading order: each heading starts one, and the
+ * paragraphs, list items and pictures after it belong to it. Text is kept word
+ * for word so the redesign can keep it.
+ */
+function extractSections(body: HTMLElement, base: URL): SiteSection[] {
+  const sections: SiteSection[] = [];
+  let current: SiteSection = { heading: "", text: "", images: [] };
+  let budget = PAGE_SECTIONS_CHARS;
+  const seenText = new Set<string>();
+  const push = () => {
+    if (current.heading || current.text || current.images.length) sections.push(current);
+  };
+  for (const el of body.querySelectorAll(BLOCKS)) {
+    if (sections.length >= MAX_SECTIONS) break;
+    if (el.closest(SKIP_AREAS)) continue;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "img") {
+      const url = imageUrl(el, base);
+      const label = `${url} ${el.getAttribute("alt") ?? ""} ${el.getAttribute("class") ?? ""}`;
+      if (url && !/logo/i.test(label) && current.images.length < SECTION_IMAGES && !current.images.includes(url)) current.images.push(url);
+      continue;
+    }
+    // Only the innermost text blocks (a paragraph inside a list item is read once).
+    if (tag !== "h1" && tag !== "h2" && tag !== "h3" && tag !== "h4" && el.querySelector("p, li, blockquote, h1, h2, h3, h4")) continue;
+    const t = clean(el.text);
+    if (!t) continue;
+    if (/^h[1-4]$/.test(tag)) {
+      if (t.length > 160) continue;
+      push();
+      current = { heading: t, text: "", images: [] };
+      continue;
+    }
+    if (seenText.has(t) || budget <= 0) continue;
+    seenText.add(t);
+    const line = (tag === "li" || tag === "dd" ? `- ${t}` : t).slice(0, Math.min(budget, SECTION_TEXT_CHARS - current.text.length));
+    if (!line) continue;
+    current.text = current.text ? `${current.text}\n${line}` : line;
+    budget -= line.length;
+  }
+  push();
+  return sections.slice(0, MAX_SECTIONS);
+}
+
 function extractPage(root: HTMLElement, url: URL): SitePage {
   const headings = root
     .querySelectorAll("h1, h2, h3")
@@ -355,14 +418,17 @@ function extractPage(root: HTMLElement, url: URL): SitePage {
     .map((a) => clean(a.text))
     .filter((t) => t && t.length < 40);
   const body = root.querySelector("main") ?? root.querySelector("body") ?? root;
+  const sections = extractSections(root.querySelector("body") ?? root, url);
   body.querySelectorAll("script, style, noscript, svg, iframe, template, form, [aria-hidden=true]").forEach((el) => el.remove());
-  const text = clean(body.structuredText).slice(0, PAGE_TEXT_CHARS);
+  // With sections, the plain text is only a short fallback (the sections carry it all).
+  const text = clean(body.structuredText).slice(0, sections.length ? 1_500 : PAGE_TEXT_CHARS);
   return {
     url: url.toString(),
     title: clean(root.querySelector("title")?.text).slice(0, 120),
     headings: [...new Set(headings)].slice(0, 25),
     navigation: [...new Set(nav)].slice(0, 20),
     text,
+    ...(sections.length ? { sections } : {}),
   };
 }
 
@@ -424,12 +490,8 @@ function extractDetails(root: HTMLElement, base: URL): Details {
     if (url) d.images.push(url);
   }
   for (const img of root.querySelectorAll("img").slice(0, 200)) {
-    const src = img.getAttribute("src") || img.getAttribute("data-src") || img.getAttribute("data-lazy-src") || fromSrcset(img.getAttribute("srcset") ?? img.getAttribute("data-srcset"));
-    const url = absolute(src, base);
-    if (!url || /\.(svg|gif|ico)(\?|$)/i.test(url) || JUNK_IMAGE.test(url)) continue;
-    const w = Number(img.getAttribute("width")) || 0;
-    const h = Number(img.getAttribute("height")) || 0;
-    if ((w && w < 64) || (h && h < 64)) continue;
+    const url = imageUrl(img, base);
+    if (!url) continue;
     const label = `${url} ${img.getAttribute("alt") ?? ""} ${img.getAttribute("class") ?? ""} ${img.getAttribute("id") ?? ""}`;
     if (/logo/i.test(label)) d.logos.push(url);
     else d.images.push(url);

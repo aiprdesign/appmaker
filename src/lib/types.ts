@@ -57,12 +57,21 @@ export interface PendingRequest {
 }
 
 /** One page read during a website import. */
+/** One section of a page, in page order: its heading, its full text and its own pictures. */
+export interface SiteSection {
+  heading: string;
+  text: string;
+  images: string[];
+}
+
 export interface SitePage {
   url: string;
   title: string;
   headings: string[];
   navigation: string[];
   text: string;
+  /** The page's sections in order (newer imports). */
+  sections?: SiteSection[];
 }
 
 /** Ways to reach a business, found on its website. */
