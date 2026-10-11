@@ -151,6 +151,43 @@ test("Your phone (Expo Go): publishes the app and shows a QR code to open it", a
   expect(calls.link).toHaveLength(2);
 });
 
+test("Your phone (Expo Go): a QR code made for an older Expo SDK is replaced, not shown", async ({ page }) => {
+  const calls: Record<string, Record<string, unknown>[]> = { link: [], update: [] };
+  await page.route("**/api/eas/**", async (route) => {
+    const name = new URL(route.request().url()).pathname.split("/").pop()!;
+    if (route.request().method() === "GET") return json(route, { available: true, hosted: true });
+    calls[name]?.push(route.request().postDataJSON());
+    if (name === "link") return json(route, { link: { projectId: "0b6e6a8e-3f5e-4c47-9d68-6e0d3c1f2a11", owner: "appmaker-builds", slug: "streaks" } });
+    if (name === "update") return json(route, { preview: { groupId: GROUP, url: EXPO_GO_URL, platforms: ["android", "ios"], publishedAt: Date.now() } });
+    return json(route, { builds: [] });
+  });
+  await buildApp(page);
+  await page.getByRole("button", { name: "Test on a device" }).click();
+  await page.getByRole("menuitem", { name: /Your phone \(Expo Go\)/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Try it on your phone" });
+  await dialog.getByRole("button", { name: "Make a QR code for my phone" }).click();
+  await expect(dialog.getByText("Up to date with your latest changes.")).toBeVisible();
+
+  // The same app, but its saved preview was made before Appmaker moved to Expo Go's SDK.
+  await page.evaluate(() => {
+    const key = "appmaker.projects.v1";
+    const projects = JSON.parse(localStorage.getItem(key) || "{}");
+    for (const p of Object.values(projects) as { expo?: { phone?: Record<string, unknown> } }[]) {
+      if (p.expo?.phone) p.expo.phone = { ...p.expo.phone, runtime: "exposdk:54.0.0" };
+    }
+    localStorage.setItem(key, JSON.stringify(projects));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Test on a device" }).click();
+  await page.getByRole("menuitem", { name: /Your phone \(Expo Go\)/ }).click();
+  await expect(dialog.getByText(/made for an older Expo version, so Expo Go 57 would say “not compatible”/)).toBeVisible();
+  await expect(dialog.getByRole("img", { name: "QR code to open this app in Expo Go" })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Make a new QR code" }).click();
+  await expect(dialog.getByText("Up to date with your latest changes.")).toBeVisible();
+  await expect(dialog.getByRole("img", { name: "QR code to open this app in Expo Go" })).toBeVisible();
+  expect(calls.update).toHaveLength(2);
+});
+
 test("Your phone (Expo Go): explains what's needed when the site has no Expo account", async ({ page }) => {
   await page.route("**/api/eas/**", (route) => json(route, { available: true, hosted: false }));
   await buildApp(page);

@@ -1,5 +1,6 @@
 "use client";
 
+import { EXPO_GO_RUNTIME, EXPO_SDK } from "@/lib/expo-project";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, Loader2, RefreshCw, Smartphone, X } from "lucide-react";
 import { QrCode } from "@/components/QrCode";
@@ -28,6 +29,8 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
       ? { ...saved, url: `exp://u.expo.dev/${encodeURIComponent(expo.link.projectId)}/group/${encodeURIComponent(saved.groupId)}` }
       : saved;
   const upToDate = !!preview && preview.source === previewSource(project);
+  // Made for an older Expo SDK (before an update of Appmaker): today's Expo Go can't open it.
+  const oldSdk = !!preview && preview.runtime !== EXPO_GO_RUNTIME;
   const canPublish = !!server && server.available && !server.off && (server.hosted || !!token);
 
   const close = useRef(onClose);
@@ -98,7 +101,17 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
             <li>iPhone: scan the code with the Camera app. Android: open Expo Go and tap “Scan QR code”.</li>
           </ol>
 
-          {preview && (
+          {preview && oldSdk && (
+            <p role="status" className="flex items-start gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-100">
+              <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                The last QR code was made for an older Expo version, so Expo Go {EXPO_SDK.split(".")[0]} would say “not compatible”. Make a new one: it runs on
+                Expo SDK {EXPO_SDK.split(".")[0]}, the version Expo Go uses now.
+              </span>
+            </p>
+          )}
+
+          {preview && !oldSdk && (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-line bg-surface p-4 sm:flex-row sm:items-start">
               <QrCode value={preview.url} size={176} label="QR code to open this app in Expo Go" />
               <div className="min-w-0 flex-1 space-y-2 text-xs text-muted">
@@ -111,7 +124,7 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
                     <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> You changed the app since this code was made. Update it to see the changes.
                   </p>
                 )}
-                <p>Runs the real app on Expo SDK 57, the same version as your App Store and Google Play builds.</p>
+                <p>Runs the real app on Expo SDK {EXPO_SDK.split(".")[0]}, the same version as your App Store and Google Play builds.</p>
                 {expo.link && (
                   <p>
                     Expo project:{" "}
@@ -163,13 +176,13 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
               <Loader2 className="h-4 w-4 animate-spin" /> {phase}
             </p>
           ) : (
-            (!preview || !upToDate) && (
+            (!preview || !upToDate || oldSdk) && (
               <button
                 onClick={() => publish()}
                 className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-medium text-black"
               >
                 {preview ? <RefreshCw className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}
-                {preview ? "Update the QR code" : "Make a QR code for my phone"}
+                {preview ? (oldSdk ? "Make a new QR code" : "Update the QR code") : "Make a QR code for my phone"}
               </button>
             )
           )}

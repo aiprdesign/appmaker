@@ -198,6 +198,8 @@ export interface PhonePreview {
   publishedAt: number;
   /** Fingerprint of the app it was published from (see previewSource). */
   source?: string;
+  /** The Expo Go runtime it was published for (e.g. "exposdk:57.0.0"); older previews don't say. */
+  runtime?: string;
 }
 
 export interface ExpoState {
