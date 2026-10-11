@@ -153,11 +153,12 @@ function meta(root: HTMLElement, ...names: string[]): string {
   return "";
 }
 
-const HEX = /#(?:[0-9a-f]{6}|[0-9a-f]{3})\b/gi;
+// #rgb, #rgba, #rrggbb and #rrggbbaa (the alpha is dropped).
+const HEX = /#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})\b/gi;
 
 function expandHex(hex: string): string {
   const h = hex.toLowerCase();
-  return h.length === 4 ? `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}` : h;
+  return h.length <= 5 ? `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}` : h.slice(0, 7);
 }
 
 /** Rough "is this a brand color" test: not near-white, near-black or gray. */
@@ -172,6 +173,27 @@ function isBrandish(hex: string): boolean {
 }
 
 const RGB = /rgba?\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})/gi;
+const HSL = /hsla?\(\s*(-?[\d.]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%/gi;
+
+function hslToHex(h: number, s: number, l: number): string {
+  const a = (Math.min(100, s) / 100) * Math.min(l / 100, 1 - l / 100);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const c = l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(Math.max(0, Math.min(1, c)) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+/**
+ * Colour palettes that platforms put on every site whether it uses them or not
+ * (WordPress's preset colours and gradients, with its "vivid purple"; Elementor's
+ * untouched defaults). Counting them made many sites look purple.
+ */
+const PLATFORM_DEFAULTS = /--wp--preset--[\w-]+\s*:[^;}]*;?|\.has-[\w-]+-(?:color|background-color|gradient-background|border-color)\s*\{[^}]*\}/gi;
+const ELEMENTOR_DEFAULTS = new Set(["#6ec1e4", "#54595f", "#7a7a7a", "#61ce70"]);
 
 /** Every hex or rgb() colour in some text, as #rrggbb. */
 function colorsIn(text: string): string[] {
@@ -181,6 +203,7 @@ function colorsIn(text: string): string[] {
     const [r, g, b] = [m[1], m[2], m[3]].map((v) => Math.min(255, Number(v)));
     out.push(`#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`);
   }
+  for (const m of text.matchAll(HSL)) out.push(hslToHex(((Number(m[1]) % 360) + 360) % 360, Number(m[2]), Number(m[3])));
   return out;
 }
 
@@ -196,12 +219,12 @@ const BRAND_VAR = /--[\w-]*(primary|brand|accent|main|theme|cta|secondary)[\w-]*
 export function extractColors(root: HTMLElement, themeColor: string, extra: { css?: string; logoSvg?: string } = {}): string[] {
   const counts = new Map<string, number>();
   const add = (hex: string, weight: number) => {
-    if (isBrandish(hex)) counts.set(hex, (counts.get(hex) ?? 0) + weight);
+    if (isBrandish(hex) && !ELEMENTOR_DEFAULTS.has(hex)) counts.set(hex, (counts.get(hex) ?? 0) + weight);
   };
-  const css = [
-    ...root.querySelectorAll("style").map((s) => s.text),
-    extra.css ?? "",
-  ].join("\n");
+  const css = [...root.querySelectorAll("style").map((s) => s.text), extra.css ?? ""]
+    .join("\n")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(PLATFORM_DEFAULTS, "");
   for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const weight = BRAND_SELECTOR.test(m[1]) ? 4 : 1;
     for (const c of colorsIn(m[2])) add(c, weight);
@@ -209,7 +232,7 @@ export function extractColors(root: HTMLElement, themeColor: string, extra: { cs
   for (const m of css.matchAll(BRAND_VAR)) for (const c of colorsIn(m[2])) add(c, 6);
   for (const el of root.querySelectorAll("[style]")) {
     const weight = el.closest("button, a, header, nav, .btn, .button") ? 3 : 1;
-    for (const c of colorsIn(el.getAttribute("style") ?? "")) add(c, weight);
+    for (const c of colorsIn((el.getAttribute("style") ?? "").replace(PLATFORM_DEFAULTS, ""))) add(c, weight);
   }
   // The logo: an SVG file, or an inline SVG in the header.
   const inlineLogo = root.querySelectorAll("header svg, [class*=logo] svg, a[class*=brand] svg").map((el) => el.toString()).join("\n");
@@ -222,8 +245,11 @@ export function extractColors(root: HTMLElement, themeColor: string, extra: { cs
 /** A small text file (a stylesheet or an SVG logo), or "" when it can't be read. */
 async function fetchSmallText(url: URL): Promise<string> {
   try {
-    const res = await request(url);
-    if (res.status !== 200 || res.body.length > 600_000) return "";
+    let res = await request(url);
+    // One redirect (stylesheets and logos often move to a CDN).
+    if (res.location && res.status >= 300 && res.status < 400) res = await request(new URL(res.location, url));
+    // Big stylesheets arrive cut at the size limit; their start still has the colours.
+    if (res.status !== 200) return "";
     return res.body;
   } catch {
     return "";
@@ -242,7 +268,9 @@ function stylesheetUrls(root: HTMLElement, base: URL): URL[] {
       }
     })
     .filter((u): u is URL => !!u && /^https?:$/.test(u.protocol) && !/fonts\.googleapis|cdn\.jsdelivr|unpkg|cdnjs/.test(u.hostname))
-    .slice(0, 3);
+    // The theme's own stylesheets first: WordPress core and plugin files hold no brand colours.
+    .sort((a, b) => Number(/wp-includes|\/plugins\//.test(a.pathname)) - Number(/wp-includes|\/plugins\//.test(b.pathname)))
+    .slice(0, 5);
 }
 
 function extractPage(root: HTMLElement, url: URL): SitePage {

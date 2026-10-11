@@ -449,7 +449,7 @@ export function resolveSiteColors(choice: SiteColors | undefined, brand: string[
 /** What the designer is told about colours. */
 export function colorInstruction(colors: SiteColors): string {
   if (colors.mode === "auto" || !colors.primary) {
-    return "Colours: choose the most beautiful palette for this business and this design direction (it may differ from the current site's colours), with readable contrast.";
+    return "Colours: choose the most beautiful palette for this business and this design direction (it may differ from the current site's colours), with readable contrast. Derive it from the business itself (its industry, photos, logo and mood); do not fall back to the generic purple, violet or indigo of AI-made sites unless the business's own brand is purple.";
   }
   const pair = `${colors.primary}${colors.accent ? ` with ${colors.accent} as the accent` : ""}`;
   return colors.mode === "brand"

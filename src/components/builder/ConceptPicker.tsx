@@ -210,6 +210,9 @@ export function SiteColorsPanel({
         </div>
       )}
       {draft.mode === "auto" && open && <p className="mt-2 text-[11px] text-muted">The designer picks the most beautiful palette for each design.</p>}
+      {!brandColors.length && (
+        <p className="mt-2 text-[11px] text-muted">No brand colors could be read from the website (they may be in an image logo). Pick yours with Custom colors.</p>
+      )}
     </div>
   );
 }

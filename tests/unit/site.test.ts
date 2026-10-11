@@ -216,4 +216,19 @@ describe("brand colours", () => {
     expect(colors).not.toContain("#777777");
     expect(extractColors(parse("<html></html>"), "#0f766e")).toEqual(["#0f766e"]);
   });
+
+  it("ignores WordPress's built-in palette (its vivid purple) and reads hsl and 8-digit hex", async () => {
+    const { extractColors } = await import("@/lib/site");
+    const { parse } = await import("node-html-parser");
+    const wpGlobal = `body{--wp--preset--color--black: #000000;--wp--preset--color--vivid-purple: #9b51e0;--wp--preset--color--vivid-cyan-blue: #0693e3;
+      --wp--preset--gradient--vivid-cyan-blue-to-vivid-purple: linear-gradient(135deg,rgba(6,147,227,1) 0%,rgb(155,81,224) 100%);
+      --wp--preset--gradient--cool-to-warm-spectrum: linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%);}
+      .has-vivid-purple-color{color: #9b51e0 !important;}.has-vivid-purple-background-color{background-color: #9b51e0 !important;}`;
+    const root = parse(`<html><head><style id="global-styles-inline-css">${wpGlobal}</style></head><body><a class="button" href="/book">Book</a></body></html>`);
+    const colors = extractColors(root, "", { css: "/* #9b51e0 */ .button{background:#E8590Cff} .site-header{border-color:hsl(24, 90%, 48%)}" });
+    expect(colors[0]).toBe("#e8590c");
+    expect(colors).not.toContain("#9b51e0");
+    expect(colors).not.toContain("#0693e3");
+    expect(colors.length).toBe(2);
+  });
 });
