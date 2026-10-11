@@ -250,6 +250,12 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
   ];
   const ready = checks.filter((c) => c.ok).length;
   const [step, setStep] = useState(0);
+  // Which step fixes each check (-1: fixed by asking the AI in the chat). Steps never
+  // block each other: these only point the way.
+  const stepOf = (label: string) =>
+    /^(App name|Subtitle|Description|Keywords|Valid bundle|Bundle ID|Privacy details)/.test(label) ? 0 : /^(Support page|Privacy policy)/.test(label) ? 3 : -1;
+  const todo = (i: number) => checks.filter((c) => !c.ok && stepOf(c.label) === i).map((c) => ({ label: c.label, hint: c.hint }));
+  const elsewhere = checks.filter((c) => !c.ok && stepOf(c.label) === -1).map((c) => ({ label: c.label, hint: c.hint }));
   // Some people prefer everything on one page; remembered in this browser.
   const [all, setAll] = useState(() => {
     try {
@@ -266,13 +272,12 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
       // Not remembered.
     }
   };
-  const okAll = (...labels: string[]) => labels.every((x) => checks.find((c) => c.label.startsWith(x))?.ok !== false);
   const steps: PublishStep[] = [
-    { title: "Name & description", hint: "Written by AI from your app. Check it reads well.", done: okAll("App name", "Subtitle", "Description", "Keywords", "Valid bundle", "Bundle ID uses") },
-    { title: "Icon", hint: "Made for you. Swap in your logo if you have one.", done: true },
-    { title: "Screenshots", hint: "One click makes them in every store size.", done: null },
-    { title: "Privacy & support", hint: "Both stores ask for these pages. Appmaker writes and hosts them.", done: okAll("Support page", "Privacy policy") },
-    { title: "Build & publish", hint: "Build for the stores, or try it on your phone first.", done: null },
+    { title: "Name & description", short: "Details", hint: "Written by AI from your app. Check it reads well.", todo: todo(0), done: todo(0).length === 0 },
+    { title: "Icon", short: "Icon", hint: "Made for you. Swap in your logo if you have one.", todo: [], done: true },
+    { title: "Screenshots", short: "Shots", hint: "One click makes them in every store size.", todo: [], done: null },
+    { title: "Privacy & support", short: "Pages", hint: "Both stores ask for these pages. Appmaker writes and hosts them.", todo: todo(3), done: todo(3).length === 0 },
+    { title: "Build & publish", short: "Build", hint: "Build for the stores, or try it on your phone first.", todo: elsewhere, done: null },
   ];
   // Things only the stores can take; listed so "ready" never overpromises.
   const storeSteps = [
@@ -460,7 +465,7 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
             </>
           )}
 
-          <div className={`${all ? "hidden" : "flex"} items-center justify-between gap-3`}>
+          <div className={`${all ? "hidden" : "flex"} sticky bottom-0 z-10 items-center justify-between gap-3 rounded-2xl border border-line bg-background/90 p-2 backdrop-blur`}>
             <button
               onClick={() => setStep(Math.max(0, step - 1))}
               disabled={step === 0}
@@ -527,6 +532,20 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
                       <span className={c.ok ? "text-foreground/90" : "text-muted"}>
                         {c.label}
                         {!c.ok && c.hint && <span className="mt-0.5 block text-[11px] text-muted">{c.hint}</span>}
+                        {!c.ok &&
+                          (stepOf(c.label) >= 0 ? (
+                            <button
+                              onClick={() => {
+                                showAll(false);
+                                setStep(stepOf(c.label));
+                              }}
+                              className="mt-0.5 block min-h-6 text-[11px] font-medium text-violet-300 underline underline-offset-2 hover:text-violet-200"
+                            >
+                              Fix in step {stepOf(c.label) + 1}: {steps[stepOf(c.label)].title}
+                            </button>
+                          ) : (
+                            <span className="mt-0.5 block text-[11px] text-violet-300">Ask the AI in the chat to fix it.</span>
+                          ))}
                       </span>
                     </li>
                   ))}

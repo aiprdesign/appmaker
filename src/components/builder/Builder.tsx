@@ -918,6 +918,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         >
           <Download className="h-3.5 w-3.5" /> Export
         </button>
+        {/* Hidden while Publish is open: one Publish button on screen at a time. */}
+        {tab !== "publish" && (
         <button
           onClick={() => setTab("publish")}
           disabled={!hasApp}
@@ -926,6 +928,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         >
           <Rocket className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Publish</span>
         </button>
+        )}
         </>
         )}
       </header>
