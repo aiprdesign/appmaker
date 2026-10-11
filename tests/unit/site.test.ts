@@ -202,3 +202,18 @@ describe("using an imported site", () => {
     expect(parsed.files["App.js"]).toContain("Luigi's Trattoria");
   });
 });
+
+describe("brand colours", () => {
+  it("prefers the logo, buttons and brand variables over colours used once in passing", async () => {
+    const { extractColors } = await import("@/lib/site");
+    const { parse } = await import("node-html-parser");
+    const root = parse(`<html><head><style>.footer-note{color:#3355aa}.tag{color:#3355aa}.x{color:#3355aa}</style></head>
+      <body><header><svg><path fill="#e11d48"/></svg></header><a class="btn" style="background:rgb(16, 185, 129)">Book</a></body></html>`);
+    const colors = extractColors(root, "", { css: ":root{--brand-primary:#e11d48} .btn-primary{background:#10b981} p{color:#777777}" });
+    expect(colors[0]).toBe("#e11d48");
+    expect(colors[1]).toBe("#10b981");
+    expect(colors).toContain("#3355aa");
+    expect(colors).not.toContain("#777777");
+    expect(extractColors(parse("<html></html>"), "#0f766e")).toEqual(["#0f766e"]);
+  });
+});

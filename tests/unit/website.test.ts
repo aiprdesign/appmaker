@@ -107,3 +107,16 @@ describe("three design concepts", () => {
     expect(websiteSystemPrompt()).toContain("Commercially safe resources only");
   });
 });
+
+describe("website colours", () => {
+  it("uses brand colours by default, the owner's custom colours, or lets the designer choose", async () => {
+    const { resolveSiteColors, colorInstruction, conceptPrompt } = await import("@/lib/website");
+    expect(resolveSiteColors(undefined, ["#b91c1c", "#f59e0b"])).toEqual({ mode: "brand", primary: "#b91c1c", accent: "#f59e0b" });
+    expect(resolveSiteColors(undefined, [])).toEqual({ mode: "auto" });
+    expect(resolveSiteColors({ mode: "auto" }, ["#b91c1c"])).toEqual({ mode: "auto" });
+    expect(resolveSiteColors({ mode: "custom", primary: "#123456", accent: "nope" })).toEqual({ mode: "custom", primary: "#123456", accent: undefined });
+    expect(colorInstruction({ mode: "brand", primary: "#b91c1c", accent: "#f59e0b" })).toMatch(/brand colours exactly: #b91c1c with #f59e0b as the accent/);
+    expect(colorInstruction({ mode: "auto" })).toMatch(/choose the most beautiful palette/);
+    expect(conceptPrompt("Redesign", getStyle("swiss")!, 1, "simple", { mode: "custom", primary: "#123456" })).toContain("the owner chose these colours: #123456");
+  });
+});

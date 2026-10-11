@@ -2,7 +2,7 @@ import JSZip from "jszip";
 import { CLAIM_SAFE_RULES, DEFAULT_WORDING, type Wording } from "./claims";
 import { REGULATED_RULES } from "./regulated";
 import type { DesignStyle } from "./styles";
-import type { FileMap } from "./types";
+import type { FileMap, SiteColors } from "./types";
 import type { ValidationIssue } from "./validate";
 
 /**
@@ -312,9 +312,11 @@ export function conceptStyles(picked: DesignStyle, all: DesignStyle[]): { tier: 
 }
 
 /** The request for one concept. */
-export function conceptPrompt(prompt: string, style: DesignStyle, n: number, tier?: ConceptTier): string {
+export function conceptPrompt(prompt: string, style: DesignStyle, n: number, tier?: ConceptTier, colors: SiteColors = { mode: "auto" }): string {
   const direction = CONCEPT_TIERS.find((t) => t.tier === tier);
   return `${prompt}
+
+${colorInstruction(colors)}
 
 Design concept ${n} of 3, in the ${style.name} style${direction ? `, direction ${direction.brief}` : "."}
 Make it as beautiful as it can be in its own way: the owner compares it with a simpler and a bolder option, so commit fully to this direction. Write ONLY two pages so the owner can choose between three designs before the rest is made:
@@ -324,6 +326,27 @@ Make both complete and polished, with the full header, navigation and footer. Th
 }
 
 /** After the owner picks a concept: write the rest of the site in that design. */
-export function finishSitePrompt(style: DesignStyle, pages: string[]): string {
-  return `The owner chose design "${style.name}" (${pages.join(" and ")} are already written). Now write every other page linked in the navigation, plus sitemap.xml and robots.txt, matching the chosen design exactly: the same header, footer, colors, typography, spacing and components. Keep ${pages.join(" and ")} as they are, changing them only where a link needs fixing.`;
+export function finishSitePrompt(style: DesignStyle, pages: string[], colors?: SiteColors): string {
+  return `${colors && colors.mode !== "auto" ? `${colorInstruction(colors)}\n\n` : ""}The owner chose design "${style.name}" (${pages.join(" and ")} are already written). Now write every other page linked in the navigation, plus sitemap.xml and robots.txt, matching the chosen design exactly: the same header, footer, colors, typography, spacing and components. Keep ${pages.join(" and ")} as they are, changing them only where a link needs fixing.`;
+}
+
+const HEX6 = /^#[0-9a-f]{6}$/i;
+
+/** The colours to use: the owner's choice, or the brand's when there are some. */
+export function resolveSiteColors(choice: SiteColors | undefined, brand: string[] = []): SiteColors {
+  const fromBrand = brand.filter((c) => HEX6.test(c));
+  if (choice?.mode === "custom" && choice.primary && HEX6.test(choice.primary)) return { mode: "custom", primary: choice.primary, accent: HEX6.test(choice.accent ?? "") ? choice.accent : undefined };
+  if (choice?.mode === "auto" || !fromBrand.length) return { mode: "auto" };
+  return { mode: "brand", primary: fromBrand[0], accent: fromBrand[1] };
+}
+
+/** What the designer is told about colours. */
+export function colorInstruction(colors: SiteColors): string {
+  if (colors.mode === "auto" || !colors.primary) {
+    return "Colours: choose the most beautiful palette for this business and this design direction (it may differ from the current site's colours), with readable contrast.";
+  }
+  const pair = `${colors.primary}${colors.accent ? ` with ${colors.accent} as the accent` : ""}`;
+  return colors.mode === "brand"
+    ? `Colours: use the business's brand colours exactly: ${pair} (taken from its logo, buttons and stylesheets). Build the palette around them with neutrals and tints; never replace them.`
+    : `Colours: the owner chose these colours: ${pair}. Use them exactly as the brand colours, building the palette around them with neutrals and tints.`;
 }

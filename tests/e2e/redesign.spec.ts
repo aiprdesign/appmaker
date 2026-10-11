@@ -67,11 +67,23 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   expect(String(bodies[2].prompt)).toContain("direction BOLD & COLORFUL");
   await page.getByRole("tab", { name: /Design 2/ }).click();
   await expect(page.frameLocator('iframe[title="Website preview"]').getByRole("heading", { name: "Luigi's Trattoria" })).toBeVisible({ timeout: 30_000 });
-  // Choosing one makes the other pages in that design.
+  // Colours: brand colours from the site by default; custom colours redo the three designs.
+  await expect(page.getByRole("radio", { name: "Brand colors" })).toHaveAttribute("aria-checked", "true");
+  expect(String(bodies[0].prompt)).toMatch(/use the business's brand colours exactly: #[0-9a-f]{6}/);
+  await page.getByRole("radio", { name: "Custom colors" }).click();
+  await page.getByLabel("Main color").fill("#123456");
+  await page.getByRole("button", { name: "Redo the 3 designs with these colors" }).click();
+  await expect.poll(() => bodies.length).toBe(6);
+  for (const b of bodies.slice(3)) expect(String(b.prompt)).toContain("the owner chose these colours: #123456");
+  await expect(page.getByRole("button", { name: "Use design 2 and make the other pages" })).toBeEnabled({ timeout: 30_000 });
+
+  // Choosing one makes the other pages in that design, in those colours.
+  await page.getByRole("tab", { name: /Design 2/ }).click();
   await page.getByRole("button", { name: "Use design 2 and make the other pages" }).click();
-  await expect.poll(() => bodies.length).toBe(4);
-  expect(bodies[3]).toMatchObject({ kind: "website", style: styles[1], files: { "index.html": expect.any(String) } });
-  expect(String(bodies[3].prompt)).toMatch(/^The owner chose design ".+" \(index\.html and contact\.html are already written\)/);
+  await expect.poll(() => bodies.length).toBe(7);
+  expect(bodies[6]).toMatchObject({ kind: "website", style: styles[1], files: { "index.html": expect.any(String) } });
+  expect(String(bodies[6].prompt)).toContain("the owner chose these colours: #123456");
+  expect(String(bodies[6].prompt)).toMatch(/The owner chose design ".+" \(index\.html and contact\.html are already written\)/);
 
   // The new site, with its own stylesheet and script working in the preview.
   const site = page.frameLocator('iframe[title="Website preview"]');
@@ -100,6 +112,6 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   // Edits are website edits too.
   await page.getByLabel("Message").fill("Make the hero bigger");
   await page.keyboard.press("Enter");
-  await expect.poll(() => bodies.length).toBe(5);
-  expect(bodies[4]).toMatchObject({ kind: "website", files: { "index.html": expect.stringContaining("Luigi's Trattoria") } });
+  await expect.poll(() => bodies.length).toBe(8);
+  expect(bodies[7]).toMatchObject({ kind: "website", files: { "index.html": expect.stringContaining("Luigi's Trattoria") } });
 });

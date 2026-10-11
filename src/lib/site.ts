@@ -171,24 +171,78 @@ function isBrandish(hex: string): boolean {
   return max - min > 40 && max > 40 && min < 235;
 }
 
-function extractColors(root: HTMLElement, themeColor: string): string[] {
-  const counts = new Map<string, number>();
-  const css = root
-    .querySelectorAll("style")
-    .map((s) => s.text)
-    .join("\n");
-  const inline = root
-    .querySelectorAll("[style]")
-    .map((el) => el.getAttribute("style") ?? "")
-    .join("\n");
-  for (const m of `${css}\n${inline}`.matchAll(HEX)) {
-    const hex = expandHex(m[0]);
-    if (isBrandish(hex)) counts.set(hex, (counts.get(hex) ?? 0) + 1);
+const RGB = /rgba?\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})/gi;
+
+/** Every hex or rgb() colour in some text, as #rrggbb. */
+function colorsIn(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(HEX)) out.push(expandHex(m[0]));
+  for (const m of text.matchAll(RGB)) {
+    const [r, g, b] = [m[1], m[2], m[3]].map((v) => Math.min(255, Number(v)));
+    out.push(`#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`);
   }
+  return out;
+}
+
+/** Selectors and variables that carry the brand: buttons, calls to action, links, the header. */
+const BRAND_SELECTOR = /\b(button|btn|cta|primary|accent|brand|nav|header|hero|a:hover|link)\b/i;
+const BRAND_VAR = /--[\w-]*(primary|brand|accent|main|theme|cta|secondary)[\w-]*\s*:\s*([^;}]+)/gi;
+
+/**
+ * The site's brand colours, best first. Weighted by where they appear: the
+ * theme colour, the logo (SVG), colour variables named brand/primary/accent,
+ * and button, call-to-action and header rules count far more than the rest.
+ */
+export function extractColors(root: HTMLElement, themeColor: string, extra: { css?: string; logoSvg?: string } = {}): string[] {
+  const counts = new Map<string, number>();
+  const add = (hex: string, weight: number) => {
+    if (isBrandish(hex)) counts.set(hex, (counts.get(hex) ?? 0) + weight);
+  };
+  const css = [
+    ...root.querySelectorAll("style").map((s) => s.text),
+    extra.css ?? "",
+  ].join("\n");
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const weight = BRAND_SELECTOR.test(m[1]) ? 4 : 1;
+    for (const c of colorsIn(m[2])) add(c, weight);
+  }
+  for (const m of css.matchAll(BRAND_VAR)) for (const c of colorsIn(m[2])) add(c, 6);
+  for (const el of root.querySelectorAll("[style]")) {
+    const weight = el.closest("button, a, header, nav, .btn, .button") ? 3 : 1;
+    for (const c of colorsIn(el.getAttribute("style") ?? "")) add(c, weight);
+  }
+  // The logo: an SVG file, or an inline SVG in the header.
+  const inlineLogo = root.querySelectorAll("header svg, [class*=logo] svg, a[class*=brand] svg").map((el) => el.toString()).join("\n");
+  for (const c of colorsIn(`${extra.logoSvg ?? ""}\n${inlineLogo}`)) add(c, 8);
   const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
-  const themeHex = themeColor.match(HEX)?.[0];
-  const theme = themeHex ? expandHex(themeHex) : "";
-  return [...new Set([theme, ...ranked].filter(Boolean))].slice(0, 5);
+  const themeHex = colorsIn(themeColor)[0];
+  return [...new Set([themeHex && isBrandish(themeHex) ? themeHex : "", ...ranked].filter(Boolean))].slice(0, 6);
+}
+
+/** A small text file (a stylesheet or an SVG logo), or "" when it can't be read. */
+async function fetchSmallText(url: URL): Promise<string> {
+  try {
+    const res = await request(url);
+    if (res.status !== 200 || res.body.length > 600_000) return "";
+    return res.body;
+  } catch {
+    return "";
+  }
+}
+
+/** Up to three of the site's own stylesheets, where most brand colours live. */
+function stylesheetUrls(root: HTMLElement, base: URL): URL[] {
+  return root
+    .querySelectorAll('link[rel~="stylesheet"]')
+    .map((l) => {
+      try {
+        return new URL(l.getAttribute("href") ?? "", base);
+      } catch {
+        return null;
+      }
+    })
+    .filter((u): u is URL => !!u && /^https?:$/.test(u.protocol) && !/fonts\.googleapis|cdn\.jsdelivr|unpkg|cdnjs/.test(u.hostname))
+    .slice(0, 3);
 }
 
 function extractPage(root: HTMLElement, url: URL): SitePage {
@@ -416,5 +470,13 @@ export async function importSite(input: string): Promise<SiteSummary> {
   if (!pages.some((p) => p.text.length > 40 || p.headings.length)) {
     throw new SiteError("That website has almost no readable text (it may need JavaScript to load). Try describing it instead.");
   }
-  return { ...summary, pages, ...mergeDetails(found) };
+  const merged = mergeDetails(found);
+  // Brand colours from the stylesheets and the logo too (small text files only; no image decoding).
+  const root = parse(first.html, { comment: false });
+  const [css, logoSvg] = await Promise.all([
+    Promise.all(stylesheetUrls(root, first.url).map(fetchSmallText)).then((all) => all.join("\n")),
+    merged.logo && /\.svg(\?|$)/i.test(merged.logo) ? fetchSmallText(new URL(merged.logo)) : Promise.resolve(""),
+  ]);
+  const colors = extractColors(root, meta(root, "theme-color"), { css, logoSvg });
+  return { ...summary, colors: colors.length ? colors : summary.colors, pages, ...merged };
 }

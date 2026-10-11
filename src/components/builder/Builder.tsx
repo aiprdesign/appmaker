@@ -17,7 +17,7 @@ import { DesignPanel } from "./DesignPanel";
 import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
 import { ConceptPicker } from "./ConceptPicker";
-import { conceptPrompt, conceptStyles, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
+import { conceptPrompt, conceptStyles, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { Logo } from "@/components/Logo";
@@ -459,6 +459,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const current = projectRef.current;
       if (!current || conceptsRunning.current) return;
       conceptsRunning.current = true;
+      const colors = resolveSiteColors(current.siteColors, current.source?.colors);
       const plan = conceptStyles(getStyle(current.design?.style) ?? pickStyle(current.prompt).style, DESIGN_STYLES);
       const start: SiteConcept[] =
         current.concepts && only != null
@@ -491,7 +492,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                prompt: conceptPrompt(current.prompt, style, i + 1, c.tier),
+                prompt: conceptPrompt(current.prompt, style, i + 1, c.tier, colors),
                 files: {},
                 site: current.source,
                 ai: aiChoiceFor(getAiSettings()),
@@ -525,7 +526,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     const design = applyStyle(p.design ?? defaultDesign(p.listing), style, !!p.source);
     commit({ ...p, files: c.files, design, concepts: undefined });
     setPreviewFiles(c.files);
-    send(finishSitePrompt(style, Object.keys(c.files).filter((f) => f.endsWith(".html"))));
+    send(finishSitePrompt(style, Object.keys(c.files).filter((f) => f.endsWith(".html")), resolveSiteColors(p.siteColors, p.source?.colors)));
   };
 
   const sendRef = useRef(send);
@@ -941,7 +942,18 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 </span>
               )}
               {project.concepts && !hasApp ? (
-                <ConceptPicker concepts={project.concepts} busy={generating} onChoose={chooseConcept} onRetry={(i) => void makeConcepts(i)} />
+                <ConceptPicker
+                  concepts={project.concepts}
+                  busy={generating || project.concepts.some((c) => c.status === "writing")}
+                  onChoose={chooseConcept}
+                  onRetry={(i) => void makeConcepts(i)}
+                  colors={resolveSiteColors(project.siteColors, project.source?.colors)}
+                  brand={project.source?.colors ?? []}
+                  onColors={(siteColors) => {
+                    commit({ ...(projectRef.current ?? project), siteColors });
+                    void makeConcepts();
+                  }}
+                />
               ) : hasSiteEntry(previewFiles) ? (
                 <SitePreview files={previewFiles} />
               ) : (

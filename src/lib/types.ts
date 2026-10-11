@@ -198,10 +198,19 @@ export interface ExpoState {
   builds?: CloudBuild[];
 }
 
+/** A website's colours: picked by the designer, the business's brand colours, or chosen by hand. */
+export interface SiteColors {
+  mode: "auto" | "brand" | "custom";
+  primary?: string;
+  accent?: string;
+}
+
 export interface Project {
   id: string;
   /** What's being made: an app (default) or a redesigned website. */
   kind?: "app" | "website";
+  /** Website redesign: where its colours come from. */
+  siteColors?: SiteColors;
   /** Website redesign: the three design concepts to choose from, until one is chosen. */
   concepts?: { style: string; tier?: "simple" | "balanced" | "bold"; files: FileMap; status: "writing" | "ready" | "failed"; error?: string }[];
   name: string;
