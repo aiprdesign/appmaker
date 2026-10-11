@@ -70,6 +70,9 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await expect(page.frameLocator('iframe[title="Website preview"]').getByRole("heading", { name: "Luigi's Trattoria" })).toBeVisible({ timeout: 30_000 });
   // Colours: brand colours from the site by default; custom colours redo the three designs.
   await expect(page.getByRole("radio", { name: "Brand colors" })).toHaveAttribute("aria-checked", "true");
+  // The colors section lives in the left column, not over the designs.
+  await expect(page.locator("aside").getByRole("radio", { name: "Brand colors" })).toBeVisible();
+  await expect(page.locator("main").getByRole("radio", { name: "Brand colors" })).toHaveCount(0);
   expect(String(bodies[0].prompt)).toMatch(/use the business's brand colours exactly: #[0-9a-f]{6}/);
   await page.getByRole("radio", { name: "Custom colors" }).click();
   await page.getByLabel("Main color").fill("#123456");

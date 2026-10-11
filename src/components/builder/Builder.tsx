@@ -16,7 +16,7 @@ import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
 import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
-import { ConceptPicker } from "./ConceptPicker";
+import { ConceptPicker, SiteColorsPanel } from "./ConceptPicker";
 import { withA11yWidget } from "@/lib/site-a11y";
 import { conceptPrompt, conceptStyles, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
@@ -932,6 +932,24 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         <aside
           className={`${mobileView === "chat" ? "flex" : "hidden"} min-h-0 w-full flex-col border-line lg:flex lg:w-[400px] lg:shrink-0 lg:border-r`}
         >
+          {isSite && (project.concepts || hasApp) && (
+            <SiteColorsPanel
+              key={JSON.stringify(project.siteColors ?? null)}
+              colors={resolveSiteColors(project.siteColors, project.source?.colors)}
+              brand={project.source?.colors ?? []}
+              busy={generating || checking || !!project.concepts?.some((c) => c.status === "writing")}
+              applyLabel={hasApp ? "Recolor the website" : "Redo the 3 designs with these colors"}
+              onApply={(siteColors) => {
+                commit({ ...(projectRef.current ?? project), siteColors });
+                if (!hasApp) return void makeConcepts();
+                send(
+                  siteColors.mode === "auto"
+                    ? "Recolor the whole website with the most beautiful palette for this business and design, keeping readable contrast. Keep the layout and content the same."
+                    : `Recolor the whole website around these colors: main ${siteColors.primary}${siteColors.accent ? `, accent ${siteColors.accent}` : ""}. Keep text readable (WCAG AA contrast), and keep the layout and content the same.`,
+                );
+              }}
+            />
+          )}
           {plan?.enabled && plan.plan !== "guest" && typeof plan.balance === "number" && plan.balance <= 3 && (
             <div role="status" className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
               <Coins className="h-3.5 w-3.5 shrink-0" />
@@ -984,12 +1002,6 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   busy={generating || project.concepts.some((c) => c.status === "writing")}
                   onChoose={chooseConcept}
                   onRetry={(i) => void makeConcepts(i)}
-                  colors={resolveSiteColors(project.siteColors, project.source?.colors)}
-                  brand={project.source?.colors ?? []}
-                  onColors={(siteColors) => {
-                    commit({ ...(projectRef.current ?? project), siteColors });
-                    void makeConcepts();
-                  }}
                 />
               ) : hasSiteEntry(previewFiles) ? (
                 <SitePreview files={previewFiles} onFix={generating || checking ? undefined : (request) => send(request)} />
