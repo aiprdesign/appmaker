@@ -217,6 +217,34 @@ describe("brand colours", () => {
     expect(extractColors(parse("<html></html>"), "#0f766e")).toEqual(["#0f766e"]);
   });
 
+  it("reads a logo picture's colours, ignoring white and transparent pixels", async () => {
+    const { logoImageColors } = await import("@/lib/site");
+    const sharp = (await import("sharp")).default;
+    // A 40x40 logo: transparent background, a teal mark, a little white text.
+    const px = Buffer.alloc(40 * 40 * 4);
+    for (let i = 0; i < 40 * 40; i++) {
+      const [x, y] = [i % 40, Math.floor(i / 40)];
+      const o = i * 4;
+      if (x > 8 && x < 32 && y > 8 && y < 26) px.set([13, 148, 136, 255], o);
+      else if (y >= 28 && y < 32) px.set([255, 255, 255, 255], o);
+    }
+    const png = await sharp(px, { raw: { width: 40, height: 40, channels: 4 } }).png().toBuffer();
+    const colors = await logoImageColors(png);
+    // Resizing blends edges a little: the colour is within a few steps of the teal.
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(colors[0].slice(i, i + 2), 16));
+    expect(Math.abs(r - 13) + Math.abs(g - 148) + Math.abs(b - 136)).toBeLessThan(12);
+    expect(colors).toHaveLength(1);
+    expect(await logoImageColors(Buffer.from("not an image"))).toEqual([]);
+  });
+
+  it("puts the logo picture first and reads Shopify-style bare colour variables", async () => {
+    const { extractColors } = await import("@/lib/site");
+    const { parse } = await import("node-html-parser");
+    const root = parse(`<html><head><style>:root{--color-button: 200, 30, 60;--accent-hsl: 205.71, 57.14%, 41%;--font-body-weight: 400;--page-width: 120}</style></head><body></body></html>`);
+    expect(extractColors(root, "")).toEqual(["#c81e3c", "#2d71a4"]);
+    expect(extractColors(root, "", { logoColors: ["#0d9488"] })[0]).toBe("#0d9488");
+  });
+
   it("ignores WordPress's built-in palette (its vivid purple) and reads hsl and 8-digit hex", async () => {
     const { extractColors } = await import("@/lib/site");
     const { parse } = await import("node-html-parser");

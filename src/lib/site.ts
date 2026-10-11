@@ -58,7 +58,7 @@ interface Fetched {
   html: string;
 }
 
-function request(url: URL): Promise<{ status: number; location?: string; type: string; body: string }> {
+function request(url: URL): Promise<{ status: number; location?: string; type: string; body: string; bytes?: Buffer }> {
   return new Promise((resolve, reject) => {
     const client = url.protocol === "https:" ? https : http;
     const req = client.get(
@@ -107,7 +107,7 @@ function request(url: URL): Promise<{ status: number; location?: string; type: s
           } catch {
             body = Buffer.concat(chunks).toString("utf8");
           }
-          resolve({ status, type, body });
+          resolve({ status, type, body, bytes: Buffer.concat(chunks) });
         });
         stream.on("error", reject);
       },
@@ -193,6 +193,7 @@ function hslToHex(h: number, s: number, l: number): string {
  * untouched defaults). Counting them made many sites look purple.
  */
 const PLATFORM_DEFAULTS = /--wp--preset--[\w-]+\s*:[^;}]*;?|\.has-[\w-]+-(?:color|background-color|gradient-background|border-color)\s*\{[^}]*\}/gi;
+const BARE_VAR = /(--[\w-]+)\s*:\s*([-\d.,%\sdeg]+?)\s*(?=[;}])/gi;
 const ELEMENTOR_DEFAULTS = new Set(["#6ec1e4", "#54595f", "#7a7a7a", "#61ce70"]);
 
 /** Every hex or rgb() colour in some text, as #rrggbb. */
@@ -216,7 +217,7 @@ const BRAND_VAR = /--[\w-]*(primary|brand|accent|main|theme|cta|secondary)[\w-]*
  * theme colour, the logo (SVG), colour variables named brand/primary/accent,
  * and button, call-to-action and header rules count far more than the rest.
  */
-export function extractColors(root: HTMLElement, themeColor: string, extra: { css?: string; logoSvg?: string } = {}): string[] {
+export function extractColors(root: HTMLElement, themeColor: string, extra: { css?: string; logoSvg?: string; logoColors?: string[] } = {}): string[] {
   const counts = new Map<string, number>();
   const add = (hex: string, weight: number) => {
     if (isBrandish(hex) && !ELEMENTOR_DEFAULTS.has(hex)) counts.set(hex, (counts.get(hex) ?? 0) + weight);
@@ -230,6 +231,18 @@ export function extractColors(root: HTMLElement, themeColor: string, extra: { cs
     for (const c of colorsIn(m[2])) add(c, weight);
   }
   for (const m of css.matchAll(BRAND_VAR)) for (const c of colorsIn(m[2])) add(c, 6);
+  // Shopify, Squarespace and Wix keep colours in variables as bare numbers:
+  // "--color-accent: 18, 52, 200" or "--accent-hsl: 205.71, 57.14%, 41%".
+  for (const m of css.matchAll(BARE_VAR)) {
+    const [name, value] = [m[1], m[2].trim()];
+    const weight = /primary|brand|accent|main|theme|cta|button|link|secondary/i.test(name) ? 6 : 1;
+    const rgb = /^(\d{1,3})\s*,?\s+?(\d{1,3})\s*,?\s+?(\d{1,3})$/.exec(value) ?? /^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})$/.exec(value);
+    const hsl = /^(-?[\d.]+)(?:deg)?\s*[\s,]\s*([\d.]+)%\s*[\s,]\s*([\d.]+)%$/.exec(value);
+    if (rgb) add(`#${[rgb[1], rgb[2], rgb[3]].map((v) => Math.min(255, Number(v)).toString(16).padStart(2, "0")).join("")}`, weight);
+    else if (hsl) add(hslToHex(((Number(hsl[1]) % 360) + 360) % 360, Number(hsl[2]), Number(hsl[3])), weight);
+  }
+  // The logo picture's own colours count most of all.
+  (extra.logoColors ?? []).forEach((c, i) => add(c, 14 - i * 3));
   for (const el of root.querySelectorAll("[style]")) {
     const weight = el.closest("button, a, header, nav, .btn, .button") ? 3 : 1;
     for (const c of colorsIn((el.getAttribute("style") ?? "").replace(PLATFORM_DEFAULTS, ""))) add(c, weight);
@@ -240,6 +253,52 @@ export function extractColors(root: HTMLElement, themeColor: string, extra: { cs
   const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
   const themeHex = colorsIn(themeColor)[0];
   return [...new Set([themeHex && isBrandish(themeHex) ? themeHex : "", ...ranked].filter(Boolean))].slice(0, 6);
+}
+
+/**
+ * The main colours of a logo picture (PNG, JPG, WebP, GIF or ICO), best first:
+ * opaque, non-grey pixels grouped into similar colours. One small image, decoded
+ * on the server; [] when it can't be read.
+ */
+export async function logoImageColors(bytes: Buffer): Promise<string[]> {
+  try {
+    const sharp = (await import("sharp")).default;
+    const { data, info } = await sharp(bytes, { limitInputPixels: 25_000_000 })
+      .resize(64, 64, { fit: "inside" })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const buckets = new Map<string, { n: number; r: number; g: number; b: number }>();
+    for (let i = 0; i < data.length; i += info.channels) {
+      const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
+      if (a < 160) continue;
+      const hex = `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+      if (!isBrandish(hex)) continue;
+      const key = `${r >> 5},${g >> 5},${b >> 5}`;
+      const t = buckets.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
+      buckets.set(key, { n: t.n + 1, r: t.r + r, g: t.g + g, b: t.b + b });
+    }
+    const total = [...buckets.values()].reduce((sum, t) => sum + t.n, 0);
+    return [...buckets.values()]
+      .filter((t) => t.n >= Math.max(3, total * 0.04))
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 3)
+      .map((t) => `#${[t.r, t.g, t.b].map((v) => Math.round(v / t.n).toString(16).padStart(2, "0")).join("")}`);
+  } catch {
+    return [];
+  }
+}
+
+/** A picture (the logo or the site icon) as bytes, or null. */
+async function fetchSmallImage(url: URL): Promise<Buffer | null> {
+  try {
+    let res = await request(url);
+    if (res.location && res.status >= 300 && res.status < 400) res = await request(new URL(res.location, url));
+    if (res.status !== 200 || !res.bytes?.length || res.bytes.length >= MAX_BYTES || /text\/html/i.test(res.type)) return null;
+    return res.bytes;
+  } catch {
+    return null;
+  }
 }
 
 /** A small text file (a stylesheet or an SVG logo), or "" when it can't be read. */
@@ -253,6 +312,19 @@ async function fetchSmallText(url: URL): Promise<string> {
     return res.body;
   } catch {
     return "";
+  }
+}
+
+/** The site's biggest icon (apple-touch-icon first), usually the logo mark in brand colours. */
+function iconUrl(root: HTMLElement, base: URL): string | undefined {
+  const links = root.querySelectorAll('link[rel~="apple-touch-icon"], link[rel~="icon"]');
+  const size = (l: HTMLElement) => Number(/(\d+)/.exec(l.getAttribute("sizes") ?? "")?.[1] ?? (/apple/.test(l.getAttribute("rel") ?? "") ? 180 : 16));
+  const best = links.sort((a, b) => size(b) - size(a))[0]?.getAttribute("href");
+  try {
+    const u = best ? new URL(best, base) : null;
+    return u && /^https?:$/.test(u.protocol) && !/\.svg(\?|$)/i.test(u.pathname) ? u.toString() : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -499,12 +571,16 @@ export async function importSite(input: string): Promise<SiteSummary> {
     throw new SiteError("That website has almost no readable text (it may need JavaScript to load). Try describing it instead.");
   }
   const merged = mergeDetails(found);
-  // Brand colours from the stylesheets and the logo too (small text files only; no image decoding).
+  // Brand colours from the stylesheets and the logo too.
   const root = parse(first.html, { comment: false });
-  const [css, logoSvg] = await Promise.all([
+  // A logo picture (or, without one, the site's own icon) is decoded for its colours.
+  const isSvg = !!merged.logo && /\.svg(\?|$)/i.test(merged.logo);
+  const picture = merged.logo && !isSvg ? merged.logo : iconUrl(root, first.url);
+  const [css, logoSvg, logoColors] = await Promise.all([
     Promise.all(stylesheetUrls(root, first.url).map(fetchSmallText)).then((all) => all.join("\n")),
-    merged.logo && /\.svg(\?|$)/i.test(merged.logo) ? fetchSmallText(new URL(merged.logo)) : Promise.resolve(""),
+    isSvg ? fetchSmallText(new URL(merged.logo!)) : Promise.resolve(""),
+    picture ? fetchSmallImage(new URL(picture)).then((b) => (b ? logoImageColors(b) : [])) : Promise.resolve([] as string[]),
   ]);
-  const colors = extractColors(root, meta(root, "theme-color"), { css, logoSvg });
+  const colors = extractColors(root, meta(root, "theme-color"), { css, logoSvg, logoColors });
   return { ...summary, colors: colors.length ? colors : summary.colors, pages, ...merged };
 }
