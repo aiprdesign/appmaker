@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
+import { PublishSteps, type PublishStep } from "./PublishSteps";
 import type { AppIconImage, ExpoState, Project, StoreListing, StorePagesState } from "@/lib/types";
 import { StorePages } from "./StorePages";
 import { PublishGuide } from "./PublishGuide";
@@ -19,6 +20,8 @@ const CATEGORIES = [
   "Health & Fitness", "Lifestyle", "Medical", "Music", "Navigation", "News", "Photo & Video", "Productivity",
   "Reference", "Shopping", "Social Networking", "Sports", "Travel", "Utilities", "Weather",
 ];
+
+const ALL_KEY = "appmaker:publish-all";
 
 interface Props {
   project: Project;
@@ -246,6 +249,31 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
       : []),
   ];
   const ready = checks.filter((c) => c.ok).length;
+  const [step, setStep] = useState(0);
+  // Some people prefer everything on one page; remembered in this browser.
+  const [all, setAll] = useState(() => {
+    try {
+      return localStorage.getItem(ALL_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const showAll = (v: boolean) => {
+    setAll(v);
+    try {
+      localStorage.setItem(ALL_KEY, v ? "1" : "0");
+    } catch {
+      // Not remembered.
+    }
+  };
+  const okAll = (...labels: string[]) => labels.every((x) => checks.find((c) => c.label.startsWith(x))?.ok !== false);
+  const steps: PublishStep[] = [
+    { title: "Name & description", hint: "Written by AI from your app. Check it reads well.", done: okAll("App name", "Subtitle", "Description", "Keywords", "Valid bundle", "Bundle ID uses") },
+    { title: "Icon", hint: "Made for you. Swap in your logo if you have one.", done: true },
+    { title: "Screenshots", hint: "One click makes them in every store size.", done: null },
+    { title: "Privacy & support", hint: "Both stores ask for these pages. Appmaker writes and hosts them.", done: okAll("Support page", "Privacy policy") },
+    { title: "Build & publish", hint: "Build for the stores, or try it on your phone first.", done: null },
+  ];
   // Things only the stores can take; listed so "ready" never overpromises.
   const storeSteps = [
     "Screenshots of your app (make them in Store screenshots: App Store and Google Play sizes, with headlines)",
@@ -267,147 +295,188 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
     <div className="scrollbar-thin h-full overflow-y-auto">
       <div className="mx-auto grid max-w-5xl gap-6 p-5 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
-          <PublishGuide project={project} />
+          <PublishSteps step={step} steps={steps} onStep={setStep} all={all} onAll={showAll} />
 
-          <section className="rounded-2xl border border-line bg-surface p-5">
-            <h2 className="font-semibold">Store listing</h2>
-            <p className="mt-1 text-xs text-muted">Used for App Store Connect and Google Play Console. Written by AI — edit freely.</p>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <Field label="App name" limit={30} value={l.name}>
-                <input className={input} value={l.name} onChange={(e) => set("name", e.target.value)} />
-              </Field>
-              <Field label="Subtitle" limit={30} value={l.subtitle}>
-                <input className={input} value={l.subtitle} onChange={(e) => set("subtitle", e.target.value)} />
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Description" limit={4000} value={l.description}>
-                  <textarea
-                    className={`${input} min-h-36 resize-y`}
-                    value={l.description}
-                    onChange={(e) => set("description", e.target.value)}
-                  />
-                </Field>
-              </div>
-              <div className="sm:col-span-2">
-                <Field label="Keywords" limit={100} value={l.keywords} hint="Comma separated, no spaces needed. Boosts App Store search.">
-                  <input className={input} value={l.keywords} onChange={(e) => set("keywords", e.target.value)} />
-                </Field>
-              </div>
-              <Field label="Primary category">
-                <select className={input} value={l.category} onChange={(e) => set("category", e.target.value)}>
-                  {!CATEGORIES.includes(l.category) && <option>{l.category}</option>}
-                  {CATEGORIES.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Bundle ID / package name" hint="Permanent once published, e.g. com.yourcompany.app">
-                <input className={`${input} font-mono`} value={l.bundleId} onChange={(e) => set("bundleId", e.target.value.toLowerCase())} />
-              </Field>
-              <div className="sm:col-span-2">
-                <label className="flex min-h-10 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-2/40 p-3">
-                  <input type="checkbox" checked={l.ipad !== false} onChange={(e) => set("ipad", e.target.checked)} className="mt-0.5 h-6 w-6 shrink-0 accent-violet-500" />
-                  <span>
-                    <span className="block text-sm font-medium">Also for iPad</span>
-                    <span className="block text-xs text-muted">
-                      The iPhone app runs full screen on iPad too, with layouts made for the bigger screen (check them with iPad in the preview). The App Store then
-                      also needs iPad screenshots: capture them in Store screenshots.
-                    </span>
-                  </span>
-                </label>
-              </div>
-              <Field label="Support page URL" hint="Where users can get help. Appmaker can create and host it for you: see “Support page, privacy policy & terms” below.">
-                <input
-                  className={input}
-                  type="url"
-                  placeholder="https://yourwebsite.com/support"
-                  value={l.supportUrl ?? ""}
-                  onChange={(e) => set("supportUrl", e.target.value.trim())}
-                />
-              </Field>
-              <Field label="Privacy policy URL" hint="A hosted privacy policy. Appmaker can create it from what your app does: see below.">
-                <input
-                  className={input}
-                  type="url"
-                  placeholder="https://yourwebsite.com/privacy"
-                  value={l.privacyPolicyUrl ?? ""}
-                  onChange={(e) => set("privacyPolicyUrl", e.target.value.trim())}
-                />
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Privacy" hint="Summarize the data your app collects for the App Privacy section.">
-                  <input className={input} value={l.privacyNotes} onChange={(e) => set("privacyNotes", e.target.value)} />
-                </Field>
-              </div>
-            </div>
-          </section>
-
-          <StoreScreenshots project={project} />
-
-          <LiveUpdates project={project} onChange={onLiveChange} />
-
-          <Bookings project={project} onChange={onBookingChange} onAddScreen={onAddBookingScreen} busy={busy} />
-
-          <StorePages project={project} onChange={onStorePagesChange} onListing={onChange} />
-
-          <section className="rounded-2xl border border-line bg-surface p-5">
-            <h2 className="font-semibold">App icon</h2>
-            <div className="mt-4 flex flex-wrap items-center gap-6">
-              <AppIcon listing={l} icon={project.icon} size={96} />
-              <div className="grid flex-1 gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <LogoPicker icon={project.icon} onIconChange={onIconChange} />
-                </div>
-                <Field label={project.icon ? "Emoji (used without a logo)" : "Emoji"}>
-                  <input className={input} value={l.iconEmoji} maxLength={4} onChange={(e) => set("iconEmoji", e.target.value)} />
-                </Field>
-                <Field label="Brand color">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={/^#[0-9a-f]{6}$/i.test(l.primaryColor) ? l.primaryColor : "#6d5dfb"}
-                      onChange={(e) => set("primaryColor", e.target.value)}
-                      className="h-9 w-12 cursor-pointer rounded-lg border border-line bg-surface"
-                    />
-                    <input className={`${input} font-mono`} value={l.primaryColor} onChange={(e) => set("primaryColor", e.target.value)} />
+          {(all || step === 0) && (
+            <>
+              <section className="rounded-2xl border border-line bg-surface p-5">
+                <h2 className="font-semibold">Store listing</h2>
+                <p className="mt-1 text-xs text-muted">Used for App Store Connect and Google Play Console. Written by AI — edit freely.</p>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <Field label="App name" limit={30} value={l.name}>
+                    <input className={input} value={l.name} onChange={(e) => set("name", e.target.value)} />
+                  </Field>
+                  <Field label="Subtitle" limit={30} value={l.subtitle}>
+                    <input className={input} value={l.subtitle} onChange={(e) => set("subtitle", e.target.value)} />
+                  </Field>
+                  <div className="sm:col-span-2">
+                    <Field label="Description" limit={4000} value={l.description}>
+                      <textarea
+                        className={`${input} min-h-36 resize-y`}
+                        value={l.description}
+                        onChange={(e) => set("description", e.target.value)}
+                      />
+                    </Field>
                   </div>
-                </Field>
-              </div>
+                  <div className="sm:col-span-2">
+                    <Field label="Keywords" limit={100} value={l.keywords} hint="Comma separated, no spaces needed. Boosts App Store search.">
+                      <input className={input} value={l.keywords} onChange={(e) => set("keywords", e.target.value)} />
+                    </Field>
+                  </div>
+                  <Field label="Primary category">
+                    <select className={input} value={l.category} onChange={(e) => set("category", e.target.value)}>
+                      {!CATEGORIES.includes(l.category) && <option>{l.category}</option>}
+                      {CATEGORIES.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Bundle ID / package name" hint="Permanent once published, e.g. com.yourcompany.app">
+                    <input className={`${input} font-mono`} value={l.bundleId} onChange={(e) => set("bundleId", e.target.value.toLowerCase())} />
+                  </Field>
+                  <div className="sm:col-span-2">
+                    <label className="flex min-h-10 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-2/40 p-3">
+                      <input type="checkbox" checked={l.ipad !== false} onChange={(e) => set("ipad", e.target.checked)} className="mt-0.5 h-6 w-6 shrink-0 accent-violet-500" />
+                      <span>
+                        <span className="block text-sm font-medium">Also for iPad</span>
+                        <span className="block text-xs text-muted">
+                          The iPhone app runs full screen on iPad too, with layouts made for the bigger screen (check them with iPad in the preview). The App Store then
+                          also needs iPad screenshots: capture them in Store screenshots.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                  <Field label="Support page URL" hint="Where users can get help. Appmaker can create and host it for you: see “Support page, privacy policy & terms” below.">
+                    <input
+                      className={input}
+                      type="url"
+                      placeholder="https://yourwebsite.com/support"
+                      value={l.supportUrl ?? ""}
+                      onChange={(e) => set("supportUrl", e.target.value.trim())}
+                    />
+                  </Field>
+                  <Field label="Privacy policy URL" hint="A hosted privacy policy. Appmaker can create it from what your app does: see below.">
+                    <input
+                      className={input}
+                      type="url"
+                      placeholder="https://yourwebsite.com/privacy"
+                      value={l.privacyPolicyUrl ?? ""}
+                      onChange={(e) => set("privacyPolicyUrl", e.target.value.trim())}
+                    />
+                  </Field>
+                  <div className="sm:col-span-2">
+                    <Field label="Privacy" hint="Summarize the data your app collects for the App Privacy section.">
+                      <input className={input} value={l.privacyNotes} onChange={(e) => set("privacyNotes", e.target.value)} />
+                    </Field>
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
+          {(all || step === 1) && (
+            <>
+              <section className="rounded-2xl border border-line bg-surface p-5">
+                <h2 className="font-semibold">App icon</h2>
+                <div className="mt-4 flex flex-wrap items-center gap-6">
+                  <AppIcon listing={l} icon={project.icon} size={96} />
+                  <div className="grid flex-1 gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <LogoPicker icon={project.icon} onIconChange={onIconChange} />
+                    </div>
+                    <Field label={project.icon ? "Emoji (used without a logo)" : "Emoji"}>
+                      <input className={input} value={l.iconEmoji} maxLength={4} onChange={(e) => set("iconEmoji", e.target.value)} />
+                    </Field>
+                    <Field label="Brand color">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={/^#[0-9a-f]{6}$/i.test(l.primaryColor) ? l.primaryColor : "#6d5dfb"}
+                          onChange={(e) => set("primaryColor", e.target.value)}
+                          className="h-9 w-12 cursor-pointer rounded-lg border border-line bg-surface"
+                        />
+                        <input className={`${input} font-mono`} value={l.primaryColor} onChange={(e) => set("primaryColor", e.target.value)} />
+                      </div>
+                    </Field>
+                  </div>
+                  <button
+                    onClick={async () => downloadBlob(await renderIcon(l, 1024, project.icon), `${slugify(l.name)}-icon-1024.png`)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm hover:border-white/20"
+                  >
+                    <ImageDown className="h-4 w-4" /> 1024×1024 PNG
+                  </button>
+                </div>
+              </section>
+            </>
+          )}
+          {(all || step === 2) && (
+            <>
+              <StoreScreenshots project={project} />
+            </>
+          )}
+          {(all || step === 3) && (
+            <>
+              <StorePages project={project} onChange={onStorePagesChange} onListing={onChange} />
+              <PublishGuide project={project} />
+            </>
+          )}
+          {(all || step === 4) && (
+            <>
+              <ExpoBuild project={project} onExpoChange={onExpoChange} onDownload={download} hasPreviewError={hasPreviewError} />
+
+              <details className="group rounded-2xl border border-line bg-surface p-5">
+                <summary className="cursor-pointer list-none font-semibold">
+                  Build it yourself (command line)
+                  <span className="mt-1 block text-xs font-normal text-muted">Prefer your own computer or CI? Download the project and use the EAS CLI.</span>
+                </summary>
+                <ol className="mt-4 space-y-3 text-sm">
+                  <li>
+                    <div className="mb-1.5 text-muted">1. Install dependencies and try it on your phone with Expo Go</div>
+                    <CopyCommand cmd={`cd ${slugify(l.name)} && npm install && npx expo start`} />
+                  </li>
+                  <li>
+                    <div className="mb-1.5 text-muted">2. Log in to Expo{project.expo?.link ? " (the project is already linked)" : " and link the project"}</div>
+                    <CopyCommand cmd={project.expo?.link ? "npx eas-cli@latest login" : "npx eas-cli@latest login && npx eas-cli@latest init"} />
+                  </li>
+                  <li>
+                    <div className="mb-1.5 text-muted">3. Build store binaries for iOS and Android</div>
+                    <CopyCommand cmd="npx eas-cli@latest build --platform all --profile production" />
+                  </li>
+                  <li>
+                    <div className="mb-1.5 text-muted">4. Submit to App Store Connect and Google Play</div>
+                    <CopyCommand cmd="npx eas-cli@latest submit --platform all" />
+                  </li>
+                </ol>
+              </details>
+              <details className="group rounded-2xl border border-line bg-surface p-5">
+                <summary className="cursor-pointer list-none font-semibold">
+                  Optional extras: live updates and bookings
+                  <span className="mt-1 block text-xs font-normal text-muted">Keep content fresh from your website, or take bookings in the app.</span>
+                </summary>
+                <div className="mt-4 space-y-6">
+                  <LiveUpdates project={project} onChange={onLiveChange} />
+                  <Bookings project={project} onChange={onBookingChange} onAddScreen={onAddBookingScreen} busy={busy} />
+                </div>
+              </details>
+            </>
+          )}
+
+          <div className={`${all ? "hidden" : "flex"} items-center justify-between gap-3`}>
+            <button
+              onClick={() => setStep(Math.max(0, step - 1))}
+              disabled={step === 0}
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line px-4 text-sm disabled:opacity-0"
+            >
+              <ChevronLeft className="h-4 w-4" /> Back
+            </button>
+            {step < steps.length - 1 && (
               <button
-                onClick={async () => downloadBlob(await renderIcon(l, 1024, project.icon), `${slugify(l.name)}-icon-1024.png`)}
-                className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm hover:border-white/20"
+                onClick={() => setStep(step + 1)}
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 px-5 text-sm font-medium text-white"
               >
-                <ImageDown className="h-4 w-4" /> 1024×1024 PNG
+                Next: {steps[step + 1].title} <ChevronRight className="h-4 w-4" />
               </button>
-            </div>
-          </section>
-
-          <ExpoBuild project={project} onExpoChange={onExpoChange} onDownload={download} hasPreviewError={hasPreviewError} />
-
-          <details className="group rounded-2xl border border-line bg-surface p-5">
-            <summary className="cursor-pointer list-none font-semibold">
-              Build it yourself (command line)
-              <span className="mt-1 block text-xs font-normal text-muted">Prefer your own computer or CI? Download the project and use the EAS CLI.</span>
-            </summary>
-            <ol className="mt-4 space-y-3 text-sm">
-              <li>
-                <div className="mb-1.5 text-muted">1. Install dependencies and try it on your phone with Expo Go</div>
-                <CopyCommand cmd={`cd ${slugify(l.name)} && npm install && npx expo start`} />
-              </li>
-              <li>
-                <div className="mb-1.5 text-muted">2. Log in to Expo{project.expo?.link ? " (the project is already linked)" : " and link the project"}</div>
-                <CopyCommand cmd={project.expo?.link ? "npx eas-cli@latest login" : "npx eas-cli@latest login && npx eas-cli@latest init"} />
-              </li>
-              <li>
-                <div className="mb-1.5 text-muted">3. Build store binaries for iOS and Android</div>
-                <CopyCommand cmd="npx eas-cli@latest build --platform all --profile production" />
-              </li>
-              <li>
-                <div className="mb-1.5 text-muted">4. Submit to App Store Connect and Google Play</div>
-                <CopyCommand cmd="npx eas-cli@latest submit --platform all" />
-              </li>
-            </ol>
-          </details>
+            )}
+          </div>
         </div>
 
         <aside className="space-y-6">
@@ -432,59 +501,63 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
             </div>
           </section>
 
-          <section className="rounded-2xl border border-line bg-surface p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Ready to export</h2>
-              <span className="text-xs text-muted">
-                {ready}/{checks.length}
-              </span>
-            </div>
-            <div className="mt-3 h-1.5 rounded-full bg-surface-2">
-              <div
-                className="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 transition-all"
-                style={{ width: `${(ready / checks.length) * 100}%` }}
-              />
-            </div>
-            <ul className="mt-4 space-y-2 text-sm">
-              {checks.map((c) => (
-                <li key={c.label} className="flex items-start gap-2">
-                  {c.ok ? (
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                  ) : (
-                    <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-                  )}
-                  <span className={c.ok ? "text-foreground/90" : "text-muted"}>
-                    {c.label}
-                    {!c.ok && c.hint && <span className="mt-0.5 block text-[11px] text-muted">{c.hint}</span>}
+          {(all || step === steps.length - 1) && (
+            <>
+              <section className="rounded-2xl border border-line bg-surface p-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold">Ready to export</h2>
+                  <span className="text-xs text-muted">
+                    {ready}/{checks.length}
                   </span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-5 border-t border-line pt-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Also needed in the stores</h3>
-              <ul className="mt-2 space-y-1.5 text-xs text-muted">
-                {storeSteps.map((step) => (
-                  <li key={step} className="flex gap-2">
-                    <span aria-hidden="true">•</span>
-                    {step}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <p role="note" className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-[11px] leading-snug text-amber-100/90">
-              <strong className="block text-xs text-amber-100">Your responsibility</strong>
-              {RESPONSIBILITY}
-            </p>
-            <button
-              onClick={() => download()}
-              disabled={exporting || !Object.keys(project.files).length}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Download Expo project
-            </button>
-            <p className="mt-2 text-center text-[11px] text-muted">Includes app.json, eas.json, icon and a GitHub build workflow.</p>
-          </section>
+                </div>
+                <div className="mt-3 h-1.5 rounded-full bg-surface-2">
+                  <div
+                    className="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 transition-all"
+                    style={{ width: `${(ready / checks.length) * 100}%` }}
+                  />
+                </div>
+                <ul className="mt-4 space-y-2 text-sm">
+                  {checks.map((c) => (
+                    <li key={c.label} className="flex items-start gap-2">
+                      {c.ok ? (
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      ) : (
+                        <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                      )}
+                      <span className={c.ok ? "text-foreground/90" : "text-muted"}>
+                        {c.label}
+                        {!c.ok && c.hint && <span className="mt-0.5 block text-[11px] text-muted">{c.hint}</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-5 border-t border-line pt-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Also needed in the stores</h3>
+                  <ul className="mt-2 space-y-1.5 text-xs text-muted">
+                    {storeSteps.map((step) => (
+                      <li key={step} className="flex gap-2">
+                        <span aria-hidden="true">•</span>
+                        {step}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <p role="note" className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-[11px] leading-snug text-amber-100/90">
+                  <strong className="block text-xs text-amber-100">Your responsibility</strong>
+                  {RESPONSIBILITY}
+                </p>
+                <button
+                  onClick={() => download()}
+                  disabled={exporting || !Object.keys(project.files).length}
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Download Expo project
+                </button>
+                <p className="mt-2 text-center text-[11px] text-muted">Includes app.json, eas.json, icon and a GitHub build workflow.</p>
+              </section>
+            </>
+          )}
         </aside>
       </div>
     </div>

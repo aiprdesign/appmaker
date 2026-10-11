@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { showAllPublishSteps } from "./helpers/publish";
 
 // Hosted support page and privacy policy. Needs TEST_DATABASE_URL (accounts).
 test.skip(!process.env.TEST_DATABASE_URL, "needs a database");
@@ -19,6 +20,7 @@ test("creates the support page and privacy policy, links them in the listing, an
   await page.keyboard.press("Enter");
   await expect(page.frameLocator('iframe[title="App preview"]').getByText(/habit/i).first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
 
   const box = page.getByRole("region", { name: /Support page, privacy policy & terms/ });
   await expect(box.getByLabel("Contact email for customers")).toHaveValue(email);
@@ -64,6 +66,7 @@ test("without an account: copy or download the pages for your own website, then 
   await page.keyboard.press("Enter");
   await expect(page.frameLocator('iframe[title="App preview"]').getByText(/habit/i).first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
 
   const box = page.getByRole("region", { name: /Support page, privacy policy & terms/ });
   await box.getByLabel("Business or developer name").fill("Habit Co");

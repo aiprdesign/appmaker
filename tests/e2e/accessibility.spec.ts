@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { showAllPublishSteps } from "./helpers/publish";
 
 test("the accessibility menu changes text size, contrast and motion, and remembers them", async ({ page }) => {
   await page.goto("/");
@@ -64,6 +65,7 @@ test("the Publish tab explains what the stores need, and that it isn't legal adv
   await page.keyboard.press("Enter");
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Kicked off the project")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   const guide = page.getByRole("region", { name: "What the stores need before you publish" });
   await expect(guide).toContainText("Privacy policy (Apple and Google require it)");
   await expect(guide).toContainText("Support page (Apple requires it)");

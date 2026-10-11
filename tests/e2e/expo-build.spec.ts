@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { showAllPublishSteps } from "./helpers/publish";
 
 // Building and uploading with Expo from the Publish tab. Expo itself is
 // mocked at our API routes; the server side is covered by unit tests.
@@ -34,6 +35,7 @@ async function openPublish(page: Page) {
   await page.keyboard.press("Enter");
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Hi")).toBeVisible();
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
 }
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -129,6 +131,7 @@ test("connect Expo, set up Apple upload, build for the App Store and follow its 
   // Everything survives a reload; the finished build isn't polled again.
   await page.reload();
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   await expect(page.getByRole("list", { name: "Builds" }).getByText("Ready")).toBeVisible();
   await expect(page.getByText("Connected as")).toBeVisible();
 });

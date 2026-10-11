@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { showAllPublishSteps } from "./helpers/publish";
 
 // Payments are off in the test server (no STRIPE_SECRET_KEY): nothing costs credits.
 // The paid flow is covered by tests/unit/credits.test.ts against a fake Stripe.
@@ -52,6 +53,7 @@ test("free accounts see paid features locked, and apps get the Made with Appmake
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Kicked off the project")).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   await expect(page.getByText("Store builds are part of the paid plan. Buy any credit pack to unlock them for good. No subscription.")).toBeVisible();
   await expect(page.getByRole("link", { name: "See credit packs" }).first()).toHaveAttribute("href", "/credits");
   // Downloading the project stays free.
@@ -68,5 +70,6 @@ test("free accounts see paid features locked, and apps get the Made with Appmake
   await page.getByRole("main").getByRole("button", { name: "src/appmaker.js" }).click();
   await expect(page.getByLabel("Source of src/appmaker.js")).toHaveValue(/return null/);
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   await expect(page.getByText(/Store builds are part of the paid plan/)).toHaveCount(0);
 });

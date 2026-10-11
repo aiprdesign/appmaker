@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import JSZip from "jszip";
 import { expect, test } from "@playwright/test";
+import { showAllPublishSteps } from "./helpers/publish";
 
 const pngSize = (b: Buffer) => ({ w: b.readUInt32BE(16), h: b.readUInt32BE(20) });
 
@@ -11,6 +12,7 @@ test("capture screens, write headlines, and download store-ready images", async 
   await page.keyboard.press("Enter");
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Kicked off the project")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
 
   const section = page.getByRole("region", { name: "Store screenshots" });
   await section.scrollIntoViewIfNeeded();
@@ -57,6 +59,7 @@ test("capture screens, write headlines, and download store-ready images", async 
   // Kept in the browser.
   await page.reload();
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   await expect(page.getByLabel("Headline 2")).toHaveValue("Write it down");
 
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download all images" }).click()]);
@@ -103,6 +106,7 @@ test("iPad: preview the app at iPad size, or turn iPad off in the listing", asyn
   await expect(page.getByText("The layout doesn't fill the screen")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   const ipad = page.getByRole("checkbox", { name: /Also for iPad/ });
   await expect(ipad).toBeChecked();
   await ipad.uncheck();
@@ -119,6 +123,7 @@ test("Generate screenshots opens every main screen on iPhone and iPad by itself"
   await page.keyboard.press("Enter");
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Today").first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
 
   const section = page.getByRole("region", { name: "Store screenshots" });
   await section.scrollIntoViewIfNeeded();

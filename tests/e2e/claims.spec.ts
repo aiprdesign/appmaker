@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { showAllPublishSteps } from "./helpers/publish";
 
 // Claim-safe wording: on by default, checked after every build, and
 // repaired in the automatic fix pass. The AI endpoint is simulated.
@@ -49,6 +50,7 @@ test("claims in the app and listing are rewritten automatically (claim-safe is t
 
   // The Publish checklist confirms the result.
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   await expect(page.getByText("Claim-safe wording (no marketing claims)")).toBeVisible();
 });
 
@@ -72,6 +74,7 @@ test("standard wording skips the claim check, and the choice is remembered", asy
   await page.getByRole("button", { name: "Wording: Standard" }).click();
   await page.getByRole("radio", { name: /Claim-safe/ }).click();
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   await expect(page.getByText(/Found: “best” \(App\.js\), “#1” \(listing subtitle\)/)).toBeVisible();
 });
 
@@ -124,6 +127,7 @@ test("the wording menu, the Publish checklist and the FAQ say the app owner is r
   await page.keyboard.press("Enter");
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Kicked off the project")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   const note = page.getByRole("note").filter({ hasText: /^Your responsibility/ });
   await expect(note).toContainText("Your responsibility");
   await expect(note).toContainText("Make sure it's true, accurate and allowed");

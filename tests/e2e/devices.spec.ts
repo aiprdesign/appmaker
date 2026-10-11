@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { showAllPublishSteps } from "./helpers/publish";
 
 // Testing on real devices: the user's phone with Expo Go (EAS Update), Expo
 // Snack's emulators, and a QR code to install finished Android builds. Snack
@@ -80,6 +81,7 @@ test("a finished Android test build shows a QR code to install it", async ({ pag
   });
   await buildApp(page);
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   const section = page.getByRole("region", { name: /Build & upload with Expo/ });
   await section.getByRole("radio", { name: /Android — test app/ }).click();
   await section.getByRole("button", { name: "Build Android test app" }).click();

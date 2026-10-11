@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { showAllPublishSteps } from "./helpers/publish";
 
 // Business features: templates with blanks, and the business's logo as the app icon.
 
@@ -44,6 +45,7 @@ async function openPublish(page: Page) {
   await page.keyboard.press("Enter");
   await expect(page.frameLocator('iframe[title="App preview"]').getByText("Hi")).toBeVisible();
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
 }
 
 /** Color of the pixel in the middle and in a corner of the rendered 1024 icon. */
@@ -94,6 +96,7 @@ test("a business logo becomes the app icon, on the background you choose", async
   // Kept with the app, shown in the builder header, and removable.
   await page.reload();
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   await expect(section.getByRole("img", { name: "Luigi's icon" })).toBeVisible();
   await expect(page.locator("header").getByRole("img", { name: "Luigi's icon" })).toBeVisible();
   await section.getByRole("button", { name: "Use the emoji instead" }).click();

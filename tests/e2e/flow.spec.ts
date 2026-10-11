@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { showAllPublishSteps } from "./helpers/publish";
 
 async function buildApp(page: Page, prompt: string) {
   await page.goto("/");
@@ -53,6 +54,7 @@ test("habit tracker: data persists and store listing is complete", async ({ page
   await expect(app.getByText("Stretch")).toBeVisible();
 
   await page.getByRole("button", { name: "Publish" }).first().click();
+  await showAllPublishSteps(page);
   // Honest checklist: the default com.appmaker ID and missing store links aren't "ready".
   await expect(page.getByText("10/13")).toBeVisible();
   await expect(page.getByText("Also needed in the stores")).toBeVisible();
