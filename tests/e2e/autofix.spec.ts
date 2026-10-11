@@ -239,3 +239,42 @@ export default function App() {
   await expect(preview.locator('svg[data-lucide="ShoppingBag"]')).toHaveAttribute("width", "28");
   await expect(preview.locator('svg[data-lucide="House"] path')).toHaveCount(2);
 });
+
+test("an app left broken by a failed reply heals itself", async ({ page }) => {
+  const app = `import React from 'react';
+import { View } from 'react-native';
+import { Card } from './src/components/ui';
+export default function App() { return <View style={{ flex: 1, paddingTop: 80 }}><Card /></View>; }`;
+  const ui = `import React from 'react';
+import { Text } from 'react-native';
+export function Card() { return <Text>Herd list is here</Text>; }`;
+  const prompts = await mockAI(page, [
+    // The reply fails after App.js, before the file it imports.
+    `<plan>A herd book</plan>\n<file path="App.js">\n${app}\n</file>\n<error>Something unexpected went wrong.</error>`,
+    `<plan>Add the missing file</plan>\n<file path="src/components/ui.js">\n${ui}\n</file>\n<listing>${LISTING}</listing>\n<summary>Fixed.</summary>`,
+  ]);
+  const preview = await start(page);
+  await expect(preview.getByText("Herd list is here")).toBeVisible({ timeout: 30_000 });
+  expect(prompts).toHaveLength(2);
+  expect(prompts[1]).toMatch(/Self-heal/);
+  expect(prompts[1]).toMatch(/src\/components\/ui/);
+});
+
+test("a reply dropped by the AI provider part-way is finished automatically", async ({ page }) => {
+  const app = `import React from 'react';
+import { View } from 'react-native';
+import { Card } from './src/components/ui';
+export default function App() { return <View style={{ flex: 1, paddingTop: 80 }}><Card /></View>; }`;
+  const ui = `import React from 'react';
+import { Text } from 'react-native';
+export function Card() { return <Text>Finished after the drop</Text>; }`;
+  const prompts = await mockAI(page, [
+    `<plan>A herd book</plan>\n<file path="App.js">\n${app}\n</file>\n<error>Couldn't reach OpenRouter: it may be down or slow right now. Wait a minute and press Try again, or pick another model in AI settings.</error>`,
+    `<plan>Finish</plan>\n<file path="src/components/ui.js">\n${ui}\n</file>\n<listing>${LISTING}</listing>\n<summary>Finished.</summary>`,
+  ]);
+  const preview = await start(page);
+  await expect(preview.getByText("Finished after the drop")).toBeVisible({ timeout: 30_000 });
+  expect(prompts).toHaveLength(2);
+  expect(prompts[1]).toMatch(/cut off before it finished/);
+  await expect(page.getByText(/connection dropped part-way/)).toBeVisible();
+});

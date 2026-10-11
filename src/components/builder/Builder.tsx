@@ -140,6 +140,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [reviewing, setReviewing] = useState(false);
   const continueBudget = useRef(CONTINUE_BUDGET);
   const runtimeWatchUntil = useRef(0);
+  // Apps already repaired automatically this session (self-healing tries each once).
+  const healed = useRef(new Set<string>());
   const demoRef = useRef(false);
   const unloading = useRef(false);
 
@@ -630,11 +632,34 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     if (err && Date.now() < runtimeWatchUntil.current && fixBudget.current > 0 && !abortRef.current) {
       runtimeWatchUntil.current = 0;
       fixBudget.current -= 1;
+      if (projectRef.current) healed.current.add(projectRef.current.id);
       sendRef.current(
         `Automatic quality check: the app crashed in the preview with this error:\n\n${err.message}\n\nFind the root cause and fix it.`,
         { autoFix: true },
       );
+      return;
     }
+    // Self-healing: any other crash (an app opened already broken, or one left
+    // half-written by a failed build) is repaired automatically, once per app per
+    // session, and not after the automatic repairs of a build have run out.
+    const p = projectRef.current;
+    if (!err || !p || abortRef.current || demoRef.current) return;
+    if (healed.current.has(p.id)) return;
+    healed.current.add(p.id);
+    const missing = validateApp(p.files).filter((i) => /doesn't exist|is missing/.test(i.message));
+    // One more check of the repaired version, but no new round of repairs.
+    fixBudget.current = Math.max(fixBudget.current, 1);
+    continueBudget.current = Math.max(continueBudget.current, 1);
+    sendRef.current(
+      [
+        `Self-heal: the app crashes in the preview with this error:\n\n${err.message}`,
+        missing.length ? `Files the app imports that don't exist yet (write them):\n${describeIssues(missing)}` : "",
+        "Find the root cause and fix it, keeping everything that already works.",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      { autoFix: true },
+    );
   }, []);
 
   // Problems the preview's quality check finds right after a generation
