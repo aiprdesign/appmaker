@@ -264,28 +264,60 @@ ${page("contact.html", "Contact", `<h1 class="text-4xl font-bold">Contact</h1><p
 
 export interface SiteConcept {
   style: string;
+  tier?: ConceptTier;
   files: FileMap;
   /** Still being written, or failed. */
   status: "writing" | "ready" | "failed";
   error?: string;
 }
 
-/** The style picked for the site, plus two that look clearly different (other categories). */
-export function conceptStyles(picked: DesignStyle, all: DesignStyle[]): DesignStyle[] {
-  const order = ["editorial", "liquid-glass", "bento", "swiss", "luxe", "organic", "aurora", "brutalist", "calm", "pop"];
-  const out = [picked];
-  for (const id of order) {
-    const s = all.find((x) => x.id === id);
-    if (s && out.length < 3 && !out.some((o) => o.category === s.category)) out.push(s);
-  }
-  return out;
+/** The three directions: simple, balanced and bold. */
+export type ConceptTier = "simple" | "balanced" | "bold";
+export const CONCEPT_TIERS: { tier: ConceptTier; name: string; styles: string[]; brief: string }[] = [
+  {
+    tier: "simple",
+    name: "Simple",
+    styles: ["swiss", "calm", "editorial"],
+    brief:
+      "SIMPLE: calm, minimal and refined. Lots of white space, a restrained palette (mostly neutrals and one accent), elegant typography doing the work, few sections, no decoration for its own sake. Beautiful through restraint and precision.",
+  },
+  {
+    tier: "balanced",
+    name: "Balanced",
+    styles: ["liquid-glass", "organic", "luxe", "editorial", "calm"],
+    brief:
+      "BALANCED: a polished middle ground. Confident color used with care, large photos, some depth (soft shadows, subtle gradients or glass), varied section layouts and tasteful motion. Beautiful, modern and professional.",
+  },
+  {
+    tier: "bold",
+    name: "Bold & colorful",
+    styles: ["aurora", "pop", "brutalist", "bento"],
+    brief:
+      "BOLD & COLORFUL: heavily designed and expressive. Rich color and gradients, big display type, layered compositions (overlapping cards, shapes, bento grids), striking section transitions, playful details and lively motion. Memorable and full of energy while staying readable and accessible.",
+  },
+];
+
+/**
+ * The three concepts: simple, balanced and bold, each in a style that suits
+ * that direction, with the business's own best style used where it fits.
+ */
+export function conceptStyles(picked: DesignStyle, all: DesignStyle[]): { tier: (typeof CONCEPT_TIERS)[number]; style: DesignStyle }[] {
+  const used = new Set<string>();
+  const home = CONCEPT_TIERS.find((t) => t.styles.includes(picked.id))?.tier;
+  return CONCEPT_TIERS.map((tier) => {
+    const id = tier.tier === home ? picked.id : tier.styles.find((s) => !used.has(s))!;
+    used.add(id);
+    return { tier, style: all.find((x) => x.id === id)! };
+  });
 }
 
 /** The request for one concept. */
-export function conceptPrompt(prompt: string, style: DesignStyle, n: number): string {
+export function conceptPrompt(prompt: string, style: DesignStyle, n: number, tier?: ConceptTier): string {
+  const direction = CONCEPT_TIERS.find((t) => t.tier === tier);
   return `${prompt}
 
-Design concept ${n} of 3, in the ${style.name} style. Write ONLY two pages so the owner can choose between three designs before the rest is made:
+Design concept ${n} of 3, in the ${style.name} style${direction ? `, direction ${direction.brief}` : "."}
+Make it as beautiful as it can be in its own way: the owner compares it with a simpler and a bolder option, so commit fully to this direction. Write ONLY two pages so the owner can choose between three designs before the rest is made:
 - index.html, the complete home page, and
 - one inside page: the most important section of the site (services.html, menu.html or products.html, whichever fits; otherwise about.html).
 Make both complete and polished, with the full header, navigation and footer. The navigation already links to every page the finished site will have; those pages are written after the owner picks a design. No sitemap.xml or robots.txt yet. Make this concept look clearly different from a generic template: commit fully to the ${style.name} style.`;

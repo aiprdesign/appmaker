@@ -203,7 +203,7 @@ export interface Project {
   /** What's being made: an app (default) or a redesigned website. */
   kind?: "app" | "website";
   /** Website redesign: the three design concepts to choose from, until one is chosen. */
-  concepts?: { style: string; files: FileMap; status: "writing" | "ready" | "failed"; error?: string }[];
+  concepts?: { style: string; tier?: "simple" | "balanced" | "bold"; files: FileMap; status: "writing" | "ready" | "failed"; error?: string }[];
   name: string;
   prompt: string;
   files: FileMap;

@@ -92,13 +92,18 @@ describe("three design concepts", () => {
     const { DESIGN_STYLES } = await import("@/lib/styles");
     for (const picked of DESIGN_STYLES) {
       const three = conceptStyles(picked, DESIGN_STYLES);
-      expect(three[0]).toBe(picked);
-      expect(three).toHaveLength(3);
-      expect(new Set(three.map((s) => s.category)).size).toBe(3);
+      expect(three.map((c) => c.tier.tier)).toEqual(["simple", "balanced", "bold"]);
+      expect(new Set(three.map((c) => c.style.id)).size).toBe(3);
     }
+    // The business's own style is used in the direction it belongs to.
+    expect(conceptStyles(getStyle("pop")!, DESIGN_STYLES)[2].style.id).toBe("pop");
+    expect(conceptStyles(getStyle("swiss")!, DESIGN_STYLES)[0].style.id).toBe("swiss");
+    expect(conceptStyles(getStyle("luxe")!, DESIGN_STYLES).map((c) => c.style.id)).toEqual(["swiss", "luxe", "aurora"]);
+    expect(conceptPrompt("Redesign it", getStyle("aurora")!, 3, "bold")).toMatch(/direction BOLD & COLORFUL: heavily designed/);
     const style = getStyle("editorial")!;
-    expect(conceptPrompt("Redesign Luigi's", style, 2)).toMatch(/Design concept 2 of 3, in the Editorial style\. Write ONLY two pages/);
-    expect(finishSitePrompt(style, ["index.html", "menu.html"])).toMatch(/index\.html and menu\.html are already written.*sitemap\.xml and robots\.txt/s);
+    expect(conceptPrompt("Redesign Luigi's", style, 2)).toMatch(/Design concept 2 of 3, in the Editorial style\./);
+    expect(conceptPrompt("Redesign Luigi's", style, 2)).toContain("Write ONLY two pages");
+    expect(finishSitePrompt(style, ["index.html", "menu.html"])).toMatch(/index\.html and menu\.html are already written[\s\S]*sitemap\.xml and robots\.txt/);
     expect(websiteSystemPrompt()).toContain("Commercially safe resources only");
   });
 });

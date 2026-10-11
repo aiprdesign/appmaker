@@ -459,15 +459,15 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const current = projectRef.current;
       if (!current || conceptsRunning.current) return;
       conceptsRunning.current = true;
-      const styles = conceptStyles(getStyle(current.design?.style) ?? pickStyle(current.prompt).style, DESIGN_STYLES);
+      const plan = conceptStyles(getStyle(current.design?.style) ?? pickStyle(current.prompt).style, DESIGN_STYLES);
       const start: SiteConcept[] =
         current.concepts && only != null
           ? current.concepts.map((c, i) => (i === only ? { ...c, status: "writing", error: undefined } : c))
-          : styles.map((st) => ({ style: st.id, files: {}, status: "writing" }));
+          : plan.map(({ tier, style }) => ({ style: style.id, tier: tier.tier, files: {}, status: "writing" }));
       const intro: ChatMessage = {
         id: uid(),
         role: "assistant",
-        content: "Designing three options for your home page and one inside page. Look through them on the right and choose one; then I'll make the other pages in that design.",
+        content: "Designing three options for your home page and one inside page: Simple, Balanced, and Bold & colorful. Look through them on the right and choose one; then I'll make the other pages in that design.",
         createdAt: Date.now(),
       };
       commit({
@@ -491,7 +491,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                prompt: conceptPrompt(current.prompt, style, i + 1),
+                prompt: conceptPrompt(current.prompt, style, i + 1, c.tier),
                 files: {},
                 site: current.source,
                 ai: aiChoiceFor(getAiSettings()),
