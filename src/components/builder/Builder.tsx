@@ -253,6 +253,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       abortRef.current = controller;
       let raw = "";
       let error = "";
+      // The connection or the AI provider failed part-way (not the user pressing Stop).
+      let dropped = false;
       try {
         const res = await fetch("/api/generate", {
           method: "POST",
@@ -305,7 +307,10 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           }
         }
       } catch (e) {
-        if ((e as Error).name !== "AbortError") error = friendlyError((e as Error).message);
+        if ((e as Error).name !== "AbortError") {
+          error = friendlyError((e as Error).message);
+          dropped = true;
+        }
         else error = "Stopped. Any finished files were kept — use History to go back if needed.";
       }
 
@@ -316,7 +321,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const streamError = /<error>([\s\S]*?)<\/error>/.exec(raw)?.[1];
       // A reply cut off at the model's length limit: the finished files are
       // kept and the rest is written in a follow-up request (below).
-      const cutOff = !!streamError && /too large to finish in one pass/i.test(streamError);
+      // A reply the provider dropped part-way (unreachable, timed out) is finished the same way,
+      // so a half-written app with missing files is never shown as ready.
+      const cutOff = dropped || (!!streamError && /too large to finish in one pass|couldn't reach|timed out|try again/i.test(streamError));
       if (streamError) error = friendlyError(streamError);
       const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
       const base = projectRef.current ?? withUser;
@@ -362,14 +369,15 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       if (isApp) files[BRAND_FILE] = brandModule(brandedRef.current);
 
       const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && allowed(p)) && continueBudget.current > 0 && !demoRef.current;
-      if (continuing) error = "";
+
       const reply = continuing
-        ? `${parsed.plan || "Building your app."}\n\nThat was a big one, so I'm writing it in parts. Part done — continuing with the rest…`
+        ? `${parsed.plan || "Building your app."}\n\n${error && !/too large/i.test(error) ? "The AI connection dropped part-way, so I'm finishing the missing files now…" : "That was a big one, so I'm writing it in parts. Part done — continuing with the rest…"}`
         :
         [parsed.summary || (Object.keys(complete).length ? parsed.plan || "Updated your app." : ""), error && `⚠️ ${error}`]
           .filter(Boolean)
           .join("\n\n") || "I couldn't produce an app for that. Try describing it differently.";
 
+      if (continuing) error = "";
       const wrote = Object.keys(complete).length > 0;
       let next: Project = { ...base, name: listing.name || base.name, files, listing, pending: undefined, ...(design ? { design } : {}) };
       let versionId: string | undefined;
