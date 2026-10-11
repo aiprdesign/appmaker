@@ -17,6 +17,7 @@ import { DesignPanel } from "./DesignPanel";
 import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
 import { ConceptPicker } from "./ConceptPicker";
+import { withA11yWidget } from "@/lib/site-a11y";
 import { conceptPrompt, conceptStyles, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
@@ -336,6 +337,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // Appmaker's own files are only added once there is an app to add them to:
       // a failed first build must not leave a "project" without App.js.
       const isApp = !isSite && hasEntry(files);
+      // Every website carries Appmaker's accessibility widget, whatever the AI wrote.
+      if (isSite && hasSiteEntry(files)) Object.assign(files, withA11yWidget(files));
       // Website apps always carry Appmaker's live-content file, whatever the AI wrote.
       if (base.source && isApp) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
@@ -507,7 +510,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
             const files = Object.fromEntries(Object.entries(parsed.files).filter(([p]) => p !== parsed.writing && isAllowedSitePath(p)));
             if (!files["index.html"]) throw new Error(err ? friendlyError(err) : "the AI didn't write a home page");
-            update(i, { status: "ready", files });
+            update(i, { status: "ready", files: withA11yWidget(files) });
           } catch (e) {
             update(i, { status: "failed", error: (e as Error).message.slice(0, 200) });
           }
@@ -524,8 +527,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     if (!p || !c || c.status !== "ready") return;
     const style = getStyle(c.style)!;
     const design = applyStyle(p.design ?? defaultDesign(p.listing), style, !!p.source);
-    commit({ ...p, files: c.files, design, concepts: undefined });
-    setPreviewFiles(c.files);
+    const files = withA11yWidget(c.files);
+    commit({ ...p, files, design, concepts: undefined });
+    setPreviewFiles(files);
     send(finishSitePrompt(style, Object.keys(c.files).filter((f) => f.endsWith(".html")), resolveSiteColors(p.siteColors, p.source?.colors)));
   };
 

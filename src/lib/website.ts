@@ -26,6 +26,17 @@ export const hasSiteEntry = (files: Record<string, string>) => files["index.html
 const ALLOWED_SCRIPT = /^https:\/\/(cdn\.tailwindcss\.com|cdn\.jsdelivr\.net\/npm\/|unpkg\.com\/)/;
 
 /** Problems the builder sends back to the AI to fix before the site is shown. */
+/** A link or script address on a page, as a file path in the site ("" when it leaves the site). */
+function resolveFrom(page: string, ref: string): string {
+  if (/^[a-z]+:/i.test(ref) || ref.startsWith("//")) return "";
+  const parts = ref.startsWith("/") ? [] : page.split("/").slice(0, -1);
+  for (const seg of ref.replace(/^\//, "").split("/")) {
+    if (seg === "..") parts.pop();
+    else if (seg && seg !== ".") parts.push(seg);
+  }
+  return parts.join("/");
+}
+
 export function validateSite(files: FileMap): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   if (files["index.html"] == null) issues.push({ file: "index.html", message: "index.html (the home page) is missing" });
@@ -48,17 +59,21 @@ export function validateSite(files: FileMap): ValidationIssue[] {
     for (const m of code.matchAll(/<script[^>]*\ssrc=["']([^"']+)["']/gi)) {
       const src = m[1];
       if (/^https?:\/\//i.test(src) && !ALLOWED_SCRIPT.test(src)) issues.push({ file: path, message: `loads a script from ${src}; only Tailwind (cdn.tailwindcss.com) and the site's own script.js are allowed` });
-      else if (!/^https?:\/\//i.test(src) && files[src.replace(/^\.?\//, "")] == null) issues.push({ file: path, message: `loads ${src}, which doesn't exist` });
+      else if (!/^https?:\/\//i.test(src) && files[resolveFrom(path, src)] == null) issues.push({ file: path, message: `loads ${src}, which doesn't exist` });
     }
     for (const m of code.matchAll(/<a[^>]*\shref=["']([^"'#?]+\.html)(?:[#?][^"']*)?["']/gi)) {
       const href = m[1];
-      if (!/^https?:\/\//i.test(href) && files[href.replace(/^\.?\//, "")] == null) issues.push({ file: path, message: `links to ${href}, which doesn't exist` });
+      if (!/^https?:\/\//i.test(href) && files[resolveFrom(path, href)] == null) issues.push({ file: path, message: `links to ${href}, which doesn't exist` });
     }
     if (/\beval\s*\(|new\s+Function\s*\(/.test(code)) issues.push({ file: path, message: "uses eval or new Function; write plain JavaScript" });
     if (/<img(?![^>]*\salt=)[^>]*>/i.test(code)) issues.push({ file: path, message: "has an <img> without alt text (add a short description, or alt=\"\" for decoration)" });
   }
   // Animated sites must respect people who turn motion off.
-  const all = Object.values(files).join("\n");
+  // (Appmaker's accessibility widget switches motion off on purpose: not counted.)
+  const all = Object.entries(files)
+    .filter(([p]) => p !== "a11y.js")
+    .map(([, code]) => code)
+    .join("\n");
   if (/@keyframes|animation\s*:|transition\s*:|\.animate\(/.test(all) && !/prefers-reduced-motion/.test(all)) {
     issues.push({ file: "styles.css", message: "has animations but never checks prefers-reduced-motion; switch motion off for people who turn it off in their settings" });
   }
@@ -121,6 +136,9 @@ Motion explains and delights; it never slows anyone down. Write it with CSS and 
 - Living details, used sparingly: numbers that count up when they come into view (real figures only), a slowly drifting gradient or soft blurred shapes behind the hero, a marquee of real services, a sticky header that shrinks and gains a background after scrolling.
 - Respect people who turn motion off: put animations and transitions under @media (prefers-reduced-motion: no-preference) (or switch them off under reduce), and in script.js check window.matchMedia('(prefers-reduced-motion: reduce)') before starting any motion. Content is visible by default: only script.js adds the hidden starting state, so nothing stays hidden if JavaScript fails.
 - Never: motion that plays forever without a pause, flashing more than three times a second, scroll-jacking, or animations that delay reading or clicking.
+
+## Accessibility widget
+Appmaker adds its own accessibility widget to every page (a11y.js: a round button in the bottom-left corner with bigger text, high contrast, readable font, spacing, underlined links, stop animations and big cursor). Never write a11y.js or another accessibility widget, and keep the bottom-left corner free of other fixed buttons (put chat or back-to-top buttons bottom-right).
 
 ## Commercially safe resources only
 Use only open resources the owner may use commercially: Tailwind CSS (MIT), icons drawn as inline SVG in the style of Lucide or Heroicons (ISC/MIT), and Google Fonts (SIL Open Font License). Never copy another company's design, text, logo or photos, never use stock photos or icon fonts from services that need a licence or key, and use only the business's own images from <website_content>.

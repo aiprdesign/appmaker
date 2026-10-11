@@ -137,3 +137,18 @@ describe("motion design", () => {
     expect(validateSite({ ...animated, "styles.css": "@media (prefers-reduced-motion: no-preference){.card{transition: transform .2s}}" })).toEqual([]);
   });
 });
+
+describe("accessibility widget", () => {
+  it("is added to every page and the site, once, and doesn't trip the motion check", async () => {
+    const { withA11yWidget, A11Y_WIDGET } = await import("@/lib/site-a11y");
+    const post = good.replace('href="contact.html"', 'href="../contact.html"').replace(/(href|src)="(styles\.css|script\.js)"/g, '$1="../$2"');
+    const files = withA11yWidget({ "index.html": good, "blog/post.html": post, "styles.css": "a{}", "script.js": "1" });
+    expect(files["a11y.js"]).toBe(A11Y_WIDGET);
+    expect(files["index.html"]).toContain('<script src="a11y.js" defer></script>\n</body>');
+    expect(files["blog/post.html"]).toMatch(/<script src="\.\.\/a11y\.js" defer><\/script>\n<\/body>/);
+    expect(withA11yWidget(files)["index.html"].match(/a11y\.js/g)).toHaveLength(1);
+    expect(validateSite({ ...files, "contact.html": good })).toEqual([]);
+    // No requests anywhere (the only address is the SVG namespace, which isn't fetched).
+    expect(A11Y_WIDGET.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, "")).not.toMatch(/fetch\(|XMLHttpRequest|https?:\/\//);
+  });
+});

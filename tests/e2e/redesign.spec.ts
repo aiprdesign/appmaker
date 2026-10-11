@@ -98,6 +98,16 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await page.getByLabel("Page").selectOption("index.html");
   await site.getByRole("link", { name: "Call us" }).click();
   await expect(page.getByText(/On the live site this opens \+15551234567/)).toBeVisible();
+  // Every site has the accessibility widget; its settings change the page.
+  await site.getByRole("button", { name: "Accessibility settings" }).click();
+  await site.getByRole("button", { name: /Bigger text/ }).click();
+  await expect(site.getByRole("button", { name: /Bigger text/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(site.locator("html")).toHaveClass(/a11y-text/);
+  await site.getByRole("button", { name: /High contrast/ }).click();
+  await expect.poll(() => site.locator("body").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(0, 0, 0)");
+  await site.getByRole("button", { name: "Reset all" }).click();
+  await expect(site.locator("html")).not.toHaveClass(/a11y-/);
+  await page.keyboard.press("Escape");
   // Screen sizes.
   await page.getByRole("radio", { name: "Phone" }).click();
   await expect.poll(async () => (await page.locator('iframe[title="Website preview"]').evaluate((el) => (el as HTMLElement).offsetWidth))).toBe(390);
