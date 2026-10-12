@@ -39,7 +39,17 @@ window.addEventListener("load", function () {
 });
 </script>`;
 
-export function previewDocument(files: FileMap, page: string, audit?: string): string {
+/** Screenshot parts (images/shot-….jpg) put in place as data URLs: they exist only in the browser. */
+function withAssets(code: string, assets: Record<string, string>): string {
+  let out = code;
+  for (const [path, dataUrl] of Object.entries(assets)) {
+    if (!/^images\/shot-(hero|\d)\.jpg$/.test(path) || !dataUrl.startsWith("data:image/")) continue;
+    out = out.replace(new RegExp(`(?:\\.\\.?/)?${path.replace(/[.-]/g, "\\$&")}`, "g"), dataUrl);
+  }
+  return out;
+}
+
+export function previewDocument(files: FileMap, page: string, audit?: string, assets: Record<string, string> = {}): string {
   let html = files[page] ?? files["index.html"] ?? "";
   html = html.replace(/<link[^>]*href=["']\.?\/?([a-z0-9_\/-]+\.css)["'][^>]*>/gi, (tag, path: string) =>
     files[path] != null ? `<style>${files[path].replace(/<\/style/gi, "<\\/style")}</style>` : tag,
@@ -47,6 +57,7 @@ export function previewDocument(files: FileMap, page: string, audit?: string): s
   html = html.replace(/<script([^>]*)\ssrc=["']\.?\/?([a-z0-9_\/-]+\.js)["']([^>]*)><\/script>/gi, (tag, a: string, path: string, b: string) =>
     files[path] != null ? `<script${a}${b}>${files[path].replace(/<\/script/gi, "<\\/script")}</script>` : tag,
   );
+  html = withAssets(html, assets);
   const tail = NAV_SCRIPT + (audit ? auditScript(audit) : "");
   return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${tail}</body>`) : html + tail;
 }
@@ -67,7 +78,7 @@ export function a11yFixRequest(page: string, issues: SiteA11yIssue[]): string {
     .join("\n")}\nFix these on every page where they occur, keeping the design and content the same.`;
 }
 
-export function SitePreview({ files, onFix }: { files: FileMap; onFix?: (request: string) => void }) {
+export function SitePreview({ files, onFix, assets }: { files: FileMap; onFix?: (request: string) => void; assets?: Record<string, string> }) {
   const [audit, setAudit] = useState<{ page: string; issues: SiteA11yIssue[] } | null>(null);
   const [showIssues, setShowIssues] = useState(false);
   const pages = Object.keys(files)
@@ -81,7 +92,7 @@ export function SitePreview({ files, onFix }: { files: FileMap; onFix?: (request
   const [boxWidth, setBoxWidth] = useState(1000);
   const current = files[page] != null ? page : "index.html";
   const auditSrc = typeof window === "undefined" ? undefined : `${window.location.origin}/preview/axe.min.js`;
-  const doc = useMemo(() => previewDocument(files, current, auditSrc), [files, current, auditSrc]);
+  const doc = useMemo(() => previewDocument(files, current, auditSrc, assets), [files, current, auditSrc, assets]);
 
   useEffect(() => {
     const el = box.current;

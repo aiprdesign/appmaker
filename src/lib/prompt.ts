@@ -237,6 +237,15 @@ function contactLines(c: SiteContact): string {
 }
 
 /** Formats an imported website as reference data for the model. */
+/** Screenshot parts, checked again: only Appmaker's own images/shot-… paths. */
+function screenshots(site: SiteSummary): { path: string; label: string; width: number; height: number }[] {
+  return (Array.isArray(site.screenshots) ? site.screenshots : []).slice(0, 4).flatMap((s) =>
+    s && typeof s.path === "string" && /^images\/shot-(hero|\d)\.jpg$/.test(s.path)
+      ? [{ path: s.path, label: typeof s.label === "string" ? s.label.slice(0, 120) : "", width: Number(s.width) || 0, height: Number(s.height) || 0 }]
+      : [],
+  );
+}
+
 /** Clients' logos, checked again (https only, short names). */
 function clientLogos(site: SiteSummary): { src: string; alt: string }[] {
   return (Array.isArray(site.clientLogos) ? site.clientLogos : []).slice(0, 24).flatMap((l) => {
@@ -297,6 +306,11 @@ export function formatSite(site: SiteSummary): string {
     site.language && `Language: ${fence(site.language)}`,
     logo && `Logo: ${logo}`,
     images.length ? `Images (use only these exact URLs):\n${images.map((u) => `- ${u}`).join("\n")}` : "",
+    screenshots(site).length
+      ? `Screenshot parts of the current site (it had few separate photos, so these are real pictures cut from a screenshot of it; use them as images with exactly these paths, e.g. as the hero background or beside the matching section; they may contain the old site's text, so prefer them as backgrounds under a dark overlay or cropped with object-cover, never as the only place information appears):\n${screenshots(site)
+          .map((s) => `- ${s.path} (${s.width}×${s.height}): ${fence(s.label)}`)
+          .join("\n")}`
+      : "",
     clientLogos(site).length
       ? `Client, partner and press logos (show every one in a logo strip, with these exact URLs and names as alt text):\n${clientLogos(site)
           .map((l) => `- ${l.src}${l.alt ? ` (${fence(l.alt)})` : ""}`)

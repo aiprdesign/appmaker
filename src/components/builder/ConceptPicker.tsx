@@ -13,11 +13,14 @@ export function ConceptPicker({
   onChoose,
   onRetry,
   busy,
+  assets,
 }: {
   concepts: SiteConcept[];
   onChoose: (index: number) => void;
   onRetry: (index: number) => void;
   busy: boolean;
+  /** Screenshot parts of the current site the designs may use. */
+  assets?: Record<string, string>;
 }) {
   const firstReady = Math.max(
     0,
@@ -60,7 +63,7 @@ export function ConceptPicker({
       </div>
       <div className="min-h-0 flex-1">
         {concept?.status === "ready" ? (
-          <SitePreview key={shown} files={concept.files} />
+          <SitePreview key={shown} files={concept.files} assets={assets} />
         ) : concept?.status === "failed" ? (
           <div className="grid h-full place-items-center text-center text-sm text-muted">
             <div>

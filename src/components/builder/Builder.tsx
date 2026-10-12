@@ -903,7 +903,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             onClick={async () => {
               setZipping(true);
               try {
-                const { blob, linked } = await siteZip(project.files);
+                const { blob, linked } = await siteZip(project.files, fetch, project.siteAssets);
                 downloadBlob(blob, `${slugify(project.listing.name || project.name)}-website.zip`);
                 if (linked) setSiteNote(`${linked} image${linked === 1 ? "" : "s"} couldn't be saved into the ZIP (that website doesn't allow it), so ${linked === 1 ? "it stays" : "they stay"} linked to your current site. The ZIP's README explains.`);
               } finally {
@@ -1041,12 +1041,13 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               {project.concepts && !hasApp ? (
                 <ConceptPicker
                   concepts={project.concepts}
+                  assets={project.siteAssets}
                   busy={generating || project.concepts.some((c) => c.status === "writing")}
                   onChoose={chooseConcept}
                   onRetry={(i) => void makeConcepts(i)}
                 />
               ) : hasSiteEntry(previewFiles) ? (
-                <SitePreview files={previewFiles} onFix={generating || checking ? undefined : (request) => send(request)} />
+                <SitePreview files={previewFiles} assets={project.siteAssets} onFix={generating || checking ? undefined : (request) => send(request)} />
               ) : (
                 <div className="grid flex-1 place-items-center text-center text-sm text-muted">
                   <div>

@@ -64,6 +64,8 @@ export function PromptBox() {
   const [redesign, setRedesign] = useState(false);
   const [url, setUrl] = useState("");
   const [site, setSite] = useState<SiteSummary | null>(null);
+  // Screenshot parts of the site (redesigns of sites with few pictures), kept with the project.
+  const [siteAssets, setSiteAssets] = useState<Record<string, string> | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -130,11 +132,12 @@ export function PromptBox() {
       const res = await fetch("/api/site", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: address }),
+        body: JSON.stringify({ url: address, ...(redesign ? { kind: "website" } : {}) }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Couldn't read that website.");
       setSite(body.site);
+      setSiteAssets(body.assets && typeof body.assets === "object" ? body.assets : null);
       setShowUrl(false);
       setUrl("");
     } catch (e) {
@@ -184,7 +187,11 @@ export function PromptBox() {
     // Named straight away from the website or the idea (or the business name from the brief).
     const name = answers?.business?.trim() ? appTitle(answers.business, null) : appTitle(text, site);
     const full = answers ? briefPrompt(text, answers) : text;
-    const project = createProject(full, site ?? undefined, wording, { name, listing: emptyListing(name), ...(redesign ? { kind: "website" as const } : {}) });
+    const project = createProject(full, site ?? undefined, wording, {
+      name,
+      listing: emptyListing(name),
+      ...(redesign ? { kind: "website" as const, ...(siteAssets ? { siteAssets } : {}) } : {}),
+    });
     router.push(`/build/${project.id}?auto=1`);
   };
 

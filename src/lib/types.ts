@@ -104,6 +104,8 @@ export interface SiteSummary {
   logo?: string;
   /** Photo links from the site (https only). Older imports don't have them. */
   images?: string[];
+  /** Parts of a screenshot of the site (when it had few pictures), as images/… paths; the pictures are in Project.siteAssets. */
+  screenshots?: { path: string; label: string; width: number; height: number }[];
   /** Logos of clients, partners, press or certifications ("trusted by"), shown as a logo strip. */
   clientLogos?: { src: string; alt: string }[];
   contact?: SiteContact;
@@ -239,6 +241,8 @@ export interface Project {
   pending?: PendingRequest;
   /** Cloud builds with Expo Application Services. */
   expo?: ExpoState;
+  /** Pictures the website redesign can use that aren't on the web (screenshot parts): path → data URL. */
+  siteAssets?: Record<string, string>;
   /** Design settings from the Design tab; without them the design follows the listing's brand color. */
   design?: AppDesign;
   /** Live updates from the business's website (see src/lib/live.ts). */

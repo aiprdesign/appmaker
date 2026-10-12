@@ -298,8 +298,17 @@ export function imageFileName(url: string, type: string, taken: Set<string>): st
  * through Appmaker's server) and saved in images/, so the site stands alone.
  * An image that website doesn't allow to be downloaded stays linked to it.
  */
-export async function siteZip(files: FileMap, fetcher: typeof fetch = fetch): Promise<{ blob: Blob; saved: number; linked: number }> {
+export async function siteZip(
+  files: FileMap,
+  fetcher: typeof fetch = fetch,
+  assets: Record<string, string> = {},
+): Promise<{ blob: Blob; saved: number; linked: number }> {
   const zip = new JSZip();
+  // Screenshot parts are already where the pages expect them (images/shot-…).
+  for (const [path, dataUrl] of Object.entries(assets)) {
+    const m = /^data:image\/(jpeg|png|webp);base64,(.+)$/.exec(dataUrl);
+    if (m && /^images\/shot-(hero|\d)\.jpg$/.test(path)) zip.file(path, m[2], { base64: true });
+  }
   const taken = new Set<string>();
   const local = new Map<string, string>();
   await Promise.all(

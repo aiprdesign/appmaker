@@ -10,6 +10,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The headless browser driver for website screenshots runs from node_modules, unbundled.
+  serverExternalPackages: ["playwright-core"],
   // Demo apps are read from disk by /api/generate when no API key is set.
   outputFileTracingIncludes: {
     "/api/generate": ["./demo-apps/**/*"],
