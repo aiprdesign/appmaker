@@ -42,6 +42,8 @@ interface Props {
   /** Downloads the Expo project zip (used for the one-time Apple setup). */
   onDownload: (project: Project) => Promise<void>;
   hasPreviewError: boolean;
+  /** Chosen from Test on a device: preselect this build and bring it into view. */
+  request?: { target: BuildTarget; n: number } | null;
 }
 
 const NO_EXPO: ExpoState = {};
@@ -138,14 +140,23 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
   );
 }
 
-export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }: Props) {
+export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, request }: Props) {
   const settings = useExpoSettings();
   const expo = project.expo ?? NO_EXPO;
   const [server, setServer] = useState<EasServerInfo | null>(null);
   const [tokenDraft, setTokenDraft] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const [target, setTarget] = useState<BuildTarget>("ios");
+  const [target, setTarget] = useState<BuildTarget>(request?.target ?? "ios");
+  const [seenRequest, setSeenRequest] = useState(request?.n);
+  if (request && request.n !== seenRequest) {
+    setSeenRequest(request.n);
+    setTarget(request.target);
+  }
+  const chooser = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (request) chooser.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [request]);
   const [submit, setSubmit] = useState(true);
   const [phase, setPhase] = useState<string | null>(null);
   const [buildError, setBuildError] = useState<{ message: string; code?: string } | null>(null);
@@ -426,6 +437,7 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError }
             </Step>
           )}
 
+          <div ref={chooser} aria-hidden="true" />
           <Step n={2} title="Choose what to build">
             <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Build type">
               {TARGETS.map((t) => (

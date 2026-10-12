@@ -48,7 +48,7 @@ test("Test on a device opens the app in Expo Snack's emulators", async ({ page }
   const button = page.getByRole("button", { name: "Test on a device" });
   await button.click();
   const menu = page.getByRole("menu", { name: "Test on a device" });
-  await expect(menu.getByRole("menuitem")).toHaveCount(3);
+  await expect(menu.getByRole("menuitem")).toHaveCount(4);
 
   const popup = page.waitForEvent("popup");
   await menu.getByRole("menuitem", { name: /iPhone emulator/ }).click();
@@ -219,4 +219,17 @@ test("Your phone (Expo Go): shows Expo's error and lets you try again", async ({
   await dialog.getByRole("button", { name: "Make a QR code for my phone" }).click();
   await expect(dialog.getByRole("img", { name: "QR code to open this app in Expo Go" })).toBeVisible();
   await expect(dialog.getByRole("alert")).toHaveCount(0);
+});
+
+test("Test on a device → Android test app opens the build step with it chosen", async ({ page }) => {
+  await page.route("**/api/eas/**", (route) =>
+    route.request().method() === "GET" ? json(route, { available: true, hosted: true }) : json(route, { hosted: true, checks: [], builds: [] }),
+  );
+  await buildApp(page);
+  await page.getByRole("button", { name: "Test on a device" }).click();
+  await page.getByRole("menuitem", { name: /Android test app/ }).click();
+  const steps = page.getByRole("navigation", { name: "Publishing steps" });
+  await expect(steps.getByRole("heading", { name: "Step 5 of 5: Build & publish" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /Android — test app/ })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: /Android — test app/ })).toBeInViewport();
 });

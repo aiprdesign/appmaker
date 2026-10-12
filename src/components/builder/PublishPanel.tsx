@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { PublishSteps, type PublishStep } from "./PublishSteps";
-import type { AppIconImage, ExpoState, Project, StoreListing, StorePagesState } from "@/lib/types";
+import type { AppIconImage, BuildTarget, ExpoState, Project, StoreListing, StorePagesState } from "@/lib/types";
 import { StorePages } from "./StorePages";
 import { PublishGuide } from "./PublishGuide";
 import { StoreScreenshots } from "./StoreScreenshots";
@@ -25,6 +25,8 @@ const ALL_KEY = "appmaker:publish-all";
 
 interface Props {
   project: Project;
+  /** A request to open the build step with a target chosen (from Test on a device). */
+  buildRequest?: { target: BuildTarget; n: number } | null;
   onChange: (listing: StoreListing) => void;
   onExpoChange: (expo: ExpoState) => void;
   onIconChange: (icon: AppIconImage | undefined) => void;
@@ -200,7 +202,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, busy, hasPreviewError }: Props) {
+export function PublishPanel({ project, buildRequest, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, busy, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -249,7 +251,13 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
       : []),
   ];
   const ready = checks.filter((c) => c.ok).length;
-  const [step, setStep] = useState(0);
+  // Asked from Test on a device: straight to the build step.
+  const [step, setStep] = useState(buildRequest ? 4 : 0);
+  const [seenRequest, setSeenRequest] = useState(buildRequest?.n);
+  if (buildRequest && buildRequest.n !== seenRequest) {
+    setSeenRequest(buildRequest.n);
+    setStep(4);
+  }
   // Which step fixes each check (-1: fixed by asking the AI in the chat). Steps never
   // block each other: these only point the way.
   const stepOf = (label: string) =>
@@ -426,7 +434,7 @@ export function PublishPanel({ project, onChange, onExpoChange, onIconChange, on
           )}
           {(all || step === 4) && (
             <>
-              <ExpoBuild project={project} onExpoChange={onExpoChange} onDownload={download} hasPreviewError={hasPreviewError} />
+              <ExpoBuild project={project} onExpoChange={onExpoChange} onDownload={download} hasPreviewError={hasPreviewError} request={buildRequest} />
 
               <details className="group rounded-2xl border border-line bg-surface p-5">
                 <summary className="cursor-pointer list-none font-semibold">

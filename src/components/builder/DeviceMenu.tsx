@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Apple, ExternalLink, QrCode, Smartphone, TabletSmartphone } from "lucide-react";
+import { Apple, ExternalLink, QrCode, Smartphone, TabletSmartphone, Download } from "lucide-react";
 import { openInSnack, type SnackPlatform } from "@/lib/snack";
 import type { ExpoState, Project } from "@/lib/types";
 import { PhonePreview } from "./PhonePreview";
@@ -15,7 +15,18 @@ const SNACK_OPTIONS: { platform: SnackPlatform; label: string; detail: string; i
  * Testing on devices: the person's own phone with Expo Go (published by
  * Appmaker, same Expo SDK as the store builds), or Expo Snack's emulators.
  */
-export function DeviceMenu({ project, disabled, onExpoChange }: { project: Project; disabled?: boolean; onExpoChange: (expo: ExpoState) => void }) {
+export function DeviceMenu({
+  project,
+  disabled,
+  onExpoChange,
+  onAndroidTestApp,
+}: {
+  project: Project;
+  disabled?: boolean;
+  onExpoChange: (expo: ExpoState) => void;
+  /** Opens the build step with the Android test app chosen. */
+  onAndroidTestApp?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -58,6 +69,24 @@ export function DeviceMenu({ project, disabled, onExpoChange }: { project: Proje
               <span className="mt-0.5 block text-[11px] leading-snug text-muted">Scan a QR code to run the real app, on the same Expo version as your store builds</span>
             </span>
           </button>
+          {onAndroidTestApp && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onAndroidTestApp();
+              }}
+              className="flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-white/5"
+            >
+              <Download className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+              <span className="min-w-0 flex-1">
+                <span className="text-sm font-medium">Android test app</span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-muted">
+                  Install the real app on an Android phone (no Expo Go needed). A cloud build: takes about 10–20 minutes.
+                </span>
+              </span>
+            </button>
+          )}
           <p className="mt-1 border-t border-line px-2 pb-1 pt-2 text-[11px] text-muted">
             Quick look in Expo Snack (new tab). Snack may use an older Expo version, so some features can differ.
           </p>

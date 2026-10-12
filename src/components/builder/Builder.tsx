@@ -40,7 +40,7 @@ import { describeIssues, isAllowedPath, validateApp, type ValidationIssue } from
 import { checkClaims, DEFAULT_WORDING, describeClaims } from "@/lib/claims";
 import { cleanFiles } from "@/lib/parse";
 import { checkRegulatedClaims, describeRegulated } from "@/lib/regulated";
-import type { AppDesign, ChatMessage, FileMap, Project } from "@/lib/types";
+import type { AppDesign, ChatMessage, FileMap, Project, BuildTarget } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
 import { CodePanel } from "./CodePanel";
 import { AppIcon, PublishPanel } from "./PublishPanel";
@@ -101,6 +101,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
   const cloud = useCloud();
   const [tab, setTab] = useState<Tab>("preview");
+  // "Android test app" in Test on a device: opens Publish at the build step with it chosen.
+  const [buildRequest, setBuildRequest] = useState<{ target: BuildTarget; n: number } | null>(null);
   const [mobileView, setMobileView] = useState<"chat" | "app">("chat");
   const [platform, setPlatform] = useState<"ios" | "android" | "ipad">("ios");
   const [generating, setGenerating] = useState(false);
@@ -889,6 +891,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           project={project}
           disabled={!Object.keys(project.files).length || generating || checking}
           onExpoChange={(expo) => commit({ ...(projectRef.current ?? project), expo })}
+          onAndroidTestApp={() => {
+            setBuildRequest((r) => ({ target: "android-apk", n: (r?.n ?? 0) + 1 }));
+            setTab("publish");
+            setMobileView("app");
+          }}
         />}
         <HistoryMenu versions={project.versions ?? []} disabled={generating} onRestore={restore} />
         {isSite ? (
@@ -1236,6 +1243,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           {tab === "publish" && (
             <PublishPanel
               project={project}
+              buildRequest={buildRequest}
               hasPreviewError={!!previewError}
               onChange={(listing) => commit({ ...project, listing, name: listing.name || project.name })}
               onExpoChange={(expo) => commit({ ...(projectRef.current ?? project), expo })}
