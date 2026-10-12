@@ -17,8 +17,10 @@ import { DesignPanel } from "./DesignPanel";
 import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
 import { ConceptPicker, SiteColorsPanel } from "./ConceptPicker";
+import { SiteContentPanel } from "./SiteContentPanel";
 import { withA11yWidget } from "@/lib/site-a11y";
 import { withStatement, type A11yReport, type StatementInfo } from "@/lib/site-statement";
+import { addEdit, applyEdit, applyEdits, editsNote, selectedSite, type ContentEdit } from "@/lib/site-content";
 import { conceptPrompt, conceptStyles, contentIssues, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
@@ -287,14 +289,15 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
-            prompt: text,
+            // The owner's own edits on the design are kept through every change.
+            prompt: current.kind === "website" && current.contentEdits?.length ? `${text}\n\n${editsNote(current.contentEdits)}` : text,
             // Until there's an App.js this is a new app, even if helper files were left behind.
             files: entryOf(current) ? current.files : {},
             listing: entryOf(current) ? current.listing : undefined,
             ...(current.kind === "website" ? { kind: "website" } : {}),
             // The review agents' notes are for the person; the fix request carries what the AI needs.
             history: current.messages.filter((m) => !m.error && m.kind !== "review").map((m) => ({ role: m.role, content: m.content })),
-            site: current.source,
+            site: current.kind === "website" ? selectedSite(current.source, current.excludedSections) : current.source,
             ai: aiChoiceFor(getAiSettings()),
             wording: current.wording ?? DEFAULT_WORDING,
             // The design style: the app's own, or for a new app the one Appmaker picks for it (kept as its design afterwards).
@@ -371,8 +374,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // a failed first build must not leave a "project" without App.js.
       const isApp = !isSite && hasEntry(files);
       // Every website carries Appmaker's accessibility widget, whatever the AI wrote.
-      // In turn: the widget's script tag first, then the statement (built from those pages).
-      if (isSite && hasSiteEntry(files)) Object.assign(files, withStatement(withA11yWidget(files), statementInfo(base)));
+      // In turn: the owner's own text edits, the widget's script tag, then the statement.
+      if (isSite && hasSiteEntry(files)) Object.assign(files, withStatement(withA11yWidget(applyEdits(files, base.contentEdits)), statementInfo(base)));
       // Website apps always carry Appmaker's live-content file, whatever the AI wrote.
       if (base.source && isApp) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
@@ -460,7 +463,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         return;
       }
       const issues = [...rejected, ...(isSite ? validateSite(files) : validateApp(files))];
-      const lostContent = isSite && keepContent.current ? contentIssues(files, base.source) : [];
+      const lostContent = isSite && keepContent.current ? contentIssues(files, selectedSite(base.source, base.excludedSections)) : [];
       // Wording checks read app code; a website's wording rules are in its AI instructions.
       const claims = !isSite && (next.wording ?? DEFAULT_WORDING) === "claim-safe" ? checkClaims(files, next.listing) : [];
       const regulated = isSite ? [] : checkRegulatedClaims(files, next.listing);
@@ -491,7 +494,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // The AI still left some of the owner's content out: Appmaker puts it back itself,
       // word for word with its pictures, in its place, so nothing is ever lost.
       if (lostContent.length) {
-        const { files: kept, restored } = restoreContent(files, base.source);
+        const { files: kept, restored } = restoreContent(files, selectedSite(base.source, base.excludedSections));
         const p = projectRef.current;
         if (restored && p) {
           const { project: withKept, versionId: keptVersion } = withVersion({ ...p, files: kept }, "Content keeper: restored the owner's content");
@@ -554,9 +557,9 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                prompt: conceptPrompt(current.prompt, style, i + 1, c.tier, colors),
+                prompt: [conceptPrompt(current.prompt, style, i + 1, c.tier, colors), editsNote(current.contentEdits)].filter(Boolean).join("\n\n"),
                 files: {},
-                site: current.source,
+                site: selectedSite(current.source, current.excludedSections),
                 ai: aiChoiceFor(getAiSettings()),
                 wording: current.wording ?? DEFAULT_WORDING,
                 kind: "website",
@@ -569,7 +572,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
             const files = Object.fromEntries(Object.entries(parsed.files).filter(([p]) => p !== parsed.writing && isAllowedSitePath(p)));
             if (!files["index.html"]) throw new Error(err ? friendlyError(err) : "the AI didn't write a home page");
-            update(i, { status: "ready", files: withA11yWidget(files) });
+            update(i, { status: "ready", files: withA11yWidget(applyEdits(files, projectRef.current?.contentEdits)) });
           } catch (e) {
             update(i, { status: "failed", error: (e as Error).message.slice(0, 200) });
           }
@@ -591,6 +594,28 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     setPreviewFiles(files);
     send(finishSitePrompt(style, Object.keys(c.files).filter((f) => f.endsWith(".html")), resolveSiteColors(p.siteColors, p.source?.colors)), { keepContent: true });
   };
+
+  // Text edited right on a design: made on every page of every design, and kept
+  // through later AI changes. Returns how many places changed.
+  const editText = useCallback(
+    (edit: ContentEdit) => {
+      const p = projectRef.current;
+      if (!p) return 0;
+      const main = applyEdit(p.files, edit);
+      let changed = main.changed;
+      const concepts = p.concepts?.map((c) => {
+        const r = applyEdit(c.files, edit);
+        changed += r.changed;
+        return { ...c, files: r.files };
+      });
+      if (!changed) return 0;
+      const next: Project = { ...p, files: main.files, ...(concepts ? { concepts } : {}), contentEdits: addEdit(p.contentEdits, edit) };
+      commit(main.changed ? withVersion(next, `Edited text: “${edit.to.slice(0, 40)}”`).project : next);
+      if (main.changed) setPreviewFiles(main.files);
+      return changed;
+    },
+    [commit],
+  );
 
   const sendRef = useRef(send);
   useEffect(() => {
@@ -989,6 +1014,38 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         <aside
           className={`${mobileView === "chat" ? "flex" : "hidden"} min-h-0 w-full flex-col border-line lg:flex lg:w-[400px] lg:shrink-0 lg:border-r`}
         >
+          {isSite && project.source && (project.concepts || hasApp) && (
+            <SiteContentPanel
+              key={(project.excludedSections ?? []).join("|")}
+              site={project.source}
+              excluded={project.excludedSections ?? []}
+              busy={generating || checking || !!project.concepts?.some((c) => c.status === "writing")}
+              applyLabel={hasApp ? "Update the website" : "Redo the 3 designs with this content"}
+              onApply={(excluded) => {
+                const p = projectRef.current ?? project;
+                const before = new Set(p.excludedSections ?? []);
+                commit({ ...p, excludedSections: excluded });
+                if (!hasApp) return void makeConcepts();
+                const name = (key: string) => {
+                  const [url, i] = [key.slice(0, key.lastIndexOf("#")), Number(key.slice(key.lastIndexOf("#") + 1))];
+                  const sec = p.source?.pages.find((pg) => pg.url === url)?.sections?.[i];
+                  return sec ? `“${sec.heading || sec.text.slice(0, 60)}” (from ${url})` : key;
+                };
+                const removed = excluded.filter((k) => !before.has(k)).map(name);
+                const added = [...before].filter((k) => !excluded.includes(k)).map(name);
+                send(
+                  [
+                    removed.length && `Leave these sections of the current site out of the website, and remove them where they appear:\n${removed.map((r) => `- ${r}`).join("\n")}`,
+                    added.length && `Add these sections of the current site back, word for word with their pictures, in their place:\n${added.map((r) => `- ${r}`).join("\n")}`,
+                    "Keep everything else as it is.",
+                  ]
+                    .filter(Boolean)
+                    .join("\n\n"),
+                  { keepContent: true },
+                );
+              }}
+            />
+          )}
           {isSite && (project.concepts || hasApp) && (
             <SiteColorsPanel
               key={JSON.stringify(project.siteColors ?? null)}
@@ -1057,6 +1114,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 <ConceptPicker
                   concepts={project.concepts}
                   assets={project.siteAssets}
+                  onEdit={editText}
                   busy={generating || project.concepts.some((c) => c.status === "writing")}
                   onChoose={chooseConcept}
                   onRetry={(i) => void makeConcepts(i)}
@@ -1065,6 +1123,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 <SitePreview
                   files={previewFiles}
                   assets={project.siteAssets}
+                  onEdit={generating || checking ? undefined : editText}
                   report={project.a11yReport}
                   onReport={(report) => {
                     const p = projectRef.current ?? project;

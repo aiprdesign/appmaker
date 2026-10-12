@@ -158,3 +158,49 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   expect(bodies).toHaveLength(11);
   expect(bodies[10]).toMatchObject({ kind: "website", files: { "index.html": expect.stringContaining("Luigi's Trattoria") } });
 });
+
+test("the owner picks sections and edits text on a design; the change is on every design", async ({ page }) => {
+  test.setTimeout(180_000);
+  const bodies: Record<string, unknown>[] = [];
+  await page.route("**/api/generate", async (route) => {
+    bodies.push(route.request().postDataJSON());
+    await route.fulfill({ status: 200, contentType: "text/plain", headers: { "X-Appmaker-Mode": "ai" }, body: REPLY });
+  });
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Redesign website" }).click();
+  await page.getByLabel("Website address").fill(SITE);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(page.getByText("Luigi's Trattoria")).toBeVisible({ timeout: 20_000 });
+  await page.getByLabel("Describe your app").press("Enter");
+  await expect.poll(() => bodies.length).toBe(3);
+  await expect(page.getByRole("tab", { name: /Design 1/ })).toBeVisible();
+
+  // Edit a heading right on design 1…
+  const site = page.frameLocator('iframe[title="Website preview"]');
+  await expect(site.getByRole("heading", { name: "Luigi's Trattoria", level: 1 })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Edit text" }).click();
+  await site.getByText("Fresh pasta daily.").click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Fresh pasta, made by hand every morning.");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/Changed in 3 places, on every design/)).toBeVisible();
+  // …and it's on design 3 too.
+  await page.getByRole("button", { name: "Done editing" }).click();
+  await page.getByRole("tab", { name: /Design 3/ }).click();
+  await expect(site.getByText("Fresh pasta, made by hand every morning.")).toBeVisible({ timeout: 30_000 });
+
+  // Leave a section of the current site out, and redo the designs with that content.
+  await page.getByRole("button", { name: /Website content/ }).click();
+  const boxes = page.getByRole("checkbox");
+  const count = await boxes.count();
+  expect(count).toBeGreaterThan(1);
+  await boxes.first().uncheck();
+  await expect(page.getByRole("button", { name: /Website content/ })).toContainText(`${count - 1} of ${count} sections`);
+  await page.getByRole("button", { name: "Redo the 3 designs with this content" }).click();
+  await expect.poll(() => bodies.length).toBe(6);
+  const sent = bodies[3] as { prompt: string; site: { pages: { sections?: unknown[] }[] } };
+  expect(sent.site.pages.reduce((n, p) => n + (p.sections?.length ?? 0), 0)).toBe(count - 1);
+  // The new designs are told about the owner's edit, and keep it.
+  expect(sent.prompt).toContain("“Fresh pasta daily.” is now “Fresh pasta, made by hand every morning.”");
+  await expect(site.getByText("Fresh pasta, made by hand every morning.")).toBeVisible({ timeout: 30_000 });
+});

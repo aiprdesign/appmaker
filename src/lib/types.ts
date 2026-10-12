@@ -245,6 +245,10 @@ export interface Project {
   pending?: PendingRequest;
   /** Cloud builds with Expo Application Services. */
   expo?: ExpoState;
+  /** Sections of the imported site the owner left out of the redesign ("page URL#index", see src/lib/site-content.ts). */
+  excludedSections?: string[];
+  /** Text the owner edited on the design, applied to every design and kept through AI changes. */
+  contentEdits?: { from: string; to: string }[];
   /** The latest WCAG 2.2 AA check of every page of a redesigned website (see src/lib/site-statement.ts). */
   a11yReport?: import("./site-statement").A11yReport;
   /** Pictures the website redesign can use that aren't on the web (screenshot parts): path → data URL. */

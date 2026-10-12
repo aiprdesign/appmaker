@@ -6,6 +6,7 @@ import { getStyle } from "@/lib/styles";
 import { tierName, type SiteConcept } from "@/lib/website";
 import type { SiteColors } from "@/lib/types";
 import { SitePreview } from "./SitePreview";
+import type { ContentEdit } from "@/lib/site-content";
 
 /** The three design concepts side by side: look through each, then choose one. */
 export function ConceptPicker({
@@ -14,6 +15,7 @@ export function ConceptPicker({
   onRetry,
   busy,
   assets,
+  onEdit,
 }: {
   concepts: SiteConcept[];
   onChoose: (index: number) => void;
@@ -21,6 +23,8 @@ export function ConceptPicker({
   busy: boolean;
   /** Screenshot parts of the current site the designs may use. */
   assets?: Record<string, string>;
+  /** Text edited on a design: made on all three designs. */
+  onEdit?: (edit: ContentEdit) => number;
 }) {
   const firstReady = Math.max(
     0,
@@ -63,7 +67,7 @@ export function ConceptPicker({
       </div>
       <div className="min-h-0 flex-1">
         {concept?.status === "ready" ? (
-          <SitePreview key={shown} files={concept.files} assets={assets} />
+          <SitePreview key={shown} files={concept.files} assets={assets} onEdit={onEdit} />
         ) : concept?.status === "failed" ? (
           <div className="grid h-full place-items-center text-center text-sm text-muted">
             <div>

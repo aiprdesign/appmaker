@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Monitor, Smartphone, Tablet } from "lucide-react";
+import { Monitor, PencilLine, Smartphone, Tablet } from "lucide-react";
 import type { FileMap } from "@/lib/types";
 import type { A11yReport } from "@/lib/site-statement";
+import type { ContentEdit } from "@/lib/site-content";
 import { SiteA11yReport } from "./SiteA11yReport";
 import { SITE_ASSET_PATH } from "@/lib/site-details";
 
@@ -70,7 +71,47 @@ function previewVideos(html: string): string {
   return /<head[^>]*>/i.test(out) ? out.replace(/<head[^>]*>/i, (h) => `${h}<script>window.__appmakerPreview=1</script>`) : `<script>window.__appmakerPreview=1</script>${out}`;
 }
 
-export function previewDocument(files: FileMap, page: string, audit?: string, assets: Record<string, string> = {}): string {
+/**
+ * Edit mode: click a piece of text (an element with only text in it) to change it;
+ * Enter or clicking away saves, Esc cancels. Each change goes to Appmaker, which
+ * applies it to every page of every design.
+ */
+const EDIT_SCRIPT = `<script>
+(function () {
+  var TEXT = "h1,h2,h3,h4,h5,h6,p,li,a,button,span,small,strong,em,figcaption,blockquote,td,th,dt,dd,label,summary";
+  var css = document.createElement("style");
+  css.textContent = "[data-am-editable]:hover{outline:2px dashed #8b5cf6;outline-offset:3px;cursor:text}[contenteditable=true]{outline:2px solid #8b5cf6!important;outline-offset:3px;background:rgba(139,92,246,.08)}";
+  document.head.appendChild(css);
+  function editable(el) { return el && el.matches && el.matches(TEXT) && !el.closest(".a11y-ui, .am-video, .am-marquee-toggle") && el.children.length === 0 && el.textContent.trim().length > 0; }
+  document.addEventListener("mouseover", function (e) { if (editable(e.target)) e.target.setAttribute("data-am-editable", ""); }, true);
+  document.addEventListener("mouseout", function (e) { if (e.target.removeAttribute) e.target.removeAttribute("data-am-editable"); }, true);
+  document.addEventListener("click", function (e) {
+    var el = e.target;
+    if (el.isContentEditable) { e.stopImmediatePropagation(); return; }
+    if (!editable(el)) { if (el.closest && el.closest("a,button")) { e.preventDefault(); e.stopImmediatePropagation(); } return; }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var before = el.textContent;
+    el.removeAttribute("data-am-editable");
+    el.contentEditable = "true";
+    el.focus();
+    var cancelled = false;
+    function key(k) {
+      if (k.key === "Enter" && !k.shiftKey) { k.preventDefault(); el.blur(); }
+      if (k.key === "Escape") { cancelled = true; el.textContent = before; el.blur(); }
+    }
+    el.addEventListener("keydown", key);
+    el.addEventListener("blur", function () {
+      el.removeEventListener("keydown", key);
+      el.contentEditable = "false";
+      var after = el.textContent.replace(/\\s+/g, " ").trim();
+      if (!cancelled && after && after !== before.replace(/\\s+/g, " ").trim()) parent.postMessage({ type: "appmaker:site-edit", from: before.replace(/\\s+/g, " ").trim(), to: after, scrollY: window.scrollY }, "*");
+    }, { once: true });
+  }, true);
+})();
+</script>`;
+
+export function previewDocument(files: FileMap, page: string, audit?: string, assets: Record<string, string> = {}, editing = false, scrollY = 0): string {
   let html = files[page] ?? files["index.html"] ?? "";
   html = html.replace(/<link[^>]*href=["']\.?\/?([a-z0-9_\/-]+\.css)["'][^>]*>/gi, (tag, path: string) =>
     files[path] != null ? `<style>${files[path].replace(/<\/style/gi, "<\\/style")}</style>` : tag,
@@ -80,7 +121,9 @@ export function previewDocument(files: FileMap, page: string, audit?: string, as
   );
   html = withAssets(html, assets);
   html = previewVideos(html);
-  const tail = NAV_SCRIPT + (audit ? auditScript(audit) : "");
+  // The edit script comes first, so its click handler runs before the link handler.
+  const back = scrollY > 0 ? `<script>addEventListener("load",function(){scrollTo(0,${Math.round(scrollY)})})</script>` : "";
+  const tail = (editing ? EDIT_SCRIPT : "") + NAV_SCRIPT + back + (audit ? auditScript(audit) : "");
   return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${tail}</body>`) : html + tail;
 }
 
@@ -106,6 +149,7 @@ export function SitePreview({
   assets,
   report,
   onReport,
+  onEdit,
 }: {
   files: FileMap;
   onFix?: (request: string) => void;
@@ -113,6 +157,8 @@ export function SitePreview({
   /** The latest site-wide WCAG 2.2 check, and where a new one goes (the finished site only). */
   report?: A11yReport;
   onReport?: (report: A11yReport) => void;
+  /** Text edited on the design; returns how many places changed (across every design). */
+  onEdit?: (edit: ContentEdit) => number;
 }) {
   const [audit, setAudit] = useState<{ page: string; issues: SiteA11yIssue[] } | null>(null);
   const [showIssues, setShowIssues] = useState(false);
@@ -127,7 +173,12 @@ export function SitePreview({
   const [boxWidth, setBoxWidth] = useState(1000);
   const current = files[page] != null ? page : "index.html";
   const auditSrc = typeof window === "undefined" ? undefined : `${window.location.origin}/preview/axe.min.js`;
-  const doc = useMemo(() => previewDocument(files, current, auditSrc, assets), [files, current, auditSrc, assets]);
+  const [editing, setEditing] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
+  const doc = useMemo(
+    () => previewDocument(files, current, editing ? undefined : auditSrc, assets, editing && !!onEdit, scrollY),
+    [files, current, auditSrc, assets, editing, onEdit, scrollY],
+  );
 
   useEffect(() => {
     const el = box.current;
@@ -151,13 +202,23 @@ export function SitePreview({
           .map((v) => ({ id: v.id.slice(0, 60), impact: typeof v.impact === "string" ? v.impact : null, help: v.help.slice(0, 200), count: Number(v.count) || 1, sample: (Array.isArray(v.sample) ? v.sample : []).map(String).slice(0, 2) }));
         setAudit({ page: current, issues });
       }
+      if (e.data.type === "appmaker:site-edit" && onEdit && typeof e.data.from === "string" && typeof e.data.to === "string") {
+        const edit = { from: e.data.from.slice(0, 2000), to: e.data.to.slice(0, 2000) };
+        setScrollY(Number(e.data.scrollY) || 0);
+        const changed = onEdit(edit);
+        setNote(
+          changed
+            ? `Changed in ${changed} place${changed === 1 ? "" : "s"}, on every design. Later AI changes keep your words.`
+            : "That text is split up in the page's code, so it couldn't be changed here. Ask the AI in the chat to change it.",
+        );
+      }
       if (e.data.type === "appmaker:site-link" && typeof e.data.href === "string") {
         setNote(`On the live site this opens ${e.data.href.replace(/^(tel|mailto|sms):/i, "")} (calls and emails don't open from the preview).`);
       }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [files, current]);
+  }, [files, current, onEdit]);
 
   const width = WIDTHS[viewport];
   const scale = Math.min(1, (boxWidth - 8) / width);
@@ -199,6 +260,15 @@ export function SitePreview({
             ))}
           </select>
         </label>
+        {onEdit && (
+          <button
+            onClick={() => setEditing((v) => !v)}
+            aria-pressed={editing}
+            className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${editing ? "border-violet-400 bg-violet-500/15 text-violet-100" : "border-line bg-surface hover:border-white/20"}`}
+          >
+            <PencilLine className="h-3.5 w-3.5" /> {editing ? "Done editing" : "Edit text"}
+          </button>
+        )}
         {onReport && <SiteA11yReport files={files} assets={assets} auditSrc={auditSrc} report={report} onReport={onReport} onFix={onFix} />}
       </div>
       {audit && audit.page === current && (
@@ -231,6 +301,11 @@ export function SitePreview({
             </div>
           )}
         </div>
+      )}
+      {editing && (
+        <p role="status" className="mx-auto rounded-lg bg-violet-500/10 px-3 py-1.5 text-xs text-violet-100">
+          Click any text on the page to change it. Enter saves, Esc cancels. Each change is made on every design and every page where that text appears.
+        </p>
       )}
       {note && (
         <p role="status" className="mx-auto rounded-lg bg-white/5 px-3 py-1.5 text-xs text-muted">
