@@ -434,7 +434,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
           )}
           {(all || step === 4) && (
             <>
-              <ExpoBuild project={project} onExpoChange={onExpoChange} onDownload={download} hasPreviewError={hasPreviewError} request={buildRequest} />
+              <ExpoBuild project={project} onExpoChange={onExpoChange} onDownload={download} hasPreviewError={hasPreviewError} request={buildRequest} onBundleIdChange={(id) => set("bundleId", id)} />
 
               <details className="group rounded-2xl border border-line bg-surface p-5">
                 <summary className="cursor-pointer list-none font-semibold">

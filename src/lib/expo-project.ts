@@ -324,3 +324,23 @@ export function expoProjectFiles(
   }
   return files;
 }
+
+/** Lowercase letters and digits only, starting with a letter (a valid bundle ID part). */
+function idPart(text: string): string {
+  const part = text
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 30);
+  return part ? (/^[a-z]/.test(part) ? part : `app${part}`) : "";
+}
+
+/**
+ * The owner's own bundle ID for an app, from the business name (store pages or
+ * the imported website) and the app name, e.g. com.granitebuilders.everydayplanner.
+ */
+export function suggestBundleId(project: Project): string {
+  const owner = [project.storePages?.developer, project.source?.siteName, project.listing.name].map((n) => idPart(n ?? "")).find((n) => n && n !== "appmaker") || "myname";
+  const app = idPart(project.listing.name) || "app";
+  return `com.${owner}.${app === owner ? "app" : app}`;
+}

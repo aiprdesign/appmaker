@@ -60,6 +60,17 @@ describe("Expo project files", () => {
     delete process.env.APPMAKER_EXPO_GO_VERSION;
   });
 
+  it("suggests the owner's own bundle ID from the business and app names", async () => {
+    const { suggestBundleId } = await import("@/lib/expo-project");
+    const base = project();
+    expect(suggestBundleId({ ...base, listing: { ...base.listing, name: "Everyday Planner" }, storePages: { id: "x", developer: "Granite Builders, LLC", email: "a@b.co", fingerprint: "f" } })).toBe(
+      "com.granitebuildersllc.everydayplanner",
+    );
+    expect(suggestBundleId({ ...base, listing: { ...base.listing, name: "Café 24" } })).toBe("com.cafe24.app");
+    expect(suggestBundleId({ ...base, listing: { ...base.listing, name: "2Do" } })).toBe("com.app2do.app");
+    expect(/^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*){2,}$/.test(suggestBundleId(base))).toBe(true);
+  });
+
   it("puts App Store upload settings in the submit profile", () => {
     expect(easJson({ ascAppId: "6741234567" }).submit.production).toEqual({ ios: { ascAppId: "6741234567" } });
     expect(easJson().submit.production).toEqual({});

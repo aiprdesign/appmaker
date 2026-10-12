@@ -19,7 +19,7 @@ import {
   Store,
 } from "lucide-react";
 import type { BuildTarget, CloudBuild, ExpoState, Project } from "@/lib/types";
-import { slugify } from "@/lib/expo-project";
+import { slugify, suggestBundleId } from "@/lib/expo-project";
 import { ExpoCheckPanel } from "./ExpoCheckPanel";
 import { QrCode } from "@/components/QrCode";
 import {
@@ -42,6 +42,8 @@ interface Props {
   /** Downloads the Expo project zip (used for the one-time Apple setup). */
   onDownload: (project: Project) => Promise<void>;
   hasPreviewError: boolean;
+  /** Sets the store listing's bundle ID (the one-tap fix for Appmaker's placeholder ID). */
+  onBundleIdChange?: (bundleId: string) => void;
   /** Chosen from Test on a device: preselect this build and bring it into view. */
   request?: { target: BuildTarget; n: number } | null;
 }
@@ -140,7 +142,7 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
   );
 }
 
-export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, request }: Props) {
+export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, request, onBundleIdChange }: Props) {
   const settings = useExpoSettings();
   const expo = project.expo ?? NO_EXPO;
   const [server, setServer] = useState<EasServerInfo | null>(null);
@@ -317,7 +319,9 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, 
   const blockers = [
     !hasCode && "Generate the app first.",
     !/^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*){2,}$/.test(project.listing.bundleId) && "Set a valid bundle ID in the store listing.",
-    /^com\.appmaker\./.test(project.listing.bundleId) &&
+    // Only store builds lock the bundle ID; an Android test app can use Appmaker's for now.
+    target !== "android-apk" &&
+      /^com\.appmaker\./.test(project.listing.bundleId) &&
       "Change the bundle ID to your own (e.g. com.yourname.app) — it can't be changed after the first store build.",
     target === "ios" && hosted && !teamKey && "Add your App Store Connect API key in Apple setup — Appmaker uses it to sign the app.",
   ].filter(Boolean) as string[];
@@ -611,6 +615,17 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, 
                   </li>
                 ))}
               </ul>
+            )}
+            {onBundleIdChange && /^com\.appmaker\./.test(project.listing.bundleId) && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                <button
+                  onClick={() => onBundleIdChange(suggestBundleId(project))}
+                  className="inline-flex min-h-8 items-center rounded-lg border border-violet-400/40 bg-violet-500/10 px-3 font-medium text-violet-100 hover:border-violet-300"
+                >
+                  Use {suggestBundleId(project)}
+                </button>
+                <span className="text-muted">Or set your own in step 1.</span>
+              </div>
             )}
             {hasPreviewError && <p className="mb-3 text-xs text-amber-200/90">The preview shows an error — fix it first so the build doesn&apos;t crash.</p>}
             <button

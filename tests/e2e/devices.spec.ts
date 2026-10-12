@@ -232,4 +232,15 @@ test("Test on a device → Android test app opens the build step with it chosen"
   await expect(steps.getByRole("heading", { name: "Step 5 of 5: Build & publish" })).toBeVisible();
   await expect(page.getByRole("radio", { name: /Android — test app/ })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radio", { name: /Android — test app/ })).toBeInViewport();
+  // Appmaker's placeholder bundle ID doesn't block a test app; store builds offer a one-tap fix.
+  await steps.getByRole("button", { name: /Step 1:/ }).click();
+  await page.getByLabel("Bundle ID / package name").fill("com.appmaker.streaks");
+  await steps.getByRole("button", { name: /Step 5:/ }).click();
+  await expect(page.getByRole("radio", { name: /Android — test app/ })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByText("Change the bundle ID to your own")).toHaveCount(0);
+  await page.getByRole("radio", { name: /Android — Google Play/ }).click();
+  await expect(page.getByText(/Change the bundle ID to your own/)).toBeVisible();
+  await page.getByRole("button", { name: /^Use com\.[a-z0-9]+\.[a-z0-9]+$/ }).click();
+  await expect(page.getByText(/Change the bundle ID to your own/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Use com\./ })).toHaveCount(0);
 });
