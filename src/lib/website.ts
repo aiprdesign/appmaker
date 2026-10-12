@@ -6,6 +6,7 @@ import type { DesignStyle } from "./styles";
 import type { FileMap, SiteColors, SiteSection, SiteSummary } from "./types";
 import type { ValidationIssue } from "./validate";
 import { SITE_ASSET_PATH } from "./site-details";
+import { ALLOWED_FRAME } from "./site-media";
 
 /**
  * Website redesign: the same builder, but the AI writes a modern multi-page
@@ -89,6 +90,10 @@ export function pageA11yIssues(path: string, html: string): string[] {
   }
   if (root.querySelectorAll("[tabindex]").some((el) => Number(el.getAttribute("tabindex")) > 0)) out.push("uses tabindex greater than 0");
   if (root.querySelectorAll("iframe").some((f) => !f.getAttribute("title"))) out.push("has an <iframe> without a title");
+  for (const f of root.querySelectorAll("iframe")) {
+    const src = f.getAttribute("src") ?? "";
+    if (src && !ALLOWED_FRAME.test(src)) out.push(`embeds ${src.slice(0, 80)}; only official players (YouTube's youtube-nocookie.com, Vimeo, Instagram and TikTok post embeds) and Google Maps may be embedded`);
+  }
   const dupes = root.querySelectorAll("[id]").map((el) => el.getAttribute("id")).filter((id, i, all) => all.indexOf(id) !== i);
   if (dupes.length) out.push(`repeats the id "${dupes[0]}"`);
   return [...new Set(out)].map((m) => `${m} (WCAG 2.2 AA)`);
@@ -157,6 +162,13 @@ The owner's content is the site. The redesign may present it better, but always 
 - Each section's own images ("Images for this section") stay with that section's content: next to its paragraphs, in its cards, or as its background. Use every one; never move a picture to a different section or leave one out.
 - Lists stay lists (every item), prices stay with their items, questions stay with their answers.
 - The design is built from the content: pick the layout of each section to suit what it holds (a list of services becomes cards, a story becomes text with its photo, questions become an accordion), keeping the page's order and structure.
+
+## Videos and social posts (when <website_content> lists them)
+They're the business's own, from its YouTube, Vimeo, Instagram or TikTok, and make the site feel alive. Use them where they help: a "Watch" or "See us in action" section, beside the story or the services they show, or a "Follow us" band of recent posts.
+- Embed only with the exact official player addresses listed: <iframe src="…" title="(what the video shows)" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" class="aspect-video w-full rounded-…">. Instagram and TikTok posts are tall (aspect-[9/16] or a fixed height around 600px), in a row or grid of cards.
+- For speed, a YouTube video can show its still (the listed i.ytimg.com picture) with a play button that swaps in the player on click (in script.js). Never autoplay with sound, never hide information only inside a video, and give each video a short text caption.
+- YouTube stills are real pictures of the business: they may also be used as images elsewhere (with a meaningful alt).
+- Link the business's social profiles (from the contact details) in the footer and the "Follow us" band, with each network's name as the link text or aria-label.
 
 ## Logo strips: clients, partners, press, "trusted by" (when <website_content> lists client logos)
 Show every listed logo, never the business's own logo and never invented ones, using Appmaker's built-in logo strip (a11y.js, already on every page, runs it):

@@ -5,6 +5,7 @@ import { parse, type HTMLElement } from "node-html-parser";
 import { isPrivateHost, isPublicAddress, makeSafeLookup } from "./net-guard";
 import { cleanEmail, cleanPhone, cleanText, MAX_SITE_IMAGES, safeHttpsUrl, sanitizeContact } from "./site-details";
 import type { SiteContact, SitePage, SiteSection, SiteSummary } from "./types";
+import { channelIdFrom, feedVideos, isYoutubeChannel, MAX_VIDEOS, pageVideos, type SiteVideo } from "./site-media";
 
 export { isPublicAddress };
 
@@ -471,6 +472,7 @@ const MAPS_LINK = /(google\.[a-z.]+\/maps|maps\.google\.|goo\.gl\/maps|maps\.app
 const JUNK_IMAGE = /(pixel|spacer|tracking|sprite|blank|placeholder|loader|lazy|1x1|gravatar|badge|payment|flag)/i;
 
 interface Details {
+  videos: SiteVideo[];
   logos: string[];
   clientLogos: { src: string; alt: string }[];
   images: string[];
@@ -607,7 +609,7 @@ function hiddenImages(root: HTMLElement, base: URL): string[] {
 }
 
 function extractDetails(root: HTMLElement, base: URL): Details {
-  const d: Details = { logos: [], clientLogos: extractClientLogos(root, base), images: [], contact: { phones: [], emails: [], hours: [], social: [] } };
+  const d: Details = { videos: pageVideos(root, base), logos: [], clientLogos: extractClientLogos(root, base), images: [], contact: { phones: [], emails: [], hours: [], social: [] } };
   const c = d.contact;
 
   for (const name of ["og:image", "og:image:secure_url", "twitter:image"]) {
@@ -680,7 +682,14 @@ function extractDetails(root: HTMLElement, base: URL): Details {
 }
 
 /** Merges what was found on each page: the logo, photos, and each contact detail once. */
-function mergeDetails(all: Details[]): { logo?: string; images: string[]; contact?: SiteContact; clientLogos?: { src: string; alt: string }[] } {
+function mergeDetails(all: Details[]): {
+  logo?: string;
+  images: string[];
+  contact?: SiteContact;
+  clientLogos?: { src: string; alt: string }[];
+  videos?: SiteVideo[];
+} {
+  const videos = all.flatMap((d) => d.videos).filter((v, i, arr) => arr.findIndex((w) => w.kind === v.kind && w.id === v.id) === i).slice(0, MAX_VIDEOS);
   const logo = all.flatMap((d) => d.logos)[0];
   const seenLogos = new Set<string>();
   const clientLogos = all
@@ -700,7 +709,7 @@ function mergeDetails(all: Details[]): { logo?: string; images: string[]; contac
     booking: pick("booking"),
     maps: pick("maps"),
   });
-  return { ...(logo ? { logo } : {}), images, ...(contact ? { contact } : {}), ...(clientLogos.length ? { clientLogos } : {}) };
+  return { ...(logo ? { logo } : {}), images, ...(contact ? { contact } : {}), ...(clientLogos.length ? { clientLogos } : {}), ...(videos.length ? { videos } : {}) };
 }
 
 const KEY_PAGES = /(about|menu|service|product|pricing|price|plan|feature|shop|store|collection|course|class|program|team|faq|work|portfolio|book|reserv|order)/i;
@@ -782,7 +791,24 @@ export async function importSite(input: string): Promise<SiteSummary> {
   // Background photos set in the stylesheets (often the hero), after the page's own pictures.
   const fromCss = css.flatMap((c) => cssImages(c.text, c.url)).filter((u) => u !== merged.logo && !(merged.clientLogos ?? []).some((l) => l.src === u));
   const images = [...new Set([...merged.images, ...fromCss])].slice(0, MAX_SITE_IMAGES);
-  return { ...summary, colors: colors.length ? colors : summary.colors, pages, ...merged, images };
+  const videos = [...(merged.videos ?? []), ...(await channelVideos(merged.contact?.social ?? []))]
+    .filter((v, i, arr) => arr.findIndex((w) => w.kind === v.kind && w.id === v.id) === i)
+    .slice(0, MAX_VIDEOS);
+  return { ...summary, colors: colors.length ? colors : summary.colors, pages, ...merged, images, ...(videos.length ? { videos } : {}) };
+}
+
+/** The latest uploads of the business's YouTube channel (from its public RSS feed), when the site links to it. */
+async function channelVideos(social: string[]): Promise<SiteVideo[]> {
+  const channel = social.find(isYoutubeChannel);
+  if (!channel) return [];
+  try {
+    const url = new URL(channel);
+    const id = channelIdFrom(channel, /\/channel\/UC/.test(url.pathname) ? "" : await fetchSmallText(url));
+    if (!id) return [];
+    return feedVideos(await fetchSmallText(new URL(`https://www.youtube.com/feeds/videos.xml?channel_id=${id}`)));
+  } catch {
+    return [];
+  }
 }
 
 // ---------------------------------------------------------------------------

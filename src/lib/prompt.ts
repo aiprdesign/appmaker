@@ -3,6 +3,7 @@ import { REGULATED_RULES } from "./regulated";
 import { safeHttpsUrl, sanitizeContact, sanitizeImages, SITE_ASSET_PATH } from "./site-details";
 import type { FileMap, SiteContact, SitePage, SiteSection, SiteSummary, StoreListing } from "./types";
 import { styleBrief, type DesignStyle } from "./styles";
+import { embedUrl, sanitizeVideos, thumbnailUrl } from "./site-media";
 import { websiteStyleBrief } from "./website";
 
 export const SYSTEM_PROMPT = `You are Appmaker, an expert mobile product designer and React Native engineer. Users describe an app in plain language and you build a complete, polished Expo (React Native) app they can preview instantly and ship to the Apple App Store and Google Play.
@@ -321,6 +322,14 @@ export function formatSite(site: SiteSummary): string {
     screenshots(site).length
       ? `Screenshot parts of the current site (it had few separate photos, so these are real pictures cut from a screenshot of it; use them as images with exactly these paths, e.g. as the hero background or beside the matching section; they may contain the old site's text, so prefer them as backgrounds under a dark overlay or cropped with object-cover, never as the only place information appears):\n${screenshots(site)
           .map((s) => `- ${s.path} (${s.width}×${s.height}): ${fence(s.label)}`)
+          .join("\n")}`
+      : "",
+    sanitizeVideos(site.videos).length
+      ? `The business's own videos and posts (embed with exactly these official players; YouTube stills can be used as pictures):\n${sanitizeVideos(site.videos)
+          .map((v) => {
+            const still = thumbnailUrl(v);
+            return `- ${v.kind}${v.title ? ` “${fence(v.title)}”` : ""}: embed ${embedUrl(v)}${still ? `, still ${still}` : ""}`;
+          })
           .join("\n")}`
       : "",
     clientLogos(site).length
