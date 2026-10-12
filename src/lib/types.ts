@@ -106,6 +106,8 @@ export interface SiteSummary {
   images?: string[];
   /** Parts of a screenshot of the site (when it had few pictures), as images/… paths; the pictures are in Project.siteAssets. */
   screenshots?: { path: string; label: string; width: number; height: number }[];
+  /** The site's own photos that only load over plain http, saved with the project as images/site-….jpg (pictures in Project.siteAssets). */
+  localImages?: { path: string; from: string; width: number; height: number }[];
   /** Logos of clients, partners, press or certifications ("trusted by"), shown as a logo strip. */
   clientLogos?: { src: string; alt: string }[];
   contact?: SiteContact;

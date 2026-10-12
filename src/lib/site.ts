@@ -362,7 +362,7 @@ function imageUrl(img: HTMLElement, base: URL): string | null {
     fromSrcset(source?.getAttribute("srcset")) ||
     (plain && !/^data:/i.test(plain) ? plain : undefined) ||
     fromSrcset(img.getAttribute("srcset"));
-  const url = absolute(src, base);
+  const url = absolute(src, base, true);
   if (!url || /\.(svg|gif|ico)(\?|$)/i.test(url) || JUNK_IMAGE.test(url)) return null;
   const w = Number(img.getAttribute("width")) || 0;
   const h = Number(img.getAttribute("height")) || 0;
@@ -376,7 +376,7 @@ const HOLDS_BLOCKS = "p, li, blockquote, h1, h2, h3, h4, h5, h6, div, section, a
 /** A background picture set in a style or by a lazy loader (common in page builders). */
 function backgroundUrl(el: HTMLElement, base: URL): string | null {
   const attr = el.getAttribute("data-bg") || el.getAttribute("data-background-image") || el.getAttribute("data-background") || el.getAttribute("data-image") || /background(?:-image)?\s*:[^;]*url\(\s*['"]?([^'")]+)['"]?\s*\)/i.exec(el.getAttribute("style") ?? "")?.[1];
-  const url = absolute(attr?.replace(/^url\(\s*['"]?|['"]?\s*\)$/g, ""), base);
+  const url = absolute(attr?.replace(/^url\(\s*['"]?|['"]?\s*\)$/g, ""), base, true);
   return url && !/\.(svg|gif|ico)(\?|$)/i.test(url) && !JUNK_IMAGE.test(url) && !/logo/i.test(url) ? url : null;
 }
 const SKIP_AREAS = "nav, footer, script, style, noscript, template, form, [aria-hidden=true], .cookie, #cookie, [class*=cookie]";
@@ -477,10 +477,15 @@ interface Details {
   contact: Partial<SiteContact> & { phones: string[]; emails: string[]; hours: string[]; social: string[] };
 }
 
-function absolute(href: string | undefined, base: URL): string | null {
+function absolute(href: string | undefined, base: URL, picture = false): string | null {
   if (!href || href.startsWith("data:")) return null;
   try {
-    return safeHttpsUrl(new URL(href.trim(), base).toString());
+    const u = new URL(href.trim(), base);
+    // Older sites serve pictures over plain http, which https pages can't show: ask for
+    // https (most hosts have it). checkImages() later fetches any that only work over http.
+    // Links stay as they are (an http link is dropped, as before).
+    if (picture && u.protocol === "http:") u.protocol = "https:";
+    return safeHttpsUrl(u.toString());
   } catch {
     return null;
   }
@@ -535,7 +540,7 @@ function extractClientLogos(root: HTMLElement, base: URL): { src: string; alt: s
     for (const img of imgs) {
       if (header.has(img.getAttribute("src") ?? "")) continue;
       const src = img.getAttribute("data-src") || img.getAttribute("data-lazy-src") || img.getAttribute("src") || fromSrcset(img.getAttribute("srcset") ?? undefined);
-      const url = absolute(src && !/^data:/i.test(src) ? src : undefined, base);
+      const url = absolute(src && !/^data:/i.test(src) ? src : undefined, base, true);
       if (!url || JUNK_IMAGE.test(url.replace(/logo/gi, "")) || /\.(gif|ico)(\?|$)/i.test(url)) continue;
       const w = Number(img.getAttribute("width")) || 0;
       if (w && w < 24) continue;
@@ -567,7 +572,7 @@ function photo(url: string | null): url is string {
 export function cssImages(css: string, base: URL): string[] {
   const out: string[] = [];
   for (const m of css.matchAll(CSS_URL)) {
-    const url = absolute(m[1], base);
+    const url = absolute(m[1], base, true);
     if (photo(url) && !/logo/i.test(url)) out.push(url);
   }
   return out;
@@ -588,7 +593,7 @@ function hiddenImages(root: HTMLElement, base: URL): string[] {
     }
   }
   for (const source of root.querySelectorAll("picture source[srcset], picture source[data-srcset]").slice(0, 100)) {
-    const url = absolute(fromSrcset(source.getAttribute("srcset") ?? source.getAttribute("data-srcset") ?? undefined), base);
+    const url = absolute(fromSrcset(source.getAttribute("srcset") ?? source.getAttribute("data-srcset") ?? undefined), base, true);
     if (photo(url)) out.push(url);
   }
   for (const el of root.querySelectorAll("[style*=background], [data-bg], [data-background-image], [data-background], [data-image]").slice(0, 200)) {
@@ -606,7 +611,7 @@ function extractDetails(root: HTMLElement, base: URL): Details {
   const c = d.contact;
 
   for (const name of ["og:image", "og:image:secure_url", "twitter:image"]) {
-    const url = absolute(meta(root, name), base);
+    const url = absolute(meta(root, name), base, true);
     if (url) d.images.push(url);
   }
   const clients = new Set(d.clientLogos.map((l) => l.src));
@@ -778,4 +783,80 @@ export async function importSite(input: string): Promise<SiteSummary> {
   const fromCss = css.flatMap((c) => cssImages(c.text, c.url)).filter((u) => u !== merged.logo && !(merged.clientLogos ?? []).some((l) => l.src === u));
   const images = [...new Set([...merged.images, ...fromCss])].slice(0, MAX_SITE_IMAGES);
   return { ...summary, colors: colors.length ? colors : summary.colors, pages, ...merged, images };
+}
+
+// ---------------------------------------------------------------------------
+// Making sure each picture can be shown
+
+export interface LocalImage {
+  /** Where it lives in the new site, e.g. images/site-1.jpg. */
+  path: string;
+  /** The address it came from. */
+  from: string;
+  width: number;
+  height: number;
+  dataUrl: string;
+}
+
+const IMAGE_TYPE = /^image\/(jpeg|png|webp|avif|gif)/i;
+
+async function fetchImageBytes(url: URL): Promise<{ bytes: Buffer; type: string } | null> {
+  try {
+    let res = await request(url);
+    for (let i = 0; i < 2 && res.location && res.status >= 300 && res.status < 400; i++) res = await request(new URL(res.location, url));
+    if (res.status !== 200 || !res.bytes?.length || res.bytes.length >= MAX_BYTES || !IMAGE_TYPE.test(res.type)) return null;
+    return { bytes: res.bytes, type: res.type };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checks that each picture of a website redesign can really be shown. Those that
+ * load over https stay links (the browser loads them, no copies kept). Those that
+ * only load over plain http are fetched and kept with the project as small JPEGs
+ * (pages on https can't show http pictures). Those that don't load are dropped.
+ */
+export async function checkImages(urls: string[], max = 12, firstNumber = 1): Promise<{ ok: string[]; local: LocalImage[] }> {
+  const ok: string[] = [];
+  const local: LocalImage[] = [];
+  const queue = [...urls];
+  const worker = async () => {
+    for (let url = queue.shift(); url; url = queue.shift()) {
+      let u: URL;
+      try {
+        u = new URL(url);
+      } catch {
+        continue;
+      }
+      if (await fetchImageBytes(u)) {
+        ok.push(url);
+        continue;
+      }
+      if (local.length >= max) continue;
+      const plain = new URL(u.toString());
+      plain.protocol = "http:";
+      const got = await fetchImageBytes(plain);
+      if (!got) continue;
+      try {
+        const sharp = (await import("sharp")).default;
+        const { data, info } = await sharp(got.bytes, { limitInputPixels: 40_000_000 })
+          .rotate()
+          .resize(1600, 1600, { fit: "inside", withoutEnlargement: true })
+          .flatten({ background: "#ffffff" })
+          .jpeg({ quality: 78, mozjpeg: true })
+          .toBuffer({ resolveWithObject: true });
+        if (info.width < 120 || info.height < 80) continue;
+        local.push({ path: "", from: url.replace(/^https:/, "http:"), width: info.width, height: info.height, dataUrl: `data:image/jpeg;base64,${data.toString("base64")}` });
+      } catch {
+        // Not a picture sharp can read.
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  // Keep the site's order, and number the kept copies in it.
+  const order = (x: string) => urls.indexOf(x.replace(/^http:/, "https:"));
+  ok.sort((a, b) => order(a) - order(b));
+  local.sort((a, b) => order(a.from) - order(b.from)).forEach((l, i) => (l.path = `images/site-${firstNumber + i}.jpg`));
+  return { ok, local };
 }

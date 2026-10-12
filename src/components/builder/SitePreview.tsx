@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Monitor, Smartphone, Tablet } from "lucide-react";
 import type { FileMap } from "@/lib/types";
+import { SITE_ASSET_PATH } from "@/lib/site-details";
 
 export type SiteViewport = "desktop" | "tablet" | "phone";
 const WIDTHS: Record<SiteViewport, number> = { desktop: 1280, tablet: 820, phone: 390 };
@@ -39,11 +40,11 @@ window.addEventListener("load", function () {
 });
 </script>`;
 
-/** Screenshot parts (images/shot-….jpg) put in place as data URLs: they exist only in the browser. */
+/** Screenshot parts and saved photos (images/shot-…, images/site-…) put in place as data URLs: they exist only in the browser. */
 function withAssets(code: string, assets: Record<string, string>): string {
   let out = code;
   for (const [path, dataUrl] of Object.entries(assets)) {
-    if (!/^images\/shot-(hero|\d)\.jpg$/.test(path) || !dataUrl.startsWith("data:image/")) continue;
+    if (!SITE_ASSET_PATH.test(path) || !dataUrl.startsWith("data:image/")) continue;
     out = out.replace(new RegExp(`(?:\\.\\.?/)?${path.replace(/[.-]/g, "\\$&")}`, "g"), dataUrl);
   }
   return out;

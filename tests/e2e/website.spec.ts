@@ -13,7 +13,7 @@ test("imports a website and builds a branded app from it", async ({ page }) => {
 
   await expect(page.getByText("Luigi's Trattoria")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/read 4 pages/)).toBeVisible();
-  await expect(page.getByText("Found logo, 3 photos, phone, address, hours, booking link, WhatsApp")).toBeVisible();
+  await expect(page.getByText("Found logo, 4 photos, phone, address, hours, booking link, WhatsApp")).toBeVisible();
 
   const request = page.waitForRequest("**/api/generate");
   await page.getByLabel("Describe your app").press("Enter");

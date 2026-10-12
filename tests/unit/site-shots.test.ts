@@ -92,3 +92,47 @@ describe("download with screenshot parts", () => {
     expect((await zip.file("images/shot-hero.jpg")!.async("uint8array"))[0]).toBe(0xff);
   });
 });
+
+describe("pictures that only load over plain http", () => {
+  it("are saved with the project as JPEGs; broken ones are dropped", async () => {
+    const { checkImages } = await import("@/lib/site");
+    const png = await sharp({ create: { width: 640, height: 400, channels: 3, background: "#0f766e" } }).png().toBuffer();
+    const srv = createServer((req, res) => {
+      if (req.url === "/old/photo.png") return res.writeHead(200, { "content-type": "image/png" }).end(png);
+      res.writeHead(404).end();
+    });
+    await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+    const port = (srv.address() as { port: number }).port;
+    process.env.APPMAKER_ALLOW_PRIVATE_URLS = "1";
+    try {
+      // The import asked for https (as for every http picture); this server only speaks http.
+      const { ok, local } = await checkImages([`https://127.0.0.1:${port}/old/photo.png`, `https://127.0.0.1:${port}/gone.jpg`], 12, 3);
+      expect(ok).toEqual([]);
+      expect(local).toHaveLength(1);
+      expect(local[0]).toMatchObject({ path: "images/site-3.jpg", from: `http://127.0.0.1:${port}/old/photo.png`, width: 640, height: 400 });
+      expect(local[0].dataUrl).toMatch(/^data:image\/jpeg;base64,\/9j\//);
+    } finally {
+      delete process.env.APPMAKER_ALLOW_PRIVATE_URLS;
+      srv.close();
+    }
+  });
+});
+
+describe("the bundled Chromium (no browser installed on the server, as on Railway)", () => {
+  it("renders and screenshots with @sparticuz/chromium", async () => {
+    if (process.platform !== "linux") return;
+    const saved = process.env.PLAYWRIGHT_BROWSERS_PATH;
+    process.env.PLAYWRIGHT_BROWSERS_PATH = "/nonexistent-browsers";
+    process.env.APPMAKER_ALLOW_PRIVATE_URLS = "1";
+    try {
+      expect(await screenshotsAvailable()).toBe(true);
+      const { images, shots } = await renderSite(`${base}/`, { shots: true });
+      expect(images).toContain(`${base}/photo.jpg`);
+      expect(shots[0]?.path).toBe("images/shot-hero.jpg");
+    } finally {
+      if (saved === undefined) delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+      else process.env.PLAYWRIGHT_BROWSERS_PATH = saved;
+      delete process.env.APPMAKER_ALLOW_PRIVATE_URLS;
+    }
+  }, 90_000);
+});

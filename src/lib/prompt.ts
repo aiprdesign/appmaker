@@ -1,6 +1,6 @@
 import { CLAIM_SAFE_RULES, DEFAULT_WORDING, type Wording } from "./claims";
 import { REGULATED_RULES } from "./regulated";
-import { safeHttpsUrl, sanitizeContact, sanitizeImages } from "./site-details";
+import { safeHttpsUrl, sanitizeContact, sanitizeImages, SITE_ASSET_PATH } from "./site-details";
 import type { FileMap, SiteContact, SitePage, SiteSection, SiteSummary, StoreListing } from "./types";
 import { styleBrief, type DesignStyle } from "./styles";
 import { websiteStyleBrief } from "./website";
@@ -237,10 +237,17 @@ function contactLines(c: SiteContact): string {
 }
 
 /** Formats an imported website as reference data for the model. */
+/** Saved photos, checked again: only Appmaker's own images/site-… paths. */
+function localImages(site: SiteSummary): { path: string; width: number; height: number }[] {
+  return (Array.isArray(site.localImages) ? site.localImages : []).slice(0, 12).flatMap((l) =>
+    l && typeof l.path === "string" && SITE_ASSET_PATH.test(l.path) ? [{ path: l.path, width: Number(l.width) || 0, height: Number(l.height) || 0 }] : [],
+  );
+}
+
 /** Screenshot parts, checked again: only Appmaker's own images/shot-… paths. */
 function screenshots(site: SiteSummary): { path: string; label: string; width: number; height: number }[] {
   return (Array.isArray(site.screenshots) ? site.screenshots : []).slice(0, 4).flatMap((s) =>
-    s && typeof s.path === "string" && /^images\/shot-(hero|\d)\.jpg$/.test(s.path)
+    s && typeof s.path === "string" && SITE_ASSET_PATH.test(s.path)
       ? [{ path: s.path, label: typeof s.label === "string" ? s.label.slice(0, 120) : "", width: Number(s.width) || 0, height: Number(s.height) || 0 }]
       : [],
   );
@@ -306,6 +313,11 @@ export function formatSite(site: SiteSummary): string {
     site.language && `Language: ${fence(site.language)}`,
     logo && `Logo: ${logo}`,
     images.length ? `Images (use only these exact URLs):\n${images.map((u) => `- ${u}`).join("\n")}` : "",
+    localImages(site).length
+      ? `More photos from the current site, saved with the project (use them like the photos above, with exactly these paths):\n${localImages(site)
+          .map((l) => `- ${l.path} (${l.width}×${l.height})`)
+          .join("\n")}`
+      : "",
     screenshots(site).length
       ? `Screenshot parts of the current site (it had few separate photos, so these are real pictures cut from a screenshot of it; use them as images with exactly these paths, e.g. as the hero background or beside the matching section; they may contain the old site's text, so prefer them as backgrounds under a dark overlay or cropped with object-cover, never as the only place information appears):\n${screenshots(site)
           .map((s) => `- ${s.path} (${s.width}×${s.height}): ${fence(s.label)}`)

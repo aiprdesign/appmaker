@@ -5,6 +5,7 @@ import { REGULATED_RULES } from "./regulated";
 import type { DesignStyle } from "./styles";
 import type { FileMap, SiteColors, SiteSection, SiteSummary } from "./types";
 import type { ValidationIssue } from "./validate";
+import { SITE_ASSET_PATH } from "./site-details";
 
 /**
  * Website redesign: the same builder, but the AI writes a modern multi-page
@@ -304,10 +305,10 @@ export async function siteZip(
   assets: Record<string, string> = {},
 ): Promise<{ blob: Blob; saved: number; linked: number }> {
   const zip = new JSZip();
-  // Screenshot parts are already where the pages expect them (images/shot-…).
+  // Screenshot parts and saved photos are already where the pages expect them (images/…).
   for (const [path, dataUrl] of Object.entries(assets)) {
     const m = /^data:image\/(jpeg|png|webp);base64,(.+)$/.exec(dataUrl);
-    if (m && /^images\/shot-(hero|\d)\.jpg$/.test(path)) zip.file(path, m[2], { base64: true });
+    if (m && SITE_ASSET_PATH.test(path)) zip.file(path, m[2], { base64: true });
   }
   const taken = new Set<string>();
   const local = new Map<string, string>();

@@ -9,8 +9,9 @@ import { isPublicAddress } from "./net-guard";
  * then, for a website redesign that still has few pictures, parts of the
  * screenshot (the hero and big picture areas) are cut out to use as images.
  *
- * Runs only where a Chromium is available (APPMAKER_CHROMIUM_PATH, Playwright's
- * own, or a system one) and isn't turned off (APPMAKER_SITE_SCREENSHOTS=0).
+ * Uses APPMAKER_CHROMIUM_PATH, Playwright's Chromium, a system one, or the
+ * self-contained @sparticuz/chromium (so it works on a plain Linux host such as
+ * Railway with no setup); off with APPMAKER_SITE_SCREENSHOTS=0.
  * The browser may only load public addresses, like the import itself.
  */
 
@@ -29,23 +30,43 @@ const CANDIDATES = ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/
 const TOTAL_MS = 40_000;
 const MAX_SHOTS = 4;
 
-async function chromiumPath(): Promise<string | undefined> {
+interface Browser {
+  path: string;
+  args: string[];
+}
+
+const BASE_ARGS = ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"];
+
+/**
+ * A Chromium to render with: APPMAKER_CHROMIUM_PATH, Playwright's, a system one,
+ * or the self-contained one from @sparticuz/chromium (MIT), which needs no server setup.
+ */
+async function findBrowser(): Promise<Browser | undefined> {
   const own = process.env.APPMAKER_CHROMIUM_PATH?.trim();
-  if (own) return existsSync(own) ? own : undefined;
+  if (own) return existsSync(own) ? { path: own, args: BASE_ARGS } : undefined;
   try {
     const { chromium } = await import("playwright-core");
     const p = chromium.executablePath();
-    if (p && existsSync(p)) return p;
+    if (p && existsSync(p)) return { path: p, args: BASE_ARGS };
   } catch {
-    // Playwright isn't installed: try a system Chromium.
+    // Playwright's browsers aren't installed.
   }
-  return CANDIDATES.find((p) => existsSync(p));
+  const system = CANDIDATES.find((p) => existsSync(p));
+  if (system) return { path: system, args: BASE_ARGS };
+  if (process.platform !== "linux") return undefined;
+  try {
+    const sparticuz = (await import("@sparticuz/chromium")).default;
+    const path = await sparticuz.executablePath();
+    return path && existsSync(path) ? { path, args: [...new Set([...sparticuz.args, ...BASE_ARGS])] } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Whether this server can take screenshots of websites. */
 export async function screenshotsAvailable(): Promise<boolean> {
   if (process.env.APPMAKER_SITE_SCREENSHOTS === "0") return false;
-  return !!(await chromiumPath());
+  return !!(await findBrowser());
 }
 
 const allowPrivate = () => process.env.APPMAKER_ALLOW_PRIVATE_URLS === "1";
@@ -66,10 +87,10 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 async function render(url: string, opts: { shots: boolean }): Promise<{ images: string[]; shots: SiteShot[] }> {
-  const executablePath = await chromiumPath();
-  if (!executablePath || process.env.APPMAKER_SITE_SCREENSHOTS === "0") return { images: [], shots: [] };
+  const found = await findBrowser();
+  if (!found || process.env.APPMAKER_SITE_SCREENSHOTS === "0") return { images: [], shots: [] };
   const { chromium } = await import("playwright-core");
-  const browser = await chromium.launch({ executablePath, args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"] });
+  const browser = await chromium.launch({ executablePath: found.path, args: found.args });
   try {
     const context = await browser.newContext({
       viewport: { width: 1280, height: 800 },

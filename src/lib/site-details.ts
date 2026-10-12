@@ -8,6 +8,9 @@ import type { SiteContact } from "./types";
 
 export const MAX_SITE_IMAGES = 24;
 
+/** Pictures kept with a website project (screenshot parts and saved photos), by their path in the new site. */
+export const SITE_ASSET_PATH = /^images\/(?:shot-(?:hero|\d)|site-\d{1,2})\.jpg$/;
+
 /** An https link with no characters that could break out of code or markup. */
 export function safeHttpsUrl(v: unknown, max = 500): string | null {
   if (typeof v !== "string" || v.length > max || !/^https:\/\/[^\s"'`<>\\{}|^]+$/i.test(v)) return null;

@@ -99,8 +99,10 @@ describe("importSite", () => {
         "https://images.luigis.example/room-1200.jpg",
       ]),
     );
-    // Tracking pixels, tiny icons and insecure http images are left out.
-    expect(site.images!.join(" ")).not.toMatch(/pixel|icon-small|insecure|room-400/);
+    // Tracking pixels and tiny icons are left out; http pictures are asked for over https
+    // (the redesign then checks they load, and saves those that only work over http).
+    expect(site.images!.join(" ")).not.toMatch(/pixel|icon-small|room-400|http:\/\//);
+    expect(site.images).toContain("https://images.luigis.example/insecure.jpg");
     expect(site.contact).toMatchObject({
       phones: expect.arrayContaining(["+17185550142", "+1 718-555-0142"]),
       emails: ["ciao@luigis.example"],
