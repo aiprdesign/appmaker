@@ -164,6 +164,7 @@ const rec = {
   profile: read("ios-certs/profile.mobileprovision"),
   p12Size: (() => { try { return fs.statSync(path.join(root, "ios-certs/dist.p12")).size; } catch { return 0; } })(),
   ascEnv: process.env.EXPO_ASC_API_KEY_PATH || null,
+  skipLockfile: process.env.EAS_BUILD_SKIP_LOCKFILE_CHECK || null,
   home: process.env.HOME,
 };
 fs.appendFileSync(${JSON.stringify(logFile)}, JSON.stringify(rec) + "\\n");
@@ -387,6 +388,10 @@ describe("cloud builds (fake Expo)", () => {
       asc.state.calls = [];
       await startBuild({ token: TOKEN, project: project(), icon: PNG, link, target: "android-apk", ascKey: teamKey });
       expect(asc.state.calls).toEqual([]);
+      // Appmaker's projects have no lockfile, so the build skips EAS's lockfile check.
+      const last = readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)).at(-1);
+      expect(last.args).toEqual(expect.arrayContaining(["build", "--platform", "android", "--profile", "preview"]));
+      expect(last.skipLockfile).toBe("1");
     } finally {
       asc.close();
       delete process.env.APPMAKER_ASC_API_URL;

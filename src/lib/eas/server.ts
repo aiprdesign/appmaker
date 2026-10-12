@@ -267,6 +267,9 @@ function runEas(args: string[], { cwd, token, env = {}, timeoutMs = 10 * 60_000,
         EXPO_NO_TELEMETRY: "1",
         NODE_NO_WARNINGS: "1",
         EAS_BUILD_NO_EXPO_GO_WARNING: "true",
+        // Appmaker's projects pin their package versions in package.json and have no
+        // lockfile (no npm install runs here); newer EAS CLIs refuse to build without one.
+        EAS_BUILD_SKIP_LOCKFILE_CHECK: "1",
         ...env,
       },
       stdio: ["ignore", "pipe", "pipe"],
