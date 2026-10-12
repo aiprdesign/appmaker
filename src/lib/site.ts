@@ -370,12 +370,12 @@ function imageUrl(img: HTMLElement, base: URL): string | null {
   return url;
 }
 
-const BLOCKS = "h1, h2, h3, h4, h5, h6, p, li, blockquote, figcaption, dt, dd, td, img, div, [style*=background], [data-bg], [data-background-image]";
+const BLOCKS = "h1, h2, h3, h4, h5, h6, p, li, blockquote, figcaption, dt, dd, td, img, div, [style*=background], [data-bg], [data-background-image], [data-background], [data-image]";
 /** Elements that hold other text blocks: their own text is read through those. */
 const HOLDS_BLOCKS = "p, li, blockquote, h1, h2, h3, h4, h5, h6, div, section, article, ul, ol, table, figure, dl";
 /** A background picture set in a style or by a lazy loader (common in page builders). */
 function backgroundUrl(el: HTMLElement, base: URL): string | null {
-  const attr = el.getAttribute("data-bg") || el.getAttribute("data-background-image") || /background(?:-image)?\s*:[^;]*url\(\s*['"]?([^'")]+)['"]?\s*\)/i.exec(el.getAttribute("style") ?? "")?.[1];
+  const attr = el.getAttribute("data-bg") || el.getAttribute("data-background-image") || el.getAttribute("data-background") || el.getAttribute("data-image") || /background(?:-image)?\s*:[^;]*url\(\s*['"]?([^'")]+)['"]?\s*\)/i.exec(el.getAttribute("style") ?? "")?.[1];
   const url = absolute(attr?.replace(/^url\(\s*['"]?|['"]?\s*\)$/g, ""), base);
   return url && !/\.(svg|gif|ico)(\?|$)/i.test(url) && !JUNK_IMAGE.test(url) && !/logo/i.test(url) ? url : null;
 }
@@ -550,6 +550,57 @@ function extractClientLogos(root: HTMLElement, base: URL): { src: string; alt: s
   return found.size >= 3 ? [...found].map(([src, alt]) => ({ src, alt })) : [];
 }
 
+const IMAGE_FILE = /\.(?:jpe?g|png|webp|avif)(?:[?#][^\s"'()<>]*)?$/i;
+/** Thumbnails (WordPress -150x150), icons and sprites aren't photos worth reusing. */
+const NOT_A_PHOTO = /(-\d{2,3}x\d{2,3}\.\w+$)|icon|sprite|favicon|avatar|emoji|spinner|arrow|button|badge/i;
+/** Image addresses from the big site builders' CDNs, as they appear in page data (Wix, Squarespace, Shopify, WordPress). */
+const BUILDER_IMAGE = /https?:\/\/(?:static\.wixstatic\.com\/media|images\.squarespace-cdn\.com|cdn\.shopify\.com\/s\/files|[a-z0-9.-]+\/wp-content\/uploads)\/[^\s"'<>\\)]+?\.(?:jpe?g|png|webp|avif)(?:\?[^\s"'<>\\)]*)?/gi;
+const CSS_URL = /url\(\s*['"]?([^'")]+)['"]?\s*\)/gi;
+
+function photo(url: string | null): url is string {
+  if (!url) return false;
+  const path = url.split(/[?#]/)[0];
+  return IMAGE_FILE.test(path) && !JUNK_IMAGE.test(path) && !NOT_A_PHOTO.test(path.split("/").pop() ?? "");
+}
+
+/** Background pictures in a stylesheet, resolved against the stylesheet's own address. */
+export function cssImages(css: string, base: URL): string[] {
+  const out: string[] = [];
+  for (const m of css.matchAll(CSS_URL)) {
+    const url = absolute(m[1], base);
+    if (photo(url) && !/logo/i.test(url)) out.push(url);
+  }
+  return out;
+}
+
+/**
+ * Pictures that aren't plain <img> tags: <noscript> copies of lazy-loaded images,
+ * <picture> sources, background images (inline styles, lazy-loader attributes and
+ * <style> blocks), and image addresses in site builders' page data, which only
+ * JavaScript turns into pictures.
+ */
+function hiddenImages(root: HTMLElement, base: URL): string[] {
+  const out: string[] = [];
+  for (const ns of root.querySelectorAll("noscript").slice(0, 60)) {
+    for (const img of parse(ns.text || ns.innerHTML, { comment: false }).querySelectorAll("img")) {
+      const url = imageUrl(img, base);
+      if (photo(url) && !/logo/i.test(`${url} ${img.getAttribute("alt") ?? ""}`)) out.push(url);
+    }
+  }
+  for (const source of root.querySelectorAll("picture source[srcset], picture source[data-srcset]").slice(0, 100)) {
+    const url = absolute(fromSrcset(source.getAttribute("srcset") ?? source.getAttribute("data-srcset") ?? undefined), base);
+    if (photo(url)) out.push(url);
+  }
+  for (const el of root.querySelectorAll("[style*=background], [data-bg], [data-background-image], [data-background], [data-image]").slice(0, 200)) {
+    const url = backgroundUrl(el, base);
+    if (photo(url)) out.push(url);
+  }
+  for (const style of root.querySelectorAll("style")) out.push(...cssImages(style.text, base));
+  const raw = root.toString().slice(0, 1_500_000).replace(/\\\//g, "/");
+  for (const m of raw.matchAll(BUILDER_IMAGE)) if (photo(m[0]) && !/logo/i.test(m[0])) out.push(m[0]);
+  return [...new Set(out)];
+}
+
 function extractDetails(root: HTMLElement, base: URL): Details {
   const d: Details = { logos: [], clientLogos: extractClientLogos(root, base), images: [], contact: { phones: [], emails: [], hours: [], social: [] } };
   const c = d.contact;
@@ -567,6 +618,9 @@ function extractDetails(root: HTMLElement, base: URL): Details {
     if (/logo/i.test(label)) d.logos.push(url);
     else d.images.push(url);
   }
+
+  // More of the site's own pictures, where page builders and lazy loaders hide them.
+  for (const url of hiddenImages(root, base)) if (!clients.has(url) && !d.images.includes(url)) d.images.push(url);
 
   for (const a of root.querySelectorAll("a[href]").slice(0, 500)) {
     const href = (a.getAttribute("href") ?? "").trim();
@@ -715,10 +769,13 @@ export async function importSite(input: string): Promise<SiteSummary> {
   const isSvg = !!merged.logo && /\.svg(\?|$)/i.test(merged.logo);
   const picture = merged.logo && !isSvg ? merged.logo : iconUrl(root, first.url);
   const [css, logoSvg, logoColors] = await Promise.all([
-    Promise.all(stylesheetUrls(root, first.url).map(fetchSmallText)).then((all) => all.join("\n")),
+    Promise.all(stylesheetUrls(root, first.url).map(async (u) => ({ url: u, text: await fetchSmallText(u) }))),
     isSvg ? fetchSmallText(new URL(merged.logo!)) : Promise.resolve(""),
     picture ? fetchSmallImage(new URL(picture)).then((b) => (b ? logoImageColors(b) : [])) : Promise.resolve([] as string[]),
   ]);
-  const colors = extractColors(root, meta(root, "theme-color"), { css, logoSvg, logoColors });
-  return { ...summary, colors: colors.length ? colors : summary.colors, pages, ...merged };
+  const colors = extractColors(root, meta(root, "theme-color"), { css: css.map((c) => c.text).join("\n"), logoSvg, logoColors });
+  // Background photos set in the stylesheets (often the hero), after the page's own pictures.
+  const fromCss = css.flatMap((c) => cssImages(c.text, c.url)).filter((u) => u !== merged.logo && !(merged.clientLogos ?? []).some((l) => l.src === u));
+  const images = [...new Set([...merged.images, ...fromCss])].slice(0, MAX_SITE_IMAGES);
+  return { ...summary, colors: colors.length ? colors : summary.colors, pages, ...merged, images };
 }

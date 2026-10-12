@@ -444,3 +444,30 @@ describe("client and partner logos", () => {
     expect(contentIssues({ "index.html": fixed }, site)).toEqual([]);
   });
 });
+
+describe("pictures that aren't plain <img> tags", () => {
+  it("finds noscript, <picture>, background and site-builder images, skipping thumbnails, icons and logos", async () => {
+    const { summarizeHtml, cssImages } = await import("@/lib/site");
+    const html = `<html><head><style>.hero{background-image:url('/img/hero-big.jpg')} .ico{background:url(/img/icon-mail.png)}</style></head><body>
+      <img class="lazy" src="data:image/gif;base64,R0"><noscript><img src="/uploads/team.jpg" alt="Our team"></noscript>
+      <picture><source srcset="/img/pasta-800.webp 800w, /img/pasta-1600.webp 1600w"><img src="/img/pasta.jpg" alt=""></picture>
+      <section data-bg="/img/terrace.jpg"></section><div style="background-image: url(&quot;/img/oven.jpg&quot;)"></div>
+      <script>window.__DATA__={"img":"https:\\/\\/static.wixstatic.com\\/media\\/abc123~mv2.jpg","t":"https://shop.example/wp-content/uploads/2024/05/cake-150x150.jpg","full":"https://shop.example/wp-content/uploads/2024/05/cake.jpg","logo":"https://images.squarespace-cdn.com/content/logo.png"}</script>
+    </body></html>`;
+    const { details } = summarizeHtml(html, new URL("https://trattoria.example/"));
+    const imgs = details.images;
+    for (const want of [
+      "https://trattoria.example/uploads/team.jpg",
+      "https://trattoria.example/img/pasta-1600.webp",
+      "https://trattoria.example/img/terrace.jpg",
+      "https://trattoria.example/img/oven.jpg",
+      "https://trattoria.example/img/hero-big.jpg",
+      "https://static.wixstatic.com/media/abc123~mv2.jpg",
+      "https://shop.example/wp-content/uploads/2024/05/cake.jpg",
+    ])
+      expect(imgs).toContain(want);
+    expect(imgs.some((u) => /icon-mail|150x150|logo\.png|data:/.test(u))).toBe(false);
+    // A stylesheet's relative addresses are resolved against the stylesheet itself.
+    expect(cssImages(".a{background:url(../img/bg.webp)}", new URL("https://cdn.example/css/site.css"))).toEqual(["https://cdn.example/img/bg.webp"]);
+  });
+});

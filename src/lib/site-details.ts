@@ -6,7 +6,7 @@ import type { SiteContact } from "./types";
  * browser sends the imported site back with each request.
  */
 
-export const MAX_SITE_IMAGES = 16;
+export const MAX_SITE_IMAGES = 24;
 
 /** An https link with no characters that could break out of code or markup. */
 export function safeHttpsUrl(v: unknown, max = 500): string | null {
