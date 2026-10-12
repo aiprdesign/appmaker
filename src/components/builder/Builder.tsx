@@ -515,7 +515,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const intro: ChatMessage = {
         id: uid(),
         role: "assistant",
-        content: "Designing three options for your home page and one inside page: Simple, Balanced, and Bold & colorful. Look through them on the right and choose one; then I'll make the other pages in that design.",
+        content: "Designing three options for your home page and one inside page: Ultra-modern editorial, Modern soft & rounded, and a style made for your business. Look through them on the right and choose one; then I'll make the other pages in that design.",
         createdAt: Date.now(),
       };
       commit({

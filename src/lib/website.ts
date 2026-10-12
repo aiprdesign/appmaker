@@ -411,43 +411,55 @@ export interface SiteConcept {
 }
 
 /** The three directions: simple, balanced and bold. */
-export type ConceptTier = "simple" | "balanced" | "bold";
+/** The three design directions; older projects may still name the earlier three (simple, balanced, bold). */
+export type ConceptTier = "editorial" | "soft" | "themed" | "simple" | "balanced" | "bold";
+
 export const CONCEPT_TIERS: { tier: ConceptTier; name: string; styles: string[]; brief: string }[] = [
   {
-    tier: "simple",
-    name: "Simple",
-    styles: ["swiss", "calm", "editorial"],
+    tier: "editorial",
+    name: "Ultra-modern editorial",
+    styles: ["editorial", "swiss"],
     brief:
-      "SIMPLE: calm, minimal and refined. Lots of white space, a restrained palette (mostly neutrals and one accent), elegant typography doing the work, few sections, no decoration for its own sake. Beautiful through restraint and precision. Motion: subtle and quiet (soft fades and small rises, gentle hover states, smooth page transitions).",
+      "ULTRA-MODERN EDITORIAL: like a design-led magazine or a modern studio site. Very large, confident display headlines (tight tracking, a striking serif or a crisp grotesk, text-6xl to text-8xl on desktop) set against generous white space; an asymmetric 12-column grid with deliberate tension (wide image beside a narrow text column, offset blocks); oversized full-bleed photos with small captions; thin hairline rules, numbered sections (01, 02…), small uppercase labels and eyebrow text; pull quotes in big type; a near-monochrome base (ink on paper, or paper on ink) with one sharp brand accent; crisp square or barely rounded corners. Motion: refined and slow (text that rises line by line, images that reveal with a clip-path wipe, a subtle scroll parallax, a slow marquee of a key phrase).",
   },
   {
-    tier: "balanced",
-    name: "Balanced",
-    styles: ["liquid-glass", "organic", "luxe", "editorial", "calm"],
+    tier: "soft",
+    name: "Modern soft & rounded",
+    styles: ["clay", "calm", "organic", "liquid-glass"],
     brief:
-      "BALANCED: a polished middle ground. Confident color used with care, large photos, some depth (soft shadows, subtle gradients or glass), varied section layouts and tasteful motion. Beautiful, modern and professional. Motion: smooth and confident (staggered scroll reveals, image zoom on hover, a subtle hero parallax, page transitions).",
+      "MODERN SOFT & ROUNDED: friendly, tactile and current. Big soft corners everywhere (rounded-3xl to rounded-[2.5rem] on cards, images and sections; pill-shaped buttons, chips and inputs); layered soft shadows and gentle inner highlights so cards feel like smooth physical tiles; light tinted surfaces made from the brand colour (5–10% tints) with blurred colour blobs in the background; bento-style card groups of different sizes; a rounded geometric sans (e.g. Plus Jakarta Sans, Manrope or DM Sans); icons in soft rounded squares. Motion: springy and smooth (cards that lift and scale slightly on hover, staggered fade-and-rise reveals, gently floating shapes).",
   },
   {
-    tier: "bold",
-    name: "Bold & colorful",
-    styles: ["aurora", "pop", "brutalist", "bento"],
+    tier: "themed",
+    name: "Made for your business",
+    styles: ["luxe", "organic", "bento", "aurora", "pop", "neon", "brutalist"],
     brief:
-      "BOLD & COLORFUL: heavily designed and expressive. Rich color and gradients, big display type, layered compositions (overlapping cards, shapes, bento grids), striking section transitions, playful details and lively motion. Memorable and full of energy while staying readable and accessible. Motion: expressive and lively (a dramatic hero entrance, staggered reveals with more travel, drifting gradient shapes, counters, a marquee, playful hover effects), always smooth and never in the way.",
+      "MADE FOR THIS BUSINESS: the style that suits this kind of business best (its industry, its customers and its mood), pushed further than the other two directions. Commit fully to it: its typography, colour treatment, imagery and motion should feel unmistakably right for this business and different from the editorial and the soft-rounded designs. Motion: whatever fits the style, always smooth and never in the way.",
   },
 ];
 
+/** The name of a direction, including the earlier ones older projects used. */
+export function tierName(tier: ConceptTier | undefined): string | undefined {
+  const legacy: Partial<Record<ConceptTier, string>> = { simple: "Simple", balanced: "Balanced", bold: "Bold & colorful" };
+  return CONCEPT_TIERS.find((t) => t.tier === tier)?.name ?? (tier ? legacy[tier] : undefined);
+}
+
 /**
- * The three concepts: simple, balanced and bold, each in a style that suits
- * that direction, with the business's own best style used where it fits.
+ * The three concepts: ultra-modern editorial, modern soft and rounded, and one in
+ * the style that suits the business (its picked style, unless that's one of the
+ * first two; then the next best for its kind).
  */
 export function conceptStyles(picked: DesignStyle, all: DesignStyle[]): { tier: (typeof CONCEPT_TIERS)[number]; style: DesignStyle }[] {
-  const used = new Set<string>();
-  const home = CONCEPT_TIERS.find((t) => t.styles.includes(picked.id))?.tier;
-  return CONCEPT_TIERS.map((tier) => {
-    const id = tier.tier === home ? picked.id : tier.styles.find((s) => !used.has(s))!;
-    used.add(id);
-    return { tier, style: all.find((x) => x.id === id)! };
-  });
+  const [editorial, soft, themed] = CONCEPT_TIERS;
+  // The third is the business's own style when it's a themed one (luxe, organic, bento…),
+  // else the first themed style; soft styles (clay, calm, glass) go to the second design.
+  const own = themed.styles.includes(picked.id) ? picked.id : themed.styles[0];
+  const style = (id: string) => all.find((x) => x.id === id)!;
+  return [
+    { tier: editorial, style: style("editorial") },
+    { tier: soft, style: style(soft.styles.includes(picked.id) && picked.id !== own ? picked.id : "clay") },
+    { tier: themed, style: style(own) },
+  ];
 }
 
 /** The request for one concept. */

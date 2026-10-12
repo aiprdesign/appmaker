@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, Loader2, Palette, RotateCw } from "lucide-react";
 import { getStyle } from "@/lib/styles";
-import { CONCEPT_TIERS, type SiteConcept } from "@/lib/website";
+import { tierName, type SiteConcept } from "@/lib/website";
 import type { SiteColors } from "@/lib/types";
 import { SitePreview } from "./SitePreview";
 
@@ -36,7 +36,7 @@ export function ConceptPicker({
       <div className="text-center">
         <h2 className="text-base font-semibold">Choose a design</h2>
         <p className="text-xs text-muted">
-          Your home page and one inside page in three directions: simple, balanced, and bold & colorful.{" "}
+          Your home page and one inside page in three directions: ultra-modern editorial, modern soft &amp; rounded, and a style made for your business.{" "}
           {writing ? `${writing} still being designed…` : "Pick the one you like; then the other pages are made in that design."}
         </p>
       </div>
@@ -54,7 +54,7 @@ export function ConceptPicker({
               <div className="flex items-center gap-1.5 text-sm font-medium">
                 {c.status === "writing" && <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-300" />}
                 Design {i + 1}
-                {c.tier && <span className="text-muted">· {CONCEPT_TIERS.find((t) => t.tier === c.tier)?.name}</span>}
+                {c.tier && <span className="text-muted">· {tierName(c.tier)}</span>}
               </div>
               <div className="truncate text-[11px] text-muted">{style?.name ?? c.style} style</div>
             </button>
