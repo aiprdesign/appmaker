@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Monitor, Smartphone, Tablet } from "lucide-react";
 import type { FileMap } from "@/lib/types";
+import type { A11yReport } from "@/lib/site-statement";
+import { SiteA11yReport } from "./SiteA11yReport";
 import { SITE_ASSET_PATH } from "@/lib/site-details";
 
 export type SiteViewport = "desktop" | "tablet" | "phone";
@@ -98,7 +100,20 @@ export function a11yFixRequest(page: string, issues: SiteA11yIssue[]): string {
     .join("\n")}\nFix these on every page where they occur, keeping the design and content the same.`;
 }
 
-export function SitePreview({ files, onFix, assets }: { files: FileMap; onFix?: (request: string) => void; assets?: Record<string, string> }) {
+export function SitePreview({
+  files,
+  onFix,
+  assets,
+  report,
+  onReport,
+}: {
+  files: FileMap;
+  onFix?: (request: string) => void;
+  assets?: Record<string, string>;
+  /** The latest site-wide WCAG 2.2 check, and where a new one goes (the finished site only). */
+  report?: A11yReport;
+  onReport?: (report: A11yReport) => void;
+}) {
   const [audit, setAudit] = useState<{ page: string; issues: SiteA11yIssue[] } | null>(null);
   const [showIssues, setShowIssues] = useState(false);
   const pages = Object.keys(files)
@@ -184,6 +199,7 @@ export function SitePreview({ files, onFix, assets }: { files: FileMap; onFix?: 
             ))}
           </select>
         </label>
+        {onReport && <SiteA11yReport files={files} assets={assets} auditSrc={auditSrc} report={report} onReport={onReport} onFix={onFix} />}
       </div>
       {audit && audit.page === current && (
         <div className="mx-auto w-full max-w-3xl">

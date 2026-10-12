@@ -38,6 +38,8 @@ document.getElementById("menu")?.addEventListener("click", (e) => e.currentTarge
 <summary>Redesigned. Download the ZIP and upload it to your host.</summary>`;
 
 test("redesigns a website: reads the site, writes new pages, previews them at any size, downloads a ZIP", async ({ page }) => {
+  // Long: three designs, the full site, and a WCAG 2.2 check of every page.
+  test.setTimeout(240_000);
   const bodies: Record<string, unknown>[] = [];
   await page.route("**/api/generate", async (route) => {
     bodies.push(route.request().postDataJSON());
@@ -114,6 +116,18 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await expect(page.getByText(/On the live site this opens \+15551234567/)).toBeVisible();
   // A real WCAG 2.2 AA audit (axe-core) runs on the page in the preview.
   await expect(page.getByRole("status").filter({ hasText: /Accessibility: / })).toBeVisible({ timeout: 20_000 });
+  // Every finished site has an accessibility statement, linked from the footer.
+  await expect(page.getByLabel("Page").locator("option", { hasText: "accessibility.html" })).toHaveCount(1);
+  // The WCAG 2.2 report checks every page, and its result goes into the statement.
+  await page.getByRole("button", { name: "WCAG 2.2 report" }).click();
+  const report = page.getByRole("region", { name: "WCAG 2.2 level AA report" });
+  await expect(report.getByRole("status")).toContainText(/pages pass the automated WCAG 2\.2 A and AA checks|issues? on \d+ of \d+ pages/, { timeout: 120_000 });
+  await expect(report.getByText("accessibility.html", { exact: true })).toBeVisible();
+  await expect(report.getByText(/Check these yourself/)).toBeVisible();
+  await page.getByLabel("Page").selectOption("accessibility.html");
+  await expect(site.getByRole("heading", { name: "Accessibility statement", level: 1 })).toBeVisible();
+  await expect(site.getByText(/automated checks .*against WCAG 2\.2 level A and AA|automated checks of all \d+ pages/)).toBeVisible();
+  await page.getByLabel("Page").selectOption("index.html");
   // Every site has the accessibility widget; its settings change the page.
   await site.getByRole("button", { name: "Accessibility settings" }).click();
   await site.getByRole("button", { name: /Bigger text/ }).click();

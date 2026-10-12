@@ -245,6 +245,8 @@ export interface Project {
   pending?: PendingRequest;
   /** Cloud builds with Expo Application Services. */
   expo?: ExpoState;
+  /** The latest WCAG 2.2 AA check of every page of a redesigned website (see src/lib/site-statement.ts). */
+  a11yReport?: import("./site-statement").A11yReport;
   /** Pictures the website redesign can use that aren't on the web (screenshot parts): path → data URL. */
   siteAssets?: Record<string, string>;
   /** Design settings from the Design tab; without them the design follows the listing's brand color. */

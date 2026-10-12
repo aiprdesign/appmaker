@@ -18,6 +18,7 @@ import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
 import { ConceptPicker, SiteColorsPanel } from "./ConceptPicker";
 import { withA11yWidget } from "@/lib/site-a11y";
+import { withStatement, type A11yReport, type StatementInfo } from "@/lib/site-statement";
 import { conceptPrompt, conceptStyles, contentIssues, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
@@ -95,6 +96,19 @@ function ChecksOverlay({ generating }: { generating: boolean }) {
       </div>
     </div>
   );
+}
+
+
+/** What the accessibility statement says about the business, and its latest check. */
+function statementInfo(p: Project, report: A11yReport | undefined = p.a11yReport): StatementInfo {
+  const c = p.source?.contact;
+  return {
+    siteName: p.source?.siteName || p.listing.name || p.name,
+    ...(c?.emails?.[0] ? { email: c.emails[0] } : p.storePages?.email ? { email: p.storePages.email } : {}),
+    ...(c?.phones?.[0] ? { phone: c.phones[0] } : {}),
+    ...(report ? { report } : {}),
+    ...(p.source?.language ? { lang: p.source.language } : {}),
+  };
 }
 
 export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
@@ -357,7 +371,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // a failed first build must not leave a "project" without App.js.
       const isApp = !isSite && hasEntry(files);
       // Every website carries Appmaker's accessibility widget, whatever the AI wrote.
-      if (isSite && hasSiteEntry(files)) Object.assign(files, withA11yWidget(files));
+      // In turn: the widget's script tag first, then the statement (built from those pages).
+      if (isSite && hasSiteEntry(files)) Object.assign(files, withStatement(withA11yWidget(files), statementInfo(base)));
       // Website apps always carry Appmaker's live-content file, whatever the AI wrote.
       if (base.source && isApp) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;
@@ -1047,7 +1062,18 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   onRetry={(i) => void makeConcepts(i)}
                 />
               ) : hasSiteEntry(previewFiles) ? (
-                <SitePreview files={previewFiles} assets={project.siteAssets} onFix={generating || checking ? undefined : (request) => send(request)} />
+                <SitePreview
+                  files={previewFiles}
+                  assets={project.siteAssets}
+                  report={project.a11yReport}
+                  onReport={(report) => {
+                    const p = projectRef.current ?? project;
+                    // The statement says what this check found.
+                    const files = withStatement(p.files, statementInfo(p, report));
+                    commit({ ...p, a11yReport: report, files });
+                    setPreviewFiles(files);
+                  }}
+                  onFix={generating || checking ? undefined : (request) => send(request)} />
               ) : (
                 <div className="grid flex-1 place-items-center text-center text-sm text-muted">
                   <div>

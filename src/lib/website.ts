@@ -163,6 +163,9 @@ The owner's content is the site. The redesign may present it better, but always 
 - Lists stay lists (every item), prices stay with their items, questions stay with their answers.
 - The design is built from the content: pick the layout of each section to suit what it holds (a list of services becomes cards, a story becomes text with its photo, questions become an accordion), keeping the page's order and structure.
 
+## Accessibility statement
+Appmaker adds accessibility.html (the site's WCAG 2.2 accessibility statement) and links it in every footer. Don't write, change or remove that page or its footer link; keep the footer link when you edit a footer.
+
 ## Videos and social posts (when <website_content> lists them)
 They're the business's own, from its YouTube, Vimeo, Instagram or TikTok, and make the site feel alive. Use them where they help: a "Watch" or "See us in action" section, beside the story or the services they show, or a "Follow us" band of recent posts.
 - Use Appmaker's built-in video player (a11y.js, already on every page, runs it): <div data-video="(the exact official embed address listed)" data-title="(what the video shows)" class="aspect-video w-full overflow-hidden rounded-…"></div>. It shows the still with a big play button and loads the official player only when pressed (fast, and private until then). Don't write your own player script. Instagram and TikTok posts are tall: class aspect-[9/16] (about 340px wide), in a row or grid of cards.
