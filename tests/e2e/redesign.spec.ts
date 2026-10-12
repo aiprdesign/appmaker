@@ -64,8 +64,9 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await expect(page.getByRole("tab", { name: /Design 1 · Ultra-modern editorial/ })).toBeVisible();
   await expect(page.getByRole("tab", { name: /Design 2 · Modern soft & rounded/ })).toBeVisible();
   await expect(page.getByRole("tab", { name: /Design 3 · Made for your business/ })).toBeVisible();
-  expect(String(bodies[0].prompt)).toContain("direction SIMPLE");
-  expect(String(bodies[2].prompt)).toContain("direction BOLD & COLORFUL");
+  expect(String(bodies[0].prompt)).toContain("direction ULTRA-MODERN EDITORIAL");
+  expect(String(bodies[1].prompt)).toContain("direction MODERN SOFT & ROUNDED");
+  expect(String(bodies[2].prompt)).toContain("direction MADE FOR THIS BUSINESS");
   await page.getByRole("tab", { name: /Design 2/ }).click();
   await expect(page.frameLocator('iframe[title="Website preview"]').getByRole("heading", { name: "Luigi's Trattoria" })).toBeVisible({ timeout: 30_000 });
   // Colours: brand colours from the site by default; custom colours redo the three designs.
