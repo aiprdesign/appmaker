@@ -11,7 +11,6 @@ import type { SiteSummary } from "@/lib/types";
 import { validateApp } from "@/lib/validate";
 
 // The same merge the apps run, taken from the source they ship with.
-// eslint-disable-next-line @typescript-eslint/no-implied-eval
 const mergeLive = new Function(`${LIVE_MERGE_SOURCE}; return mergeLive;`)() as (base: unknown, live: unknown) => Record<string, unknown>;
 
 const SITE: SiteSummary = {

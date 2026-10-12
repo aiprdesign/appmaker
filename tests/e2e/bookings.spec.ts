@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { openPublishExtras } from "./helpers/publish";
 
 // Simple booking. Needs TEST_DATABASE_URL (accounts, bookings and the admin switch live in the database).
 test.skip(!process.env.TEST_DATABASE_URL, "needs TEST_DATABASE_URL");
@@ -42,13 +43,13 @@ test("bookings: off until admin turns it on, then book in the app and manage it 
   await maker.keyboard.press("Enter");
   const app = maker.frameLocator('iframe[title="App preview"]');
   await expect(app.getByText("Kicked off the project")).toBeVisible({ timeout: 30_000 });
-  await maker.getByRole("button", { name: "Publish" }).first().click();
+  await openPublishExtras(maker);
   await expect(maker.getByRole("region", { name: "Live updates from your website" })).toHaveCount(0);
   await expect(maker.getByRole("region", { name: "Bookings" })).toHaveCount(0);
 
   await bookingsSwitch(true);
   await maker.reload();
-  await maker.getByRole("button", { name: "Publish" }).first().click();
+  await openPublishExtras(maker);
   const panel = maker.getByRole("region", { name: "Bookings" });
   await expect(panel.getByRole("checkbox", { name: "Monday" })).toBeChecked();
   await expect(panel.getByRole("checkbox", { name: "Sunday" })).not.toBeChecked();
@@ -60,7 +61,7 @@ test("bookings: off until admin turns it on, then book in the app and manage it 
   expect((await request).postDataJSON().prompt).toMatch(/Add a Book tab/);
   await expect(maker.getByRole("button", { name: "Preview", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(maker.locator("aside").getByText(/Demo mode is active/)).toBeVisible({ timeout: 15_000 });
-  await maker.getByRole("button", { name: "Publish" }).first().click();
+  await openPublishExtras(maker);
   await expect(panel.getByText("Bookings are on.")).toBeVisible();
   // Demo mode can't edit apps, so show the booking screen by hand.
   await maker.getByRole("button", { name: "Code" }).click();
@@ -83,7 +84,7 @@ test("bookings: off until admin turns it on, then book in the app and manage it 
   await expect(app.getByText(/^Booked for /)).toBeVisible();
 
   // The owner page shows it, and cancelling frees the time.
-  await maker.getByRole("button", { name: "Publish" }).first().click();
+  await openPublishExtras(maker);
   const [owner] = await Promise.all([maker.waitForEvent("popup"), panel.getByRole("link", { name: "Open bookings page" }).click()]);
   await expect(owner.getByText("Ana Test")).toBeVisible();
   await expect(owner.getByText("Colour · +1 555 0142")).toBeVisible();

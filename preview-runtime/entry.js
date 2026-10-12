@@ -323,6 +323,8 @@ function useDomStyle(css) {
     const node = ref.current;
     if (!node || !node.style) return;
     for (const [k, v] of Object.entries(css)) if (v != null) node.style[k] = v;
+    // Re-run when the style's contents change (key), not on every new style object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return ref;
 }

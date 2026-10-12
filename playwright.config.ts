@@ -7,6 +7,8 @@ export default defineConfig({
   testDir: "tests/e2e",
   timeout: 60_000,
   retries: process.env.CI ? 1 : 0,
+  // On GitHub, an HTML report is saved too, so a failure can be opened from the run's artifacts.
+  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
