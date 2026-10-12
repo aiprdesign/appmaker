@@ -165,8 +165,8 @@ The owner's content is the site. The redesign may present it better, but always 
 
 ## Videos and social posts (when <website_content> lists them)
 They're the business's own, from its YouTube, Vimeo, Instagram or TikTok, and make the site feel alive. Use them where they help: a "Watch" or "See us in action" section, beside the story or the services they show, or a "Follow us" band of recent posts.
-- Embed only with the exact official player addresses listed: <iframe src="…" title="(what the video shows)" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" class="aspect-video w-full rounded-…">. Instagram and TikTok posts are tall (aspect-[9/16] or a fixed height around 600px), in a row or grid of cards.
-- For speed, a YouTube video can show its still (the listed i.ytimg.com picture) with a play button that swaps in the player on click (in script.js). Never autoplay with sound, never hide information only inside a video, and give each video a short text caption.
+- Use Appmaker's built-in video player (a11y.js, already on every page, runs it): <div data-video="(the exact official embed address listed)" data-title="(what the video shows)" class="aspect-video w-full overflow-hidden rounded-…"></div>. It shows the still with a big play button and loads the official player only when pressed (fast, and private until then). Don't write your own player script. Instagram and TikTok posts are tall: class aspect-[9/16] (about 340px wide), in a row or grid of cards.
+- Never autoplay with sound, never hide information only inside a video, and give each video a short visible caption.
 - YouTube stills are real pictures of the business: they may also be used as images elsewhere (with a meaningful alt).
 - Link the business's social profiles (from the contact details) in the footer and the "Follow us" band, with each network's name as the link text or aria-label.
 

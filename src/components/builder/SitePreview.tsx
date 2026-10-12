@@ -50,6 +50,24 @@ function withAssets(code: string, assets: Record<string, string>): string {
   return out;
 }
 
+const PLAYER = /^https:\/\/(www\.youtube-nocookie\.com\/embed\/|www\.youtube\.com\/embed\/|player\.vimeo\.com\/video\/|www\.instagram\.com\/(p|reel)\/[\w-]+\/embed|www\.tiktok\.com\/embed\/)/i;
+const attr = (attrs: string, name: string) => new RegExp(`\\s${name}=["']([^"']*)["']`, "i").exec(` ${attrs}`)?.[1];
+
+/**
+ * Video players can't run inside the preview's sandbox: official players become
+ * the built-in still-and-play card (from a11y.js), which says the video plays on
+ * the live site. The downloaded site keeps the real players.
+ */
+function previewVideos(html: string): string {
+  const out = html.replace(/<iframe\b([^>]*)>\s*<\/iframe>/gi, (tag, attrs: string) => {
+    const src = attr(attrs, "src") ?? "";
+    if (!PLAYER.test(src)) return tag;
+    const esc = (t: string) => t.replace(/"/g, "&quot;");
+    return `<div data-video="${esc(src)}" data-title="${esc(attr(attrs, "title") ?? "Video")}" class="${esc(attr(attrs, "class") ?? "")}"></div>`;
+  });
+  return /<head[^>]*>/i.test(out) ? out.replace(/<head[^>]*>/i, (h) => `${h}<script>window.__appmakerPreview=1</script>`) : `<script>window.__appmakerPreview=1</script>${out}`;
+}
+
 export function previewDocument(files: FileMap, page: string, audit?: string, assets: Record<string, string> = {}): string {
   let html = files[page] ?? files["index.html"] ?? "";
   html = html.replace(/<link[^>]*href=["']\.?\/?([a-z0-9_\/-]+\.css)["'][^>]*>/gi, (tag, path: string) =>
@@ -59,6 +77,7 @@ export function previewDocument(files: FileMap, page: string, audit?: string, as
     files[path] != null ? `<script${a}${b}>${files[path].replace(/<\/script/gi, "<\\/script")}</script>` : tag,
   );
   html = withAssets(html, assets);
+  html = previewVideos(html);
   const tail = NAV_SCRIPT + (audit ? auditScript(audit) : "");
   return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${tail}</body>`) : html + tail;
 }

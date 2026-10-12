@@ -155,8 +155,13 @@ describe("accessibility widget", () => {
     expect(files["blog/post.html"]).toMatch(/<script src="\.\.\/a11y\.js" defer><\/script>\n<\/body>/);
     expect(withA11yWidget(files)["index.html"].match(/a11y\.js/g)).toHaveLength(1);
     expect(validateSite({ ...files, "contact.html": good })).toEqual([]);
-    // No requests anywhere (the only address is the SVG namespace, which isn't fetched).
-    expect(A11Y_WIDGET.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, "")).not.toMatch(/fetch\(|XMLHttpRequest|https?:\/\//);
+    // No background requests at all. The only addresses are the SVG namespace (never fetched)
+    // and, for the video player, YouTube's cookie-free stills and the official players it
+    // loads when someone presses play.
+    expect(A11Y_WIDGET).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon|WebSocket/);
+    const addresses = A11Y_WIDGET.match(/https?:(?:\\?\/){2}[\w.-]+/g) ?? [];
+    const allowed = /^https?:(?:\\?\/){2}(www\.w3\.org|i\.ytimg\.com|www\.youtube-nocookie\.com|www\.youtube\.com|player\.vimeo\.com|www\.instagram\.com|www\.tiktok\.com)$/;
+    expect(addresses.filter((a) => !allowed.test(a.replace(/\\/g, "")))).toEqual([]);
   });
 });
 

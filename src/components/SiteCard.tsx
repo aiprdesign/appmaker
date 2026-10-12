@@ -5,7 +5,9 @@ import type { SiteSummary } from "@/lib/types";
 export function SiteCard({ site, onRemove }: { site: SiteSummary; onRemove?: () => void }) {
   const host = new URL(site.url).hostname.replace(/^www\./, "");
   const c = site.contact;
-  const photos = site.images?.length ?? 0;
+  const photos = (site.images?.length ?? 0) + (site.localImages?.length ?? 0);
+  const videos = site.videos?.length ?? 0;
+  const clients = site.clientLogos?.length ?? 0;
   const found = [
     site.logo && "logo",
     photos && `${photos} photo${photos === 1 ? "" : "s"}`,
@@ -14,6 +16,9 @@ export function SiteCard({ site, onRemove }: { site: SiteSummary; onRemove?: () 
     c?.hours.length && "hours",
     c?.booking && "booking link",
     c?.whatsapp && "WhatsApp",
+    videos && `${videos} video${videos === 1 ? "" : "s"}`,
+    clients && `${clients} client logo${clients === 1 ? "" : "s"}`,
+    site.screenshots?.length && "screenshot parts",
   ].filter(Boolean) as string[];
   return (
     <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-left">

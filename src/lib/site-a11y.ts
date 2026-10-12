@@ -220,6 +220,86 @@ export const A11Y_WIDGET = `/* Accessibility settings for visitors. Added by App
   if (document.readyState === "complete") all();
   else window.addEventListener("load", all);
 })();
+
+/* Videos (YouTube, Vimeo, Instagram, TikTok): a still with a play button; the official
+   player loads only when someone presses play (faster, and no tracking before that).
+   Markup: <div data-video="https://www.youtube-nocookie.com/embed/ID" data-title="What it shows" class="aspect-video"></div>
+   Optional: data-still="https://i.ytimg.com/vi/ID/hqdefault.jpg" (YouTube stills are found by themselves). Added by Appmaker. */
+(function () {
+  var OK = /^https:\\/\\/(www\\.youtube-nocookie\\.com\\/embed\\/|www\\.youtube\\.com\\/embed\\/|player\\.vimeo\\.com\\/video\\/|www\\.instagram\\.com\\/(p|reel)\\/[\\w-]+\\/embed|www\\.tiktok\\.com\\/embed\\/)/i;
+  var boxes = document.querySelectorAll("[data-video]");
+  if (!boxes.length) return;
+  var css = document.createElement("style");
+  css.textContent =
+    ":where(.am-video){position:relative;overflow:hidden;background:#111}" +
+    // :where() keeps 16:9 as a default: the site's own aspect class (aspect-[9/16]…) wins.
+    ":where(.am-video){aspect-ratio:16/9}" +
+    ".am-video-play{position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;cursor:pointer;background:#111 center/cover no-repeat;color:#fff}" +
+    ".am-video-play::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.55),rgba(0,0,0,.05) 55%)}" +
+    ".am-video-icon{position:absolute;left:50%;top:50%;z-index:1;width:4.25rem;height:4.25rem;margin:-2.125rem 0 0 -2.125rem;border-radius:999px;background:rgba(255,255,255,.92);box-shadow:0 10px 30px rgba(0,0,0,.35);transition:transform .25s cubic-bezier(.22,1,.36,1)}" +
+    ".am-video-icon::before{content:'';position:absolute;left:54%;top:50%;transform:translate(-50%,-50%);border-style:solid;border-width:.7rem 0 .7rem 1.15rem;border-color:transparent transparent transparent #111}" +
+    ".am-video-play:hover .am-video-icon,.am-video-play:focus-visible .am-video-icon{transform:scale(1.08)}" +
+    ".am-video-play:focus-visible{outline:3px solid #fff;outline-offset:-6px}" +
+    ".am-video-title{position:absolute;left:1rem;right:1rem;bottom:.9rem;z-index:1;font:600 .95rem/1.3 system-ui,sans-serif;text-align:left;text-shadow:0 1px 3px rgba(0,0,0,.6)}" +
+    ".am-video-note{position:absolute;left:50%;bottom:3.2rem;z-index:2;transform:translateX(-50%);max-width:90%;padding:.45rem .8rem;border-radius:999px;background:rgba(0,0,0,.75);color:#fff;font:500 .8rem/1.3 system-ui,sans-serif;text-align:center}" +
+    ".am-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}" +
+    "@media (prefers-reduced-motion:reduce){.am-video-icon{transition:none}}";
+  document.head.appendChild(css);
+
+  function still(src) {
+    var m = /\\/embed\\/([\\w-]{11})/.exec(src);
+    return m && /youtube/.test(src) ? "https://i.ytimg.com/vi/" + m[1] + "/hqdefault.jpg" : "";
+  }
+
+  for (var i = 0; i < boxes.length; i++) {
+    (function (box) {
+      var src = box.getAttribute("data-video") || "";
+      if (!OK.test(src) || box.getAttribute("data-am-ready")) return;
+      box.setAttribute("data-am-ready", "1");
+      box.classList.add("am-video");
+      var title = box.getAttribute("data-title") || "Video";
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "am-video-play";
+      button.setAttribute("aria-label", "Play video: " + title);
+      var picture = box.getAttribute("data-still") || still(src);
+      if (picture) button.style.backgroundImage = "url(" + JSON.stringify(picture) + ")";
+      var icon = document.createElement("span");
+      icon.className = "am-video-icon";
+      icon.setAttribute("aria-hidden", "true");
+      var label = document.createElement("span");
+      label.className = "am-video-title";
+      label.textContent = title;
+      button.appendChild(icon);
+      button.appendChild(label);
+      button.addEventListener("click", function () {
+        // In Appmaker's preview, players can't run: say where it plays instead.
+        if (window.__appmakerPreview) {
+          if (!box.querySelector(".am-video-note")) {
+            var note = document.createElement("span");
+            note.className = "am-video-note";
+            note.setAttribute("role", "status");
+            note.textContent = "The video plays on your live site.";
+            box.appendChild(note);
+          }
+          return;
+        }
+        var frame = document.createElement("iframe");
+        var auto = /youtube|vimeo/.test(src) ? (src.indexOf("?") < 0 ? "?" : "&") + "autoplay=1" : "";
+        frame.src = src + auto;
+        frame.title = title;
+        frame.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture; fullscreen");
+        frame.setAttribute("allowfullscreen", "");
+        frame.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+        box.innerHTML = "";
+        box.appendChild(frame);
+        frame.focus();
+      });
+      box.innerHTML = "";
+      box.appendChild(button);
+    })(boxes[i]);
+  }
+})();
 `;
 
 const TAG = /<script[^>]*src=["']\.?\/?(?:\.\.\/)?a11y\.js["'][^>]*>\s*<\/script>/i;
