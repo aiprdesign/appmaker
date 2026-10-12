@@ -47,6 +47,23 @@ export const EXPO_SDK = `${EXPO_DEPS.expo.replace(/^\D*/, "").split(".")[0]}.0.0
  */
 export const EXPO_GO_RUNTIME = `exposdk:${EXPO_SDK}`;
 
+/**
+ * The Expo Go app version previews are labelled for. Expo Go 56.0.1 and 57.0.9
+ * compare an update's sdkVersion with their own app version as exact text
+ * (expo/expo#46846; fixed on Expo's main branch but not in a released Expo Go),
+ * so "57.0.0" shows "not compatible" in Expo Go 57.0.9. Labelling the preview
+ * with the current Expo Go version opens it; the runtime stays exposdk:57.0.0.
+ * When a new Expo Go ships, the site owner sets APPMAKER_EXPO_GO_VERSION.
+ */
+export const EXPO_GO_CLIENT = "57.0.9";
+
+/** The sdkVersion written into Expo Go previews (same major version as the apps' SDK). */
+export function expoGoSdkLabel(): string {
+  const wanted = typeof process !== "undefined" ? process.env.APPMAKER_EXPO_GO_VERSION?.trim() : undefined;
+  const major = EXPO_SDK.split(".")[0];
+  return wanted && new RegExp(`^${major}\\.\\d+\\.\\d+$`).test(wanted) ? wanted : EXPO_GO_CLIENT;
+}
+
 export const ICON_PATH = "assets/icon.png";
 
 export function slugify(name: string): string {
@@ -139,7 +156,7 @@ export function appJson(project: Project, link: ExpoLink | undefined = project.e
       ...(nativePlugins.length ? { plugins: nativePlugins } : {}),
       ...(link ? { extra: { eas: { projectId: link.projectId } } } : {}),
       // Expo Go checks both: the update's runtime and the SDK its app config names.
-      ...(expoGo && link ? { sdkVersion: EXPO_SDK, runtimeVersion: EXPO_GO_RUNTIME, updates: { url: `https://u.expo.dev/${link.projectId}` } } : {}),
+      ...(expoGo && link ? { sdkVersion: expoGoSdkLabel(), runtimeVersion: EXPO_GO_RUNTIME, updates: { url: `https://u.expo.dev/${link.projectId}` } } : {}),
     },
   };
 }

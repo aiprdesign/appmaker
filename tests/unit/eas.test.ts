@@ -45,6 +45,21 @@ describe("Expo project files", () => {
     expect(appJson(project()).expo).not.toHaveProperty("owner");
   });
 
+  it("labels Expo Go previews with the Expo Go app version (works around its exact version check), never store builds", async () => {
+    const link = { projectId: PROJECT_ID, owner: "alice", slug: "habit-hero" };
+    const { expoGoSdkLabel, EXPO_GO_RUNTIME } = await import("@/lib/expo-project");
+    const preview = appJson(project({ expo: { link } }), link, { expoGo: true }).expo;
+    expect(preview).toMatchObject({ sdkVersion: "57.0.9", runtimeVersion: EXPO_GO_RUNTIME });
+    expect(EXPO_GO_RUNTIME).toBe("exposdk:57.0.0");
+    expect(appJson(project({ expo: { link } })).expo).not.toHaveProperty("sdkVersion");
+    // The site owner can follow a new Expo Go without a code change; other majors are ignored.
+    process.env.APPMAKER_EXPO_GO_VERSION = "57.0.11";
+    expect(expoGoSdkLabel()).toBe("57.0.11");
+    process.env.APPMAKER_EXPO_GO_VERSION = "58.0.1";
+    expect(expoGoSdkLabel()).toBe("57.0.9");
+    delete process.env.APPMAKER_EXPO_GO_VERSION;
+  });
+
   it("puts App Store upload settings in the submit profile", () => {
     expect(easJson({ ascAppId: "6741234567" }).submit.production).toEqual({ ios: { ascAppId: "6741234567" } });
     expect(easJson().submit.production).toEqual({});

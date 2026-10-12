@@ -1,6 +1,6 @@
 "use client";
 
-import { EXPO_GO_RUNTIME } from "../expo-project";
+import { EXPO_GO_CLIENT, EXPO_GO_RUNTIME } from "../expo-project";
 import type { ExpoCheckResult } from "./check";
 import { useSyncExternalStore } from "react";
 import { renderIcon } from "../export";
@@ -168,7 +168,7 @@ export async function startCloudBuild(opts: {
 export function previewSource(project: Project): string {
   // The Expo Go SDK is part of it: a preview made for an older SDK is out of date, because
   // a newer Expo Go says "not compatible" and won't open it.
-  const text = JSON.stringify([EXPO_GO_RUNTIME, project.files, project.listing.name, project.listing.primaryColor, project.listing.iconEmoji]);
+  const text = JSON.stringify([EXPO_GO_RUNTIME, EXPO_GO_CLIENT, project.files, project.listing.name, project.listing.primaryColor, project.listing.iconEmoji]);
   let h = 5381;
   for (let i = 0; i < text.length; i++) h = (h * 33) ^ text.charCodeAt(i);
   return `${(h >>> 0).toString(36)}-${text.length}`;
@@ -182,7 +182,7 @@ export async function publishForPhone(token: string | undefined, project: Projec
     icon: await iconBase64(project),
     link,
   });
-  return { ...preview, source: previewSource(project), runtime: EXPO_GO_RUNTIME };
+  return { ...preview, source: previewSource(project), runtime: `${EXPO_GO_RUNTIME}+${EXPO_GO_CLIENT}` };
 }
 
 export async function fetchBuilds(token: string | undefined, ids: string[]): Promise<CloudBuild[]> {

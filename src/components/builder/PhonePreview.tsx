@@ -1,6 +1,6 @@
 "use client";
 
-import { EXPO_GO_RUNTIME, EXPO_SDK } from "@/lib/expo-project";
+import { EXPO_GO_CLIENT, EXPO_GO_RUNTIME, EXPO_SDK } from "@/lib/expo-project";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, Loader2, RefreshCw, Smartphone, X } from "lucide-react";
 import { QrCode } from "@/components/QrCode";
@@ -30,7 +30,8 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
       : saved;
   const upToDate = !!preview && preview.source === previewSource(project);
   // Made for an older Expo SDK (before an update of Appmaker): today's Expo Go can't open it.
-  const oldSdk = !!preview && preview.runtime !== EXPO_GO_RUNTIME;
+  // (or labelled for an Expo Go with the version-check bug that this one replaces).
+  const oldSdk = !!preview && preview.runtime !== `${EXPO_GO_RUNTIME}+${EXPO_GO_CLIENT}`;
   const canPublish = !!server && server.available && !server.off && (server.hosted || !!token);
 
   const close = useRef(onClose);
@@ -105,7 +106,7 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
             <p role="status" className="flex items-start gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-100">
               <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
-                The last QR code was made for an older Expo version, so Expo Go {EXPO_SDK.split(".")[0]} would say “not compatible”. Make a new one: it runs on
+                The last QR code was made for an older Expo or Expo Go version, so Expo Go {EXPO_GO_CLIENT} would say “not compatible”. Make a new one: it runs on
                 Expo SDK {EXPO_SDK.split(".")[0]}, the version Expo Go uses now.
               </span>
             </p>

@@ -180,7 +180,7 @@ test("Your phone (Expo Go): a QR code made for an older Expo SDK is replaced, no
   await page.reload();
   await page.getByRole("button", { name: "Test on a device" }).click();
   await page.getByRole("menuitem", { name: /Your phone \(Expo Go\)/ }).click();
-  await expect(dialog.getByText(/made for an older Expo version, so Expo Go 57 would say “not compatible”/)).toBeVisible();
+  await expect(dialog.getByText(/made for an older Expo or Expo Go version, so Expo Go 57.0.9 would say “not compatible”/)).toBeVisible();
   await expect(dialog.getByRole("img", { name: "QR code to open this app in Expo Go" })).toHaveCount(0);
   await dialog.getByRole("button", { name: "Make a new QR code" }).click();
   await expect(dialog.getByText("Up to date with your latest changes.")).toBeVisible();
