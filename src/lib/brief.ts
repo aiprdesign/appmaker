@@ -145,7 +145,7 @@ export function briefPrompt(prompt: string, a: BriefAnswers): string {
     ...(a.picks ?? []).filter((p) => p.choices.length).map((p) => `${p.q.replace(/\?$/, "")}: ${p.choices.join(", ")}.`),
     ...(wantsAppPayment(a.picks)
       ? [
-          "Paying in the app: a Pay button opens the business's own payment link (Stripe or Square) in the browser; write it as [your payment link] for the owner to fill in. The app never asks for card numbers. Paying in person stays possible.",
+          "Paying in the app: a Pay button opens the business's own payment link (Stripe or Square; a second PayPal button only if the owner asks) in the browser; write it as [your payment link] for the owner to fill in. The app never asks for card numbers. Paying in person stays possible.",
         ]
       : []),
     ...(style ? [`Look and feel: ${style.text}.`] : []),
@@ -167,8 +167,9 @@ export function wantsAppPayment(picks: { q: string; choices: string[] }[] | unde
   );
 }
 
-/** Where owners get a payment link: their own account, so the money goes straight to them. Stripe first (simplest); Square for shops with a counter. */
+/** Where owners get a payment link: their own account, so the money goes straight to them. Stripe first (simplest); Square for shops with a counter; PayPal only as an extra. */
 export const PAYMENT_PROVIDERS = [
   { name: "Stripe", url: "https://stripe.com/payments/payment-links", best: "Recommended: simplest, no monthly fee" },
   { name: "Square", url: "https://squareup.com/us/en/online-checkout", best: "If you also take cards at a counter" },
+  { name: "PayPal", url: "https://www.paypal.com/business", best: "Extra option for customers who ask for it" },
 ] as const;
