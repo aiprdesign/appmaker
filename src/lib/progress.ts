@@ -6,16 +6,51 @@ export const THINKING_MARK = "<thinking/>";
 export const ALIVE_MARK = "<alive/>";
 export const ALIVE_EVERY_MS = 10_000;
 
-/** Removes the server's signals from the stream; reports whether the AI was thinking. */
-export function takeSignals(raw: string): { text: string; thinking: boolean } {
-  const thinking = raw.includes(THINKING_MARK);
-  return { text: raw.split(THINKING_MARK).join("").split(ALIVE_MARK).join(""), thinking };
+/** Wraps a piece of the AI's thinking (summarized) so the page can show what it's doing. */
+export const THOUGHT_OPEN = "<thought>";
+export const THOUGHT_CLOSE = "</thought>";
+
+/** Thinking text made safe to send inside the stream (no tags, so it can't be mistaken for app files). */
+export const thoughtSignal = (text: string) => (text.trim() ? `${THOUGHT_OPEN}${text.replace(/[<>]/g, " ")}${THOUGHT_CLOSE}` : "");
+
+/**
+ * Removes the server's signals from the stream; reports whether the AI was
+ * thinking and what it said while thinking. A thought cut off at the end of
+ * the text stays in `text` until the rest arrives (call again with more).
+ */
+export function takeSignals(raw: string): { text: string; thinking: boolean; thought: string } {
+  let thought = "";
+  const text = raw.replace(/<thought>([\s\S]*?)<\/thought>/g, (_, t: string) => {
+    thought += t;
+    return "";
+  });
+  const thinking = raw.includes(THINKING_MARK) || thought.length > 0;
+  return { text: text.split(THINKING_MARK).join("").split(ALIVE_MARK).join(""), thinking, thought };
+}
+
+/** The text without a thought that hasn't finished arriving (for parsing the app so far). */
+export const withoutOpenThought = (text: string) => {
+  const open = text.lastIndexOf(THOUGHT_OPEN);
+  return open === -1 ? text : text.slice(0, open);
+};
+
+/** The latest of what the AI said while thinking, as a few short lines for the page. */
+export function latestThoughts(all: string, lines = 3): string[] {
+  return all
+    .replace(/\*\*/g, "")
+    .split(/\n+/)
+    .map((l) => l.replace(/^#+\s*/, "").trim())
+    .filter((l) => l.length > 2)
+    .slice(-lines)
+    .map((l) => (l.length > 220 ? `${l.slice(0, 217)}…` : l));
 }
 
 /** What the page knows about a running generation: the parsed output, plus signs of life. */
 export type LiveGeneration = ParsedGeneration & {
   /** The AI has been reasoning (and hasn't started writing the app yet). */
   thinking?: boolean;
+  /** What the AI has said while thinking (summarized), newest last. */
+  thoughts?: string;
   /** When anything last arrived from the server (ms since epoch). */
   lastActivity?: number;
 };

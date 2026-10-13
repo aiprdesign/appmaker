@@ -37,7 +37,7 @@ import { polishPrompt, toJpeg } from "@/lib/polish";
 import { Orb } from "@/components/fx/Orb";
 import { PhoneBuilding, PhoneEditing } from "./PhoneProgress";
 import { fixable, reviewFixRequest, reviewMessage, type Review, type ReviewAgent } from "@/lib/review";
-import { takeSignals, type LiveGeneration } from "@/lib/progress";
+import { takeSignals, withoutOpenThought, type LiveGeneration } from "@/lib/progress";
 import { captureFrame } from "@/lib/store-shots";
 import { TapTest, type TapTestResult } from "./TapTest";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
@@ -373,6 +373,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         const decoder = new TextDecoder();
         let lastParse = 0;
         let thinking = false;
+        let thoughts = "";
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -381,14 +382,17 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
           const signals = takeSignals(raw);
           raw = signals.text;
           if (signals.thinking) thinking = true;
+          // What the AI says while thinking, shown live (only the recent part is kept).
+          if (signals.thought) thoughts = (thoughts + signals.thought).slice(-4000);
           const now = performance.now();
           if (now - lastParse > 120) {
             lastParse = now;
-            const parsed = parseGeneration(raw);
-            setLive({ ...parsed, thinking, lastActivity: Date.now() });
+            const parsed = parseGeneration(withoutOpenThought(raw));
+            setLive({ ...parsed, thinking, thoughts, lastActivity: Date.now() });
             if (parsed.writing) setSelectedFile(parsed.writing);
           }
         }
+        raw = withoutOpenThought(raw);
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
           error = friendlyError((e as Error).message);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildingParts, buildProgress, colorName, friendlyFile, kebabIcon, progressNote, takeSignals, type LiveGeneration } from "@/lib/progress";
+import { buildingParts, buildProgress, colorName, friendlyFile, kebabIcon, latestThoughts, progressNote, takeSignals, thoughtSignal, withoutOpenThought, type LiveGeneration } from "@/lib/progress";
 import { autoDesign, PALETTES } from "@/lib/design";
 
 describe("build progress", () => {
@@ -25,8 +25,17 @@ describe("signs of life while the AI works", () => {
     expect(takeSignals('<plan>Hi<alive/></plan><file path="App.js">a<thinking/>b</file>')).toEqual({
       text: '<plan>Hi</plan><file path="App.js">ab</file>',
       thinking: true,
+      thought: "",
     });
     expect(takeSignals("<alive/>").thinking).toBe(false);
+  });
+  it("passes on what the AI says while thinking, without it ending up in the app", () => {
+    const raw = `${thoughtSignal("Planning a <b>menu</b> screen\n")}<plan>Hi</plan>${thoughtSignal("Picking colors")}<thought>half`;
+    const s = takeSignals(raw);
+    expect(s.thought).toBe("Planning a  b menu /b  screen\nPicking colors");
+    expect(s.thinking).toBe(true);
+    expect(withoutOpenThought(s.text)).toBe("<plan>Hi</plan>");
+    expect(latestThoughts("**Menu**\n\nfirst\nsecond\nthird", 2)).toEqual(["second", "third"]);
   });
   it("says the AI is thinking, then warns when it's slow or the connection drops", () => {
     const start = 1_000_000;

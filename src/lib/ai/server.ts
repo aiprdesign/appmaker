@@ -163,8 +163,8 @@ export interface GenerateArgs {
   quick?: boolean;
   /** Screenshots (data URLs, JPEG or PNG) shown to the model with the last user message. */
   images?: string[];
-  /** Called while the model reasons before writing (its thinking isn't shown, only that it's busy). */
-  onThinking?: () => void;
+  /** Called while the model reasons before writing, with a short summary of its thinking when the model gives one. */
+  onThinking?: (text: string) => void;
   /** Output budget for a quick request (default 2048), e.g. for reviews that write a list. */
   maxTokens?: number;
 }
@@ -210,7 +210,7 @@ export async function streamGeneration({ ai, system, messages, signal, write, qu
       {
         model: ai.model,
         max_tokens: quick ? (maxTokens ?? 2048) : modern ? 64000 : 32000,
-        ...(modern ? { thinking: { type: "adaptive" as const }, output_config: { effort: quick ? ("low" as const) : ("high" as const) } } : {}),
+        ...(modern ? { thinking: { type: "adaptive" as const, ...(quick ? {} : { display: "summarized" as const }) }, output_config: { effort: quick ? ("low" as const) : ("high" as const) } } : {}),
         ...(ai.provider === "anthropic" && supportsFallbacks(ai.model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
         messages: shots
@@ -231,7 +231,7 @@ export async function streamGeneration({ ai, system, messages, signal, write, qu
     );
     for await (const event of stream) {
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") write(event.delta.text);
-      else if (event.type === "content_block_delta" && event.delta.type === "thinking_delta") onThinking?.();
+      else if (event.type === "content_block_delta" && event.delta.type === "thinking_delta") onThinking?.(event.delta.thinking);
     }
     const final = await stream.finalMessage();
     if (final.stop_reason === "refusal") return "refusal";
@@ -273,7 +273,11 @@ export async function streamGeneration({ ai, system, messages, signal, write, qu
     const text = choice?.delta?.content;
     if (text) write(text);
     // Reasoning models (DeepSeek, OpenRouter, Groq…) stream their thinking separately.
-    else if (choice?.delta && ((choice.delta as { reasoning_content?: string }).reasoning_content || (choice.delta as { reasoning?: string }).reasoning)) onThinking?.();
+    else if (choice?.delta) {
+      const d = choice.delta as { reasoning_content?: string; reasoning?: string };
+      const thought = d.reasoning_content || d.reasoning;
+      if (thought) onThinking?.(thought);
+    }
     if (choice?.finish_reason) finish = choice.finish_reason;
   }
   if (finish === "length") return "length";

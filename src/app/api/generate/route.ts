@@ -8,7 +8,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { APP_MAX_BYTES, APP_MAX_FILES, isAllowedPath } from "@/lib/validate";
 import { charge, CreditsError, creditsResponse, refund } from "@/lib/server/credits";
 import { unexpectedErrorResponse } from "@/lib/server/errors";
-import { ALIVE_EVERY_MS, ALIVE_MARK, THINKING_MARK } from "@/lib/progress";
+import { ALIVE_EVERY_MS, ALIVE_MARK, THINKING_MARK, thoughtSignal } from "@/lib/progress";
 import type { FileMap, SiteSummary, StoreListing } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -213,6 +213,7 @@ async function generate(req: Request): Promise<Response> {
     let madeFiles = false;
     let tail = "";
     let lastThought = 0;
+    let thought = "";
     // Keep the connection alive (and show the page we're still here) while the AI is quiet.
     const alive = setInterval(() => {
       try {
@@ -229,14 +230,22 @@ async function generate(req: Request): Promise<Response> {
         messages: [...history, { role: "user", content: buildUserMessage(prompt, files, body.listing, body.site, getStyle(body.style), body.kind === "website" ? "website" : "app") }],
         signal: req.signal,
         images,
-        // A tiny "still thinking" signal at most every 1.5s, so the page can show the AI is busy.
-        onThinking: () => {
+        // What the AI is thinking (summarized), sent in small batches at most every 0.8s so the page can show it;
+        // models that don't share their thinking get a tiny "still thinking" signal instead.
+        onThinking: (text) => {
+          thought += text;
           const now = Date.now();
-          if (now - lastThought < 1500) return;
+          if (now - lastThought < 800) return;
           lastThought = now;
-          write(THINKING_MARK);
+          write(thought ? thoughtSignal(thought.slice(-2000)) || THINKING_MARK : THINKING_MARK);
+          thought = "";
         },
         write: (t) => {
+          // Whatever the AI thought just before writing.
+          if (thought) {
+            write(thoughtSignal(thought.slice(-2000)));
+            thought = "";
+          }
           wrote = true;
           if (!madeFiles) {
             tail = (tail + t).slice(-(t.length + 16));

@@ -1,6 +1,6 @@
 "use client";
 
-import { buildProgress, progressNote, type LiveGeneration } from "@/lib/progress";
+import { buildProgress, friendlyFile, latestThoughts, progressNote, type LiveGeneration } from "@/lib/progress";
 import { Feedback } from "./Feedback";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, CheckCircle2, Circle, FileCode2, Loader2, Palette, RotateCcw, RotateCw, Route, Square, Wrench, X } from "lucide-react";
@@ -62,6 +62,25 @@ function elapsed(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/** What the AI is doing right now, in its own words while it thinks, then the file it's writing. */
+function AiSays({ live }: { live: LiveGeneration | null }) {
+  const lines = latestThoughts(live?.thoughts ?? "");
+  const now = live?.writing ? `Writing the ${friendlyFile(live.writing).toLowerCase()}…` : null;
+  if (!lines.length && !now) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-line bg-background/50 p-3">
+      <p className="text-xs font-medium text-muted">What the AI is doing</p>
+      <ul className="mt-1.5 space-y-1 text-xs text-foreground/90">
+        {(now ? [...lines.slice(-2), now] : lines).map((l, i, all) => (
+          <li key={`${i}-${l}`} className={i === all.length - 1 ? "" : "text-muted"}>
+            {l}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** Live progress for a running request: timer, stages and reassurance. */
 function Progress({ live, startedAt }: { live: LiveGeneration | null; startedAt: number | null }) {
   const [now, setNow] = useState(() => Date.now());
@@ -98,6 +117,7 @@ function Progress({ live, startedAt }: { live: LiveGeneration | null; startedAt:
           </li>
         ))}
       </ol>
+      <AiSays live={live} />
       {live?.plan && <p className="mt-3 text-muted">{live.plan}</p>}
       {files.length > 0 && (
         <ul className="mt-3 space-y-1.5">
