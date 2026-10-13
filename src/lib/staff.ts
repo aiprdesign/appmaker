@@ -221,6 +221,7 @@ export default function StaffScreen({ onClose }) {
   const [showDone, setShowDone] = useState(false);
   const [fresh, setFresh] = useState({});
   const seen = React.useRef(null);
+  const lastSig = React.useRef('');
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((k) => setKey(k || ''));
@@ -245,6 +246,11 @@ export default function StaffScreen({ onClose }) {
       setView(v);
       setTab((t) => t || (v.collections[0] || {}).name || '');
       setError('');
+      // Whether anything changed since the last look (so checking can slow down when it's quiet).
+      const sig = v.collections.map((c) => c.items.map((i) => i.id + ':' + (i.status || '') + ':' + i.updatedAt).join(',')).join('|');
+      const changed = sig !== lastSig.current;
+      lastSig.current = sig;
+      return changed;
     } catch (e) {
       if (e.status === 404) {
         // The owner link was replaced or staff mode closed: sign in again.
@@ -257,20 +263,50 @@ export default function StaffScreen({ onClose }) {
 
   useEffect(() => {
     if (!key) return;
-    load();
-    registerAlerts(key).then(setAlerts);
-    // Every 20 seconds while staff look at it; nothing in the background (push alerts cover that).
-    let t = setInterval(load, 20000);
-    const sub = AppState.addEventListener('change', (state) => {
-      clearInterval(t);
-      if (state === 'active') {
-        load();
-        t = setInterval(load, 20000);
-      }
+    // Checking only when needed: at once when an order alert arrives or the app comes back; otherwise
+    // from every 20 seconds (2 minutes when alerts are on, since they bring the news), slowing down each
+    // time nothing changed, up to 2 minutes (10 with alerts). Nothing in the background.
+    let t = null;
+    let quiet = 0;
+    let alertsOn = false;
+    const delay = () => Math.min((alertsOn ? 120000 : 20000) * Math.pow(2, quiet), alertsOn ? 600000 : 120000);
+    const schedule = () => {
+      clearTimeout(t);
+      if (AppState.currentState === 'background') return;
+      t = setTimeout(async () => {
+        quiet = (await load()) ? 0 : quiet + 1;
+        schedule();
+      }, delay());
+    };
+    const now = async () => {
+      quiet = 0;
+      await load();
+      schedule();
+    };
+    now();
+    registerAlerts(key).then((state) => {
+      setAlerts(state);
+      alertsOn = state === 'on';
+      schedule();
     });
+    const subs = [];
+    try {
+      const onPush = (n) => {
+        const data = n && n.request && n.request.content && n.request.content.data;
+        // (The refresh buzzes for the new order itself.)
+        if (data && data.appmaker === 'owner') now();
+      };
+      subs.push(Notifications.addNotificationReceivedListener(onPush));
+    } catch (e) {}
+    subs.push(
+      AppState.addEventListener('change', (state) => {
+        clearTimeout(t);
+        if (state === 'active') now();
+      }),
+    );
     return () => {
-      clearInterval(t);
-      if (sub && sub.remove) sub.remove();
+      clearTimeout(t);
+      subs.forEach((x) => x && x.remove && x.remove());
     };
   }, [key, load]);
 

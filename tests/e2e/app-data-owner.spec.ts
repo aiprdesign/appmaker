@@ -35,8 +35,9 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   await expect(page.getByText("Just now")).toBeVisible();
   await page.getByRole("button", { name: "Mark as preparing" }).click();
   await page.getByLabel("Status").selectOption("ready");
-  const mine = await (await page.request.get(`${store.apiUrl}?collection=orders`, { headers: { "x-device": device } })).json();
-  expect(mine.items[0].status).toBe("ready");
+  await expect
+    .poll(async () => (await (await page.request.get(`${store.apiUrl}?collection=orders`, { headers: { "x-device": device } })).json()).items[0].status)
+    .toBe("ready");
 
   // Finished orders move to Done; staff PIN for staff mode in the app is under Alerts and staff PIN.
   await expect(page.getByText("All caught up.")).toBeVisible();

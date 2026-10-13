@@ -227,11 +227,27 @@ async function pushToken() {
       granted = (await Notifications.requestPermissionsAsync()).granted;
     }
     if (!granted) return '';
-    return (await Notifications.getExpoPushTokenAsync()).data || '';
+    const token = (await Notifications.getExpoPushTokenAsync()).data || '';
+    pushOn = !!token;
+    return token;
   } catch (e) {
     return '';
   }
 }
+
+// Updates arrive as notifications: when one comes in for this app's data, refresh that data at once
+// (so the app doesn't need to keep asking the server).
+let pushOn = false;
+try {
+  const onPush = (n) => {
+    const data = n && n.request && n.request.content && n.request.content.data;
+    if (!data || !data.appmaker) return;
+    Object.keys(ACCESS).filter((c) => !data.collection || c === data.collection).forEach(changed);
+  };
+  Notifications.addNotificationReceivedListener(onPush);
+  Notifications.addNotificationResponseReceivedListener((r) => onPush(r && r.notification));
+  Notifications.getPermissionsAsync().then((p) => { pushOn = !!(p && p.granted); }).catch(() => {});
+} catch (e) {}
 
 async function call(method, params, body, extra) {
   const query = Object.keys(params).map((k) => k + '=' + encodeURIComponent(params[k])).join('&');
@@ -281,6 +297,7 @@ export async function list(collection, fresh) {
   m.pending = (async () => {
     try {
       const data = await call('GET', { collection }, null, m.etag ? { 'if-none-match': m.etag } : null);
+      m.changed = !data.notModified;
       if (!data.notModified) {
         m.items = data.items || [];
         m.etag = data.etag || null;
@@ -428,25 +445,41 @@ export function useCollection(collection) {
       if (alive.current) setLoading(false);
     }
   }, [collection]);
-  // Checking for changes only when it matters: never in the background; every 30 seconds while
-  // this person has an order or request in progress; otherwise every few minutes (and when the app reopens).
+  // Checking for changes only when needed:
+  // - never in the background; once when the app comes back, and whenever a notification about this data arrives;
+  // - while this person has an order or request in progress: from every 30 seconds (every 2 minutes when
+  //   notifications are on, since they bring the news), slowing down each time nothing changed, up to 10 minutes;
+  // - otherwise (a menu, reviews): every 5 minutes, slowing to 30 minutes when nothing changes.
   const itemsRef = useRef(items);
   itemsRef.current = items;
   useEffect(() => {
     alive.current = true;
     refresh();
-    (listeners[collection] = listeners[collection] || []).push(refresh);
     let timer = null;
+    let quiet = 0;
     const waiting = () => ACCESS[collection] === 'inbox' && itemsRef.current.some((x) => x.mine && !statusInfo(collection, x.status).done);
+    const delay = () => {
+      const [base, max] = waiting() ? [pushOn ? 120000 : 30000, 600000] : [300000, 1800000];
+      return Math.min(base * Math.pow(2, quiet), max);
+    };
     const schedule = () => {
       if (timer) clearTimeout(timer);
       timer = null;
       if (!API || AppState.currentState === 'background') return;
       timer = setTimeout(async () => {
         await refresh();
+        const m = memo[collection];
+        quiet = m && m.changed ? 0 : quiet + 1;
         schedule();
-      }, waiting() ? 30000 : 180000);
+      }, delay());
     };
+    // A change here (an order sent, a notification, pull to refresh) refreshes now and starts checking briskly again.
+    const onChange = () => {
+      quiet = 0;
+      refresh();
+      schedule();
+    };
+    (listeners[collection] = listeners[collection] || []).push(onChange);
     schedule();
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
@@ -459,7 +492,7 @@ export function useCollection(collection) {
     });
     return () => {
       alive.current = false;
-      listeners[collection] = (listeners[collection] || []).filter((fn) => fn !== refresh);
+      listeners[collection] = (listeners[collection] || []).filter((fn) => fn !== onChange);
       if (timer) clearTimeout(timer);
       if (sub && sub.remove) sub.remove();
     };

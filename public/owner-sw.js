@@ -9,6 +9,8 @@ self.addEventListener("push", (e) => {
   } catch {
     data = { title: "New activity", body: e.data ? e.data.text() : "" };
   }
+  // An open owner page refreshes at once instead of waiting for its next check.
+  self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => list.forEach((c) => c.postMessage({ type: "appmaker-owner-update" })));
   e.waitUntil(
     self.registration.showNotification(data.title || "New activity in your app", {
       body: data.body || "",

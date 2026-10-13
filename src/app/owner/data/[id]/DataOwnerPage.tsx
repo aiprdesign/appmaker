@@ -137,9 +137,15 @@ export function DataOwnerPage({ id }: { id: string }) {
     [id],
   );
 
-  const load = useCallback(async () => {
+  const lastSig = useRef("");
+  const alertsRef = useRef(false);
+  /** Loads everything; says whether anything changed since the last look. */
+  const load = useCallback(async (): Promise<boolean> => {
     try {
       const v = await call("GET");
+      const sig = v.collections.map((c) => c.items.map((i) => `${i.id}:${i.status ?? ""}:${String(i.updatedAt ?? "")}`).join(",")).join("|");
+      const changed = sig !== lastSig.current;
+      lastSig.current = sig;
       // New orders and requests since the last look: chime, banner and a count in the tab title.
       const inbox = v.collections.filter((c) => c.access === "inbox").flatMap((c) => c.items.map((i) => i.id));
       if (seen.current) {
@@ -155,32 +161,57 @@ export function DataOwnerPage({ id }: { id: string }) {
       setView(v);
       setTab((t) => t || v.collections[0]?.name || "");
       setError("");
+      return changed;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     }
   }, [call]);
 
   useEffect(() => {
     key.current = readKey(id);
     if (window.location.hash) history.replaceState(null, "", window.location.pathname);
-    const first = setTimeout(load, 0);
-    // New orders and requests show up without reloading: every 30 seconds while the page is in view,
-    // nothing while it's hidden (alerts cover that), and at once when it's back.
-    let t = setInterval(load, 30_000);
+    // Checking only when needed: at once when an alert arrives (the alert service tells the open page),
+    // when the page comes back into view, or after a change here; otherwise from every 30 seconds
+    // (5 minutes when alerts are on, since they bring the news), slowing down each time nothing changed,
+    // up to 2 minutes (15 with alerts). Nothing while the page is hidden.
+    let t: ReturnType<typeof setTimeout> | undefined;
+    let quiet = 0;
+    const delay = () => Math.min((alertsRef.current ? 300_000 : 30_000) * 2 ** quiet, alertsRef.current ? 900_000 : 120_000);
+    const schedule = () => {
+      clearTimeout(t);
+      if (document.visibilityState !== "visible") return;
+      t = setTimeout(async () => {
+        quiet = (await load()) ? 0 : quiet + 1;
+        schedule();
+      }, delay());
+    };
+    const now = async () => {
+      quiet = 0;
+      await load();
+      schedule();
+    };
+    const first = setTimeout(now, 0);
     const onVisible = () => {
-      clearInterval(t);
-      if (document.visibilityState === "visible") {
-        void load();
-        t = setInterval(load, 30_000);
-      }
+      clearTimeout(t);
+      if (document.visibilityState === "visible") void now();
+    };
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === "appmaker-owner-update") void now();
     };
     document.addEventListener("visibilitychange", onVisible);
+    navigator.serviceWorker?.addEventListener("message", onMessage);
     return () => {
       clearTimeout(first);
-      clearInterval(t);
+      clearTimeout(t);
       document.removeEventListener("visibilitychange", onVisible);
+      navigator.serviceWorker?.removeEventListener("message", onMessage);
     };
   }, [id, load]);
+
+  useEffect(() => {
+    alertsRef.current = alerts === "on";
+  }, [alerts]);
 
   useEffect(() => {
     const base = view?.name ? `${view.name}: app data` : "App data";
