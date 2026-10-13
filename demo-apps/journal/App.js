@@ -14,10 +14,6 @@ const SEED = [
   { id: '1', text: 'Kicked off the project today. Feeling excited about where this is going.', mood: '😄', pinned: true, date: Date.now() - 3600000 },
   { id: '2', text: 'Ideas: invite friends, weekly recap, dark mode.', mood: '🙂', pinned: false, date: Date.now() - 86400000 },
 ];
-const TABS = [
-  { key: 'feed', label: 'Entries', Icon: BookOpen },
-  { key: 'new', label: 'Write', Icon: Pencil },
-];
 
 const pressedStyle = ({ pressed }) => pressed && { opacity: 0.7 };
 
@@ -242,25 +238,29 @@ export default function App() {
           </View>
         )}
 
+        {/* Floating: the Entries tab on the left, and a round Write button on its own. */}
         <View style={styles.tabBar} accessibilityRole="tablist">
-          {TABS.map(({ key, label, Icon }) => {
-            const selected = tab === key;
-            return (
-              <Pressable
-                key={key}
-                style={({ pressed }) => [styles.tab, pressed && { opacity: 0.7 }]}
-                onPress={() => setTab(key)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                accessibilityLabel={label}
-              >
-                <Icon size={24} color={selected ? colors.primary : colors.muted} accessible={false} />
-                <Text style={[styles.tabLabel, selected && { color: colors.primary }]} maxFontSizeMultiplier={1.4}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <Pressable
+            style={({ pressed }) => [styles.tab, tab === 'feed' && styles.tabActive, pressed && { opacity: 0.7 }]}
+            onPress={() => setTab('feed')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === 'feed' }}
+            accessibilityLabel="Entries"
+          >
+            <BookOpen size={22} color={tab === 'feed' ? colors.primary : colors.muted} accessible={false} />
+            <Text style={[styles.tabLabel, tab === 'feed' && { color: colors.primary }]} maxFontSizeMultiplier={1.4}>
+              Entries
+            </Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.writeFab, tab === 'new' && styles.writeFabActive, pressed && { opacity: 0.85 }]}
+            onPress={() => setTab('new')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === 'new' }}
+            accessibilityLabel="Write a new entry"
+          >
+            <Pencil size={24} color={colors.onPrimary} strokeWidth={2.25} accessible={false} />
+          </Pressable>
         </View>
       </SafeAreaView>
     </View>
@@ -269,7 +269,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 20, paddingBottom: 40 },
+  content: { padding: 20, paddingBottom: 120 },
   title: { fontSize: 34, lineHeight: 42, letterSpacing: -0.5, fontWeight: font.heading, color: colors.text, marginBottom: 16 },
   label: { fontSize: 15, lineHeight: 20, fontWeight: '600', color: colors.text, marginBottom: 8 },
   hero: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 20, marginBottom: 16, backgroundColor: colors.primary },
@@ -306,7 +306,10 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.onPrimary, fontWeight: font.heading, fontSize: 17 },
   toast: { position: 'absolute', left: 20, right: 20, bottom: 96, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: 16 },
   toastText: { color: colors.onPrimary, fontSize: 15, fontWeight: '600' },
-  tabBar: { flexDirection: 'row', backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingTop: 8, paddingBottom: 20 },
-  tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  tabBar: { position: 'absolute', left: 20, right: 20, bottom: 24, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  tab: { flex: 1, minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  tabActive: { borderColor: colors.primary },
+  writeFab: { width: 64, height: 64, borderRadius: 999, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: colors.primary, shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  writeFabActive: { transform: [{ rotate: '-8deg' }] },
   tabLabel: { fontSize: 12, color: colors.muted, fontWeight: '600' },
 });

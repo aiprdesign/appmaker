@@ -46,9 +46,11 @@ interface Screen {
   rows: Row[];
   tabs: [string, string][];
   /** Bottom navigation: a curved bar with a raised center button, a floating pill, a floating bar, or a plain bar. */
-  nav: "notch" | "pill" | "float" | "bar";
-  /** The center button of a notch bar (a Lucide icon). */
+  nav: "notch" | "notchDark" | "pill" | "float" | "capsule" | "dock" | "orbit" | "bubble" | "topline" | "sheet" | "editorial" | "glass" | "split" | "bar";
+  /** The main action's button (a Lucide icon), for notch, orbit and split bars. */
   fab?: string;
+  /** The main action's label, for split bars. */
+  fabLabel?: string;
   /** A brand-colored header with a curved bottom edge behind the title. */
   header?: "curve";
 }
@@ -77,8 +79,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "language-flashcards": {
-    nav: "notch",
-    fab: "Play",
+    nav: "dock",
     layout: "stat",
     eyebrow: "Spanish · Day 12",
     title: "Study",
@@ -98,7 +99,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "plant-care": {
-    nav: "pill",
+    nav: "capsule",
     layout: "grid",
     eyebrow: "Today",
     title: "My plants",
@@ -118,7 +119,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "event-countdown": {
-    nav: "notch",
+    nav: "orbit",
     fab: "Plus",
     layout: "stat",
     eyebrow: "Coming up",
@@ -139,7 +140,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "restaurant-or-cafe": {
-    nav: "float",
+    nav: "bubble",
     header: "curve",
     layout: "feature",
     eyebrow: "Trattoria · Brooklyn",
@@ -184,7 +185,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "gym-or-studio": {
-    nav: "notch",
+    nav: "notchDark",
     fab: "QrCode",
     layout: "list",
     eyebrow: "Iron Yard Gym",
@@ -207,7 +208,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "clinic-or-dentist": {
-    nav: "bar",
+    nav: "topline",
     header: "curve",
     layout: "list",
     eyebrow: "Bright Smile Dental",
@@ -230,7 +231,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "local-shop": {
-    nav: "pill",
+    nav: "sheet",
     layout: "grid",
     eyebrow: "Maple & Co.",
     title: "New in",
@@ -252,7 +253,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "church-or-community": {
-    nav: "float",
+    nav: "editorial",
     layout: "list",
     eyebrow: "Grace Community",
     title: "This week",
@@ -273,7 +274,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "real-estate-agent": {
-    nav: "pill",
+    nav: "glass",
     header: "curve",
     layout: "feature",
     eyebrow: "Harbor Homes",
@@ -295,8 +296,9 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "home-services": {
-    nav: "notch",
+    nav: "split",
     fab: "Phone",
+    fabLabel: "Call now",
     layout: "grid",
     eyebrow: "FixRight Plumbing",
     title: "How can we help?",
@@ -330,7 +332,7 @@ const ACTION_ICONS: Record<string, string> = { Call: "Phone", Directions: "Navig
  */
 function screenApp(screen: Screen): string {
   // A notch bar needs the same number of tabs on each side of its center button.
-  const s = screen.nav === "notch" && screen.tabs.length % 2 ? { ...screen, tabs: [...screen.tabs, ["CircleUser", "Profile"] as [string, string]] } : screen;
+  const s = (screen.nav === "notch" || screen.nav === "notchDark") && screen.tabs.length % 2 ? { ...screen, tabs: [...screen.tabs, ["CircleUser", "Profile"] as [string, string]] } : screen;
   const icons = [
     ...new Set([
       ...(s.hero.icon ? [s.hero.icon] : []),
@@ -352,8 +354,9 @@ import { ${icons.join(", ")} } from 'lucide-react-native';
 const S = ${JSON.stringify(s)};
 const ICON = { ${icons.join(", ")} };
 const ACTION = ${JSON.stringify(ACTION_ICONS)};
-const C = { ink: '#0C0C0E', muted: '#6A6A72', line: '#E6E5E1', surface: '#FFFFFF', open: '#15803D', onBrand: '#FFFFFF' };
+const C = { ink: '#0C0C0E', muted: '#6A6A72', line: '#E6E5E1', surface: '#FFFFFF', open: '#15803D', onBrand: '#FFFFFF', dim: 'rgba(255,255,255,0.6)' };
 const tint = S.color + '14';
+const tint2 = S.color + '1F';
 const Icon = ({ name, size = 20, color = S.color, strokeWidth = 2 }) => {
   const I = ICON[name];
   return I ? <I size={size} color={color} strokeWidth={strokeWidth} /> : null;
@@ -389,7 +392,7 @@ function Hero() {
     );
   }
   return (
-    <View style={{ marginTop: 24, borderRadius: 20, backgroundColor: S.color, padding: 20, overflow: 'hidden', minHeight: 196, justifyContent: 'flex-end' }}>
+    <View style={{ marginTop: 24, borderRadius: 24, backgroundColor: S.color, padding: 20, overflow: 'hidden', minHeight: 196, justifyContent: 'flex-end' }}>
       {h.icon ? (
         <View style={{ position: 'absolute', right: -24, top: -24, width: 160, height: 160, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name={h.icon} size={64} color={C.onBrand} strokeWidth={1.5} />
@@ -444,71 +447,202 @@ function Rows() {
 }
 
 
-function Tab({ icon, label, active, dark }) {
-  const idle = dark ? 'rgba(255,255,255,0.6)' : C.muted;
-  return (
-    <View style={{ flex: 1, alignItems: 'center' }}>
-      <Icon name={icon} size={24} color={active ? S.color : idle} strokeWidth={active ? 2.25 : 1.75} />
-      <Text style={[styles.meta, { marginTop: 4, color: active ? S.color : idle, fontWeight: active ? '600' : '500' }]}>{label}</Text>
-    </View>
-  );
-}
-
-/** The bottom navigation, in the screen's style. */
+/** The bottom navigation, in the screen's own style (every app has a different one). */
 function Nav() {
-  if (S.nav === 'pill') {
-    // A floating dark pill; the current tab opens into a brand chip with its label.
-    return (
-      <View style={[styles.floating, { backgroundColor: C.ink, height: 64, borderRadius: 999, paddingHorizontal: 8 }]}>
-        {S.tabs.map(([icon, label], i) =>
-          i === 0 ? (
-            <View key={label} style={{ flexDirection: 'row', alignItems: 'center', height: 48, paddingHorizontal: 20, borderRadius: 999, backgroundColor: S.color }}>
-              <Icon name={icon} size={20} color={C.onBrand} />
-              <Text style={[styles.sub, { color: C.onBrand, fontWeight: '600', marginLeft: 8 }]}>{label}</Text>
-            </View>
-          ) : (
-            <View key={label} style={{ flex: 1, alignItems: 'center' }}>
-              <Icon name={icon} size={24} color="rgba(255,255,255,0.6)" strokeWidth={1.75} />
-            </View>
-          ),
-        )}
-      </View>
-    );
-  }
-  if (S.nav === 'float') {
-    // A floating rounded bar; a short brand line marks the current tab.
-    return (
-      <View style={[styles.floating, { backgroundColor: C.surface, height: 72, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line }]}>
-        {S.tabs.map(([icon, label], i) => (
-          <View key={label} style={{ flex: 1, alignItems: 'center' }}>
-            <Icon name={icon} size={24} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
-            <View style={{ width: i ? 4 : 16, height: 4, borderRadius: 999, marginTop: 8, backgroundColor: i ? 'transparent' : S.color }} />
-          </View>
-        ))}
-      </View>
-    );
-  }
-  if (S.nav === 'notch') {
-    // A bar with a curved notch holding a raised round button for the main action.
-    const left = S.tabs.slice(0, Math.ceil(S.tabs.length / 2));
-    const right = S.tabs.slice(left.length);
-    return (
-      <View style={styles.bar}>
-        <View style={styles.notch} />
-        {left.map(([icon, label], i) => <Tab key={label} icon={icon} label={label} active={i === 0} />)}
-        <View style={{ width: 88 }} />
-        {right.map(([icon, label]) => <Tab key={label} icon={icon} label={label} />)}
-        <View style={styles.fab}>
-          <Icon name={S.fab} size={28} color={C.onBrand} strokeWidth={2.25} />
+  const tabs = S.tabs;
+  switch (S.nav) {
+    case 'pill':
+      // A floating dark pill; the current tab opens into a brand chip with its label.
+      return (
+        <View style={[styles.floating, { backgroundColor: C.ink, height: 64, borderRadius: 999, paddingHorizontal: 8 }]}>
+          {tabs.map(([icon, label], i) =>
+            i === 0 ? (
+              <View key={label} style={{ flexDirection: 'row', alignItems: 'center', height: 48, paddingHorizontal: 20, borderRadius: 999, backgroundColor: S.color }}>
+                <Icon name={icon} size={20} color={C.onBrand} />
+                <Text style={[styles.sub, { color: C.onBrand, fontWeight: '600', marginLeft: 8 }]}>{label}</Text>
+              </View>
+            ) : (
+              <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+                <Icon name={icon} size={24} color={C.dim} strokeWidth={1.75} />
+              </View>
+            ),
+          )}
         </View>
-      </View>
-    );
+      );
+    case 'float':
+      // A floating rounded bar; a short brand line marks the current tab.
+      return (
+        <View style={[styles.floating, { backgroundColor: C.surface, height: 72, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line }]}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+              <Icon name={icon} size={24} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
+              <View style={{ width: i ? 4 : 16, height: 4, borderRadius: 999, marginTop: 8, backgroundColor: i ? 'transparent' : S.color }} />
+            </View>
+          ))}
+        </View>
+      );
+    case 'capsule':
+      // A light floating bar; the current tab sits in a soft brand capsule with its label.
+      return (
+        <View style={[styles.floating, { backgroundColor: C.surface, height: 68, borderRadius: 999, paddingHorizontal: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line }]}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={i ? { flex: 1, alignItems: 'center' } : { flexDirection: 'row', alignItems: 'center', height: 48, paddingHorizontal: 18, borderRadius: 999, backgroundColor: tint2 }}>
+              <Icon name={icon} size={22} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
+              {i ? null : <Text style={[styles.sub, { color: S.color, fontWeight: '600', marginLeft: 8 }]}>{label}</Text>}
+            </View>
+          ))}
+        </View>
+      );
+    case 'dock':
+      // A dock of rounded tiles; the current one is filled with the brand color.
+      return (
+        <View style={[styles.floating, { left: 32, right: 32, backgroundColor: C.surface, borderRadius: 24, padding: 8, gap: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line }]}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={{ flex: 1, height: 64, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: i ? tint : S.color }}>
+              <Icon name={icon} size={22} color={i ? S.color : C.onBrand} />
+              <Text style={[styles.meta, { marginTop: 4, color: i ? S.color : C.onBrand, fontWeight: '600' }]}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      );
+    case 'orbit':
+      // Separate floating circles, one per tab; the current one is filled.
+      return (
+        <View style={[styles.floating, { left: 0, right: 0, justifyContent: 'center', gap: 16, shadowOpacity: 0 }]}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={[styles.orb, i ? { backgroundColor: C.surface } : { backgroundColor: S.color, width: 64, height: 64 }]}>
+              <Icon name={icon} size={i ? 22 : 26} color={i ? C.ink : C.onBrand} strokeWidth={i ? 1.75 : 2.25} />
+            </View>
+          ))}
+          {S.fab ? (
+            <View style={[styles.orb, { backgroundColor: C.ink }]}>
+              <Icon name={S.fab} size={22} color={C.onBrand} />
+            </View>
+          ) : null}
+        </View>
+      );
+    case 'bubble': {
+      // The current tab's icon rises out of the bar in a brand circle.
+      return (
+        <View style={styles.bar}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+              {i ? (
+                <Icon name={icon} size={24} color={C.muted} strokeWidth={1.75} />
+              ) : (
+                <View style={{ marginTop: -40, width: 60, height: 60, borderRadius: 999, backgroundColor: S.color, borderWidth: 6, borderColor: S.bg, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={icon} size={24} color={C.onBrand} strokeWidth={2.25} />
+                </View>
+              )}
+              <Text style={[styles.meta, { marginTop: 4, color: i ? C.muted : S.color, fontWeight: i ? '500' : '600' }]}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      );
+    }
+    case 'notch':
+    case 'notchDark': {
+      // A bar with a curved notch holding a raised round button for the main action.
+      const dark = S.nav === 'notchDark';
+      const left = tabs.slice(0, Math.ceil(tabs.length / 2));
+      const right = tabs.slice(left.length);
+      const tab = ([icon, label], i, first) => (
+        <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+          <Icon name={icon} size={24} color={first ? (dark ? C.onBrand : S.color) : dark ? C.dim : C.muted} strokeWidth={first ? 2.25 : 1.75} />
+          <Text style={[styles.meta, { marginTop: 4, color: first ? (dark ? C.onBrand : S.color) : dark ? C.dim : C.muted, fontWeight: first ? '600' : '500' }]}>{label}</Text>
+        </View>
+      );
+      return (
+        <View style={[styles.bar, dark && { backgroundColor: C.ink, borderTopWidth: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24 }]}>
+          <View style={styles.notch} />
+          {left.map((t, i) => tab(t, i, i === 0))}
+          <View style={{ width: 88 }} />
+          {right.map((t, i) => tab(t, i, false))}
+          <View style={styles.fab}>
+            <Icon name={S.fab} size={28} color={C.onBrand} strokeWidth={2.25} />
+          </View>
+        </View>
+      );
+    }
+    case 'topline':
+      // A plain bar; the current tab gets a brand line along the top edge and a tinted column.
+      return (
+        <View style={[styles.bar, { paddingTop: 0 }]}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={{ flex: 1, alignItems: 'center', paddingTop: 12, backgroundColor: i ? 'transparent' : tint }}>
+              <View style={{ position: 'absolute', top: 0, left: 24, right: 24, height: 3, borderBottomLeftRadius: 999, borderBottomRightRadius: 999, backgroundColor: i ? 'transparent' : S.color }} />
+              <Icon name={icon} size={24} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
+              <Text style={[styles.meta, { marginTop: 4, color: i ? C.muted : S.color, fontWeight: i ? '500' : '600' }]}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      );
+    case 'sheet':
+      // A brand-colored bar with big rounded top corners, like a sheet; a dot under the current tab.
+      return (
+        <View style={[styles.bar, { backgroundColor: S.color, borderTopWidth: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16 }]}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={{ flex: 1, alignItems: 'center', opacity: i ? 0.65 : 1 }}>
+              <Icon name={icon} size={24} color={C.onBrand} strokeWidth={i ? 1.75 : 2.25} />
+              <Text style={[styles.meta, { marginTop: 4, color: C.onBrand, fontWeight: i ? '500' : '600' }]}>{label}</Text>
+              <View style={{ width: 4, height: 4, borderRadius: 999, marginTop: 4, backgroundColor: i ? 'transparent' : C.onBrand }} />
+            </View>
+          ))}
+        </View>
+      );
+    case 'editorial':
+      // Words only, like a magazine: the current tab is ink with a brand underline.
+      return (
+        <View style={[styles.bar, { paddingTop: 16, paddingHorizontal: 12 }]}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={[styles.sub, { color: i ? C.muted : C.ink, fontWeight: i ? '500' : '700', letterSpacing: 0.2 }]}>{label}</Text>
+              <View style={{ width: 24, height: 2, marginTop: 8, borderRadius: 999, backgroundColor: i ? 'transparent' : S.color }} />
+            </View>
+          ))}
+        </View>
+      );
+    case 'glass':
+      // A frosted floating bar; only the current tab shows its label.
+      return (
+        <View style={[styles.floating, { height: 72, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' }]}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+              <Icon name={icon} size={24} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
+              {i ? null : <Text style={[styles.meta, { marginTop: 4, color: S.color, fontWeight: '600' }]}>{label}</Text>}
+            </View>
+          ))}
+        </View>
+      );
+    case 'split':
+      // Tabs in a floating pill, and the main action as its own labelled button beside it.
+      return (
+        <View style={[styles.floating, { gap: 12, shadowOpacity: 0 }]}>
+          <View style={{ flex: 1, flexDirection: 'row', height: 64, borderRadius: 999, backgroundColor: C.surface, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: C.line }}>
+            {tabs.map(([icon, label], i) => (
+              <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+                <Icon name={icon} size={22} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
+              </View>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', height: 64, paddingHorizontal: 20, borderRadius: 999, backgroundColor: S.color }}>
+            <Icon name={S.fab} size={20} color={C.onBrand} strokeWidth={2.25} />
+            <Text style={[styles.sub, { color: C.onBrand, fontWeight: '600', marginLeft: 8 }]}>{S.fabLabel}</Text>
+          </View>
+        </View>
+      );
+    default:
+      return (
+        <View style={styles.bar}>
+          {tabs.map(([icon, label], i) => (
+            <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+              <Icon name={icon} size={24} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
+              <Text style={[styles.meta, { marginTop: 4, color: i ? C.muted : S.color, fontWeight: i ? '500' : '600' }]}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      );
   }
-  return (
-    <View style={styles.bar}>
-      {S.tabs.map(([icon, label], i) => <Tab key={label} icon={icon} label={label} active={i === 0} />)}
-    </View>
-  );
 }
 
 export default function App() {
@@ -568,6 +702,7 @@ const styles = StyleSheet.create({
   primaryText: { fontSize: 15, fontWeight: '600', color: C.onBrand },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: C.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, paddingTop: 12, paddingBottom: 28 },
   floating: { position: 'absolute', left: 20, right: 20, bottom: 28, flexDirection: 'row', alignItems: 'center', shadowColor: C.ink, shadowOpacity: 0.12, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  orb: { width: 52, height: 52, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: C.line, shadowColor: C.ink, shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   notch: { position: 'absolute', top: -44, left: '50%', marginLeft: -44, width: 88, height: 88, borderRadius: 999, backgroundColor: S.bg },
   fab: { position: 'absolute', top: -32, left: '50%', marginLeft: -32, width: 64, height: 64, borderRadius: 999, backgroundColor: S.color, alignItems: 'center', justifyContent: 'center', shadowColor: S.color, shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   // A very large circle whose bottom edge makes a gentle arc under the title.

@@ -219,10 +219,11 @@ export default function App() {
           )}
         </ScrollView>
 
+        {/* Floating segmented bar: the current tab sits in a solid brand block. */}
         <View style={styles.tabBar} accessibilityRole="tablist">
           {TABS.map(([key, Icon, label]) => {
             const selected = tab === key;
-            const color = selected ? colors.primary : colors.muted;
+            const color = selected ? colors.onPrimary : colors.muted;
             return (
               <Pressable
                 key={key}
@@ -230,9 +231,9 @@ export default function App() {
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
                 accessibilityLabel={label}
-                style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.tab, selected && styles.tabActive, pressed && styles.pressed]}
               >
-                <Icon size={24} color={color} accessible={false} />
+                <Icon size={22} color={color} strokeWidth={selected ? 2.25 : 1.75} accessible={false} />
                 <Text style={[styles.tabLabel, { color }]} maxFontSizeMultiplier={1.4}>{label}</Text>
               </Pressable>
             );
@@ -246,7 +247,7 @@ export default function App() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   safe: { flex: 1 },
-  content: { padding: 20, paddingBottom: 40 },
+  content: { padding: 20, paddingBottom: 120 },
   pressed: { opacity: 0.7 },
   kicker: { color: colors.muted, fontSize: 13, lineHeight: 17, fontWeight: font.heading, textTransform: 'uppercase', letterSpacing: 0.6 },
   title: { fontSize: 34, lineHeight: 41, letterSpacing: -0.5, fontWeight: font.heading, color: colors.text, marginBottom: 16 },
@@ -278,7 +279,8 @@ const styles = StyleSheet.create({
   statLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 16, marginBottom: 8, minHeight: 56 },
   statLineText: { color: colors.text, fontSize: 15, lineHeight: 20, flex: 1 },
   statLineValue: { color: colors.text, fontWeight: font.heading, fontSize: 15, fontVariant: ['tabular-nums'] },
-  tabBar: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface, paddingBottom: 20, paddingTop: 8 },
-  tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  tabBar: { position: 'absolute', left: 20, right: 20, bottom: 24, flexDirection: 'row', gap: 4, padding: 6, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  tab: { flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: radius.md },
+  tabActive: { backgroundColor: colors.primary },
   tabLabel: { fontSize: 12, fontWeight: font.heading },
 });

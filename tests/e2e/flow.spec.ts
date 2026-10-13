@@ -39,7 +39,7 @@ for (const d of DEMOS) {
     const errors = collectErrors(page);
     const app = await buildApp(page, d.prompt);
     await expect(app.getByText(d.expect).first()).toBeVisible({ timeout: 30_000 });
-    await app.getByText(d.tab, { exact: true }).click();
+    await app.getByRole("tab", { name: d.tab }).click();
     await expect(app.getByText(d.after).first()).toBeVisible();
     await expect(page.getByText("The app hit an error")).toHaveCount(0);
     expect(errors).toEqual([]);

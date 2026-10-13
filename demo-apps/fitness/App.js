@@ -231,7 +231,8 @@ export default function App() {
             </>
           )}
         </ScrollView>
-        <View style={styles.tabBar}>
+        {/* Dark bar: a glowing brand line sits over the current tab. */}
+        <View style={styles.tabBar} accessibilityRole="tablist">
           {[
             ['workouts', Dumbbell, 'Workouts'],
             ['progress', Trophy, 'Progress'],
@@ -246,8 +247,9 @@ export default function App() {
                 style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
                 onPress={() => setTab(k)}
               >
-                <Icon size={24} color={selected ? colors.primary : colors.muted} accessible={false} />
-                <Text style={[styles.tabLabel, selected && { color: colors.primary }]} maxFontSizeMultiplier={1.4}>
+                <View style={[styles.tabGlow, !selected && { opacity: 0 }]} />
+                <Icon size={24} color={selected ? colors.primary : colors.background} strokeWidth={selected ? 2.25 : 1.75} style={!selected && { opacity: 0.6 }} accessible={false} />
+                <Text style={[styles.tabLabel, { color: selected ? colors.primary : colors.background }, !selected && { opacity: 0.6 }]} maxFontSizeMultiplier={1.4}>
                   {label}
                 </Text>
               </Pressable>
@@ -342,7 +344,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   ghostText: { color: colors.text, fontWeight: '700', fontSize: 17 },
-  tabBar: { flexDirection: 'row', backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingTop: 8, paddingBottom: 20 },
-  tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  tabBar: { flexDirection: 'row', backgroundColor: colors.text, paddingBottom: 20, paddingHorizontal: 32 },
+  tabGlow: { position: 'absolute', top: 0, width: 32, height: 3, borderRadius: 999, backgroundColor: colors.primary, shadowColor: colors.primary, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  tab: { flex: 1, minHeight: 64, paddingTop: 12, alignItems: 'center', justifyContent: 'center', gap: 4 },
   tabLabel: { fontSize: 12, color: colors.muted, fontWeight: '600' },
 });
