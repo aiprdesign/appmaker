@@ -13,6 +13,7 @@ export const QUALITY_EVENTS = {
   "check:code": "Code problems found (imports, missing files, unsafe code…)",
   "check:claims": "Marketing claims rewritten",
   "check:regulated": "Health or money claims rewritten",
+  "check:design": "Generic AI design found (emoji icons, filler copy, off-scale type…)",
   cutoff: "Reply too long, finished in parts",
   crash: "App crashed in the preview",
   layout: "Layout didn't fill the screen",
@@ -40,6 +41,7 @@ export const isQualityEvent = (e: unknown): e is QualityEvent => typeof e === "s
 /** What each problem means for the AI instructions: shown on the Quality page. */
 export const QUALITY_HINTS: Partial<Record<QualityEvent, string>> = {
   "check:code": "Look at the most common messages in the chat; add the missing rule to the Runtime constraints in src/lib/prompt.ts.",
+  "check:design": "The most common design messages point to a rule in DESIGN_CRAFT (src/lib/app-design.ts) to make stronger.",
   crash: "Usually undefined data on first render or a wrong import. Strengthen the 'guard against empty input and missing data' rule.",
   layout: "The layout rules in src/lib/prompt.ts (flex: 1 chain, tab bar last).",
   contrast: "Colors should come from src/theme.js; check apps that hard-code greys.",

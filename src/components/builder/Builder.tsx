@@ -42,6 +42,7 @@ import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
 import { parseGeneration } from "@/lib/parse";
 import { getProject, saveProject, uid, withVersion } from "@/lib/storage";
 import { describeIssues, isAllowedPath, validateApp, type ValidationIssue } from "@/lib/validate";
+import { describeDesign, designIssues } from "@/lib/app-design";
 import { checkClaims, DEFAULT_WORDING, describeClaims } from "@/lib/claims";
 import { cleanFiles } from "@/lib/parse";
 import { checkRegulatedClaims, describeRegulated } from "@/lib/regulated";
@@ -208,6 +209,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   // where the owner may remove a section on purpose).
   const keepContent = useRef(false);
   const contentBudget = useRef(CONTENT_FIX_BUDGET);
+  const designBudget = useRef(1);
   const demoRef = useRef(false);
   const unloading = useRef(false);
 
@@ -303,6 +305,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         contentBudget.current = CONTENT_FIX_BUDGET;
         reviewPending.current = true;
         fixBudget.current = AUTO_FIX_BUDGET;
+        designBudget.current = 1;
         continueBudget.current = CONTINUE_BUDGET;
       }
       runtimeWatchUntil.current = 0;
@@ -516,16 +519,20 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // Wording checks read app code; a website's wording rules are in its AI instructions.
       const claims = !isSite && (next.wording ?? DEFAULT_WORDING) === "claim-safe" ? checkClaims(files, next.listing) : [];
       const regulated = isSite ? [] : checkRegulatedClaims(files, next.listing);
+      // Generic AI design (emoji icons, filler copy, off-scale type…): one round of fixes per request.
+      const looks = isSite || designBudget.current <= 0 ? [] : designIssues(files);
       reportQuality([
         ...(issues.length ? (["check:code"] as const) : []),
         ...(claims.length ? (["check:claims"] as const) : []),
         ...(regulated.length ? (["check:regulated"] as const) : []),
+        ...(looks.length ? (["check:design"] as const) : []),
         ...((issues.length || regulated.length) && fixBudget.current === 0 ? (["unfixed:checks"] as const) : []),
       ]);
-      const fixChecks = (issues.length || claims.length || regulated.length) > 0 && fixBudget.current > 0;
+      const fixChecks = (issues.length || claims.length || regulated.length || looks.length) > 0 && fixBudget.current > 0;
       const fixContent = lostContent.length > 0 && contentBudget.current > 0;
       if (fixChecks || fixContent) {
         if (fixChecks) fixBudget.current -= 1;
+        if (fixChecks && looks.length) designBudget.current -= 1;
         if (fixContent) contentBudget.current -= 1;
         setChecking(true);
         const parts = [
@@ -534,6 +541,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             `Content keeper (checks the redesign kept the owner's content): ${lostContent.length} problem${lostContent.length === 1 ? "" : "s"}. Put the owner's content back, in the same order and with each section's images, keeping the new design. You may present it better, but keep their words and every fact (fold long text behind "Read more" instead of cutting it):\n${describeIssues(lostContent)}`,
           claims.length &&
             `Claim-safe wording is on. Rewrite these phrases as neutral, descriptive text (no superlatives, absolutes, speed promises or unsupported comparisons), in the app and in the listing:\n${describeClaims(claims)}`,
+          looks.length &&
+            `Design check (the app should look like a top product team made it, not generic AI design). Change these, keeping the content and features the same:\n${describeDesign(looks)}`,
           regulated.length &&
             `Health, medical and financial claims check (always on). Remove or rewrite these so the app only describes tracking and information, and add the disclaimer where asked:\n${describeRegulated(regulated)}`,
         ].filter(Boolean);

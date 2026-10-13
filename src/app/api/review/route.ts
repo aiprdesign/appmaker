@@ -26,6 +26,7 @@ ${FORMAT}`,
 - Consistency: the same corner radius, shadows, button styles, icon sizes and theme colors everywhere.
 - Visual richness: screens aren't walls of plain text; big Lucide icons or images where they help.
 - Readability: text big enough, nothing cut off or overlapping, enough contrast in light and dark mode, tap targets at least 44pt.
+- Generic AI look (call it out as high severity, with the concrete change): emoji used as icons, gradients or glows on everything, every screen the same stack of identical cards, everything centered, too many font sizes or weights, heavy shadows, random corner radii, and filler copy ("Welcome to the app", "Unlock your potential", "Seamless", "your journey"). Ask whether the screen would look at home next to Things, Linear, Airbnb or Apple's own apps; if it looks like a template, say how to change the composition (a big-number hero, a tile grid, a grouped list, an edge-to-edge photo), not just the colors.
 ${FORMAT}`,
 };
 

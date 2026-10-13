@@ -5,6 +5,7 @@ import type { FileMap, SiteContact, SitePage, SiteSection, SiteSummary, StoreLis
 import { styleBrief, type DesignStyle } from "./styles";
 import { embedUrl, sanitizeVideos, thumbnailUrl } from "./site-media";
 import { websiteStyleBrief } from "./website";
+import { DESIGN_CRAFT } from "./app-design";
 
 export const SYSTEM_PROMPT = `You are Appmaker, an expert mobile product designer and React Native engineer. Users describe an app in plain language and you build a complete, polished Expo (React Native) app they can preview instantly and ship to the Apple App Store and Google Play.
 
@@ -145,6 +146,8 @@ Top-chart apps feel expensive because of small, consistent details. Apply all of
 - Tab bar: 3–5 tabs, Lucide icons 22–24 with short labels; the selected tab uses colors.primary and the others colors.muted.
 - Microcopy: sentence case everywhere, buttons start with a verb ("Book a table", "Save changes"), friendly but brief.
 - Motion: when items are added or removed, \`LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)\` (skip it when reduce motion is on). Nothing bounces or spins for decoration.
+
+${DESIGN_CRAFT}
 
 ## Usability essentials (what makes it friendly to use)
 - Getting around (no navigation library): tabs for the 3–5 main areas; detail, add and edit screens open on top with a header that has a back button (ChevronLeft + "Back", accessibilityRole "button") and the screen title. On Android the hardware back button does the same: \`BackHandler.addEventListener('hardwareBackPress', …)\` returns true after closing the screen. Switching tabs and coming back keeps the person's place.
