@@ -314,6 +314,76 @@ export const A11Y_WIDGET = `/* Accessibility settings for visitors. Added by App
     setTimeout(function () { target.focus({ preventScroll: true }); }, 0);
   });
 })();
+
+/* Small comforts on every page. Added by Appmaker. */
+(function () {
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var css = document.createElement("style");
+  css.setAttribute("data-appmaker-comforts", "");
+  css.textContent =
+    /* 46. Anchored sections aren't hidden under a sticky header. */
+    "[id]{scroll-margin-top:5rem}" +
+    /* 47. Smooth scrolling, only for people who don't ask for less motion. */
+    (reduce ? "" : "html{scroll-behavior:smooth}") +
+    /* 48. A visible focus outline wherever the design forgot one. */
+    ":where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:2px solid currentColor;outline-offset:2px}" +
+    /* 49. Reduce motion means it: no long animations or transitions. */
+    "@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}" +
+    ".am-top{position:fixed;left:1rem;bottom:1rem;z-index:2147483000;min-width:44px;min-height:44px;border-radius:9999px;border:1px solid rgba(0,0,0,.2);background:#fff;color:#111;font:600 14px/1 system-ui,sans-serif;padding:0 14px;box-shadow:0 4px 14px rgba(0,0,0,.15)}.am-top[hidden]{display:none}" +
+    "@media print{.am-top{display:none!important}}";
+  document.head.appendChild(css);
+
+  /* 50. Back to top on long pages. */
+  if (document.documentElement.scrollHeight > window.innerHeight * 3) {
+    var top = document.createElement("button");
+    top.type = "button";
+    top.className = "am-top";
+    top.hidden = true;
+    top.textContent = "Top";
+    top.setAttribute("aria-label", "Back to top");
+    top.addEventListener("click", function () {
+      window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+      var first = document.querySelector("h1") || document.body;
+      if (!first.hasAttribute("tabindex")) first.setAttribute("tabindex", "-1");
+      first.focus({ preventScroll: true });
+    });
+    document.body.appendChild(top);
+    window.addEventListener("scroll", function () { top.hidden = window.scrollY < window.innerHeight * 1.5; }, { passive: true });
+  }
+
+  /* 51. Escape closes an open menu and returns focus to its button. */
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    var open = document.querySelectorAll('button[aria-expanded="true"][aria-controls]');
+    for (var i = 0; i < open.length; i++) {
+      var b = open[i];
+      if (b.closest(".a11y-ui")) continue;
+      b.click();
+      if (b.getAttribute("aria-expanded") === "true") {
+        b.setAttribute("aria-expanded", "false");
+        var panel = document.getElementById(b.getAttribute("aria-controls"));
+        if (panel) panel.hidden = true;
+      }
+      b.focus();
+    }
+  });
+
+  /* 52. A picture that fails to load doesn't leave a broken icon. */
+  var imgs = document.images;
+  for (var j = 0; j < imgs.length; j++) {
+    if (imgs[j].complete && imgs[j].naturalWidth === 0 && imgs[j].getAttribute("src")) imgs[j].style.visibility = "hidden";
+    imgs[j].addEventListener("error", function (ev) { ev.target.style.visibility = "hidden"; });
+  }
+
+  /* 53. Following a link into a closed <details> opens it. */
+  function openTarget() {
+    var id = decodeURIComponent(location.hash.slice(1));
+    var t = id && document.getElementById(id);
+    for (var d = t; d; d = d.parentElement) if (d.tagName === "DETAILS") d.open = true;
+  }
+  window.addEventListener("hashchange", openTarget);
+  openTarget();
+})();
 `;
 
 const TAG = /<script[^>]*src=["']\.?\/?(?:\.\.\/)?a11y\.js["'][^>]*>\s*<\/script>/i;

@@ -37,6 +37,12 @@ export function SiteContentPanel({
       return url;
     }
   };
+  const setPage = (url: string, count: number, keep: boolean) =>
+    setDraft((d) => {
+      const keys = Array.from({ length: count }, (_, i) => sectionKey(url, i));
+      const rest = d.filter((k) => !keys.includes(k));
+      return keep ? rest : [...rest, ...keys];
+    });
   const toggle = (key: string) => setDraft((d) => (d.includes(key) ? d.filter((k) => k !== key) : [...d, key]));
 
   return (
@@ -52,10 +58,32 @@ export function SiteContentPanel({
       {open && (
         <div className="mt-2 space-y-3">
           <p className="text-muted">Untick sections to leave them out of the new website. Everything ticked keeps its words and pictures.</p>
+          {/* 72. Keep or leave out everything at once. */}
+          <div className="flex gap-2">
+            <button onClick={() => setDraft([])} disabled={!draft.length} className="min-h-8 rounded-lg border border-line px-2.5 hover:border-white/20 disabled:opacity-40">
+              Keep all
+            </button>
+            <button
+              onClick={() => setDraft(pages.flatMap((p) => p.sections!.map((_, i) => sectionKey(p.url, i))))}
+              disabled={kept === 0}
+              className="min-h-8 rounded-lg border border-line px-2.5 hover:border-white/20 disabled:opacity-40"
+            >
+              Leave all out
+            </button>
+          </div>
           <div className="scrollbar-thin max-h-72 space-y-3 overflow-y-auto pr-1">
             {pages.map((p) => (
               <fieldset key={p.url}>
-                <legend className="mb-1 font-mono text-[11px] text-foreground/80">{path(p.url)}</legend>
+                <legend className="mb-1 flex w-full items-center gap-2">
+                  <span className="font-mono text-[11px] text-foreground/80">{path(p.url)}</span>
+                  {/* 73. A whole page's sections in one go. */}
+                  <button onClick={() => setPage(p.url, p.sections!.length, true)} aria-label={`Keep all sections of ${path(p.url)}`} className="ml-auto min-h-6 text-muted underline-offset-2 hover:text-foreground hover:underline">
+                    all
+                  </button>
+                  <button onClick={() => setPage(p.url, p.sections!.length, false)} aria-label={`Leave out all sections of ${path(p.url)}`} className="min-h-6 text-muted underline-offset-2 hover:text-foreground hover:underline">
+                    none
+                  </button>
+                </legend>
                 <ul className="space-y-1">
                   {p.sections!.map((s, i) => {
                     const key = sectionKey(p.url, i);

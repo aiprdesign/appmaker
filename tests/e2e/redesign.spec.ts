@@ -7,7 +7,7 @@ const head = (title: string) => `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title} · Luigi's Trattoria</title>
-<meta name="description" content="Fresh pasta and wood-fired pizza in town.">
+<meta name="description" content="${title}: fresh pasta and wood-fired pizza in town.">
 <link rel="stylesheet" href="styles.css">
 </head>`;
 const INDEX = `${head("Home")}
@@ -147,7 +147,7 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await expect(page.getByRole("button", { name: /Test on a device/ })).toHaveCount(0);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download website" }).click();
-  expect((await download).suggestedFilename()).toBe("luigi-s-trattoria-website.zip");
+  expect((await download).suggestedFilename()).toMatch(/^luigi-s-trattoria-website-\d{4}-\d{2}-\d{2}\.zip$/);
 
   // Edits are website edits too.
   await page.getByLabel("Message").fill("Make the hero bigger");

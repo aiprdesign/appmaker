@@ -52,7 +52,17 @@ export function ConceptPicker({
               key={i}
               role="tab"
               aria-selected={shown === i}
+              tabIndex={shown === i ? 0 : -1}
               onClick={() => setPicked(i)}
+              onKeyDown={(e) => {
+                // 71. Arrow keys, Home and End move between designs, as in any tab list.
+                const n = concepts.length;
+                const next = { ArrowRight: (i + 1) % n, ArrowLeft: (i - 1 + n) % n, Home: 0, End: n - 1 }[e.key];
+                if (next == null) return;
+                e.preventDefault();
+                setPicked(next);
+                (e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
+              }}
               className={`rounded-xl border px-3 py-2 text-left transition ${shown === i ? "border-violet-400 bg-violet-500/10" : "border-line hover:border-white/25"}`}
             >
               <div className="flex items-center gap-1.5 text-sm font-medium">
@@ -161,7 +171,11 @@ export function SiteColorsPanel({
         {draft.mode !== "auto" && draft.primary && (
           <span className="flex items-center gap-1" aria-label="Chosen colors">
             {[draft.primary, draft.accent].filter(Boolean).map((c) => (
-              <span key={c} className="h-5 w-5 rounded-full ring-1 ring-white/20" style={{ backgroundColor: c }} title={c} />
+              <span key={c} className="inline-flex items-center gap-1">
+                <span className="h-5 w-5 rounded-full ring-1 ring-white/20" style={{ backgroundColor: c }} aria-hidden />
+                {/* 74. The color's code, to copy into other tools. */}
+                <span className="font-mono text-[11px] uppercase text-muted">{c}</span>
+              </span>
             ))}
           </span>
         )}

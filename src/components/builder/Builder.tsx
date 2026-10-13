@@ -198,6 +198,13 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     setSaveFailed(!saveProject(next));
   }, []);
 
+  // 70. Notes about the website go away by themselves after a while.
+  useEffect(() => {
+    if (!siteNote) return;
+    const t = setTimeout(() => setSiteNote(null), 15_000);
+    return () => clearTimeout(t);
+  }, [siteNote]);
+
   // Closing or reloading the page would lose a build in progress: ask first,
   // and don't record the aborted request as a failure.
   useEffect(() => {
@@ -967,7 +974,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               setZipping(true);
               try {
                 const { blob, linked } = await siteZip(project.files, fetch, project.siteAssets);
-                downloadBlob(blob, `${slugify(project.listing.name || project.name)}-website.zip`);
+                downloadBlob(blob, `${slugify(project.listing.name || project.name)}-website-${new Date().toISOString().slice(0, 10)}.zip`);
                 if (linked) setSiteNote(`${linked} image${linked === 1 ? "" : "s"} couldn't be saved into the ZIP (that website doesn't allow it), so ${linked === 1 ? "it stays" : "they stay"} linked to your current site. The ZIP's README explains.`);
               } finally {
                 setZipping(false);

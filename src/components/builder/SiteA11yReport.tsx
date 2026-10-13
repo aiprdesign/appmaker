@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, ClipboardCheck, Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, Copy, Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
 import type { FileMap } from "@/lib/types";
 import type { A11yReport } from "@/lib/site-statement";
 import { previewDocument, type SiteA11yIssue } from "./SitePreview";
@@ -54,11 +54,39 @@ function auditPage(doc: string): Promise<SiteA11yIssue[] | null> {
   });
 }
 
+/** 76. Most serious first. */
+const IMPACT = ["critical", "serious", "moderate", "minor"];
+const rank = (impact: string | null) => (impact && IMPACT.includes(impact) ? IMPACT.indexOf(impact) : IMPACT.length);
+export const byImpact = <T extends { impact: string | null }>(issues: T[]) => [...issues].sort((a, b) => rank(a.impact) - rank(b.impact));
+const BADGE: Record<string, string> = {
+  critical: "bg-red-500/20 text-red-200",
+  serious: "bg-orange-500/20 text-orange-200",
+  moderate: "bg-amber-500/20 text-amber-200",
+  minor: "bg-white/10 text-muted",
+};
+
+/** 75. The report as plain text, to paste into an email or a ticket. */
+export function reportText(report: A11yReport): string {
+  const when = new Date(report.checkedAt).toISOString().slice(0, 10);
+  return [
+    `WCAG 2.2 level AA check (axe-core), ${when}`,
+    ...report.pages.map((p) =>
+      p.issues == null
+        ? `${p.page}: couldn't be checked`
+        : p.issues.length
+          ? `${p.page}:\n${byImpact(p.issues).map((i) => `  - [${i.impact ?? "minor"}] ${i.help} (${i.id}, ${i.count}×)`).join("\n")}`
+          : `${p.page}: passes`,
+    ),
+    "",
+    "Automated checks find only some problems; a manual review is still needed.",
+  ].join("\n");
+}
+
 /** One request for the AI covering every page's problems. */
 export function siteFixRequest(report: A11yReport): string {
   const lines = report.pages
     .filter((p) => p.issues?.length)
-    .map((p) => `${p.page}:\n${p.issues!.map((i) => `- ${i.help} (${i.id}, ${i.impact ?? "minor"}, ${i.count} place${i.count === 1 ? "" : "s"})`).join("\n")}`);
+    .map((p) => `${p.page}:\n${byImpact(p.issues!).map((i) => `- ${i.help} (${i.id}, ${i.impact ?? "minor"}, ${i.count} place${i.count === 1 ? "" : "s"})`).join("\n")}`);
   return `WCAG 2.2 AA check (axe-core) of the whole site found:\n${lines.join("\n")}\nFix all of them on every page where they occur, keeping the design and content the same.`;
 }
 
@@ -85,6 +113,7 @@ export function SiteA11yReport({
   const [open, setOpen] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [result, setResult] = useState<A11yReport | undefined>(report);
+  const [copied, setCopied] = useState(false);
   const pages = Object.keys(files)
     .filter((p) => p.endsWith(".html"))
     .sort((a, b) => (a === "index.html" ? -1 : b === "index.html" ? 1 : a.localeCompare(b)));
@@ -100,6 +129,7 @@ export function SiteA11yReport({
     }
     const next = { checkedAt: Date.now(), pages: out };
     setResult(next);
+    setCopied(false);
     setProgress(null);
     onReport?.(next);
   };
@@ -128,6 +158,14 @@ export function SiteA11yReport({
             <button onClick={() => void run()} disabled={!!progress} className="ml-auto min-h-8 rounded-lg border border-line px-3 hover:border-white/20 disabled:opacity-50">
               Check again
             </button>
+            {shown && !progress && (
+              <button
+                onClick={() => void navigator.clipboard?.writeText(reportText(shown)).then(() => setCopied(true), () => undefined)}
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-line px-3 hover:border-white/20"
+              >
+                <Copy className="h-3.5 w-3.5" /> {copied ? "Copied" : "Copy report"}
+              </button>
+            )}
             <button onClick={() => setOpen(false)} className="min-h-8 rounded-lg px-2 text-muted hover:text-foreground">
               Close
             </button>
@@ -157,9 +195,18 @@ export function SiteA11yReport({
                     {p.issues == null ? (
                       <span className="text-muted">couldn&apos;t be checked</span>
                     ) : p.issues.length ? (
-                      <span className="text-amber-200">
-                        {p.issues.map((i) => `${i.help}${i.impact ? ` (${i.impact})` : ""}`).join("; ")}
-                      </span>
+                      <ul className="mt-1 space-y-1 pl-3">
+                        {byImpact(p.issues).map((i) => (
+                          <li key={i.id} className="flex items-start gap-1.5 text-amber-200">
+                            {/* 77. How serious, at a glance. */}
+                            <span className={`shrink-0 rounded px-1.5 text-[11px] font-medium ${BADGE[i.impact ?? "minor"] ?? BADGE.minor}`}>{i.impact ?? "minor"}</span>
+                            <span>
+                              {i.help}
+                              {i.count > 1 ? ` (${i.count} places)` : ""}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     ) : (
                       <span className="text-emerald-300">passes</span>
                     )}

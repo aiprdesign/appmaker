@@ -242,6 +242,7 @@ export function SitePreview({
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 font-medium ${viewport === v ? "bg-surface-2 text-foreground" : "text-muted"}`}
             >
               <Icon className="h-3.5 w-3.5" /> {label}
+              <span className="hidden font-normal text-muted lg:inline">{WIDTHS[v]}px</span>
             </button>
           ))}
         </div>

@@ -6,6 +6,8 @@ import { demoWebsiteResponse, isAllowedSitePath, validateSite, websiteSystemProm
 import { parseGeneration } from "@/lib/parse";
 
 const good = `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width"><title>Home · Luigi's</title><meta name="description" content="Pasta."><link rel="stylesheet" href="styles.css"><script src="https://cdn.tailwindcss.com"></script></head><body><a href="#main">Skip to content</a><main id="main"><h1>Luigi's</h1><a href="contact.html">Contact</a><img src="https://x/a.jpg" alt="Pasta"></main><script src="script.js"></script></body></html>`;
+/** The same page with its own title and description (every page needs different ones). */
+const as = (name: string, html = good) => html.replace("<title>Home ·", `<title>${name} ·`).replace('content="Pasta."', `content="${name} at Luigi's."`);
 
 describe("website redesign", () => {
   it("accepts website files only", () => {
@@ -14,7 +16,7 @@ describe("website redesign", () => {
   });
 
   it("checks pages for SEO, accessibility, missing pages and foreign scripts", () => {
-    const files = { "index.html": good, "contact.html": good, "styles.css": "a{}", "script.js": "1" };
+    const files = { "index.html": good, "contact.html": as("Contact"), "styles.css": "a{}", "script.js": "1" };
     expect(validateSite(files)).toEqual([]);
     const bad = good
       .replace(/<title>.*<\/title>/, "")
@@ -137,7 +139,7 @@ describe("motion design", () => {
     expect(conceptPrompt("x", getStyle("editorial")!, 1, "editorial")).toContain("Motion: refined and slow");
     expect(conceptPrompt("x", getStyle("clay")!, 2, "soft")).toContain("Motion: springy and smooth");
     const page = good;
-    const animated = { "index.html": page, "contact.html": page, "styles.css": ".card{transition: transform .2s}", "script.js": "1" };
+    const animated = { "index.html": page, "contact.html": as("Contact", page), "styles.css": ".card{transition: transform .2s}", "script.js": "1" };
     expect(validateSite(animated).map((i) => i.message)).toContain(
       "has animations but never checks prefers-reduced-motion; switch motion off for people who turn it off in their settings",
     );
@@ -148,13 +150,13 @@ describe("motion design", () => {
 describe("accessibility widget", () => {
   it("is added to every page and the site, once, and doesn't trip the motion check", async () => {
     const { withA11yWidget, A11Y_WIDGET } = await import("@/lib/site-a11y");
-    const post = good.replace('href="contact.html"', 'href="../contact.html"').replace(/(href|src)="(styles\.css|script\.js)"/g, '$1="../$2"');
+    const post = as("Post").replace('href="contact.html"', 'href="../contact.html"').replace(/(href|src)="(styles\.css|script\.js)"/g, '$1="../$2"');
     const files = withA11yWidget({ "index.html": good, "blog/post.html": post, "styles.css": "a{}", "script.js": "1" });
     expect(files["a11y.js"]).toBe(A11Y_WIDGET);
     expect(files["index.html"]).toContain('<script src="a11y.js" defer></script>\n</body>');
     expect(files["blog/post.html"]).toMatch(/<script src="\.\.\/a11y\.js" defer><\/script>\n<\/body>/);
     expect(withA11yWidget(files)["index.html"].match(/a11y\.js/g)).toHaveLength(1);
-    expect(validateSite({ ...files, "contact.html": good })).toEqual([]);
+    expect(validateSite({ ...files, "contact.html": as("Contact") })).toEqual([]);
     // No background requests at all. The only addresses are the SVG namespace (never fetched)
     // and, for the video player, YouTube's cookie-free stills and the official players it
     // loads when someone presses play.

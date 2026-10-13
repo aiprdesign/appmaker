@@ -571,6 +571,37 @@ function photo(url: string | null): url is string {
 }
 
 /** Background pictures in a stylesheet, resolved against the stylesheet's own address. */
+/** 79. Hosts and paths that serve tracking pixels and ads, not pictures. */
+const TRACKING = /[/.](doubleclick\.net|google-analytics\.com|googletagmanager\.com|googlesyndication\.com|googleadservices\.com|facebook\.com\/tr|bat\.bing\.com|analytics\.|pixel\.|adservice\.|scorecardresearch\.com|quantserve\.com|hotjar\.com|clarity\.ms)|\/(pixel|beacon|tracking)(\.gif|\.png|\/|\?)|[?&](utm_|fbclid=)|\b1x1\.(gif|png)/i;
+
+/** The size a page builder or CDN put in a picture's address (0 for none, which is usually the original). */
+function sizeIn(url: string): { key: string; size: number } {
+  let size = 0;
+  const key = url
+    // WordPress and most builders: photo-800x600.jpg
+    .replace(/-(\d{2,4})x(\d{2,4})(?=\.\w{3,4}(\?|$))/i, (_m, w: string) => ((size = Number(w)), ""))
+    // Query sizes: ?w=800, ?width=800
+    .replace(/([?&])(w|width|resize|size)=(\d{2,4})(&|$)/i, (_m, a: string, _k, w: string, b: string) => ((size = Math.max(size, Number(w))), b ? a : ""))
+    .replace(/[?&]$/, "");
+  return { key, size };
+}
+
+/**
+ * 78–79. The site's pictures without tracking pixels, and with each picture once:
+ * of the same photo at several sizes, the largest (or the original) is kept.
+ */
+export function tidyImages(urls: string[]): string[] {
+  const best = new Map<string, { url: string; size: number; at: number }>();
+  urls.forEach((url, at) => {
+    if (TRACKING.test(url)) return;
+    const { key, size } = sizeIn(url);
+    const seen = best.get(key);
+    const better = !seen || (seen.size !== 0 && (size === 0 || size > seen.size));
+    if (better) best.set(key, { url, size, at: seen?.at ?? at });
+  });
+  return [...best.values()].sort((a, b) => a.at - b.at).map((b) => b.url);
+}
+
 export function cssImages(css: string, base: URL): string[] {
   const out: string[] = [];
   for (const m of css.matchAll(CSS_URL)) {
@@ -696,7 +727,7 @@ function mergeDetails(all: Details[]): {
     .flatMap((d) => d.clientLogos)
     .filter((l) => l.src !== logo && !seenLogos.has(l.src) && seenLogos.add(l.src))
     .slice(0, MAX_CLIENT_LOGOS);
-  const images = [...new Set(all.flatMap((d) => d.images))].filter((u) => u !== logo).slice(0, MAX_SITE_IMAGES);
+  const images = tidyImages([...new Set(all.flatMap((d) => d.images))].filter((u) => u !== logo)).slice(0, MAX_SITE_IMAGES);
   const c = all.map((d) => d.contact);
   const pick = <K extends "address" | "whatsapp" | "booking" | "maps">(k: K) => c.find((x) => x[k])?.[k];
   const contact = sanitizeContact({
@@ -740,6 +771,15 @@ function pickExtraPages(root: HTMLElement, base: URL): URL[] {
     .map((s) => s.url);
 }
 
+function firstParagraph(root: HTMLElement): string {
+  for (const p of root.querySelectorAll("main p, p").slice(0, 40)) {
+    if (p.closest("header, nav, footer, form, [class*=cookie], [id*=cookie]")) continue;
+    const t = clean(p.text);
+    if (t.length >= 50 && !/cookie|javascript|©|copyright/i.test(t)) return t.length > 200 ? `${t.slice(0, 200).replace(/\s\S*$/, "")}…` : t;
+  }
+  return "";
+}
+
 export function summarizeHtml(html: string, url: URL): { summary: Omit<SiteSummary, "pages">; page: SitePage; extra: URL[]; details: Details } {
   const root = parse(html, { comment: false });
   // Before extractPage, which removes scripts (structured data lives in one).
@@ -751,7 +791,8 @@ export function summarizeHtml(html: string, url: URL): { summary: Omit<SiteSumma
     url: url.toString(),
     siteName: siteName.slice(0, 60),
     title: title.slice(0, 160),
-    description: meta(root, "description", "og:description").slice(0, 400),
+    // 80. Without a description, the first real paragraph says what the business does.
+    description: (meta(root, "description", "og:description") || firstParagraph(root)).slice(0, 400),
     colors: extractColors(root, themeColor),
     language: clean(root.querySelector("html")?.getAttribute("lang")).slice(0, 10),
   };
@@ -790,7 +831,7 @@ export async function importSite(input: string): Promise<SiteSummary> {
   const colors = extractColors(root, meta(root, "theme-color"), { css: css.map((c) => c.text).join("\n"), logoSvg, logoColors });
   // Background photos set in the stylesheets (often the hero), after the page's own pictures.
   const fromCss = css.flatMap((c) => cssImages(c.text, c.url)).filter((u) => u !== merged.logo && !(merged.clientLogos ?? []).some((l) => l.src === u));
-  const images = [...new Set([...merged.images, ...fromCss])].slice(0, MAX_SITE_IMAGES);
+  const images = tidyImages([...new Set([...merged.images, ...fromCss])]).slice(0, MAX_SITE_IMAGES);
   const videos = [...(merged.videos ?? []), ...(await channelVideos(merged.contact?.social ?? []))]
     .filter((v, i, arr) => arr.findIndex((w) => w.kind === v.kind && w.id === v.id) === i)
     .slice(0, MAX_VIDEOS);

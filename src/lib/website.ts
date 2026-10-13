@@ -72,7 +72,7 @@ export function pageA11yIssues(path: string, html: string): string[] {
     if (["email", "tel"].includes(type) && !field.getAttribute("autocomplete")) out.push(`has a ${type} field without autocomplete`);
   }
   for (const b of root.querySelectorAll("button")) {
-    if (!text(b) && !b.getAttribute("aria-label") && !b.getAttribute("aria-labelledby") && !b.querySelector("img[alt]:not([alt=''])")) {
+    if (!text(b) && !b.getAttribute("aria-label") && !b.getAttribute("aria-labelledby") && !b.querySelectorAll("img").some((i) => !!i.getAttribute("alt")?.trim())) {
       out.push("has a button with no name (add text or aria-label)");
       break;
     }
@@ -105,6 +105,27 @@ export function pageA11yIssues(path: string, html: string): string[] {
   if (vague) out.push(`has a picture described only as "${vague.getAttribute("alt")}"; say what it shows (or alt="" if it's decoration)`);
   // 27. Videos that play sound by themselves.
   if (root.querySelectorAll("video[autoplay]").some((v) => v.getAttribute("muted") == null)) out.push("has a video that plays by itself with sound; add muted (and controls), or don't autoplay");
+  // 56. In-page links to a section that isn't there.
+  const ids = new Set(root.querySelectorAll("[id]").map((el) => el.getAttribute("id")));
+  const lost = root.querySelectorAll('a[href^="#"]').find((a) => {
+    const id = (a.getAttribute("href") ?? "").slice(1);
+    return id && id !== "top" && !ids.has(id) && !root.querySelector(`a[name="${id.replace(/"/g, "")}"]`);
+  });
+  if (lost) out.push(`links to ${lost.getAttribute("href")}, but nothing on the page has that id`);
+  // 58–59. Headings that are empty or are really paragraphs.
+  const headings = root.querySelectorAll("h1, h2, h3, h4, h5, h6");
+  if (headings.some((h) => !text(h) && !h.querySelectorAll("img").some((i) => !!i.getAttribute("alt")?.trim()))) out.push("has an empty heading; give it words or remove it");
+  const long = headings.find((h) => text(h).length > 120);
+  if (long) out.push(`has a heading of ${text(long).length} characters ("${text(long).slice(0, 40)}…"); keep headings short and put the rest in a paragraph`);
+  // 60. Text too small to read.
+  if (/\btext-\[(?:[0-9]|1[01])px\]/.test(html)) out.push("uses text smaller than 12px; use at least text-xs (12px), better text-sm");
+  // 62. Old moving or blinking elements.
+  if (root.querySelector("marquee, blink")) out.push("uses <marquee> or <blink>; use the logo strip pattern (with a pause button) instead");
+  // 63. Forms nobody can send.
+  if (root.querySelectorAll("form").some((f) => !f.querySelector('button:not([type="button"]):not([type="reset"]), input[type="submit"], input[type="image"]'))) out.push("has a form without a send button");
+  // 64. Buttons with no name for screen readers (icon only).
+  const nameless = root.querySelectorAll("button").find((b) => !text(b) && !b.getAttribute("aria-label") && !b.getAttribute("aria-labelledby") && !b.getAttribute("title") && !b.querySelectorAll("img").some((i) => !!i.getAttribute("alt")?.trim()));
+  if (nameless) out.push("has a button with no text or aria-label (screen readers just say \"button\")");
   if (root.querySelectorAll("iframe").some((f) => !f.getAttribute("title"))) out.push("has an <iframe> without a title");
   for (const f of root.querySelectorAll("iframe")) {
     const src = f.getAttribute("src") ?? "";
@@ -149,6 +170,27 @@ export function validateSite(files: FileMap): ValidationIssue[] {
       issues.push({ file: path, message: "removes focus outlines without a visible focus style (WCAG 2.2 AA 2.4.7)" });
     }
     if (/<img(?![^>]*\salt=)[^>]*>/i.test(code)) issues.push({ file: path, message: "has an <img> without alt text (add a short description, or alt=\"\" for decoration)" });
+  }
+  // 54–55. Titles and descriptions: short enough for search results, and different on each page.
+  const pages = Object.entries(files).filter(([p]) => p.endsWith(".html") && p !== "404.html");
+  for (const [tag, re, max] of [
+    ["<title>", /<title>([^<]*)<\/title>/i, 70],
+    ['meta description', /<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i, 170],
+  ] as const) {
+    const seen = new Map<string, string>();
+    for (const [path, code] of pages) {
+      const value = re.exec(code)?.[1]?.trim();
+      if (!value) continue;
+      if (value.length > max) issues.push({ file: path, message: `has a ${tag} of ${value.length} characters; search results cut it after about ${max}` });
+      const first = seen.get(value.toLowerCase());
+      if (first) issues.push({ file: path, message: `has the same ${tag} as ${first}; give each page its own` });
+      else seen.set(value.toLowerCase(), path);
+    }
+  }
+  // 57. Pictures over http:// are blocked on https sites.
+  for (const [path, code] of pages) {
+    const insecure = /<img[^>]*\ssrc=["'](http:\/\/[^"']+)["']/i.exec(code);
+    if (insecure) issues.push({ file: path, message: `loads the picture ${insecure[1].slice(0, 80)} over http://; use https:// (browsers block it otherwise)` });
   }
   // Animated sites must respect people who turn motion off.
   // (Appmaker's accessibility widget switches motion off on purpose: not counted.)
@@ -371,6 +413,7 @@ export async function siteZip(
     zip.file(path, out);
   }
   const linked = siteImageUrls(files).length - local.size;
+  if (files[".htaccess"] == null && files["404.html"] != null) zip.file(".htaccess", "ErrorDocument 404 /404.html\n");
   zip.file(
     "README.txt",
     [
@@ -379,6 +422,19 @@ export async function siteZip(
       "To put it online, upload every file and folder here (keeping index.html at the top) to your web host's public folder, often called public_html or www. On Netlify, drag this folder onto app.netlify.com/drop.",
       "",
       local.size ? `The images folder has ${local.size} photo${local.size === 1 ? "" : "s"} from your current website.` : "",
+      // 67. Which pages are in the site.
+      `Pages: ${Object.keys(files)
+        .filter((p) => p.endsWith(".html"))
+        .sort((a, b) => (a === "index.html" ? -1 : b === "index.html" ? 1 : a.localeCompare(b)))
+        .join(", ")}.`,
+      "",
+      // 68–69. What the extra files are for.
+      ".htaccess shows your 404.html page for addresses that don't exist (on Apache hosts such as Hostinger and cPanel; other hosts ignore it).",
+      files["sitemap.xml"] ? "sitemap.xml and robots.txt use your website's address. If the site moves to a different domain, replace the old address in both files." : "",
+      files["accessibility.html"]
+        ? "accessibility.html is your accessibility statement (WCAG 2.2 AA). Check the contact details in it, and update it after a manual accessibility review."
+        : "",
+      "",
       linked
         ? `${linked} image${linked === 1 ? " is" : "s are"} still loaded from your current website (it didn't allow downloading ${linked === 1 ? "it" : "them"} here). Keep that website's images online, or save them into the images folder and update the links.`
         : "",
@@ -406,7 +462,7 @@ export function demoWebsiteResponse(site?: { siteName?: string; url?: string; de
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title} · ${name}</title>
-<meta name="description" content="${esc(site?.description || `${name}: welcome.`).slice(0, 150)}">
+<meta name="description" content="${`${title}: ${esc(site?.description || `${name}, welcome.`)}`.slice(0, 150)}">
 <link rel="canonical" href="${esc(url)}">
 <script src="https://cdn.tailwindcss.com"></script>
 </head>

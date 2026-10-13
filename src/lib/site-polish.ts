@@ -83,6 +83,26 @@ export function polishPage(path: string, html: string, info: PolishInfo, pages: 
   if (!metaContent(out, "property", "og:type")) head.push('<meta property="og:type" content="website">');
   if (info.siteName && !metaContent(out, "property", "og:site_name")) head.push(`<meta property="og:site_name" content="${esc(info.siteName)}">`);
   if (!metaContent(out, "name", "twitter:card")) head.push(`<meta name="twitter:card" content="${firstImage ? "summary_large_image" : "summary"}">`);
+  // 31. Referrer policy: other sites see where visitors came from, not the full page address.
+  if (!has(out, /<meta\s+name=["']referrer["']/i)) head.push('<meta name="referrer" content="strict-origin-when-cross-origin">');
+  // 32. Home-screen icon on iPhone and iPad (the logo).
+  if (info.logo && /^https:\/\//.test(info.logo) && !has(out, /rel=["']apple-touch-icon["']/i)) head.push(`<link rel="apple-touch-icon" href="${esc(info.logo)}">`);
+  // 33 + 35. The page's address for sharing and search (the new site usually replaces the old one at the same address).
+  const site = origin(info.url);
+  const pageUrl = site ? `${site}/${path === "index.html" ? "" : path}` : null;
+  if (pageUrl && path !== "404.html") {
+    if (!metaContent(out, "property", "og:url")) head.push(`<meta property="og:url" content="${esc(pageUrl)}">`);
+    if (!has(out, /<link\s+[^>]*rel=["']canonical["']/i)) head.push(`<link rel="canonical" href="${esc(pageUrl)}">`);
+  }
+  // 34. A description of the sharing image.
+  const firstAlt = /<img[^>]*\ssrc=["']https:\/\/[^"']+["'][^>]*\salt=["']([^"']+)["']/i.exec(out)?.[1] ?? /<img[^>]*\salt=["']([^"']+)["'][^>]*\ssrc=["']https:\/\//i.exec(out)?.[1];
+  if (firstAlt && !metaContent(out, "property", "og:image:alt")) head.push(`<meta property="og:image:alt" content="${esc(firstAlt)}">`);
+  // 45. Printing: no menus or widgets, link addresses shown, no dark backgrounds.
+  if (!has(out, /data-appmaker-print/i)) {
+    head.push(
+      '<style data-appmaker-print media="print">nav,.a11y-ui,.am-marquee-toggle,[data-video] .am-video-play::after{display:none!important}body{background:#fff!important;color:#000!important}main a[href^="http"]::after{content:" (" attr(href) ")";font-size:.85em}</style>',
+    );
+  }
   // 12. The web app manifest (add to home screen).
   if (!has(out, /<link\s+[^>]*rel=["']manifest["']/i)) head.push(`<link rel="manifest" href="${path.includes("/") ? "../" : ""}site.webmanifest">`);
   out = intoHead(out, head.filter((t) => !t.startsWith("<meta charset")));
@@ -108,6 +128,48 @@ export function polishPage(path: string, html: string, info: PolishInfo, pages: 
     const announced = /new (tab|window)/i.test(inner) || /\saria-label=/i.test(a);
     return `<a${a}>${inner}${announced ? "" : '<span class="sr-only"> (opens in a new tab)</span>'}</a>`;
   });
+  // 61. Zooming is never blocked (WCAG 1.4.4): no user-scalable=no or maximum-scale below 5.
+  out = out.replace(/(<meta\s+name=["']viewport["']\s+content=["'])([^"']*)(["'])/i, (_m, a: string, c: string, b: string) => {
+    const kept = c
+      .split(",")
+      .map((x) => x.trim())
+      .filter((x) => x && !/^user-scalable\s*=\s*(no|0)$/i.test(x) && !/^maximum-scale\s*=\s*[0-4](\.\d+)?$/i.test(x));
+    return `${a}${kept.join(", ")}${b}`;
+  });
+  // 36. Email links without stray spaces.
+  out = out.replace(/href=(["'])mailto:\s*([^"']*?)\s*\1/gi, (_m, q: string, e: string) => `href=${q}mailto:${e.trim()}${q}`);
+  // 37–38. Embedded players load when near, and send only the site's address.
+  out = out.replace(/<iframe\b[^>]*>/gi, (tag) => {
+    let t = tag;
+    if (!/\sloading=/i.test(t)) t = t.replace(/<iframe/i, '<iframe loading="lazy"');
+    if (!/\sreferrerpolicy=/i.test(t)) t = t.replace(/<iframe/i, '<iframe referrerpolicy="strict-origin-when-cross-origin"');
+    return t;
+  });
+  // 39–40. Videos play inline on phones, load only their first frame, and never autoplay with sound.
+  out = out.replace(/<video\b[^>]*>/gi, (tag) => {
+    let t = tag;
+    if (!/\splaysinline\b/i.test(t)) t = t.replace(/<video/i, "<video playsinline");
+    if (!/\spreload=/i.test(t)) t = t.replace(/<video/i, '<video preload="metadata"');
+    if (/\sautoplay\b/i.test(t) && !/\smuted\b/i.test(t)) t = t.replace(/<video/i, "<video muted");
+    return t;
+  });
+  // 41. Table column headings are announced with their cells.
+  out = out.replace(/<thead\b[\s\S]*?<\/thead>/gi, (thead) => thead.replace(/<th(?![^>]*\sscope=)(\s|>)/gi, '<th scope="col"$1'));
+  // 42. Form fields that browsers can fill in for you.
+  out = out.replace(/<input\b[^>]*>/gi, (tag) => {
+    if (/\sautocomplete=/i.test(tag)) return tag;
+    const type = /\stype=["']?(\w+)/i.exec(tag)?.[1]?.toLowerCase();
+    const name = /\s(?:name|id)=["']([^"']+)["']/i.exec(tag)?.[1]?.toLowerCase() ?? "";
+    const auto = type === "email" ? "email" : type === "tel" ? "tel" : /^(full-?)?name$|^your-?name$/.test(name) ? "name" : null;
+    return auto ? tag.replace(/<input/i, `<input autocomplete="${auto}"`) : tag;
+  });
+  // 43. Links to PDF files say so (people expect a page).
+  out = out.replace(/<a\b([^>]*\shref=["'][^"']+\.pdf(?:[?#][^"']*)?["'][^>]*)>([\s\S]*?)<\/a>/gi, (whole, attrs: string, inner: string) =>
+    /pdf/i.test(inner.replace(/<[^>]+>/g, "")) || /\saria-label=/i.test(attrs) ? whole : `<a${attrs}>${inner}<span class="sr-only"> (PDF)</span></a>`,
+  );
+  // 44. The copyright year in the footer is this year.
+  const year = new Date().getFullYear();
+  out = out.replace(/<footer\b[\s\S]*?<\/footer>/gi, (footer) => footer.replace(/(©|&copy;|Copyright)\s*(20\d\d)(?!\s*[–-]\s*20\d\d)/gi, (m, sign: string, y: string) => (Number(y) < year ? `${sign} ${y}–${year}` : m)));
   // 17. Phone links dial cleanly (no spaces, dashes or brackets in the number).
   out = out.replace(/href=(["'])tel:([^"']+)\1/gi, (_m, q: string, n: string) => `href=${q}tel:${n.replace(/[^\d+]/g, "")}${q}`);
   // 18. Website links missing https:// work instead of pointing to a missing page.

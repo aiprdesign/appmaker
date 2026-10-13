@@ -88,3 +88,62 @@ describe("quality checks for AI mistakes", () => {
     expect(issues('<video src="v.mp4" autoplay muted></video><a href="#main">Back up</a>').join()).not.toMatch(/sound|nowhere/);
   });
 });
+
+describe("kaizen batch 2: page details", () => {
+  const extra = `<iframe src="https://www.youtube-nocookie.com/embed/x" title="Tour"></iframe><video src="v.mp4" autoplay></video>
+<table><thead><tr><th>Dish</th><th scope="col">Price</th></tr></thead></table><input type="email" id="e"><input type="text" name="name"><input type="text" name="msg">
+<a href="mailto: ciao@luigis.example ">Email</a><a href="menu.pdf">Menu</a><a href="wine.pdf">Wine list (PDF)</a>`;
+  const src = page("Home", extra)
+    .replace("<head>", '<head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">')
+    .replace("<footer>©", "<footer>© 2019 Luigi's");
+  const out = polishSite({ "index.html": src, "menu.html": page("Menu") }, info);
+  const home = out["index.html"];
+  const year = new Date().getFullYear();
+
+  it("adds sharing, canonical, icon, referrer and print details", () => {
+    expect(home).toContain('<meta name="referrer" content="strict-origin-when-cross-origin">');
+    expect(home).toContain('<link rel="canonical" href="https://luigis.example/">');
+    expect(out["menu.html"]).toContain('<meta property="og:url" content="https://luigis.example/menu.html">');
+    expect(home).toContain('<meta property="og:image:alt" content="The dining room">');
+    expect(home).toContain("data-appmaker-print");
+    expect(home).toContain('content="width=device-width, initial-scale=1"');
+  });
+
+  it("tidies embeds, videos, tables, forms, email and PDF links and the copyright year", () => {
+    expect(home).toMatch(/<iframe referrerpolicy="strict-origin-when-cross-origin" loading="lazy" src=/);
+    expect(home).toMatch(/<video muted preload="metadata" playsinline src="v\.mp4" autoplay>/);
+    expect(home).toContain('<th scope="col">Dish</th><th scope="col">Price</th>');
+    expect(home).toContain('<input autocomplete="email" type="email"');
+    expect(home).toContain('<input autocomplete="name" type="text" name="name">');
+    expect(home).toContain('<input type="text" name="msg">');
+    expect(home).toContain('href="mailto:ciao@luigis.example"');
+    expect(home).toContain('Menu<span class="sr-only"> (PDF)</span>');
+    expect(home).not.toContain("Wine list (PDF)<span");
+    expect(home).toContain(year > 2019 ? `© 2019–${year}` : "© 2019");
+    expect(polishSite(out, info)).toEqual(out);
+  });
+});
+
+describe("kaizen batch 2: more quality checks", () => {
+  const issues = (extra: string) => pageA11yIssues("index.html", page("Home", extra).replace("<html>", '<html lang="en">')).join();
+  it("finds missing anchors, empty or long headings, tiny text, marquees, unsendable forms and nameless buttons", () => {
+    expect(issues('<a href="#hours">Hours</a>')).toMatch(/links to #hours, but nothing/);
+    expect(issues('<a href="#main">Up</a>')).not.toMatch(/nothing on the page/);
+    expect(issues("<h2> </h2>")).toMatch(/empty heading/);
+    expect(issues(`<h2>${"word ".repeat(30)}</h2>`)).toMatch(/heading of \d+ characters/);
+    expect(issues('<p class="text-[10px]">x</p>')).toMatch(/smaller than 12px/);
+    expect(issues("<marquee>Hi</marquee>")).toMatch(/marquee/);
+    expect(issues('<form><label for="q">Q</label><input id="q"></form>')).toMatch(/without a send button/);
+    expect(issues('<form><label for="q">Q</label><input id="q"><button>Send</button></form>')).not.toMatch(/send button/);
+    expect(issues('<button><svg></svg></button>')).toMatch(/no text or aria-label/);
+    expect(issues('<button aria-label="Menu"><svg></svg></button>')).not.toMatch(/aria-label/);
+  });
+  it("finds long or repeated titles and descriptions, and http pictures", () => {
+    const msgs = validateSite({ "index.html": page("Home"), "menu.html": page("Home").replace("hero.jpg", "x").replace("https://img.example/pasta", "http://img.example/pasta") }).map((i) => `${i.file}: ${i.message}`).join("\n");
+    expect(msgs).toMatch(/menu\.html: has the same <title> as index\.html/);
+    expect(msgs).toMatch(/menu\.html: has the same meta description as index\.html/);
+    expect(msgs).toMatch(/over http:\/\//);
+    const long = validateSite({ "index.html": page("x".repeat(80)) }).map((i) => i.message).join();
+    expect(long).toMatch(/<title> of \d+ characters/);
+  });
+});
