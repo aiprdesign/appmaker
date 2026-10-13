@@ -1422,6 +1422,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                 commit({ ...(projectRef.current ?? project), booking, files });
                 setPreviewFiles(files);
               }}
+              onAndroidPushChange={(androidPush) => commit({ ...(projectRef.current ?? project), androidPush })}
               onAppDataChange={(appData, files) => {
                 commit({ ...(projectRef.current ?? project), appData, files });
                 setPreviewFiles(files);

@@ -1,3 +1,4 @@
+import { GOOGLE_SERVICES_FILE } from "./android-push";
 import type { ExpoLink, Project } from "./types";
 import { isAllowedPath } from "./validate";
 
@@ -151,6 +152,8 @@ export function appJson(project: Project, link: ExpoLink | undefined = project.e
         package: l.bundleId.replace(/-/g, "_"),
         versionCode: 1,
         adaptiveIcon: { foregroundImage: `./${ICON_PATH}`, backgroundColor: l.primaryColor },
+        // Android push notifications go through the business's Firebase project.
+        ...(project.androidPush ? { googleServicesFile: `./${GOOGLE_SERVICES_FILE}` } : {}),
       },
       web: { favicon: `./${ICON_PATH}` },
       ...(nativePlugins.length ? { plugins: nativePlugins } : {}),
@@ -318,6 +321,7 @@ export function expoProjectFiles(
     "README.md": readme(project),
     ".github/workflows/eas.yml": WORKFLOW,
     ...(options.expoGo ? { "metro.config.js": CONTAINED_METRO_CONFIG } : {}),
+    ...(project.androidPush ? { [GOOGLE_SERVICES_FILE]: project.androidPush.googleServices } : {}),
   };
   for (const [path, code] of Object.entries(project.files)) {
     if (isAllowedPath(path)) files[path] = code;

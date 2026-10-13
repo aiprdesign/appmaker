@@ -10,6 +10,8 @@ import { StoreScreenshots } from "./StoreScreenshots";
 import { LiveUpdates } from "./LiveUpdates";
 import { Bookings } from "./Bookings";
 import { AppDataPanel } from "./AppData";
+import { AndroidPush } from "./AndroidPush";
+import { usesNotifications } from "@/lib/android-push";
 import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
@@ -36,6 +38,7 @@ interface Props {
   onBookingChange: (booking: Project["booking"], files: Project["files"]) => void;
   onAppDataChange: (appData: Project["appData"], files: Project["files"]) => void;
   onAddAppData: () => void;
+  onAndroidPushChange: (push: Project["androidPush"]) => void;
   onAddBookingScreen: () => void;
   busy: boolean;
   hasPreviewError: boolean;
@@ -205,7 +208,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, buildRequest, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, onAppDataChange, onAddAppData, busy, hasPreviewError }: Props) {
+export function PublishPanel({ project, buildRequest, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, onAppDataChange, onAddAppData, onAndroidPushChange, busy, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -470,6 +473,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
                 </summary>
                 <div className="mt-4 space-y-6">
                   <AppDataPanel project={project} onChange={onAppDataChange} onAddData={onAddAppData} busy={busy} />
+                  {usesNotifications(project.files) && <AndroidPush project={project} onChange={onAndroidPushChange} />}
                   <LiveUpdates project={project} onChange={onLiveChange} />
                   <Bookings project={project} onChange={onBookingChange} onAddScreen={onAddBookingScreen} busy={busy} />
                 </div>

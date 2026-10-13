@@ -55,7 +55,7 @@ export function easAvailable(): boolean {
 // ---------------------------------------------------------------------------
 // Expo API (status and account checks, no CLI needed)
 
-async function graphql<T>(token: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
+export async function graphql<T>(token: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${expoApi()}/graphql`, {

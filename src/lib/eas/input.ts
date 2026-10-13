@@ -1,3 +1,4 @@
+import { AndroidPushError, androidPackage, parseGoogleServices } from "../android-push";
 import { checkCodeSafety, describeSafety } from "../code-safety";
 import type { BuildTarget, ExpoLink, Project, StoreListing } from "../types";
 import { isAllowedPath } from "../validate";
@@ -90,8 +91,20 @@ export function parseProject(v: unknown): Project {
   }
   if (!/^#[0-9a-f]{6}$/i.test(listing.primaryColor)) listing.primaryColor = "#6D5DFB";
 
+  // Android notifications: the app's google-services.json (not secret), checked against the package.
+  const push = o.androidPush as { googleServices?: unknown } | undefined;
+  let androidPush: Project["androidPush"];
+  if (push && typeof push.googleServices === "string" && push.googleServices) {
+    try {
+      const g = parseGoogleServices(push.googleServices, androidPackage(listing.bundleId));
+      androidPush = { googleServices: g.json, firebaseProject: g.firebaseProject };
+    } catch (e) {
+      throw new InputError(e instanceof AndroidPushError ? e.message : "google-services.json is invalid.");
+    }
+  }
+
   const now = Date.now();
-  return { id: "build", name: listing.name, prompt: "", files, messages: [], listing, createdAt: now, updatedAt: now };
+  return { id: "build", name: listing.name, prompt: "", files, messages: [], listing, createdAt: now, updatedAt: now, ...(androidPush ? { androidPush } : {}) };
 }
 
 /** The app icon, drawn in the browser, as a base64 PNG. */

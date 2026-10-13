@@ -111,7 +111,18 @@ async function iconBase64(project: Project): Promise<string> {
   return btoa(bin);
 }
 
-const projectBody = (p: Project) => ({ files: p.files, listing: p.listing });
+const projectBody = (p: Project) => ({ files: p.files, listing: p.listing, ...(p.androidPush ? { androidPush: { googleServices: p.androidPush.googleServices } } : {}) });
+
+/** Gives Expo the Firebase key for Android notifications (the key goes to Expo only). */
+export function setAndroidPushKey(token: string | undefined, project: Project, serviceAccount: string) {
+  return post<{ ok: true }>("/api/eas/push", {
+    token,
+    projectId: project.expo?.link?.projectId,
+    bundleId: project.listing.bundleId,
+    firebaseProject: project.androidPush?.firebaseProject,
+    serviceAccount,
+  });
+}
 
 export interface EasServerInfo {
   available: boolean;

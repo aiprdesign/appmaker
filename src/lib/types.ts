@@ -259,6 +259,8 @@ export interface Project {
   live?: { id: string; url: string; feedUrl: string; fetchedAt: string | null; error?: string | null };
   /** Bookings run by Appmaker (see src/lib/booking.ts): the app's booking address. */
   booking?: { id: string; apiUrl: string };
+  /** Android push notifications (see src/lib/android-push.ts): the app's google-services.json, and whether Expo has the key. */
+  androidPush?: { googleServices: string; firebaseProject: string; keySetAt?: number };
   /** Appmaker app data (see src/lib/app-data.ts): the app's database address, once the owner turned it on. */
   appData?: { id: string; apiUrl: string };
   /** Hosted support page and privacy policy (see src/lib/store-pages.ts). */
