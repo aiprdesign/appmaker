@@ -300,6 +300,20 @@ export const A11Y_WIDGET = `/* Accessibility settings for visitors. Added by App
     })(boxes[i]);
   }
 })();
+
+/* Skip links and other in-page links move keyboard focus to where they point, not
+   just the scroll position, so the next Tab continues from there. Added by Appmaker. */
+(function () {
+  document.addEventListener("click", function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[href^="#"]') : null;
+    if (!a) return;
+    var id = decodeURIComponent(a.getAttribute("href").slice(1));
+    var target = id && document.getElementById(id);
+    if (!target) return;
+    if (!target.hasAttribute("tabindex") && !target.matches("a,button,input,select,textarea")) target.setAttribute("tabindex", "-1");
+    setTimeout(function () { target.focus({ preventScroll: true }); }, 0);
+  });
+})();
 `;
 
 const TAG = /<script[^>]*src=["']\.?\/?(?:\.\.\/)?a11y\.js["'][^>]*>\s*<\/script>/i;

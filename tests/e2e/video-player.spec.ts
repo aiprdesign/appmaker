@@ -36,3 +36,15 @@ test("other addresses are ignored, and in Appmaker's preview it says the video p
   await expect(p.getByRole("status")).toHaveText("The video plays on your live site.");
   await expect(p.locator(`iframe[src^="${YT}"]`)).toHaveCount(0);
 });
+
+test("skip links move keyboard focus, so the next Tab continues from the main content", async ({ page: p }) => {
+  await p.setContent(
+    page(`<a href="#main">Skip to content</a><nav><a href="/a">One</a><a href="/b">Two</a></nav><main id="main"><h1>Hello</h1><a href="/c">First link in main</a></main>`),
+  );
+  await p.keyboard.press("Tab");
+  await expect(p.getByRole("link", { name: "Skip to content" })).toBeFocused();
+  await p.keyboard.press("Enter");
+  await expect(p.locator("main")).toBeFocused();
+  await p.keyboard.press("Tab");
+  await expect(p.getByRole("link", { name: "First link in main" })).toBeFocused();
+});

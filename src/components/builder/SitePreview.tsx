@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Monitor, PencilLine, Smartphone, Tablet } from "lucide-react";
+import { ExternalLink, Monitor, PencilLine, Smartphone, Tablet } from "lucide-react";
 import type { FileMap } from "@/lib/types";
 import type { A11yReport } from "@/lib/site-statement";
 import type { ContentEdit } from "@/lib/site-content";
@@ -253,13 +253,28 @@ export function SitePreview({
             className="min-h-8 rounded-lg border border-line bg-surface px-2 text-xs text-foreground"
             aria-label="Page"
           >
-            {pages.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
+            {pages.map((p) => {
+              // The page's own title (before the " · Business" part), then its file name.
+              const title = /<title>([^<]*)<\/title>/i.exec(files[p] ?? "")?.[1]?.split(/\s[·|–—-]\s/)[0]?.trim();
+              return (
+                <option key={p} value={p}>
+                  {title ? `${title} (${p})` : p}
+                </option>
+              );
+            })}
           </select>
         </label>
+        <button
+          onClick={() => {
+            // The page on its own, full size, in a new tab (pictures and styles included).
+            const url = URL.createObjectURL(new Blob([previewDocument(files, current, undefined, assets)], { type: "text/html" }));
+            window.open(url, "_blank", "noopener");
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          }}
+          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-medium hover:border-white/20"
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> Open full size
+        </button>
         {onEdit && (
           <button
             onClick={() => setEditing((v) => !v)}

@@ -20,6 +20,7 @@ import { ConceptPicker, SiteColorsPanel } from "./ConceptPicker";
 import { SiteContentPanel } from "./SiteContentPanel";
 import { withA11yWidget } from "@/lib/site-a11y";
 import { withStatement, type A11yReport, type StatementInfo } from "@/lib/site-statement";
+import { polishSite, type PolishInfo } from "@/lib/site-polish";
 import { addEdit, applyEdit, applyEdits, editsNote, selectedSite, type ContentEdit } from "@/lib/site-content";
 import { conceptPrompt, conceptStyles, contentIssues, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
@@ -100,6 +101,28 @@ function ChecksOverlay({ generating }: { generating: boolean }) {
   );
 }
 
+
+/** What the finishing touches (sharing previews, search details, icon…) know about the business. */
+function polishInfo(p: Project): PolishInfo {
+  const src = p.source;
+  const c = src?.contact;
+  const sizes: Record<string, { width: number; height: number }> = {};
+  for (const x of [...(src?.screenshots ?? []), ...(src?.localImages ?? [])]) sizes[x.path] = { width: x.width, height: x.height };
+  return {
+    siteName: src?.siteName || p.listing.name || p.name,
+    ...(src?.url ? { url: src.url } : {}),
+    ...(src?.language ? { lang: src.language.split("-")[0] } : {}),
+    primary: p.design?.primary ?? p.listing.primaryColor,
+    ...(src?.logo ? { logo: src.logo } : {}),
+    ...(p.listing.iconEmoji ? { emoji: p.listing.iconEmoji } : {}),
+    ...(src?.description ? { description: src.description } : {}),
+    ...(c?.phones?.[0] ? { phone: c.phones[0] } : {}),
+    ...(c?.emails?.[0] ? { email: c.emails[0] } : {}),
+    ...(c?.address ? { address: c.address } : {}),
+    ...(c?.social?.length ? { social: c.social } : {}),
+    assetSizes: sizes,
+  };
+}
 
 /** What the accessibility statement says about the business, and its latest check. */
 function statementInfo(p: Project, report: A11yReport | undefined = p.a11yReport): StatementInfo {
@@ -374,8 +397,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // a failed first build must not leave a "project" without App.js.
       const isApp = !isSite && hasEntry(files);
       // Every website carries Appmaker's accessibility widget, whatever the AI wrote.
-      // In turn: the owner's own text edits, the widget's script tag, then the statement.
-      if (isSite && hasSiteEntry(files)) Object.assign(files, withStatement(withA11yWidget(applyEdits(files, base.contentEdits)), statementInfo(base)));
+      // In turn: the owner's own text edits, the widget's script tag, the statement, then the finishing touches.
+      if (isSite && hasSiteEntry(files)) Object.assign(files, polishSite(withStatement(withA11yWidget(applyEdits(files, base.contentEdits)), statementInfo(base)), polishInfo(base)));
       // Website apps always carry Appmaker's live-content file, whatever the AI wrote.
       if (base.source && isApp) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;

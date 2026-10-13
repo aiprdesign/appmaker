@@ -89,6 +89,22 @@ export function pageA11yIssues(path: string, html: string): string[] {
     }
   }
   if (root.querySelectorAll("[tabindex]").some((el) => Number(el.getAttribute("tabindex")) > 0)) out.push("uses tabindex greater than 0");
+  // 24. Links that go nowhere.
+  const dead = root.querySelectorAll("a[href]").find((a) => {
+    const href = (a.getAttribute("href") ?? "").trim();
+    return (href === "#" || /^javascript:/i.test(href)) && !a.getAttribute("role");
+  });
+  if (dead) out.push(`has a link that goes nowhere ("${text(dead).slice(0, 40) || dead.getAttribute("href")}"); link it to its page, or use a <button>`);
+  // 25. Placeholder text left in.
+  const body = text(root.querySelector("body") ?? root);
+  // (Page text is joined without spaces between elements, so no word boundary is required before.)
+  const filler = /(lorem ipsum|dolor sit amet|your (company|business) name|placeholder text|TODO:)|\[(your|insert|add) [^\]]{0,40}\]/i.exec(body);
+  if (filler) out.push(`still has placeholder text ("${filler[0].slice(0, 40)}"); use the business's real words, or leave it out`);
+  // 26. Picture descriptions that say nothing.
+  const vague = root.querySelectorAll("img[alt]").find((img) => /^(image|photo|picture|img|graphic|banner|hero|logo image|untitled)$|\.(jpe?g|png|webp|gif|svg)$|^(img|dsc|pxl)[_-]?\d+/i.test((img.getAttribute("alt") ?? "").trim()));
+  if (vague) out.push(`has a picture described only as "${vague.getAttribute("alt")}"; say what it shows (or alt="" if it's decoration)`);
+  // 27. Videos that play sound by themselves.
+  if (root.querySelectorAll("video[autoplay]").some((v) => v.getAttribute("muted") == null)) out.push("has a video that plays by itself with sound; add muted (and controls), or don't autoplay");
   if (root.querySelectorAll("iframe").some((f) => !f.getAttribute("title"))) out.push("has an <iframe> without a title");
   for (const f of root.querySelectorAll("iframe")) {
     const src = f.getAttribute("src") ?? "";
