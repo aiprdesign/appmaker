@@ -20,7 +20,7 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   const { store } = await res.json();
 
   await page.goto(store.ownerUrl);
-  await expect(page.getByRole("heading", { name: "Luigi's: app data" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Luigi's", level: 1 })).toBeVisible();
   await expect(page).not.toHaveURL(/#k=/); // the key leaves the address bar
   await expect(page.getByRole("tab", { name: /Orders/ })).toHaveAttribute("aria-selected", "true");
 
@@ -32,12 +32,17 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   await expect(page).toHaveTitle(/^\(1\) New · Luigi's: app data/);
 
   // Move it on: the customer sees the status.
+  await expect(page.getByText("Just now")).toBeVisible();
+  await page.getByRole("button", { name: "Mark as preparing" }).click();
   await page.getByLabel("Status").selectOption("ready");
-  await expect(page.getByLabel("Status")).toHaveValue("ready");
   const mine = await (await page.request.get(`${store.apiUrl}?collection=orders`, { headers: { "x-device": device } })).json();
   expect(mine.items[0].status).toBe("ready");
 
-  // Staff PIN for staff mode in the app.
+  // Finished orders move to Done; staff PIN for staff mode in the app is under Alerts and staff PIN.
+  await expect(page.getByText("All caught up.")).toBeVisible();
+  await page.getByRole("button", { name: "Done (1)" }).click();
+  await expect(page.getByText("2 Margherita")).toBeVisible();
+  await page.getByText("Alerts and staff PIN").click();
   await page.getByLabel("Staff PIN (6 to 8 digits)").fill("246810");
   await page.getByRole("button", { name: "Set PIN" }).click();
   await expect(page.getByText("Staff PIN saved.")).toBeVisible();

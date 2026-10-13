@@ -54,7 +54,7 @@ describe("app data rules and module", () => {
     expect(SYSTEM_PROMPT).toContain("App data (Appmaker's built-in database");
     expect(SYSTEM_PROMPT).toContain("useCollection('orders')");
     expect(SYSTEM_PROMPT).toContain("import StaffScreen from '../staff'");
-    expect(staffModule(null)).toContain("Staff mode isn't on yet");
+    expect(staffModule(null)).toContain("Staff mode isn't available yet");
   });
 
   it("keeps staff PINs hashed and only accepts real Expo push tokens", () => {
@@ -73,9 +73,10 @@ function runModule(api: string | null, fetcher?: typeof fetch) {
   const storage = { getItem: async (k: string) => store.get(k) ?? null, setItem: async (k: string, v: string) => void store.set(k, v) };
   const code = dataModule(api, parseRules(RULES))
     .replace(/^import .*$/gm, "")
-    .replace(/^export (async )?function (\w+)/gm, (_m, a: string | undefined, name: string) => `exports.${name} = ${a ?? ""}function ${name}`);
+    .replace(/^export (async )?function (\w+)/gm, (_m, a: string | undefined, name: string) => `${a ?? ""}function ${name}`);
+  const names = [...dataModule(api, parseRules(RULES)).matchAll(/^export (?:async )?function (\w+)/gm)].map((m) => m[1]);
   const exports: Record<string, (...args: unknown[]) => Promise<unknown>> = {};
-  new Function("exports", "AsyncStorage", "fetch", "useState", "useEffect", "useRef", "useCallback", code)(exports, storage, fetcher, null, null, null, null);
+  new Function("exports", "AsyncStorage", "fetch", "useState", "useEffect", "useRef", "useCallback", `${code}\n${names.map((n) => `exports.${n} = ${n};`).join("\n")}`)(exports, storage, fetcher, null, null, null, null);
   return exports;
 }
 
@@ -87,9 +88,26 @@ describe("the app's data module", () => {
     expect(order).toMatchObject({ name: "Ana", status: "new", mine: true });
     await m.update("orders", order.id, { name: "Ana B" });
     expect(await m.list("orders")).toEqual([expect.objectContaining({ name: "Ana B" })]);
-    await m.remove("orders", order.id);
-    expect(await m.list("orders")).toEqual([]);
+    await m.remove("orders", order.id); // orders are cancelled (the business keeps a record), not deleted
+    expect(await m.list("orders")).toEqual([expect.objectContaining({ name: "Ana B", status: "cancelled" })]);
     await expect(m.list("secrets")).rejects.toThrow(/Unknown collection/);
+  });
+
+  it("lets customers cancel only while waiting, and words statuses for them", async () => {
+    const m = runModule(null);
+    const order = (await m.add("orders", { name: "Ana" })) as { id: string; status: string };
+    expect(order.status).toBe("new");
+    expect((m.statusInfo as unknown as (c: string, s: string) => unknown)("orders", "preparing")).toEqual({
+      label: "Being prepared",
+      step: 1,
+      steps: ["Received", "Being prepared", "Ready"],
+      done: false,
+      cancelled: false,
+      canCancel: false,
+    });
+    await m.remove("orders", order.id); // orders are cancelled, not deleted
+    expect(await m.list("orders")).toEqual([expect.objectContaining({ id: order.id, status: "cancelled" })]);
+    await expect(m.update("orders", order.id, { name: "B" })).rejects.toThrow(/already started/);
   });
 
   it("talks to the database once it's on, with this phone's random id", async () => {
@@ -165,6 +183,12 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     expect(anasOrders.map((o: { name: string }) => o.name)).toEqual(["Ana"]);
     expect((await appGet(req(`/api/appdata/${store.id}?collection=orders`, "GET"), ctx(store.id))).status).toBe(400);
 
+    // Customers can't change or delete an order once the business has started on it.
+    const second = (await (await appPost(app("POST", { collection: "orders", data: { name: "Ana", items: "Marinara" } }), ctx(store.id))).json()).item;
+    expect((await (await appPatch(app("PATCH", { collection: "orders", id: second.id, cancel: true }), ctx(store.id))).json()).item.status).toBe("cancelled");
+    expect((await appPatch(app("PATCH", { collection: "orders", id: second.id, data: { items: "More" } }), ctx(store.id))).status).toBe(403);
+    expect((await (await appDelete(app("DELETE", undefined, ANA, `?collection=orders&id=${second.id}`), ctx(store.id))).json()).error).toMatch(/already started/);
+
     // Reviews: everyone sees them; only the writer can change or delete theirs.
     const review = (await (await appPost(app("POST", { collection: "reviews", data: { name: "Bo", rating: 5, text: "Great" } }, BO), ctx(store.id))).json()).item;
     const seen = (await (await appGet(app("GET", undefined, ANA, "?collection=reviews"), ctx(store.id))).json()).items;
@@ -179,10 +203,10 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     const owner = (method: string, body?: unknown) => req(`/api/appdata/${store.id}/owner`, method, body, { "x-owner-key": key });
     const view = await (await ownerGet(owner("GET"), ctx(store.id))).json();
     const orders = view.collections.find((c: { name: string }) => c.name === "orders");
-    expect(orders.items.map((o: { name: string }) => o.name)).toEqual(["Bo", "Ana"]);
+    expect(orders.items.map((o: { name: string; status: string }) => `${o.name} ${o.status}`)).toEqual(["Ana cancelled", "Bo new", "Ana new"]);
     expect(view.collections.find((c: { name: string }) => c.name === "notes")).toMatchObject({ count: 1, items: [] });
     await ownerPost(owner("POST", { action: "status", collection: "orders", id: order.id, status: "ready" }), ctx(store.id));
-    expect((await (await appGet(app("GET", undefined, ANA, "?collection=orders"), ctx(store.id))).json()).items[0].status).toBe("ready");
+    expect((await (await appGet(app("GET", undefined, ANA, "?collection=orders"), ctx(store.id))).json()).items.find((o: { id: string }) => o.id === order.id).status).toBe("ready");
     expect((await ownerPost(owner("POST", { action: "status", collection: "orders", id: order.id, status: "teleported" }), ctx(store.id))).status).toBe(400);
     await ownerPost(owner("POST", { action: "add", collection: "menu", data: { name: "Diavola", price: "14" } }), ctx(store.id));
     expect((await (await appGet(app("GET", undefined, BO, "?collection=menu"), ctx(store.id))).json()).items[0].name).toBe("Diavola");

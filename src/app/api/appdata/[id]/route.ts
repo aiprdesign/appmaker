@@ -1,6 +1,6 @@
 import { DataInputError } from "@/lib/app-data";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { DataForbidden, addItem, checkDevice, getStore, listItems, removeItem, updateItem } from "@/lib/server/app-data";
+import { DataForbidden, addItem, cancelItem, checkDevice, getStore, listItems, removeItem, setPushToken, updateItem } from "@/lib/server/app-data";
 import { databaseConfigured } from "@/lib/server/db";
 import { feature } from "@/lib/server/features";
 
@@ -71,7 +71,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (!store) return json({ error: "This app's data isn't available." }, 404);
     if (!rateLimit(`data-edit:${store.id}:${clientIp(req)}`, 300, 60 * 60 * 1000).ok) return json({ error: "Too many changes. Please try again later." }, 429);
     const b = await body(req);
-    return json({ item: await updateItem(store, String(b.collection ?? ""), checkDevice(req.headers.get("x-device")), String(b.id ?? ""), b.data) });
+    const [collection, device, id] = [String(b.collection ?? ""), checkDevice(req.headers.get("x-device")), String(b.id ?? "")];
+    if (b.pushToken !== undefined) {
+      await setPushToken(store, collection, device, id, b.pushToken);
+      return json({ ok: true });
+    }
+    if (b.cancel === true) return json({ item: await cancelItem(store, collection, device, id) });
+    return json({ item: await updateItem(store, collection, device, id, b.data) });
   } catch (e) {
     return failed(e);
   }

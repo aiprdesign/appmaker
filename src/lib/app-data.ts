@@ -39,6 +39,41 @@ export const MAX_COLLECTIONS = 12;
 export const MAX_RECORD_BYTES = 8_000;
 export const DEFAULT_STATUSES = ["new", "accepted", "ready", "done", "cancelled"];
 
+/** Statuses that mean an order or request is finished (or the last one in the list). */
+export const DONE_STATUS = /^(done|complete|completed|collected|delivered|closed|picked ?up|served|finished|archived|cancel+ed|declined|rejected)$/i;
+export const isDone = (status: string | undefined, statuses: string[] | undefined) =>
+  !!status && (DONE_STATUS.test(status) || (!!statuses?.length && status === statuses[statuses.length - 1]));
+
+/** What customers read for a status ("preparing" → "Being prepared"). */
+export const STATUS_WORDS: Record<string, string> = {
+  new: "Received",
+  pending: "Received",
+  received: "Received",
+  accepted: "Accepted",
+  confirmed: "Confirmed",
+  preparing: "Being prepared",
+  "in progress": "In progress",
+  quoted: "Quote sent",
+  booked: "Booked",
+  ready: "Ready",
+  "on the way": "On the way",
+  done: "Completed",
+  completed: "Completed",
+  collected: "Collected",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+  canceled: "Cancelled",
+  declined: "Declined",
+};
+
+/** "pickupTime" → "Pickup time", "in_progress" → "In progress". */
+export const fieldLabel = (f: string) =>
+  f
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
+
 /** Reads the rules the AI wrote (or the builder sent), keeping only what's valid. */
 export function parseRules(v: unknown): DataRules {
   if (!v || typeof v !== "object" || Array.isArray(v)) throw new DataInputError("The data rules must be an object of collections.");
@@ -101,6 +136,7 @@ export function appRules(files: FileMap): DataRules | null {
 export function dataModule(apiUrl: string | null, rules: DataRules): string {
   const access = Object.fromEntries(Object.entries(rules).map(([k, r]) => [k, r.access]));
   const seeds = Object.fromEntries(Object.entries(rules).filter(([, r]) => r.seed?.length).map(([k, r]) => [k, r.seed]));
+  const statuses = Object.fromEntries(Object.entries(rules).filter(([, r]) => r.statuses).map(([k, r]) => [k, r.statuses]));
   return `// Appmaker app data: the app's built-in database. Written by Appmaker — don't change this file.
 // Screens import useCollection from this file, then:
 //   const { items, loading, error, add, update, remove, refresh } = useCollection('orders');
@@ -111,6 +147,9 @@ import * as Notifications from 'expo-notifications';
 const API = ${JSON.stringify(apiUrl)};
 const ACCESS = ${JSON.stringify(access)};
 const SEED = ${JSON.stringify(seeds)};
+const STATUSES = ${JSON.stringify(statuses)};
+const WORDS = ${JSON.stringify(STATUS_WORDS)};
+const DONE = ${DONE_STATUS.toString()};
 const listeners = {};
 
 let devicePromise = null;
@@ -190,40 +229,66 @@ export async function list(collection) {
   return items;
 }
 
-/** Adds an item; returns it (with id, createdAt and, for inbox items, status). */
+const firstStatus = (collection) => (STATUSES[collection] || ['new'])[0];
+const STARTED = 'The business has already started on this. Please contact them to change it.';
+
+/** Adds an item; returns it (with id, createdAt and, for orders and requests, status and a short #ref). */
 export async function add(collection, fields) {
   check(collection);
   if (!API) {
     const now = Date.now();
     const id = newId();
-    const item = { ...fields, id, createdAt: now, updatedAt: now, mine: true, ...(ACCESS[collection] === 'inbox' ? { status: 'new', ref: id.slice(-4).toUpperCase() } : {}) };
+    const item = { ...fields, id, createdAt: now, updatedAt: now, mine: true, ...(ACCESS[collection] === 'inbox' ? { status: firstStatus(collection), ref: id.slice(-4).toUpperCase() } : {}) };
     await writeLocal(collection, [item, ...(await readLocal(collection))]);
     changed(collection);
     return item;
   }
-  const token = ACCESS[collection] === 'inbox' ? await pushToken() : '';
-  const data = await call('POST', {}, { collection, data: fields }, token ? { 'x-push-token': token } : null);
+  const data = await call('POST', {}, { collection, data: fields });
   changed(collection);
+  // Sent: now ask (once) whether they want to hear when it moves on. The order never waits on this.
+  if (ACCESS[collection] === 'inbox' && data.item) {
+    pushToken().then((token) => token && call('PATCH', {}, { collection, id: data.item.id, pushToken: token })).catch(() => {});
+  }
   return data.item;
 }
 
-/** Changes some fields of an item this person added. */
+/** Changes some fields of an item this person added (orders and requests only while still waiting). */
 export async function update(collection, id, fields) {
   check(collection);
   if (!API) {
-    const items = (await readLocal(collection)).map((x) => (x.id === id ? { ...x, ...fields, updatedAt: Date.now() } : x));
-    await writeLocal(collection, items);
+    const items = await readLocal(collection);
+    const item = items.find((x) => x.id === id);
+    if (item && ACCESS[collection] === 'inbox' && item.status !== firstStatus(collection)) throw new Error(STARTED);
+    const next = items.map((x) => (x.id === id ? { ...x, ...fields, updatedAt: Date.now() } : x));
+    await writeLocal(collection, next);
     changed(collection);
-    return items.find((x) => x.id === id);
+    return next.find((x) => x.id === id);
   }
   const data = await call('PATCH', {}, { collection, id, data: fields });
   changed(collection);
   return data.item;
 }
 
-/** Deletes an item this person added. */
+/** Cancels an order or request while the business hasn't started on it yet. */
+export async function cancel(collection, id) {
+  check(collection);
+  const cancelled = (STATUSES[collection] || []).find((s) => /^cancel/i.test(s)) || 'cancelled';
+  if (!API) {
+    const items = await readLocal(collection);
+    const item = items.find((x) => x.id === id);
+    if (item && item.status !== firstStatus(collection)) throw new Error(STARTED);
+    await writeLocal(collection, items.map((x) => (x.id === id ? { ...x, status: cancelled, updatedAt: Date.now() } : x)));
+    changed(collection);
+    return;
+  }
+  await call('PATCH', {}, { collection, id, cancel: true });
+  changed(collection);
+}
+
+/** Deletes an item this person added. Orders and requests are cancelled instead (the business keeps a record). */
 export async function remove(collection, id) {
   check(collection);
+  if (ACCESS[collection] === 'inbox') return cancel(collection, id);
   if (!API) {
     await writeLocal(collection, (await readLocal(collection)).filter((x) => x.id !== id));
     changed(collection);
@@ -231,6 +296,24 @@ export async function remove(collection, id) {
   }
   await call('DELETE', { collection, id });
   changed(collection);
+}
+
+/**
+ * How far an order or request has got, for customers:
+ * { label: 'Being prepared', step: 1, steps: ['Received', 'Being prepared', 'Ready', 'Collected'], done, cancelled, canCancel }.
+ */
+export function statusInfo(collection, status) {
+  const word = (s) => WORDS[String(s).toLowerCase()] || String(s).charAt(0).toUpperCase() + String(s).slice(1);
+  const all = (STATUSES[collection] || ['new']).filter((s) => !/^(cancel|declin|reject)/i.test(s));
+  const cancelled = /^(cancel|declin|reject)/i.test(String(status || ''));
+  return {
+    label: word(status || all[0]),
+    step: Math.max(0, all.indexOf(status)),
+    steps: all.map(word),
+    done: cancelled || DONE.test(String(status || '')) || status === all[all.length - 1],
+    cancelled,
+    canCancel: status === firstStatus(collection),
+  };
 }
 
 /**
@@ -275,6 +358,8 @@ export function useCollection(collection) {
     add: (fields) => add(collection, fields),
     update: (id, fields) => update(collection, id, fields),
     remove: (id) => remove(collection, id),
+    cancel: (id) => cancel(collection, id),
+    statusInfo: (status) => statusInfo(collection, status),
   };
 }
 `;
@@ -293,7 +378,11 @@ When the app needs data that's shared with the business or between customers (or
    - items are newest first: \`{ id, ...fields, createdAt, mine }\`, plus \`status\` on inbox items. \`mine\` is true for items this person added.
    - \`await add({ ...fields })\` returns the new item; \`update(id, fields)\` and \`remove(id)\` work on the person's own items. All three can throw: catch and show the message with a Retry.
    - Show \`loading\` (a skeleton) and \`error\` (with Retry), and an empty state.
-3. Inbox screens: after sending, say "Sent — {business} will get back to you" and show the person's own items with their status (e.g. "Order #… · preparing"). Never say an order or booking is confirmed until its status says so.
+3. Inbox screens (orders, requests):
+   - After sending, show a clear confirmation with the number: "Order #\${item.ref} sent — {business} will get back to you", and a "My orders" (or "My requests") screen with the person's own items, newest first.
+   - Show each one's progress with \`statusInfo(item.status)\` from useCollection: \`{ label, step, steps, done, cancelled, canCancel }\`. Draw the steps as a small progress line (Received → Being prepared → Ready), with label in words; never show raw status words like "preparing". Cancelled ones are muted.
+   - Offer "Cancel order" only while \`canCancel\` is true (with a confirmation), using \`cancel(id)\`; afterwards, say to call the business to change it. Customers can't delete orders or requests.
+   - Never say an order or booking is confirmed until its status says so.
    The customer is asked once, when they first send something, whether they want notifications: they then get one when the business changes its status. Don't ask for that yourself.
 4. ${STAFF_PROMPT}
 5. Until the owner turns on the app database in the Publish tab, the data stays on the phone (so the preview works now). Mention in the summary that they can turn it on there so orders and reviews reach them, and that they manage everything from their owner page (with alerts for new orders) or in the app's Staff mode with a staff PIN.`;

@@ -167,23 +167,57 @@ export async function addItem(store: DataStore, collection: string, device: stri
   return item;
 }
 
+/** Once the business has moved an order or request on, the customer can no longer change or delete it. */
+const STARTED = "The business has already started on this. Please contact them to change it.";
+
 export async function updateItem(store: DataStore, collection: string, device: string, id: string, fields: unknown): Promise<DataItem> {
-  const { access } = rule(store, collection);
+  const { access, statuses } = rule(store, collection);
   if (access === "public") throw new DataForbidden("Only the business can change this.");
   if (!RECORD_ID.test(id)) throw new DataInputError("Unknown item.");
   const data = cleanRecord(fields);
   const rows = await query<RecordRow>(
     `update app_data_records set data = data || $5::jsonb, updated_at = now()
-     where store_id = $1 and collection = $2 and id = $3 and device = $4 returning *`,
-    [store.id, collection, id, device, JSON.stringify(data)],
+     where store_id = $1 and collection = $2 and id = $3 and device = $4 ${access === "inbox" ? "and status = $6" : ""} returning *`,
+    access === "inbox" ? [store.id, collection, id, device, JSON.stringify(data), statuses?.[0] ?? "new"] : [store.id, collection, id, device, JSON.stringify(data)],
   );
-  if (!rows[0]) throw new DataForbidden("You can only change your own items.");
+  if (!rows[0]) throw new DataForbidden(access === "inbox" && (await own(store, collection, id, device)) ? STARTED : "You can only change your own items.");
   return toItem(rows[0], device, access);
 }
 
+async function own(store: DataStore, collection: string, id: string, device: string) {
+  return (await query("select 1 from app_data_records where store_id = $1 and collection = $2 and id = $3 and device = $4", [store.id, collection, id, device])).length > 0;
+}
+
+/** Inbox items: the customer cancels while it's still waiting (the business sees it as cancelled, and hears about it). */
+export async function cancelItem(store: DataStore, collection: string, device: string, id: string): Promise<DataItem> {
+  const { access, statuses } = rule(store, collection);
+  if (access !== "inbox") throw new DataInputError("Only orders and requests can be cancelled.");
+  const cancelled = statuses?.find((s) => /^cancel/i.test(s)) ?? "cancelled";
+  const rows = await query<RecordRow>(
+    "update app_data_records set status = $6, updated_at = now() where store_id = $1 and collection = $2 and id = $3 and device = $4 and status = $5 returning *",
+    [store.id, collection, id, device, statuses?.[0] ?? "new", cancelled],
+  );
+  if (!rows[0]) throw new DataForbidden((await own(store, collection, id, device)) ? STARTED : "You can only cancel your own.");
+  const item = toItem(rows[0], device, access);
+  void alertOwner(store.id, `Cancelled: ${singular(collection)} #${item.ref}`, summary(store, collection, rows[0].data), `/owner/data/${store.id}`).catch(() => undefined);
+  return item;
+}
+
+/** Remembers where to tell the customer about status changes (sent after the order, so it never waits on the question). */
+export async function setPushToken(store: DataStore, collection: string, device: string, id: string, token: unknown): Promise<void> {
+  if (!isExpoToken(token)) throw new DataInputError("Invalid notification token.");
+  await query("update app_data_records set push_token = $5 where store_id = $1 and collection = $2 and id = $3 and device = $4", [store.id, collection, id, device, token]);
+}
+
 export async function removeItem(store: DataStore, collection: string, device: string, id: string): Promise<void> {
-  const { access } = rule(store, collection);
+  const { access, statuses } = rule(store, collection);
   if (access === "public") throw new DataForbidden("Only the business can delete this.");
+  // Orders and requests are cancelled, not deleted (the business keeps a record); only while still waiting.
+  if (access === "inbox") {
+    await cancelItem(store, collection, device, id);
+    return;
+  }
+  void statuses;
   const rows = await query("delete from app_data_records where store_id = $1 and collection = $2 and id = $3 and device = $4 returning id", [store.id, collection, id, device]);
   if (!rows.length) throw new DataForbidden("You can only delete your own items.");
 }
