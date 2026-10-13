@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Database, Download, Inbox, Loader2, Lock, MessagesSquare, Pencil, Plus, RefreshCw, Store, Trash2 } from "lucide-react";
+import { Bell, BellRing, Database, Download, Inbox, KeyRound, Loader2, Lock, MessagesSquare, Pencil, Plus, RefreshCw, Store, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface Item {
@@ -20,8 +20,37 @@ interface Collection {
 }
 interface View {
   name: string;
+  hasStaffPin: boolean;
+  vapidKey?: string | null;
   collections: Collection[];
 }
+
+/** A short two-note chime (no sound file needed). */
+function chime() {
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new Ctx();
+    [880, 1320].forEach((f, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.18);
+      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + i * 0.18 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.35);
+      o.connect(g).connect(ctx.destination);
+      o.start(ctx.currentTime + i * 0.18);
+      o.stop(ctx.currentTime + i * 0.18 + 0.4);
+    });
+    setTimeout(() => void ctx.close(), 1200);
+  } catch {
+    // No sound on this browser: the banner and title still show.
+  }
+}
+
+const urlKey = (b64: string) => {
+  const s = atob(b64.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (b64.length % 4)) % 4));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+};
 
 const KEY = (id: string) => `appmaker.data-owner.${id}`;
 const box = "rounded-2xl border border-line bg-surface p-4 sm:p-5";
@@ -66,7 +95,12 @@ export function DataOwnerPage({ id }: { id: string }) {
   const [editing, setEditing] = useState<{ collection: string; item: Item | null; data: Record<string, string> } | null>(null);
   const [deleting, setDeleting] = useState<{ collection: string; item: Item } | null>(null);
   const [tab, setTab] = useState("");
+  const [fresh, setFresh] = useState(0);
+  const [alerts, setAlerts] = useState<"off" | "on" | "blocked" | "unsupported">("off");
+  const [pin, setPin] = useState("");
+  const [pinNote, setPinNote] = useState("");
   const key = useRef("");
+  const seen = useRef<Set<string> | null>(null);
 
   const call = useCallback(
     async (method: "GET" | "POST", body?: unknown) => {
@@ -86,6 +120,16 @@ export function DataOwnerPage({ id }: { id: string }) {
   const load = useCallback(async () => {
     try {
       const v = await call("GET");
+      // New orders and requests since the last look: chime, banner and a count in the tab title.
+      const inbox = v.collections.filter((c) => c.access === "inbox").flatMap((c) => c.items.map((i) => i.id));
+      if (seen.current) {
+        const added = inbox.filter((i) => !seen.current!.has(i)).length;
+        if (added) {
+          setFresh((n) => n + added);
+          chime();
+        }
+      }
+      seen.current = new Set(inbox);
       setView(v);
       setTab((t) => t || v.collections.find((c) => c.access === "inbox")?.name || v.collections[0]?.name || "");
       setError("");
@@ -105,6 +149,63 @@ export function DataOwnerPage({ id }: { id: string }) {
       clearInterval(t);
     };
   }, [id, load]);
+
+  useEffect(() => {
+    const base = view?.name ? `${view.name}: app data` : "App data";
+    document.title = fresh ? `(${fresh}) New · ${base}` : base;
+  }, [fresh, view?.name]);
+
+  useEffect(() => {
+    const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    const t = setTimeout(() => {
+      if (!supported) setAlerts("unsupported");
+      else if (Notification.permission === "denied") setAlerts("blocked");
+      else
+        void navigator.serviceWorker.getRegistration("/owner-sw.js").then(async (r) => {
+          if (r && (await r.pushManager.getSubscription())) setAlerts("on");
+        });
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  /** Alerts on this device, even when the page is closed (web push). */
+  const turnOnAlerts = async () => {
+    setBusy("alerts");
+    try {
+      chime(); // also lets the browser play the chime later
+      if (alerts === "unsupported" || !view?.vapidKey) throw new Error("This browser can't show alerts. On iPhone, add this page to your Home Screen first (Share → Add to Home Screen), then open it from there.");
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setAlerts("blocked");
+        throw new Error("Alerts are blocked for this page. Allow notifications in your browser's settings for this site.");
+      }
+      const reg = await navigator.serviceWorker.register("/owner-sw.js");
+      await navigator.serviceWorker.ready;
+      const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlKey(view.vapidKey) }));
+      await call("POST", { action: "alerts-web", subscription: sub.toJSON() });
+      setAlerts("on");
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const savePin = async (next: string) => {
+    setBusy("pin");
+    try {
+      const v = await call("POST", { action: "set-pin", pin: next });
+      setView((old) => (old ? { ...old, hasStaffPin: v.hasStaffPin } : old));
+      setPin("");
+      setPinNote(next ? "Staff PIN saved. Staff open Staff mode in the app and enter it." : "Staff PIN removed: staff mode is closed.");
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  };
 
   const act = async (body: Record<string, unknown>, what: string) => {
     setBusy(what);
@@ -144,6 +245,59 @@ export function DataOwnerPage({ id }: { id: string }) {
         </button>
       </header>
       {error && <p role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{error}</p>}
+      {fresh > 0 && (
+        <div role="status" className="flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/15 p-3 text-sm font-medium text-emerald-200 motion-safe:animate-pulse">
+          <BellRing className="h-4 w-4" aria-hidden /> {fresh} new since you last looked
+          <button onClick={() => setFresh(0)} className="ml-auto min-h-8 rounded-lg border border-emerald-400/40 px-3 text-xs">
+            Seen
+          </button>
+        </div>
+      )}
+      <section aria-label="Alerts and staff" className={`${box} grid gap-4 sm:grid-cols-2`}>
+        <div className="space-y-2 text-sm">
+          <h2 className="flex items-center gap-1.5 font-semibold">
+            <Bell className="h-4 w-4" aria-hidden /> Alerts on this device
+          </h2>
+          {alerts === "on" ? (
+            <p className="text-emerald-300">On: you&apos;ll get an alert for every new order or request, even with this page closed.</p>
+          ) : (
+            <>
+              <p className="text-muted">Get an alert for every new order or request, even when this page is closed. While it&apos;s open, a chime plays.</p>
+              <button onClick={() => void turnOnAlerts()} disabled={!!busy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-emerald-400 px-3 font-medium text-black disabled:opacity-50">
+                {busy === "alerts" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <BellRing className="h-4 w-4" aria-hidden />} Turn on alerts
+              </button>
+              {alerts === "blocked" && <p className="text-amber-200">Alerts are blocked: allow notifications for this site in your browser settings.</p>}
+            </>
+          )}
+        </div>
+        <form
+          className="space-y-2 text-sm"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void savePin(pin);
+          }}
+        >
+          <h2 className="flex items-center gap-1.5 font-semibold">
+            <KeyRound className="h-4 w-4" aria-hidden /> Staff mode in the app
+          </h2>
+          <p className="text-muted">
+            {view.hasStaffPin ? "A staff PIN is set." : "Set a PIN so staff can manage orders in the app itself and get alerts on their phone."} Open Staff in the app&apos;s settings and enter it.
+          </p>
+          <div className="flex gap-2">
+            <label className="sr-only" htmlFor="staff-pin">Staff PIN (6 to 8 digits)</label>
+            <input id="staff-pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{6,8}" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="6–8 digits" className={`${field} max-w-40`} />
+            <button disabled={!!busy || pin.length < 6} className="min-h-10 rounded-lg bg-white px-3 font-medium text-black disabled:opacity-50">
+              {view.hasStaffPin ? "Change" : "Set PIN"}
+            </button>
+            {view.hasStaffPin && (
+              <button type="button" onClick={() => void savePin("")} disabled={!!busy} className="min-h-10 rounded-lg border border-line px-3">
+                Remove
+              </button>
+            )}
+          </div>
+          {pinNote && <p role="status" className="text-emerald-300">{pinNote}</p>}
+        </form>
+      </section>
 
       <div role="tablist" aria-label="Your app's data" className="flex flex-wrap gap-2">
         {view.collections.map((c) => (
@@ -200,17 +354,20 @@ export function DataOwnerPage({ id }: { id: string }) {
             <ul className="mt-4 divide-y divide-line">
               {current.items.map((item) => (
                 <li key={item.id} className="flex flex-wrap items-start gap-3 py-3">
-                  <dl className="min-w-0 flex-1 space-y-0.5 text-sm">
+                  <div className="min-w-0 flex-1 space-y-0.5 text-sm">
                     {current.fields
                       .filter((f) => show(item[f]))
                       .map((f, i) => (
                         <div key={f} className={i === 0 ? "font-medium" : "text-muted"}>
-                          {i > 0 && <dt className="inline">{label(f)}: </dt>}
-                          <dd className="inline break-words">{show(item[f])}</dd>
+                          {i > 0 && <span>{label(f)}: </span>}
+                          <span className="break-words">{show(item[f])}</span>
                         </div>
                       ))}
-                    <div className="text-xs text-muted">{when(item.createdAt)}</div>
-                  </dl>
+                    <div className="text-xs text-muted">
+                      {item.ref ? `#${String(item.ref)} · ` : ""}
+                      {when(item.createdAt)}
+                    </div>
+                  </div>
                   {current.statuses && (
                     <label className="flex items-center gap-2 text-sm">
                       <span className="sr-only">Status</span>

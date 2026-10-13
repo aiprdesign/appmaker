@@ -6,6 +6,7 @@ import { Check, Copy, Database, ExternalLink, Inbox, Loader2, Lock, MessagesSqua
 import { useCloud } from "@/lib/cloud";
 import { useFeatures } from "@/lib/use-features";
 import { DATA_FILE, appRules, dataModule, type Access } from "@/lib/app-data";
+import { STAFF_FILE, staffModule } from "@/lib/staff";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { Project } from "@/lib/types";
 
@@ -73,7 +74,7 @@ export function AppDataPanel({
     try {
       const { store } = await call("/api/appdata", "POST", { projectId: project.id, name: project.listing.name || project.name, rules });
       setOwnerUrl(store.ownerUrl);
-      onChange({ id: store.id, apiUrl: store.apiUrl }, { ...project.files, [DATA_FILE]: dataModule(store.apiUrl, rules) });
+      onChange({ id: store.id, apiUrl: store.apiUrl }, { ...project.files, [DATA_FILE]: dataModule(store.apiUrl, rules), [STAFF_FILE]: staffModule(store.apiUrl) });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -88,7 +89,7 @@ export function AppDataPanel({
     try {
       await call(`/api/appdata?projectId=${project.id}`, "DELETE");
       setOwnerUrl("");
-      onChange(undefined, rules ? { ...project.files, [DATA_FILE]: dataModule(null, rules) } : project.files);
+      onChange(undefined, rules ? { ...project.files, [DATA_FILE]: dataModule(null, rules), [STAFF_FILE]: staffModule(null) } : project.files);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -160,7 +161,7 @@ export function AppDataPanel({
           ) : (
             <div className="space-y-2">
               <p className="flex items-center gap-1.5 text-sm text-emerald-300">
-                <Check className="h-4 w-4" aria-hidden /> Shared with every customer. Manage it on the owner page (works on a phone).
+                <Check className="h-4 w-4" aria-hidden /> Shared with every customer. Manage it on the owner page (turn on alerts there), or set a staff PIN there to manage orders in the app.
               </p>
               {ownerUrl && (
                 <div className="flex flex-wrap gap-2">

@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { DataInputError, cleanRecord, parseRules, type Access, type DataRules } from "../app-data";
 import { currentUser } from "./auth";
 import { query } from "./db";
+import { alertOwner, isExpoToken, sendExpo, shortRef } from "./app-alerts";
 
 /** Appmaker app data on the server: one store per app, records by collection (see src/lib/app-data.ts). */
 
@@ -12,6 +13,8 @@ export interface DataStore {
   ownerKey: string;
   name: string;
   rules: DataRules;
+  /** Hash of the staff PIN that opens staff mode in the app ("" until the business sets one). */
+  staffPin: string;
 }
 export interface DataItem {
   id: string;
@@ -31,10 +34,10 @@ const DEVICE = /^[A-Za-z0-9_-]{16,64}$/;
 const STORE_ID = /^[A-Za-z0-9_-]{8,20}$/;
 const RECORD_ID = /^[A-Za-z0-9_-]{6,40}$/;
 
-type StoreRow = { id: string; user_id: string; project_id: string; owner_key: string; name: string; rules: DataRules };
-type RecordRow = { id: string; collection: string; device: string; data: Record<string, unknown>; status: string; created_at: Date; updated_at: Date };
+type StoreRow = { id: string; user_id: string; project_id: string; owner_key: string; name: string; rules: DataRules; staff_pin: string };
+type RecordRow = { id: string; collection: string; device: string; data: Record<string, unknown>; status: string; push_token: string; created_at: Date; updated_at: Date };
 
-const toStore = (r: StoreRow): DataStore => ({ id: r.id, userId: r.user_id, projectId: r.project_id, ownerKey: r.owner_key, name: r.name, rules: r.rules });
+const toStore = (r: StoreRow): DataStore => ({ id: r.id, userId: r.user_id, projectId: r.project_id, ownerKey: r.owner_key, name: r.name, rules: r.rules, staffPin: r.staff_pin ?? "" });
 
 function toItem(r: RecordRow, device: string | null, access: Access): DataItem {
   return {
@@ -43,7 +46,7 @@ function toItem(r: RecordRow, device: string | null, access: Access): DataItem {
     createdAt: r.created_at.getTime(),
     updatedAt: r.updated_at.getTime(),
     mine: !!device && r.device === device,
-    ...(access === "inbox" ? { status: r.status } : {}),
+    ...(access === "inbox" ? { status: r.status, ref: shortRef(r.id) } : {}),
   };
 }
 
@@ -91,6 +94,10 @@ export async function deleteStore(userId: string, projectId: string): Promise<bo
   return rows.length > 0;
 }
 
+export async function setStaffPin(id: string, hash: string): Promise<void> {
+  await query("update app_data_stores set staff_pin = $2 where id = $1", [id, hash]);
+}
+
 export async function resetDataOwnerKey(id: string): Promise<string> {
   const key = randomBytes(24).toString("base64url");
   await query("update app_data_stores set owner_key = $2 where id = $1", [id, key]);
@@ -133,17 +140,31 @@ export async function listItems(store: DataStore, collection: string, device: st
   return rows.map((r) => toItem(r, device, access));
 }
 
-export async function addItem(store: DataStore, collection: string, device: string, fields: unknown): Promise<DataItem> {
+/** A short line about an item, for alerts: its first fields ("Ana · 2 Margherita"). */
+export function summary(store: DataStore, collection: string, data: Record<string, unknown>): string {
+  const fields = store.rules[collection]?.fields ?? Object.keys(data);
+  const parts = fields.map((f) => data[f]).filter((v) => typeof v === "string" || typeof v === "number").map(String);
+  return parts.slice(0, 3).join(" · ").slice(0, 140);
+}
+
+const singular = (name: string) => name.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/ies$/, "y").replace(/s$/, "").toLowerCase();
+
+export async function addItem(store: DataStore, collection: string, device: string, fields: unknown, pushToken?: string | null): Promise<DataItem> {
   const { access, statuses } = rule(store, collection);
   if (access === "public") throw new DataForbidden("Only the business can add to this.");
   const data = cleanRecord(fields);
   const [{ n }] = await query<{ n: string }>("select count(*) as n from app_data_records where store_id = $1", [store.id]);
   if (Number(n) >= MAX_RECORDS) throw new DataInputError("This app's storage is full. Please contact the business.");
   const rows = await query<RecordRow>(
-    "insert into app_data_records (id, store_id, collection, device, data, status) values ($1, $2, $3, $4, $5, $6) returning *",
-    [randomBytes(9).toString("base64url"), store.id, collection, device, JSON.stringify(data), access === "inbox" ? (statuses?.[0] ?? "new") : ""],
+    "insert into app_data_records (id, store_id, collection, device, data, status, push_token) values ($1, $2, $3, $4, $5, $6, $7) returning *",
+    [randomBytes(9).toString("base64url"), store.id, collection, device, JSON.stringify(data), access === "inbox" ? (statuses?.[0] ?? "new") : "", isExpoToken(pushToken) ? pushToken : ""],
   );
-  return toItem(rows[0], device, access);
+  const item = toItem(rows[0], device, access);
+  // The business hears about every new order, request or sign-up straight away.
+  if (access === "inbox") {
+    void alertOwner(store.id, `New ${singular(collection)} #${item.ref}`, summary(store, collection, data) || `${store.name || "Your app"}: open the owner page to see it.`, `/owner/data/${store.id}`).catch(() => undefined);
+  }
+  return item;
 }
 
 export async function updateItem(store: DataStore, collection: string, device: string, id: string, fields: unknown): Promise<DataItem> {
@@ -179,7 +200,7 @@ export interface OwnerCollection {
   items: DataItem[];
 }
 
-export async function ownerData(store: DataStore): Promise<{ name: string; collections: OwnerCollection[] }> {
+export async function ownerData(store: DataStore): Promise<{ name: string; hasStaffPin: boolean; collections: OwnerCollection[] }> {
   const collections: OwnerCollection[] = [];
   for (const [name, r] of Object.entries(store.rules)) {
     const [{ n }] = await query<{ n: string }>("select count(*) as n from app_data_records where store_id = $1 and collection = $2", [store.id, name]);
@@ -189,7 +210,7 @@ export async function ownerData(store: DataStore): Promise<{ name: string; colle
     for (const row of rows) for (const k of Object.keys(row.data)) seen.add(k);
     collections.push({ name, access: r.access, fields: [...seen].slice(0, 20), ...(r.statuses ? { statuses: r.statuses } : {}), count: Number(n), items: rows.map((row) => toItem(row, null, r.access)) });
   }
-  return { name: store.name, collections };
+  return { name: store.name, hasStaffPin: !!store.staffPin, collections };
 }
 
 /** The business adds, edits, deletes or sets the status of items (any collection but private). */
@@ -214,7 +235,13 @@ export async function ownerAction(store: DataStore, body: Record<string, unknown
     case "status": {
       const status = String(body.status ?? "");
       if (!r.statuses?.includes(status)) throw new DataInputError("Pick one of the statuses.");
-      await query("update app_data_records set status = $4, updated_at = now() where store_id = $1 and collection = $2 and id = $3", [store.id, collection, id, status]);
+      const rows = await query<RecordRow>("update app_data_records set status = $4, updated_at = now() where store_id = $1 and collection = $2 and id = $3 returning *", [store.id, collection, id, status]);
+      // The customer hears when their order or request moves on (if they allowed notifications).
+      const row = rows[0];
+      if (row?.push_token) {
+        const name = singular(collection);
+        void sendExpo([row.push_token], `${store.name || "Update"}`, `Your ${name} #${shortRef(row.id)} is now ${status}.`, { appmaker: "status", collection, id }).catch(() => undefined);
+      }
       return;
     }
     case "delete":

@@ -161,6 +161,16 @@ create table if not exists app_data_records (
 );
 create index if not exists app_data_records_list on app_data_records(store_id, collection, created_at desc);
 create index if not exists app_data_records_device on app_data_records(store_id, collection, device);
+alter table app_data_records add column if not exists push_token text not null default '';
+alter table app_data_stores add column if not exists staff_pin text not null default '';
+create table if not exists app_data_alerts (
+  store_id text not null references app_data_stores(id) on delete cascade,
+  kind text not null,
+  token text not null,
+  subscription jsonb,
+  created_at timestamptz not null default now(),
+  primary key (store_id, token)
+);
 create table if not exists app_quality (
   day date not null,
   model text not null default '',

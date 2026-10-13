@@ -1,4 +1,5 @@
 import type { FileMap } from "./types";
+import { STAFF_PROMPT } from "./staff";
 
 /**
  * Appmaker app data: a built-in database for the apps Appmaker makes, so a
@@ -105,6 +106,7 @@ export function dataModule(apiUrl: string | null, rules: DataRules): string {
 //   const { items, loading, error, add, update, remove, refresh } = useCollection('orders');
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 
 const API = ${JSON.stringify(apiUrl)};
 const ACCESS = ${JSON.stringify(access)};
@@ -143,11 +145,26 @@ async function writeLocal(collection, items) {
   await AsyncStorage.setItem('appdata:' + collection, JSON.stringify(items));
 }
 
-async function call(method, params, body) {
+// So the customer hears when their order or request moves on: asked once, when they first send one.
+async function pushToken() {
+  try {
+    let { granted } = await Notifications.getPermissionsAsync();
+    if (!granted && !(await AsyncStorage.getItem('appdata:asked'))) {
+      await AsyncStorage.setItem('appdata:asked', '1');
+      granted = (await Notifications.requestPermissionsAsync()).granted;
+    }
+    if (!granted) return '';
+    return (await Notifications.getExpoPushTokenAsync()).data || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+async function call(method, params, body, extra) {
   const query = Object.keys(params).map((k) => k + '=' + encodeURIComponent(params[k])).join('&');
   const res = await fetch(API + (query ? '?' + query : ''), {
     method,
-    headers: { 'content-type': 'application/json', 'x-device': await device() },
+    headers: { 'content-type': 'application/json', 'x-device': await device(), ...(extra || {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
@@ -178,12 +195,14 @@ export async function add(collection, fields) {
   check(collection);
   if (!API) {
     const now = Date.now();
-    const item = { ...fields, id: newId(), createdAt: now, updatedAt: now, mine: true, ...(ACCESS[collection] === 'inbox' ? { status: 'new' } : {}) };
+    const id = newId();
+    const item = { ...fields, id, createdAt: now, updatedAt: now, mine: true, ...(ACCESS[collection] === 'inbox' ? { status: 'new', ref: id.slice(-4).toUpperCase() } : {}) };
     await writeLocal(collection, [item, ...(await readLocal(collection))]);
     changed(collection);
     return item;
   }
-  const data = await call('POST', {}, { collection, data: fields });
+  const token = ACCESS[collection] === 'inbox' ? await pushToken() : '';
+  const data = await call('POST', {}, { collection, data: fields }, token ? { 'x-push-token': token } : null);
   changed(collection);
   return data.item;
 }
@@ -275,4 +294,6 @@ When the app needs data that's shared with the business or between customers (or
    - \`await add({ ...fields })\` returns the new item; \`update(id, fields)\` and \`remove(id)\` work on the person's own items. All three can throw: catch and show the message with a Retry.
    - Show \`loading\` (a skeleton) and \`error\` (with Retry), and an empty state.
 3. Inbox screens: after sending, say "Sent — {business} will get back to you" and show the person's own items with their status (e.g. "Order #… · preparing"). Never say an order or booking is confirmed until its status says so.
-4. Until the owner turns on the app database in the Publish tab, the data stays on the phone (so the preview works now). Mention in the summary that they can turn it on there so orders and reviews reach them, and that they manage everything from their owner page.`;
+   The customer is asked once, when they first send something, whether they want notifications: they then get one when the business changes its status. Don't ask for that yourself.
+4. ${STAFF_PROMPT}
+5. Until the owner turns on the app database in the Publish tab, the data stays on the phone (so the preview works now). Mention in the summary that they can turn it on there so orders and reviews reach them, and that they manage everything from their owner page (with alerts for new orders) or in the app's Staff mode with a staff PIN.`;

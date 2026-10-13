@@ -12,6 +12,7 @@ import { hasEntry } from "@/lib/validate";
 import { autoDesign, defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
 import { BOOKING_FILE, bookingModule } from "@/lib/booking";
 import { DATA_FILE, appRules, dataModule } from "@/lib/app-data";
+import { STAFF_FILE, staffModule } from "@/lib/staff";
 import { BRAND_FILE, brandModule } from "@/lib/branding";
 import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
@@ -453,6 +454,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const rules = isApp ? appRules(files) : null;
       if (rules) {
         files[DATA_FILE] = dataModule(base.appData?.apiUrl ?? null, rules);
+        files[STAFF_FILE] = staffModule(base.appData?.apiUrl ?? null);
         // The database is on: the server learns about new collections and fields too.
         if (base.appData && JSON.stringify(appRules(base.files)) !== JSON.stringify(rules)) {
           void fetch("/api/appdata", {
@@ -747,7 +749,10 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const files: FileMap = p.design ? { ...v.files, [THEME_FILE]: themeModule(p.design) } : { ...v.files };
       if (p.booking) files[BOOKING_FILE] = bookingModule(p.booking.apiUrl);
       const restoredRules = appRules(files);
-      if (restoredRules) files[DATA_FILE] = dataModule(p.appData?.apiUrl ?? null, restoredRules);
+      if (restoredRules) {
+        files[DATA_FILE] = dataModule(p.appData?.apiUrl ?? null, restoredRules);
+        files[STAFF_FILE] = staffModule(p.appData?.apiUrl ?? null);
+      }
       if (files[BRAND_FILE] != null) files[BRAND_FILE] = brandModule(brandedRef.current);
       const listing = p.design ? { ...v.listing, primaryColor: p.design.primary } : v.listing;
       const restored = withVersion({ ...p, files, listing, name: v.listing.name || p.name }, `Restored the version from ${when}`);

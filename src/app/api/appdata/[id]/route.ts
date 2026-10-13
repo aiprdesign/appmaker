@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> };
 const CORS = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, PATCH, DELETE",
-  "access-control-allow-headers": "content-type, x-device",
+  "access-control-allow-headers": "content-type, x-device, x-push-token",
 };
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { ...CORS, "cache-control": "no-store" } });
 
@@ -58,7 +58,7 @@ export async function POST(req: Request, ctx: Ctx) {
     // Private data is the person's own; what reaches the business or other customers is limited harder.
     const limit = store.rules[collection]?.access === "private" ? 600 : 30;
     if (!rateLimit(`data-add:${store.id}:${clientIp(req)}`, limit, 60 * 60 * 1000).ok) return json({ error: "Too many sent from this device. Please try again later." }, 429);
-    return json({ item: await addItem(store, collection, checkDevice(req.headers.get("x-device")), b.data) });
+    return json({ item: await addItem(store, collection, checkDevice(req.headers.get("x-device")), b.data, req.headers.get("x-push-token")) });
   } catch (e) {
     return failed(e);
   }

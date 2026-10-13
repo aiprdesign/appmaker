@@ -9,6 +9,11 @@ import { SYSTEM_PROMPT } from "@/lib/prompt";
 import { closeDatabase, query } from "@/lib/server/db";
 import { clearFeatureCache, setFeature } from "@/lib/server/features";
 import { validateApp } from "@/lib/validate";
+import { POST as staffRoute } from "@/app/api/appdata/[id]/staff/route";
+import { STAFF_FILE, staffModule } from "@/lib/staff";
+import { THEME_FILE, defaultDesign, themeModule } from "@/lib/design";
+import { hashPin, isExpoToken, pinMatches } from "@/lib/server/app-alerts";
+import { vi } from "vitest";
 
 const RULES = {
   menu: { access: "public", fields: ["name", "price"], seed: [{ name: "Margherita", price: "12" }, { name: "Marinara", price: "10" }] },
@@ -34,9 +39,11 @@ describe("app data rules and module", () => {
     const rules = parseRules(RULES);
     for (const api of [null, "https://appmaker.example/api/appdata/abc12345"]) {
       const files = {
-        "App.js": "import React from 'react';\nimport { Text } from 'react-native';\nimport { useCollection } from './src/appdata';\nexport default function App() { const { items } = useCollection('menu'); return <Text>{items.length}</Text>; }\n",
+        "App.js": "import React from 'react';\nimport { Text } from 'react-native';\nimport { useCollection } from './src/appdata';\nimport StaffScreen from './src/staff';\nexport default function App() { const { items } = useCollection('menu'); return items.length ? <Text>{items.length}</Text> : <StaffScreen onClose={() => {}} />; }\n",
         [RULES_FILE]: JSON.stringify(RULES),
         [DATA_FILE]: dataModule(api, rules),
+        [STAFF_FILE]: staffModule(api),
+        [THEME_FILE]: themeModule(defaultDesign({ name: "Luigi's", primaryColor: "#B91C1C" } as never)),
       };
       expect(validateApp(files)).toEqual([]);
       expect(checkCodeSafety(files)).toEqual([]);
@@ -46,6 +53,17 @@ describe("app data rules and module", () => {
     expect(dataModule(null, rules)).toContain("const API = null;");
     expect(SYSTEM_PROMPT).toContain("App data (Appmaker's built-in database");
     expect(SYSTEM_PROMPT).toContain("useCollection('orders')");
+    expect(SYSTEM_PROMPT).toContain("import StaffScreen from '../staff'");
+    expect(staffModule(null)).toContain("Staff mode isn't on yet");
+  });
+
+  it("keeps staff PINs hashed and only accepts real Expo push tokens", () => {
+    const h = hashPin("246810");
+    expect(h).not.toContain("246810");
+    expect(pinMatches("246810", h)).toBe(true);
+    expect(pinMatches("246811", h)).toBe(false);
+    expect(isExpoToken("ExponentPushToken[abcDEF123456789]")).toBe(true);
+    expect(isExpoToken("https://evil.example")).toBe(false);
   });
 });
 
@@ -175,6 +193,50 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     expect((await (await appGet(app("GET", undefined, ANA, "?collection=menu"), ctx(store.id))).json()).items).toHaveLength(3);
     expect((await turnOff(req("/api/appdata?projectId=proj789abc", "DELETE", undefined, { cookie }))).status).toBe(200);
     expect((await appGet(app("GET", undefined, ANA, "?collection=menu"), ctx(store.id))).status).toBe(404);
+  });
+
+  it("alerts the business about new orders and the customer about status changes; staff sign in with a PIN", async () => {
+    await setFeature("appData", true);
+    const cookie = await account("alerts");
+    const { store } = await (await storeRoute(req("/api/appdata", "POST", { projectId: "proj790abc", name: "Luigi's", rules: RULES }, { cookie }))).json();
+    const key = store.ownerUrl.split("#k=")[1];
+    const owner = (body: unknown) => req(`/api/appdata/${store.id}/owner`, "POST", body, { "x-owner-key": key });
+
+    // Staff mode stays shut until the business sets a PIN; then the right PIN gives the owner key.
+    const staff = (pin: string) => staffRoute(req(`/api/appdata/${store.id}/staff`, "POST", { pin }), ctx(store.id));
+    expect((await staff("123456")).status).toBe(403);
+    expect((await ownerPost(owner({ action: "set-pin", pin: "12" }), ctx(store.id))).status).toBe(400);
+    expect((await (await ownerPost(owner({ action: "set-pin", pin: "246810" }), ctx(store.id))).json()).hasStaffPin).toBe(true);
+    expect((await staff("111111")).status).toBe(403);
+    expect((await (await staff("246810")).json()).ownerKey).toBe(key);
+    const view = await (await ownerGet(req(`/api/appdata/${store.id}/owner`, "GET", undefined, { "x-owner-key": key }), ctx(store.id))).json();
+    expect(view.vapidKey).toMatch(/^[A-Za-z0-9_-]{80,}$/);
+
+    // A staff phone asks for alerts; a new order sends one there, and a status change reaches the customer.
+    expect((await ownerPost(owner({ action: "alerts-expo", token: "not-a-token" }), ctx(store.id))).status).toBe(400);
+    expect((await ownerPost(owner({ action: "alerts-expo", token: "ExponentPushToken[staffPhone123456]" }), ctx(store.id))).status).toBe(200);
+    const sent: { to: string; title: string; body: string }[] = [];
+    const real = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).startsWith("https://exp.host/")) {
+        sent.push(...JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ data: [{ status: "ok" }] }));
+      }
+      return real(url, init);
+    }) as typeof fetch;
+    try {
+      const res = await appPost(
+        req(`/api/appdata/${store.id}`, "POST", { collection: "orders", data: { name: "Ana", phone: "555", items: "2 Margherita" } }, { "x-device": ANA, "x-push-token": "ExponentPushToken[customerAna12345]" }),
+        ctx(store.id),
+      );
+      const { item } = await res.json();
+      expect(item.ref).toMatch(/^[0-9A-F]{4}$/);
+      await vi.waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ to: "ExponentPushToken[staffPhone123456]", title: `New order #${item.ref}`, body: "Ana · 555 · 2 Margherita" })));
+      await ownerPost(owner({ action: "status", collection: "orders", id: item.id, status: "ready" }), ctx(store.id));
+      await vi.waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ to: "ExponentPushToken[customerAna12345]", body: `Your order #${item.ref} is now ready.` })));
+    } finally {
+      globalThis.fetch = real;
+    }
   });
 
   it("is off when the site owner turns it off, and needs an account to turn on", async () => {

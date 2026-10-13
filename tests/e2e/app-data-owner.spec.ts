@@ -1,0 +1,49 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test } from "@playwright/test";
+
+// The business's owner page for app data. Needs TEST_DATABASE_URL (accounts and data live in the database).
+test.skip(!process.env.TEST_DATABASE_URL, "needs TEST_DATABASE_URL");
+
+const RULES = {
+  menu: { access: "public", fields: ["name", "price"], seed: [{ name: "Margherita", price: "12" }] },
+  orders: { access: "inbox", fields: ["name", "items"], statuses: ["new", "preparing", "ready"] },
+};
+
+test("the owner page chimes and counts new orders, moves them on and sets the staff PIN", async ({ browser }) => {
+  const ctx = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": "10.67.0.1" } });
+  const page = await ctx.newPage();
+  await page.goto("/");
+  const email = `owner-${Date.now()}@appdata.example.com`;
+  expect((await page.request.post("/api/auth/signup", { data: { email, password: "correct horse" } })).ok()).toBe(true);
+  const res = await page.request.post("/api/appdata", { data: { projectId: "e2eproj001", name: "Luigi's", rules: RULES } });
+  expect(res.ok()).toBe(true);
+  const { store } = await res.json();
+
+  await page.goto(store.ownerUrl);
+  await expect(page.getByRole("heading", { name: "Luigi's: app data" })).toBeVisible();
+  await expect(page).not.toHaveURL(/#k=/); // the key leaves the address bar
+  await expect(page.getByRole("tab", { name: /Orders/ })).toHaveAttribute("aria-selected", "true");
+
+  // A customer orders from the app: the open page notices within its refresh.
+  const device = "deviceE2EE2EE2EE2EE2EE2EE2E1234";
+  await page.request.post(store.apiUrl, { data: { collection: "orders", data: { name: "Ana", items: "2 Margherita" } }, headers: { "x-device": device } });
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "1 new since you last looked" })).toBeVisible();
+  await expect(page).toHaveTitle(/^\(1\) New · Luigi's: app data/);
+
+  // Move it on: the customer sees the status.
+  await page.getByLabel("Status").selectOption("ready");
+  await expect(page.getByLabel("Status")).toHaveValue("ready");
+  const mine = await (await page.request.get(`${store.apiUrl}?collection=orders`, { headers: { "x-device": device } })).json();
+  expect(mine.items[0].status).toBe("ready");
+
+  // Staff PIN for staff mode in the app.
+  await page.getByLabel("Staff PIN (6 to 8 digits)").fill("246810");
+  await page.getByRole("button", { name: "Set PIN" }).click();
+  await expect(page.getByText("Staff PIN saved.")).toBeVisible();
+  expect((await page.request.post(`${store.apiUrl}/staff`, { data: { pin: "246810" } })).ok()).toBe(true);
+
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
+  expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+  await ctx.close();
+});
