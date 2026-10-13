@@ -20,7 +20,7 @@ test("capture screens, write headlines, and download store-ready images", async 
   await expect(phone.getByText("Kicked off the project")).toBeVisible({ timeout: 20_000 });
   await section.getByRole("button", { name: "Capture this screen" }).click();
   await expect(section.getByRole("img", { name: /Store image:/ })).toHaveCount(1, { timeout: 20_000 });
-  await phone.getByText("Write", { exact: true }).click();
+  await phone.getByRole("tab", { name: /Write/ }).click();
   await expect(phone.getByText("New entry")).toBeVisible();
   await section.getByRole("button", { name: "Capture this screen" }).click();
   await expect(section.getByRole("img", { name: /Store image:/ })).toHaveCount(2, { timeout: 20_000 });

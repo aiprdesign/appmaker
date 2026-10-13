@@ -1,0 +1,60 @@
+import { DataInputError, parseRules } from "@/lib/app-data";
+import { AuthError, assertSameOrigin } from "@/lib/server/auth";
+import { deleteStore, saveStore, storeFor, type DataStore } from "@/lib/server/app-data";
+import { checkProjectId } from "@/lib/server/cloud-projects";
+import { requireFeature } from "@/lib/server/features";
+import { accountError, publicOrigin, readBody, requireUser } from "@/lib/server/respond";
+import { rateLimit } from "@/lib/rate-limit";
+
+/** What the builder needs: the app's data address and the business's owner link. */
+function describe(req: Request, s: DataStore) {
+  const origin = publicOrigin(req);
+  return { id: s.id, apiUrl: `${origin}/api/appdata/${s.id}`, ownerUrl: `${origin}/owner/data/${s.id}#k=${s.ownerKey}` };
+}
+
+/** The app's database, if it's on. */
+export async function GET(req: Request) {
+  try {
+    const user = await requireUser(req);
+    const projectId = checkProjectId(new URL(req.url).searchParams.get("projectId") ?? "");
+    const store = await storeFor(user.id, projectId);
+    return Response.json({ store: store ? describe(req, store) : null });
+  } catch (e) {
+    return accountError(e);
+  }
+}
+
+/** Turns on the app's database, or saves new rules from the app. */
+export async function POST(req: Request) {
+  try {
+    const user = await requireUser(req);
+    assertSameOrigin(req);
+    await requireFeature("appData");
+    if (!rateLimit(`appdata-setup:${user.id}`, 120, 60 * 60 * 1000).ok) return Response.json({ error: "Too many changes. Try again later." }, { status: 429 });
+    const body = await readBody(req);
+    const projectId = checkProjectId(String(body.projectId ?? ""));
+    let rules;
+    try {
+      rules = parseRules(body.rules);
+    } catch (e) {
+      throw new AuthError(e instanceof DataInputError ? e.message : "Check the app's data rules.", 400);
+    }
+    const store = await saveStore(user.id, projectId, typeof body.name === "string" ? body.name.trim() : "", rules);
+    return Response.json({ store: describe(req, store) });
+  } catch (e) {
+    return accountError(e);
+  }
+}
+
+/** Turns the database off and deletes its data. */
+export async function DELETE(req: Request) {
+  try {
+    const user = await requireUser(req);
+    assertSameOrigin(req);
+    const projectId = checkProjectId(new URL(req.url).searchParams.get("projectId") ?? "");
+    await deleteStore(user.id, projectId);
+    return Response.json({ ok: true });
+  } catch (e) {
+    return accountError(e);
+  }
+}

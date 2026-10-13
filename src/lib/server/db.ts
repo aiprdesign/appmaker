@@ -139,6 +139,28 @@ create table if not exists app_booking_blocks (
   note text not null default ''
 );
 create index if not exists app_booking_blocks_setup on app_booking_blocks(setup_id, ends_at);
+create table if not exists app_data_stores (
+  id text primary key,
+  user_id text not null references app_users(id) on delete cascade,
+  project_id text not null,
+  owner_key text not null,
+  name text not null default '',
+  rules jsonb not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, project_id)
+);
+create table if not exists app_data_records (
+  id text primary key,
+  store_id text not null references app_data_stores(id) on delete cascade,
+  collection text not null,
+  device text not null default '',
+  data jsonb not null,
+  status text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists app_data_records_list on app_data_records(store_id, collection, created_at desc);
+create index if not exists app_data_records_device on app_data_records(store_id, collection, device);
 create table if not exists app_quality (
   day date not null,
   model text not null default '',

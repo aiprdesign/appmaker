@@ -9,10 +9,10 @@ export async function showAllPublishSteps(page: Page) {
   await expect(steps.getByRole("button", { name: "Go step by step" })).toBeVisible();
 }
 
-/** Opens Publish with every step shown and the optional extras (live updates, bookings) unfolded. */
+/** Opens Publish with every step shown and the optional extras (app database, live updates, bookings) unfolded. */
 export async function openPublishExtras(page: Page) {
   await page.getByRole("button", { name: "Publish" }).first().click();
   await showAllPublishSteps(page);
-  const extras = page.locator("details", { hasText: "Optional extras: live updates and bookings" });
+  const extras = page.locator("details", { hasText: "Optional extras:" });
   if (!(await extras.evaluate((d) => (d as HTMLDetailsElement).open))) await extras.locator("summary").click();
 }

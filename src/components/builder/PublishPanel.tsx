@@ -9,6 +9,7 @@ import { PublishGuide } from "./PublishGuide";
 import { StoreScreenshots } from "./StoreScreenshots";
 import { LiveUpdates } from "./LiveUpdates";
 import { Bookings } from "./Bookings";
+import { AppDataPanel } from "./AppData";
 import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
@@ -33,6 +34,8 @@ interface Props {
   onStorePagesChange: (next: { listing: StoreListing; storePages: StorePagesState }) => void;
   onLiveChange: (live: Project["live"], files: Project["files"]) => void;
   onBookingChange: (booking: Project["booking"], files: Project["files"]) => void;
+  onAppDataChange: (appData: Project["appData"], files: Project["files"]) => void;
+  onAddAppData: () => void;
   onAddBookingScreen: () => void;
   busy: boolean;
   hasPreviewError: boolean;
@@ -202,7 +205,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, buildRequest, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, busy, hasPreviewError }: Props) {
+export function PublishPanel({ project, buildRequest, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, onAppDataChange, onAddAppData, busy, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -462,10 +465,11 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
               </details>
               <details className="group rounded-2xl border border-line bg-surface p-5">
                 <summary className="cursor-pointer list-none font-semibold">
-                  Optional extras: live updates and bookings
-                  <span className="mt-1 block text-xs font-normal text-muted">Keep content fresh from your website, or take bookings in the app.</span>
+                  Optional extras: app database, live updates and bookings
+                  <span className="mt-1 block text-xs font-normal text-muted">Get orders and requests from customers, keep content fresh from your website, or take bookings in the app.</span>
                 </summary>
                 <div className="mt-4 space-y-6">
+                  <AppDataPanel project={project} onChange={onAppDataChange} onAddData={onAddAppData} busy={busy} />
                   <LiveUpdates project={project} onChange={onLiveChange} />
                   <Bookings project={project} onChange={onBookingChange} onAddScreen={onAddBookingScreen} busy={busy} />
                 </div>

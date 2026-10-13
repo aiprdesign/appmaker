@@ -19,6 +19,8 @@ export interface AppFacts {
   /** Opens the phone, email, maps, WhatsApp or websites. */
   opensLinks: boolean;
   bookings?: boolean;
+  /** Sends what people enter (orders, requests, reviews) to the app's database at Appmaker. */
+  appData?: boolean;
   /** Web services the app loads content from. */
   services: string[];
 }
@@ -56,6 +58,7 @@ export function appFacts(files: Record<string, string>): AppFacts {
     photos: /launchImageLibraryAsync|requestMediaLibraryPermissions/.test(code),
     opensLinks: /Linking\.openURL/.test(code),
     bookings: /\/api\/book\/[A-Za-z0-9_-]+/.test(code),
+    appData: /\/api\/appdata\/[A-Za-z0-9_-]+/.test(code),
     services: [...services].sort().slice(0, 15),
   };
 }
@@ -98,6 +101,7 @@ export function parsePageContent(v: unknown): StorePageContent {
       photos: f.photos === true,
       opensLinks: f.opensLinks === true,
       bookings: f.bookings === true,
+      appData: f.appData === true,
       services,
     },
   };
@@ -133,14 +137,21 @@ export function privacySections(c: StorePageContent): PageSection[] {
     },
     {
       heading: "Information we collect",
-      paragraphs: f.bookings
-        ? [
-            `When you book an appointment, the app sends your name, phone number, the time you chose, the service and any note to ${c.developer} so they can see and manage your booking. Bookings are stored securely by Appmaker, the service that runs bookings for ${c.developer}, and are deleted automatically one year after the appointment. They are used only for your booking.`,
-            "Apart from bookings, we do not collect personal information through the app. The app has no user accounts, advertising or analytics, and we do not sell or share personal information.",
-          ]
-        : [
-            "We do not collect personal information through the app. The app has no user accounts, advertising or analytics, and we do not sell or share personal information.",
-          ],
+      paragraphs: [
+        ...(f.bookings
+          ? [
+              `When you book an appointment, the app sends your name, phone number, the time you chose, the service and any note to ${c.developer} so they can see and manage your booking. Bookings are stored securely by Appmaker, the service that runs bookings for ${c.developer}, and are deleted automatically one year after the appointment. They are used only for your booking.`,
+            ]
+          : []),
+        ...(f.appData
+          ? [
+              `When you send something in the app (for example an order, a request or a review), what you entered is sent to ${c.developer} and stored securely by Appmaker, the service that runs the app's data for ${c.developer}. Requests and orders are seen only by ${c.developer}; reviews and other posts are shown to other people using the app. The app identifies your phone with a random code (not your name or phone number) so you can see and change what you sent. ${c.developer} uses this information only to respond to you and run the app.`,
+            ]
+          : []),
+        f.bookings || f.appData
+          ? "Apart from this, we do not collect personal information through the app. The app has no user accounts, advertising or analytics, and we do not sell or share personal information."
+          : "We do not collect personal information through the app. The app has no user accounts, advertising or analytics, and we do not sell or share personal information.",
+      ],
     },
     {
       heading: "Information stored on your device",

@@ -11,6 +11,7 @@ import { LIVE_FILE, liveModule } from "@/lib/live";
 import { hasEntry } from "@/lib/validate";
 import { autoDesign, defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
 import { BOOKING_FILE, bookingModule } from "@/lib/booking";
+import { DATA_FILE, appRules, dataModule } from "@/lib/app-data";
 import { BRAND_FILE, brandModule } from "@/lib/branding";
 import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
@@ -448,6 +449,19 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       if (isApp && design) files[THEME_FILE] = themeModule(design);
       // Apps with bookings always carry Appmaker's booking screen, whatever the AI wrote.
       if (base.booking && isApp) files[BOOKING_FILE] = bookingModule(base.booking.apiUrl);
+      // Apps with data rules always carry Appmaker's data module, written from those rules.
+      const rules = isApp ? appRules(files) : null;
+      if (rules) {
+        files[DATA_FILE] = dataModule(base.appData?.apiUrl ?? null, rules);
+        // The database is on: the server learns about new collections and fields too.
+        if (base.appData && JSON.stringify(appRules(base.files)) !== JSON.stringify(rules)) {
+          void fetch("/api/appdata", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ projectId: base.id, name: base.listing.name || base.name, rules }),
+          }).catch(() => undefined);
+        }
+      }
       if (isApp) files[BRAND_FILE] = brandModule(brandedRef.current);
 
       const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && allowed(p)) && continueBudget.current > 0 && !demoRef.current;
@@ -732,6 +746,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       // The design is a setting, not part of a version: the restored code keeps today's look.
       const files: FileMap = p.design ? { ...v.files, [THEME_FILE]: themeModule(p.design) } : { ...v.files };
       if (p.booking) files[BOOKING_FILE] = bookingModule(p.booking.apiUrl);
+      const restoredRules = appRules(files);
+      if (restoredRules) files[DATA_FILE] = dataModule(p.appData?.apiUrl ?? null, restoredRules);
       if (files[BRAND_FILE] != null) files[BRAND_FILE] = brandModule(brandedRef.current);
       const listing = p.design ? { ...v.listing, primaryColor: p.design.primary } : v.listing;
       const restored = withVersion({ ...p, files, listing, name: v.listing.name || p.name }, `Restored the version from ${when}`);
@@ -1400,6 +1416,16 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
               onBookingChange={(booking, files) => {
                 commit({ ...(projectRef.current ?? project), booking, files });
                 setPreviewFiles(files);
+              }}
+              onAppDataChange={(appData, files) => {
+                commit({ ...(projectRef.current ?? project), appData, files });
+                setPreviewFiles(files);
+              }}
+              onAddAppData={() => {
+                setTab("preview");
+                send(
+                  "Use Appmaker app data for what this business's customers send and see: write src/data-rules.json as the app data rules describe (for example orders or requests as an inbox, the menu, services or offers as public with seed items from the app's content, reviews as shared), and change the screens to use useCollection from src/appdata.js. Add a screen where customers see what they sent and its status. Keep everything else the same.",
+                );
               }}
               busy={generating || checking}
               onAddBookingScreen={() => {

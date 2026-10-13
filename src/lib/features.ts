@@ -13,6 +13,11 @@ export const FEATURES = {
     description: "Apps can take bookings: customers pick a free time in the app, and the business manages them on an owner page. Off until you turn it on.",
     default: false,
   },
+  appData: {
+    label: "App database",
+    description: "Apps can keep shared data (orders, requests, reviews, a menu the business edits) in Appmaker's own database: no Supabase or server to set up.",
+    default: true,
+  },
   cloudBuilds: { label: "Expo cloud builds", description: "“Build & upload with Expo” in the Publish tab.", default: true },
   publicStatus: { label: "Public status page", description: "Anyone can open /status. When off, only a signed-in admin can.", default: true },
 } as const;

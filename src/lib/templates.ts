@@ -99,7 +99,7 @@ export const BUSINESS_TEMPLATES: Template[] = [
     color: "#E0482B",
     category: "Food & Drink",
     prompt:
-      "An app for my restaurant [name] in [city]. Home with today's specials and an Open now / Closed badge from our hours [hours], a menu with categories, prices and dietary tags, a digital loyalty card (10 stamps = free coffee, staff add a stamp with a 4-digit PIN), and a Visit screen with one-tap Call [phone], Directions to [address] and Order online / Book a table [link].",
+      "An app for my restaurant [name] in [city]. Home with today's specials and an Open now / Closed badge from our hours [hours], a menu with categories, prices and dietary tags that I can update myself, order ahead for pickup (I get the orders and mark them preparing or ready), a digital loyalty card (10 stamps = free coffee, staff add a stamp with a 4-digit PIN), and a Visit screen with one-tap Call [phone], Directions to [address] and Order online / Book a table [link].",
   },
   {
     title: "Salon or barber",
@@ -107,7 +107,7 @@ export const BUSINESS_TEMPLATES: Template[] = [
     color: "#B4546A",
     category: "Beauty",
     prompt:
-      "An app for my salon [name]. Services with prices and durations, our team with specialties, a photo gallery, a Book now button that opens [booking link], a loyalty card (every 6th visit 20% off, staff PIN to add a visit), appointment reminders the customer sets, and one-tap Call [phone], WhatsApp and Directions to [address].",
+      "An app for my salon [name]. Services with prices and durations, our team with specialties, a photo gallery, a Book now button that opens [booking link], customer reviews, a loyalty card (every 6th visit 20% off, staff PIN to add a visit), appointment reminders the customer sets, and one-tap Call [phone], WhatsApp and Directions to [address].",
   },
   {
     title: "Gym or studio",
@@ -115,7 +115,7 @@ export const BUSINESS_TEMPLATES: Template[] = [
     color: "#2563EB",
     category: "Fitness",
     prompt:
-      "An app for my gym [name]. Weekly class timetable with filters by class type, favourite classes with a reminder before they start, membership options and prices, trainers, opening hours with an Open now badge [hours], a check-in streak tracker, and one-tap Call [phone], Directions to [address] and Book a class [link].",
+      "An app for my gym [name]. Weekly class timetable with filters by class type, favourite classes with a reminder before they start, membership options and prices, trainers, opening hours with an Open now badge [hours], a check-in streak tracker, a class waitlist sign-up I can see, and one-tap Call [phone], Directions to [address] and Book a class [link].",
   },
   {
     title: "Clinic or dentist",
@@ -131,7 +131,7 @@ export const BUSINESS_TEMPLATES: Template[] = [
     color: "#7C3AED",
     category: "Shopping",
     prompt:
-      "An app for my shop [name]. A product catalog with categories, prices and a wishlist, this week's offers, new arrivals, a loyalty card with a staff PIN, store hours with an Open now badge [hours], and one-tap Call [phone], Directions to [address], Instagram [link] and Shop online [link].",
+      "An app for my shop [name]. A product catalog with categories, prices and a wishlist, this week's offers and new arrivals that I can update myself, click & collect requests I can mark ready, a loyalty card with a staff PIN, store hours with an Open now badge [hours], and one-tap Call [phone], Directions to [address], Instagram [link] and Shop online [link].",
   },
   {
     title: "Church or community",
@@ -139,7 +139,7 @@ export const BUSINESS_TEMPLATES: Template[] = [
     color: "#A16207",
     category: "Community",
     prompt:
-      "An app for [name], our church community. Service times and upcoming events with reminders, sermon notes people can save, a prayer request form that opens an email to [email], groups and ministries, a giving button that opens [link], and one-tap Call [phone] and Directions to [address].",
+      "An app for [name], our church community. Service times and upcoming events with reminders, sermon notes people can save, prayer requests that only the church team can read, a community notice board, groups and ministries, a giving button that opens [link], and one-tap Call [phone] and Directions to [address].",
   },
   {
     title: "Real estate agent",
@@ -147,7 +147,7 @@ export const BUSINESS_TEMPLATES: Template[] = [
     color: "#0F766E",
     category: "Real Estate",
     prompt:
-      "An app for my real estate agency [name]. Featured listings with price, beds, baths and area, filters and saved favourites, a mortgage payment calculator (estimates only), an Open house schedule with reminders, and one-tap Call [phone], WhatsApp, Email [email] and Book a viewing [link].",
+      "An app for my real estate agency [name]. Featured listings with price, beds, baths and area, filters and saved favourites, a mortgage payment calculator (estimates only), an Open house schedule with reminders, viewing requests that come straight to me, and one-tap Call [phone], WhatsApp, Email [email] and Book a viewing [link].",
   },
   {
     title: "Home services",
@@ -155,7 +155,7 @@ export const BUSINESS_TEMPLATES: Template[] = [
     color: "#EA580C",
     category: "Business",
     prompt:
-      "An app for my [plumbing / cleaning / electrical] business [name]. Services with starting prices, a simple quote request that opens an email to [email] with the customer's details and photos described, service areas, reviews, opening hours [hours], and one-tap Call [phone] and WhatsApp.",
+      "An app for my [plumbing / cleaning / electrical] business [name]. Services with starting prices, quote requests that come straight to me (I set them to quoted, booked or done, and the customer sees the status), service areas, reviews, opening hours [hours], and one-tap Call [phone] and WhatsApp.",
   },
 ];
 
