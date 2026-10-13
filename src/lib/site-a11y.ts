@@ -329,7 +329,7 @@ export const A11Y_WIDGET = `/* Accessibility settings for visitors. Added by App
     ":where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:2px solid currentColor;outline-offset:2px}" +
     /* 49. Reduce motion means it: no long animations or transitions. */
     "@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}" +
-    ".am-top{position:fixed;left:1rem;bottom:1rem;z-index:2147483000;min-width:44px;min-height:44px;border-radius:9999px;border:1px solid rgba(0,0,0,.2);background:#fff;color:#111;font:600 14px/1 system-ui,sans-serif;padding:0 14px;box-shadow:0 4px 14px rgba(0,0,0,.15)}.am-top[hidden]{display:none}" +
+    ".am-top{position:fixed;right:1rem;bottom:1rem;z-index:2147483000;min-width:44px;min-height:44px;border-radius:9999px;border:1px solid rgba(0,0,0,.2);background:#fff;color:#111;font:600 14px/1 system-ui,sans-serif;padding:0 14px;box-shadow:0 4px 14px rgba(0,0,0,.15)}.am-top[hidden]{display:none}" +
     "@media print{.am-top{display:none!important}}";
   document.head.appendChild(css);
 

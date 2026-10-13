@@ -21,6 +21,7 @@ import { SiteContentPanel } from "./SiteContentPanel";
 import { withA11yWidget } from "@/lib/site-a11y";
 import { withStatement, type A11yReport, type StatementInfo } from "@/lib/site-statement";
 import { polishSite, type PolishInfo } from "@/lib/site-polish";
+import { withSiteFeatures, type FeatureInfo } from "@/lib/site-features";
 import { addEdit, applyEdit, applyEdits, editsNote, selectedSite, type ContentEdit } from "@/lib/site-content";
 import { conceptPrompt, conceptStyles, contentIssues, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
@@ -103,6 +104,24 @@ function ChecksOverlay({ generating }: { generating: boolean }) {
 
 
 /** What the finishing touches (sharing previews, search details, icon…) know about the business. */
+/** The business details the website's features use (quick actions, open now, contact card). */
+function featureInfo(p: Project): FeatureInfo {
+  const src = p.source;
+  const c = src?.contact;
+  return {
+    siteName: src?.siteName || p.listing.name || p.name,
+    ...(src?.url ? { url: src.url } : {}),
+    ...(c?.phones?.[0] ? { phone: c.phones[0] } : {}),
+    ...(c?.emails?.[0] ? { email: c.emails[0] } : {}),
+    ...(c?.address ? { address: c.address } : {}),
+    ...(c?.whatsapp ? { whatsapp: c.whatsapp } : {}),
+    ...(c?.booking ? { booking: c.booking } : {}),
+    ...(c?.maps ? { maps: c.maps } : {}),
+    ...(c?.hours?.length ? { hours: c.hours } : {}),
+    primary: p.design?.primary ?? p.listing.primaryColor,
+  };
+}
+
 function polishInfo(p: Project): PolishInfo {
   const src = p.source;
   const c = src?.contact;
@@ -405,7 +424,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
       const isApp = !isSite && hasEntry(files);
       // Every website carries Appmaker's accessibility widget, whatever the AI wrote.
       // In turn: the owner's own text edits, the widget's script tag, the statement, then the finishing touches.
-      if (isSite && hasSiteEntry(files)) Object.assign(files, polishSite(withStatement(withA11yWidget(applyEdits(files, base.contentEdits)), statementInfo(base)), polishInfo(base)));
+      if (isSite && hasSiteEntry(files)) Object.assign(files, withSiteFeatures(polishSite(withStatement(withA11yWidget(applyEdits(files, base.contentEdits)), statementInfo(base)), polishInfo(base)), featureInfo(base)));
       // Website apps always carry Appmaker's live-content file, whatever the AI wrote.
       if (base.source && isApp) files[LIVE_FILE] = liveModule(base.live?.feedUrl ?? null);
       const listing = parsed.listing ? { ...base.listing, ...parsed.listing } : base.listing;

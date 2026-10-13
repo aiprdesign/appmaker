@@ -119,6 +119,8 @@ export function previewDocument(files: FileMap, page: string, audit?: string, as
   html = html.replace(/<script([^>]*)\ssrc=["']\.?\/?([a-z0-9_\/-]+\.js)["']([^>]*)><\/script>/gi, (tag, a: string, path: string, b: string) =>
     files[path] != null ? `<script${a}${b}>${files[path].replace(/<\/script/gi, "<\\/script")}</script>` : tag,
   );
+  // The site's search index is loaded when someone searches; the preview has it inline.
+  if (files["search.js"] != null && /APPMAKER_SITE/.test(html)) html = html.replace(/<\/body>(?![\s\S]*<\/body>)/i, `<script>${files["search.js"].replace(/<\/script/gi, "<\\/script")}</script></body>`);
   html = withAssets(html, assets);
   html = previewVideos(html);
   // The edit script comes first, so its click handler runs before the link handler.

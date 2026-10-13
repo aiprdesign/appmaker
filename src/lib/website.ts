@@ -17,6 +17,7 @@ import { ALLOWED_FRAME } from "./site-media";
 /** Files a website may have: pages, styles, scripts and SEO files, at most one folder deep. */
 const SITE_FILE = /^(?:[a-z0-9][a-z0-9-]{0,40}\/)?[a-z0-9][a-z0-9_-]{0,60}\.(html|css|js|xml|txt|svg|webmanifest)$/;
 export const SITE_MAX_FILES = 30;
+const APPMAKER_OWN = new Set(["a11y.js", "features.js", "search.js", "sw.js", "accessibility.html", "sitemap.xml", "robots.txt", "404.html", "site.webmanifest"]);
 export const SITE_MAX_BYTES = 800_000;
 
 export function isAllowedSitePath(path: string): boolean {
@@ -140,7 +141,9 @@ export function validateSite(files: FileMap): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   if (files["index.html"] == null) issues.push({ file: "index.html", message: "index.html (the home page) is missing" });
   const paths = Object.keys(files);
-  if (paths.length > SITE_MAX_FILES) issues.push({ file: "index.html", message: `has ${paths.length} files; keep the site to ${SITE_MAX_FILES} or fewer` });
+  // Appmaker's own files (accessibility widget and statement, features, sitemap…) don't count.
+  const own = paths.filter((p) => !APPMAKER_OWN.has(p));
+  if (own.length > SITE_MAX_FILES) issues.push({ file: "index.html", message: `has ${own.length} files; keep the site to ${SITE_MAX_FILES} or fewer` });
   for (const [path, code] of Object.entries(files)) {
     if (!isAllowedSitePath(path)) {
       issues.push({ file: path, message: "isn't a website file: use .html pages, styles.css, script.js, sitemap.xml and robots.txt (lowercase names, at most one folder)" });
@@ -195,7 +198,7 @@ export function validateSite(files: FileMap): ValidationIssue[] {
   // Animated sites must respect people who turn motion off.
   // (Appmaker's accessibility widget switches motion off on purpose: not counted.)
   const all = Object.entries(files)
-    .filter(([p]) => p !== "a11y.js")
+    .filter(([p]) => p !== "a11y.js" && p !== "features.js")
     .map(([, code]) => code)
     .join("\n");
   if (/@keyframes|animation\s*:|transition\s*:|\.animate\(/.test(all) && !/prefers-reduced-motion/.test(all)) {
@@ -306,6 +309,15 @@ Motion explains and delights; it never slows anyone down. Write it with CSS and 
 
 ## Accessibility widget
 Appmaker adds its own accessibility widget to every page (a11y.js: a round button in the bottom-left corner with bigger text, high contrast, readable font, spacing, underlined links, stop animations and big cursor). Never write a11y.js or another accessibility widget, and keep the bottom-left corner free of other fixed buttons (put chat or back-to-top buttons bottom-right).
+
+## Website features Appmaker adds
+Appmaker adds features.js, search.js and sw.js to every site: never write, change or link them, and don't build these yourself:
+- On phones, a bar fixed to the bottom with Call, WhatsApp, Directions and Book (from the real contact details). Keep the bottom of the screen free on phones (no other fixed bottom bars or floating buttons there).
+- An "Open now" / "Closed" badge, "Share this page", "Save to contacts" and "Search this site" in the footer.
+- Pictures in <main> open full size when clicked. Pictures that are links, logos or decoration (alt="") don't.
+- Forms explain mistakes in text, and a contact form without its own server (no action) sends by email. Give every field a visible <label>, the right type and required where needed, and a real submit button.
+- Offline support, FAQ and breadcrumb data for search engines, map links on the address, and reading time on articles.
+For the FAQ data, write questions and answers as <details><summary>Question</summary><p>Answer</p></details>.
 
 ## Commercially safe resources only
 Use only open resources the owner may use commercially: Tailwind CSS (MIT), icons drawn as inline SVG in the style of Lucide or Heroicons (ISC/MIT), and Google Fonts (SIL Open Font License). Never copy another company's design, text, logo or photos, never use stock photos or icon fonts from services that need a licence or key, and use only the business's own images from <website_content>.
