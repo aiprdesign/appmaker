@@ -141,6 +141,7 @@ export default function App() {
               <Text style={styles.section} accessibilityRole="header">
                 Recent
               </Text>
+              {items.length > 0 && <Text style={styles.hint}>Long-press an expense to delete it</Text>}
               {items.length === 0 && (
                 <View style={styles.empty}>
                   <View style={styles.emptyCircle}>
@@ -185,7 +186,6 @@ export default function App() {
                   </Pressable>
                 );
               })}
-              {items.length > 0 && <Text style={styles.hint}>Long-press an expense to delete it</Text>}
             </>
           )}
 
@@ -316,26 +316,39 @@ export default function App() {
             <Text style={styles.toastText}>{toast}</Text>
           </View>
         )}
+        {/* Curved bar: Home and Insights on either side, Add as the raised center button. */}
         <View style={styles.tabBar}>
-          {TABS.map(({ key, label, Icon }) => {
+          <View style={styles.notch} pointerEvents="none" />
+          {TABS.filter((t) => t.key !== 'add').map(({ key, label, Icon }, i) => {
             const selected = tab === key;
             const tint = selected ? colors.primary : colors.muted;
             return (
-              <Pressable
-                key={key}
-                style={(s) => [styles.tab, pressed(s)]}
-                onPress={() => setTab(key)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                accessibilityLabel={label}
-              >
-                <Icon color={tint} size={24} strokeWidth={selected ? 2.5 : 2} accessible={false} />
-                <Text style={[styles.tabLabel, { color: tint }]} maxFontSizeMultiplier={1.4}>
-                  {label}
-                </Text>
-              </Pressable>
+              <React.Fragment key={key}>
+                {i === 1 && <View style={styles.notchGap} />}
+                <Pressable
+                  style={(s) => [styles.tab, pressed(s)]}
+                  onPress={() => setTab(key)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={label}
+                >
+                  <Icon color={tint} size={24} strokeWidth={selected ? 2.5 : 2} accessible={false} />
+                  <Text style={[styles.tabLabel, { color: tint }]} maxFontSizeMultiplier={1.4}>
+                    {label}
+                  </Text>
+                </Pressable>
+              </React.Fragment>
             );
           })}
+          <Pressable
+            style={(s) => [styles.fab, pressed(s)]}
+            onPress={() => setTab('add')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === 'add' }}
+            accessibilityLabel="Add expense"
+          >
+            <Plus color={colors.onPrimary} size={28} strokeWidth={2.5} accessible={false} />
+          </Pressable>
         </View>
       </SafeAreaView>
     </View>
@@ -344,7 +357,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 20, paddingBottom: 40 },
+  content: { padding: 20, paddingBottom: 64 },
   kicker: { color: colors.muted, fontSize: 13, fontWeight: '600', textTransform: 'uppercase' },
   title: { fontSize: 34, fontWeight: font.heading, color: colors.text, letterSpacing: -0.5, marginBottom: 16 },
   hero: { backgroundColor: colors.primary, padding: 24 },
@@ -363,7 +376,7 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 17, fontWeight: '600', color: colors.text },
   rowMeta: { fontSize: 13, color: colors.muted, marginTop: 2 },
   rowAmount: { fontSize: 17, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
-  hint: { fontSize: 13, color: colors.muted, textAlign: 'center', marginTop: 8 },
+  hint: { fontSize: 13, color: colors.muted, marginTop: -4, marginBottom: 12 },
   empty: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 16 },
   emptyCircle: { width: 88, height: 88, borderRadius: radius.pill, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyTitle: { fontSize: 20, fontWeight: font.heading, color: colors.text },
@@ -391,7 +404,10 @@ const styles = StyleSheet.create({
   barValue: { width: 76, textAlign: 'right', color: colors.text, fontWeight: '700', fontVariant: ['tabular-nums'] },
   toast: { position: 'absolute', left: 20, right: 20, bottom: 100, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: radius.pill, paddingVertical: 12, paddingHorizontal: 16 },
   toastText: { color: colors.onPrimary, fontWeight: '600', fontSize: 15 },
-  tabBar: { flexDirection: 'row', backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingTop: 8, paddingBottom: 20 },
+  tabBar: { flexDirection: 'row', backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingTop: 12, paddingBottom: 20 },
+  notch: { position: 'absolute', top: -44, left: '50%', marginLeft: -44, width: 88, height: 88, borderRadius: 999, backgroundColor: colors.background },
+  notchGap: { width: 88 },
+  fab: { position: 'absolute', top: -32, left: '50%', marginLeft: -32, width: 64, height: 64, borderRadius: 999, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: colors.primary, shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 2 },
   tabLabel: { fontSize: 12, fontWeight: '600' },
 });

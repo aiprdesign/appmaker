@@ -45,11 +45,18 @@ interface Screen {
   section: string;
   rows: Row[];
   tabs: [string, string][];
+  /** Bottom navigation: a curved bar with a raised center button, a floating pill, a floating bar, or a plain bar. */
+  nav: "notch" | "pill" | "float" | "bar";
+  /** The center button of a notch bar (a Lucide icon). */
+  fab?: string;
+  /** A brand-colored header with a curved bottom edge behind the title. */
+  header?: "curve";
 }
 
 /** Home screens for templates without a sample app. */
 const SCREENS: Record<string, Screen> = {
   "recipe-box": {
+    nav: "float",
     layout: "feature",
     eyebrow: "What's cooking",
     title: "Recipes",
@@ -70,6 +77,8 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "language-flashcards": {
+    nav: "notch",
+    fab: "Play",
     layout: "stat",
     eyebrow: "Spanish · Day 12",
     title: "Study",
@@ -89,6 +98,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "plant-care": {
+    nav: "pill",
     layout: "grid",
     eyebrow: "Today",
     title: "My plants",
@@ -108,6 +118,8 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "event-countdown": {
+    nav: "notch",
+    fab: "Plus",
     layout: "stat",
     eyebrow: "Coming up",
     title: "Countdowns",
@@ -127,6 +139,8 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "restaurant-or-cafe": {
+    nav: "float",
+    header: "curve",
     layout: "feature",
     eyebrow: "Trattoria · Brooklyn",
     title: "Luigi's",
@@ -148,6 +162,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "salon-or-barber": {
+    nav: "pill",
     layout: "stat",
     eyebrow: "Studio Luxe",
     title: "Book a visit",
@@ -169,6 +184,8 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "gym-or-studio": {
+    nav: "notch",
+    fab: "QrCode",
     layout: "list",
     eyebrow: "Iron Yard Gym",
     title: "Today's classes",
@@ -190,6 +207,8 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "clinic-or-dentist": {
+    nav: "bar",
+    header: "curve",
     layout: "list",
     eyebrow: "Bright Smile Dental",
     title: "Hello, Sam",
@@ -211,6 +230,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "local-shop": {
+    nav: "pill",
     layout: "grid",
     eyebrow: "Maple & Co.",
     title: "New in",
@@ -232,6 +252,7 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "church-or-community": {
+    nav: "float",
     layout: "list",
     eyebrow: "Grace Community",
     title: "This week",
@@ -252,6 +273,8 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "real-estate-agent": {
+    nav: "pill",
+    header: "curve",
     layout: "feature",
     eyebrow: "Harbor Homes",
     title: "Featured",
@@ -272,6 +295,8 @@ const SCREENS: Record<string, Screen> = {
     ],
   },
   "home-services": {
+    nav: "notch",
+    fab: "Phone",
     layout: "grid",
     eyebrow: "FixRight Plumbing",
     title: "How can we help?",
@@ -303,12 +328,15 @@ const ACTION_ICONS: Record<string, string> = { Call: "Phone", Directions: "Navig
  * and the primary action, a short type scale, left alignment, grouped lists and a
  * composition chosen per template (big number, feature card, tile grid, list).
  */
-function screenApp(s: Screen): string {
+function screenApp(screen: Screen): string {
+  // A notch bar needs the same number of tabs on each side of its center button.
+  const s = screen.nav === "notch" && screen.tabs.length % 2 ? { ...screen, tabs: [...screen.tabs, ["CircleUser", "Profile"] as [string, string]] } : screen;
   const icons = [
     ...new Set([
       ...(s.hero.icon ? [s.hero.icon] : []),
       ...s.rows.flatMap((r) => [r.icon, ...(r.rightIcon ? [r.rightIcon] : [])]),
       ...s.tabs.map(([i]) => i),
+      ...(s.fab ? [s.fab] : []),
       ...(s.actions ?? []).map((a) => {
         if (!ACTION_ICONS[a]) throw new Error(`No icon for the action ${a}`);
         return ACTION_ICONS[a];
@@ -333,7 +361,7 @@ const Icon = ({ name, size = 20, color = S.color, strokeWidth = 2 }) => {
 
 function Hero() {
   const h = S.hero;
-  if (S.layout === 'stat') {
+  if (S.layout === 'stat' || S.header === 'curve') {
     return (
       <View style={[styles.card, { padding: 20, marginTop: 24 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
@@ -415,16 +443,86 @@ function Rows() {
   );
 }
 
+
+function Tab({ icon, label, active, dark }) {
+  const idle = dark ? 'rgba(255,255,255,0.6)' : C.muted;
+  return (
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <Icon name={icon} size={24} color={active ? S.color : idle} strokeWidth={active ? 2.25 : 1.75} />
+      <Text style={[styles.meta, { marginTop: 4, color: active ? S.color : idle, fontWeight: active ? '600' : '500' }]}>{label}</Text>
+    </View>
+  );
+}
+
+/** The bottom navigation, in the screen's style. */
+function Nav() {
+  if (S.nav === 'pill') {
+    // A floating dark pill; the current tab opens into a brand chip with its label.
+    return (
+      <View style={[styles.floating, { backgroundColor: C.ink, height: 64, borderRadius: 999, paddingHorizontal: 8 }]}>
+        {S.tabs.map(([icon, label], i) =>
+          i === 0 ? (
+            <View key={label} style={{ flexDirection: 'row', alignItems: 'center', height: 48, paddingHorizontal: 20, borderRadius: 999, backgroundColor: S.color }}>
+              <Icon name={icon} size={20} color={C.onBrand} />
+              <Text style={[styles.sub, { color: C.onBrand, fontWeight: '600', marginLeft: 8 }]}>{label}</Text>
+            </View>
+          ) : (
+            <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+              <Icon name={icon} size={24} color="rgba(255,255,255,0.6)" strokeWidth={1.75} />
+            </View>
+          ),
+        )}
+      </View>
+    );
+  }
+  if (S.nav === 'float') {
+    // A floating rounded bar; a short brand line marks the current tab.
+    return (
+      <View style={[styles.floating, { backgroundColor: C.surface, height: 72, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line }]}>
+        {S.tabs.map(([icon, label], i) => (
+          <View key={label} style={{ flex: 1, alignItems: 'center' }}>
+            <Icon name={icon} size={24} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
+            <View style={{ width: i ? 4 : 16, height: 4, borderRadius: 999, marginTop: 8, backgroundColor: i ? 'transparent' : S.color }} />
+          </View>
+        ))}
+      </View>
+    );
+  }
+  if (S.nav === 'notch') {
+    // A bar with a curved notch holding a raised round button for the main action.
+    const left = S.tabs.slice(0, Math.ceil(S.tabs.length / 2));
+    const right = S.tabs.slice(left.length);
+    return (
+      <View style={styles.bar}>
+        <View style={styles.notch} />
+        {left.map(([icon, label], i) => <Tab key={label} icon={icon} label={label} active={i === 0} />)}
+        <View style={{ width: 88 }} />
+        {right.map(([icon, label]) => <Tab key={label} icon={icon} label={label} />)}
+        <View style={styles.fab}>
+          <Icon name={S.fab} size={28} color={C.onBrand} strokeWidth={2.25} />
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.bar}>
+      {S.tabs.map(([icon, label], i) => <Tab key={label} icon={icon} label={label} active={i === 0} />)}
+    </View>
+  );
+}
+
 export default function App() {
+  const curve = S.header === 'curve';
   return (
     <View style={{ flex: 1, backgroundColor: S.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 120 }}>
-        <Text style={styles.eyebrow}>{S.eyebrow}</Text>
-        <Text style={styles.title}>{S.title}</Text>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 140 }}>
+        {curve ? <View style={styles.curve} /> : null}
+        <Text style={[styles.eyebrow, curve && { color: C.onBrand, opacity: 0.8 }]}>{S.eyebrow}</Text>
+        <Text style={[styles.title, curve && { color: C.onBrand }]}>{S.title}</Text>
         {S.open ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: C.open }} />
-            <Text style={[styles.meta, { color: C.open, marginTop: 0, marginLeft: 8, fontWeight: '600' }]}>{S.open}</Text>
+            <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: curve ? C.onBrand : C.open }} />
+            <Text style={[styles.meta, { color: curve ? C.onBrand : C.open, marginTop: 0, marginLeft: 8, fontWeight: '600' }]}>{S.open}</Text>
           </View>
         ) : null}
         <Hero />
@@ -450,14 +548,7 @@ export default function App() {
         <Text style={styles.section}>{S.section}</Text>
         <Rows />
       </ScrollView>
-      <View style={styles.tabs}>
-        {S.tabs.map(([icon, label], i) => (
-          <View key={label} style={{ flex: 1, alignItems: 'center' }}>
-            <Icon name={icon} size={24} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
-            <Text style={[styles.meta, { marginTop: 4, color: i ? C.muted : S.color, fontWeight: i ? '500' : '600' }]}>{label}</Text>
-          </View>
-        ))}
-      </View>
+      <Nav />
     </View>
   );
 }
@@ -475,7 +566,12 @@ const styles = StyleSheet.create({
   value: { fontSize: 15, fontWeight: '600', color: C.ink, fontVariant: ['tabular-nums'] },
   primary: { height: 48, borderRadius: 12, backgroundColor: S.color, alignItems: 'center', justifyContent: 'center' },
   primaryText: { fontSize: 15, fontWeight: '600', color: C.onBrand },
-  tabs: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: C.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, paddingTop: 8, paddingBottom: 28 },
+  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: C.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, paddingTop: 12, paddingBottom: 28 },
+  floating: { position: 'absolute', left: 20, right: 20, bottom: 28, flexDirection: 'row', alignItems: 'center', shadowColor: C.ink, shadowOpacity: 0.12, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  notch: { position: 'absolute', top: -44, left: '50%', marginLeft: -44, width: 88, height: 88, borderRadius: 999, backgroundColor: S.bg },
+  fab: { position: 'absolute', top: -32, left: '50%', marginLeft: -32, width: 64, height: 64, borderRadius: 999, backgroundColor: S.color, alignItems: 'center', justifyContent: 'center', shadowColor: S.color, shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  // A very large circle whose bottom edge makes a gentle arc under the title.
+  curve: { position: 'absolute', top: -1300, left: '50%', marginLeft: -800, width: 1600, height: 1600, borderRadius: 999, backgroundColor: S.color },
 });
 `;
 }
