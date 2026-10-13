@@ -17,22 +17,27 @@ import { demoResponse } from "../src/lib/demo";
 import { parseGeneration } from "../src/lib/parse";
 import { buildPreviewHtml } from "../src/lib/preview";
 import { BUSINESS_TEMPLATES, TEMPLATES, templateSlug } from "../src/lib/templates";
+import { isLucideIcon } from "../src/lib/validate";
+import { designIssues } from "../src/lib/app-design";
 
 const SERVER = process.env.SERVER || "http://localhost:3150";
 const OUT = path.join(process.cwd(), "public", "templates");
 
 interface Row {
-  emoji: string;
+  icon: string;
   title: string;
   meta: string;
   right?: string;
+  rightIcon?: string;
 }
 interface Screen {
   eyebrow: string;
   title: string;
   color: string;
   bg: string;
-  hero: { emoji?: string; big: string; sub: string; progress?: number; button?: string };
+  /** How the screen is composed, so the templates don't all look alike. */
+  layout: "stat" | "feature" | "grid" | "list";
+  hero: { icon?: string; big: string; sub: string; progress?: number; button?: string };
   /** Business apps: Open now badge and one-tap actions. */
   open?: string;
   actions?: string[];
@@ -45,315 +50,433 @@ interface Screen {
 /** Home screens for templates without a sample app. */
 const SCREENS: Record<string, Screen> = {
   "recipe-box": {
+    layout: "feature",
     eyebrow: "What's cooking",
     title: "Recipes",
     color: "#D97706",
     bg: "#FFFBF5",
-    hero: { emoji: "🍝", big: "Creamy tomato pasta", sub: "25 min · Easy · 4 servings", button: "Cook now" },
+    hero: { icon: "CookingPot", big: "Creamy tomato pasta", sub: "25 min · Easy · 4 servings", button: "Cook now" },
     chips: ["All", "Quick", "Veggie", "Dessert"],
     section: "This week",
     rows: [
-      { emoji: "🥗", title: "Greek salad", meta: "10 min · Veggie", right: "♥" },
-      { emoji: "🍛", title: "Chickpea curry", meta: "35 min · Vegan", right: "♥" },
-      { emoji: "🥞", title: "Fluffy pancakes", meta: "20 min · Breakfast" },
+      { icon: "Salad", title: "Greek salad", meta: "10 min · Veggie", rightIcon: "Heart" },
+      { icon: "Soup", title: "Chickpea curry", meta: "35 min · Vegan", rightIcon: "Heart" },
+      { icon: "Croissant", title: "Fluffy pancakes", meta: "20 min · Breakfast" },
     ],
     tabs: [
-      ["📖", "Recipes"],
-      ["🗓️", "Plan"],
-      ["♥", "Saved"],
+      ["BookOpen", "Recipes"],
+      ["CalendarDays", "Plan"],
+      ["Heart", "Saved"],
     ],
   },
   "language-flashcards": {
+    layout: "stat",
     eyebrow: "Spanish · Day 12",
     title: "Study",
     color: "#0284C7",
     bg: "#F5FAFE",
-    hero: { emoji: "🗣️", big: "18 / 25 cards", sub: "Daily goal: almost there", progress: 0.72 },
+    hero: { icon: "Languages", big: "18 / 25 cards", sub: "Daily goal: almost there", progress: 0.72 },
     section: "Decks",
     rows: [
-      { emoji: "🍎", title: "Food & drink", meta: "42 cards · 8 due", right: "Study" },
-      { emoji: "✈️", title: "Travel phrases", meta: "30 cards · 3 due", right: "Study" },
-      { emoji: "🏠", title: "At home", meta: "26 cards · all done", right: "✓" },
+      { icon: "Apple", title: "Food & drink", meta: "42 cards · 8 due", right: "Study" },
+      { icon: "Plane", title: "Travel phrases", meta: "30 cards · 3 due", right: "Study" },
+      { icon: "House", title: "At home", meta: "26 cards · all done", rightIcon: "Check" },
     ],
     tabs: [
-      ["📚", "Decks"],
-      ["🎯", "Review"],
-      ["📈", "Progress"],
+      ["Library", "Decks"],
+      ["Target", "Review"],
+      ["TrendingUp", "Progress"],
     ],
   },
   "plant-care": {
+    layout: "grid",
     eyebrow: "Today",
     title: "My plants",
     color: "#15803D",
     bg: "#F6FBF7",
-    hero: { emoji: "💧", big: "2 need water", sub: "Monstera and Basil are thirsty", button: "Water all" },
+    hero: { icon: "Droplet", big: "2 need water", sub: "Monstera and Basil are thirsty", button: "Water all" },
     section: "Your plants",
     rows: [
-      { emoji: "🪴", title: "Monstera", meta: "Water today · Living room", right: "💧" },
-      { emoji: "🌿", title: "Basil", meta: "Water today · Kitchen", right: "💧" },
-      { emoji: "🌵", title: "Cactus", meta: "In 9 days · Office", right: "✓" },
+      { icon: "Sprout", title: "Monstera", meta: "Water today · Living room", rightIcon: "Droplet" },
+      { icon: "Leaf", title: "Basil", meta: "Water today · Kitchen", rightIcon: "Droplet" },
+      { icon: "Sprout", title: "Cactus", meta: "In 9 days · Office", rightIcon: "Check" },
     ],
     tabs: [
-      ["🪴", "Plants"],
-      ["📝", "Log"],
-      ["⚙️", "Settings"],
+      ["Sprout", "Plants"],
+      ["NotebookPen", "Log"],
+      ["Settings", "Settings"],
     ],
   },
   "event-countdown": {
+    layout: "stat",
     eyebrow: "Coming up",
     title: "Countdowns",
     color: "#DB2777",
     bg: "#FFF7FB",
-    hero: { emoji: "✈️", big: "12 days", sub: "Trip to Lisbon · Oct 12" },
+    hero: { icon: "Plane", big: "12 days", sub: "Trip to Lisbon · Oct 12" },
     section: "Upcoming",
     rows: [
-      { emoji: "🎂", title: "Mia's birthday", meta: "Nov 3 · Family", right: "34d" },
-      { emoji: "🎄", title: "Holidays", meta: "Dec 24 · Break", right: "85d" },
-      { emoji: "🚀", title: "App launch", meta: "Jan 15 · Work", right: "107d" },
+      { icon: "Cake", title: "Mia's birthday", meta: "Nov 3 · Family", right: "34d" },
+      { icon: "Gift", title: "Holidays", meta: "Dec 24 · Break", right: "85d" },
+      { icon: "Rocket", title: "App launch", meta: "Jan 15 · Work", right: "107d" },
     ],
     tabs: [
-      ["⏳", "Events"],
-      ["➕", "Add"],
-      ["🗂️", "Categories"],
+      ["Hourglass", "Events"],
+      ["Plus", "Add"],
+      ["LayoutGrid", "Categories"],
     ],
   },
   "restaurant-or-cafe": {
-    eyebrow: "Welcome to",
+    layout: "feature",
+    eyebrow: "Trattoria · Brooklyn",
     title: "Luigi's",
     color: "#B91C1C",
     bg: "#FFF8F6",
     open: "Open now · until 11 pm",
-    hero: { emoji: "🍕", big: "Today's special", sub: "Wood-fired truffle pizza · $18", button: "Book a table" },
-    actions: ["📞 Call", "📍 Directions", "🛵 Order"],
+    hero: { icon: "Pizza", big: "Today's special", sub: "Wood-fired truffle pizza · $18", button: "Book a table" },
+    actions: ["Call", "Directions", "Order"],
     section: "Menu favourites",
     rows: [
-      { emoji: "🍝", title: "Cacio e pepe", meta: "Handmade pasta · V", right: "$19" },
-      { emoji: "🍕", title: "Margherita", meta: "San Marzano, fior di latte", right: "$16" },
-      { emoji: "🍰", title: "Tiramisu", meta: "House recipe", right: "$9" },
+      { icon: "CookingPot", title: "Cacio e pepe", meta: "Handmade pasta · V", right: "$19" },
+      { icon: "Pizza", title: "Margherita", meta: "San Marzano, fior di latte", right: "$16" },
+      { icon: "CakeSlice", title: "Tiramisu", meta: "House recipe", right: "$9" },
     ],
     tabs: [
-      ["🏠", "Home"],
-      ["📋", "Menu"],
-      ["⭐", "Rewards"],
+      ["House", "Home"],
+      ["UtensilsCrossed", "Menu"],
+      ["Star", "Rewards"],
     ],
   },
   "salon-or-barber": {
+    layout: "stat",
     eyebrow: "Studio Luxe",
     title: "Book a visit",
     color: "#9D174D",
     bg: "#FFF7FA",
     open: "Open now · until 7 pm",
-    hero: { emoji: "✂️", big: "4 of 6 visits", sub: "2 more for 20% off", progress: 0.66 },
-    actions: ["📅 Book", "💬 WhatsApp", "📍 Directions"],
+    hero: { icon: "Scissors", big: "4 of 6 visits", sub: "2 more for 20% off", progress: 0.66 },
+    actions: ["Book", "WhatsApp", "Directions"],
     section: "Services",
     rows: [
-      { emoji: "💇‍♀️", title: "Cut & blow-dry", meta: "45 min · with Ana", right: "$55" },
-      { emoji: "🎨", title: "Colour & gloss", meta: "90 min · with Jo", right: "$120" },
-      { emoji: "🧔", title: "Beard trim", meta: "20 min · with Sam", right: "$25" },
+      { icon: "Scissors", title: "Cut & blow-dry", meta: "45 min · with Ana", right: "$55" },
+      { icon: "Palette", title: "Colour & gloss", meta: "90 min · with Jo", right: "$120" },
+      { icon: "Scissors", title: "Beard trim", meta: "20 min · with Sam", right: "$25" },
     ],
     tabs: [
-      ["🏠", "Home"],
-      ["💈", "Services"],
-      ["🎁", "Loyalty"],
+      ["House", "Home"],
+      ["Scissors", "Services"],
+      ["Gift", "Loyalty"],
     ],
   },
   "gym-or-studio": {
+    layout: "list",
     eyebrow: "Iron Yard Gym",
     title: "Today's classes",
     color: "#1D4ED8",
     bg: "#F5F8FF",
     open: "Open now · 5 am – 11 pm",
-    hero: { emoji: "🔥", big: "6-day streak", sub: "You checked in yesterday", button: "Check in" },
+    hero: { icon: "Flame", big: "6-day streak", sub: "You checked in yesterday", button: "Check in" },
     chips: ["All", "HIIT", "Yoga", "Spin"],
     section: "Up next",
     rows: [
-      { emoji: "🚴", title: "Spin 45", meta: "6:00 pm · Studio B · 4 spots", right: "Book" },
-      { emoji: "🧘", title: "Flow yoga", meta: "7:00 pm · Studio A", right: "Book" },
-      { emoji: "🏋️", title: "Strength basics", meta: "7:30 pm · Floor", right: "Book" },
+      { icon: "Bike", title: "Spin 45", meta: "6:00 pm · Studio B · 4 spots", right: "Book" },
+      { icon: "Flower2", title: "Flow yoga", meta: "7:00 pm · Studio A", right: "Book" },
+      { icon: "Dumbbell", title: "Strength basics", meta: "7:30 pm · Floor", right: "Book" },
     ],
     tabs: [
-      ["📅", "Classes"],
-      ["💳", "Membership"],
-      ["📍", "Visit"],
+      ["CalendarDays", "Classes"],
+      ["CreditCard", "Membership"],
+      ["MapPin", "Visit"],
     ],
   },
   "clinic-or-dentist": {
+    layout: "list",
     eyebrow: "Bright Smile Dental",
     title: "Hello, Sam",
     color: "#0F766E",
     bg: "#F4FBFA",
     open: "Open now · until 6 pm",
-    hero: { emoji: "🗓️", big: "Check-up · Tue 10:30", sub: "Reminder set for the day before" },
-    actions: ["📞 Call", "📅 Book", "📍 Directions"],
+    hero: { icon: "CalendarDays", big: "Check-up · Tue 10:30", sub: "Reminder set for the day before" },
+    actions: ["Call", "Book", "Directions"],
     section: "Our services",
     rows: [
-      { emoji: "🦷", title: "Check-up & clean", meta: "About 45 minutes" },
-      { emoji: "✨", title: "Whitening", meta: "Consultation first" },
-      { emoji: "👨‍⚕️", title: "Meet the team", meta: "4 practitioners" },
+      { icon: "Smile", title: "Check-up & clean", meta: "About 45 minutes" },
+      { icon: "Sparkles", title: "Whitening", meta: "Consultation first" },
+      { icon: "Stethoscope", title: "Meet the team", meta: "4 practitioners" },
     ],
     tabs: [
-      ["🏠", "Home"],
-      ["🩺", "Services"],
-      ["ℹ️", "Visit"],
+      ["House", "Home"],
+      ["Stethoscope", "Services"],
+      ["Info", "Visit"],
     ],
   },
   "local-shop": {
+    layout: "grid",
     eyebrow: "Maple & Co.",
     title: "New in",
     color: "#6D28D9",
     bg: "#FAF7FF",
     open: "Open now · until 8 pm",
-    hero: { emoji: "🏷️", big: "Weekend offer", sub: "15% off candles & home scents", button: "Shop the offer" },
+    hero: { icon: "Tag", big: "Weekend offer", sub: "15% off candles & home scents", button: "Shop the offer" },
     chips: ["All", "Home", "Gifts", "Kitchen"],
     section: "Popular",
     rows: [
-      { emoji: "🕯️", title: "Fig & cedar candle", meta: "Home · 40 h burn", right: "$28" },
-      { emoji: "🧺", title: "Woven basket", meta: "Handmade", right: "$42" },
-      { emoji: "☕", title: "Stoneware mug", meta: "Kitchen · 4 colours", right: "$18" },
+      { icon: "Flame", title: "Fig & cedar candle", meta: "Home · 40 h burn", right: "$28" },
+      { icon: "ShoppingBasket", title: "Woven basket", meta: "Handmade", right: "$42" },
+      { icon: "Coffee", title: "Stoneware mug", meta: "Kitchen · 4 colours", right: "$18" },
     ],
     tabs: [
-      ["🛍️", "Shop"],
-      ["♥", "Wishlist"],
-      ["🎁", "Rewards"],
+      ["ShoppingBag", "Shop"],
+      ["Heart", "Wishlist"],
+      ["Gift", "Rewards"],
     ],
   },
   "church-or-community": {
+    layout: "list",
     eyebrow: "Grace Community",
     title: "This week",
     color: "#A16207",
     bg: "#FFFBF2",
-    hero: { emoji: "⛪", big: "Sunday service", sub: "9:00 & 11:00 am · Main hall", button: "Remind me" },
-    actions: ["🙏 Prayer", "💝 Give", "📍 Directions"],
+    hero: { icon: "Church", big: "Sunday service", sub: "9:00 & 11:00 am · Main hall", button: "Remind me" },
+    actions: ["Prayer", "Give", "Directions"],
     section: "Events",
     rows: [
-      { emoji: "🎶", title: "Choir practice", meta: "Thu 7 pm · Chapel" },
-      { emoji: "🍲", title: "Community dinner", meta: "Fri 6 pm · Hall", right: "RSVP" },
-      { emoji: "👨‍👩‍👧", title: "Family morning", meta: "Sat 10 am · Garden" },
+      { icon: "Music", title: "Choir practice", meta: "Thu 7 pm · Chapel" },
+      { icon: "Soup", title: "Community dinner", meta: "Fri 6 pm · Hall", right: "RSVP" },
+      { icon: "Users", title: "Family morning", meta: "Sat 10 am · Garden" },
     ],
     tabs: [
-      ["🏠", "Home"],
-      ["📅", "Events"],
-      ["📝", "Notes"],
+      ["House", "Home"],
+      ["CalendarDays", "Events"],
+      ["NotebookPen", "Notes"],
     ],
   },
   "real-estate-agent": {
+    layout: "feature",
     eyebrow: "Harbor Homes",
     title: "Featured",
     color: "#0F766E",
     bg: "#F5FAF9",
-    hero: { emoji: "🏡", big: "$649,000", sub: "3 bd · 2 ba · 1,850 sq ft · Oak St", button: "Book a viewing" },
+    hero: { icon: "House", big: "$649,000", sub: "3 bd · 2 ba · 1,850 sq ft · Oak St", button: "Book a viewing" },
     chips: ["Buy", "Rent", "Saved", "Open house"],
     section: "New listings",
     rows: [
-      { emoji: "🏠", title: "Maple Ave townhouse", meta: "2 bd · 2 ba · 1,200 sq ft", right: "$489k" },
-      { emoji: "🏢", title: "Harbor view condo", meta: "1 bd · 1 ba · 780 sq ft", right: "$395k" },
-      { emoji: "🌳", title: "Family home, Elm Rd", meta: "4 bd · 3 ba · 2,400 sq ft", right: "$825k" },
+      { icon: "House", title: "Maple Ave townhouse", meta: "2 bd · 2 ba · 1,200 sq ft", right: "$489k" },
+      { icon: "Building2", title: "Harbor view condo", meta: "1 bd · 1 ba · 780 sq ft", right: "$395k" },
+      { icon: "Trees", title: "Family home, Elm Rd", meta: "4 bd · 3 ba · 2,400 sq ft", right: "$825k" },
     ],
     tabs: [
-      ["🔎", "Search"],
-      ["♥", "Saved"],
-      ["🧮", "Mortgage"],
+      ["Search", "Search"],
+      ["Heart", "Saved"],
+      ["Calculator", "Mortgage"],
     ],
   },
   "home-services": {
+    layout: "grid",
     eyebrow: "FixRight Plumbing",
     title: "How can we help?",
     color: "#EA580C",
     bg: "#FFF8F3",
     open: "Open now · 24/7 emergencies",
-    hero: { emoji: "🧰", big: "Get a free quote", sub: "Reply within 2 hours", button: "Request a quote" },
-    actions: ["📞 Call", "💬 WhatsApp", "⭐ Reviews"],
+    hero: { icon: "Wrench", big: "Get a free quote", sub: "Reply within 2 hours", button: "Request a quote" },
+    actions: ["Call", "WhatsApp", "Reviews"],
     section: "Services",
     rows: [
-      { emoji: "🚿", title: "Leaks & repairs", meta: "Same-day visits", right: "from $89" },
-      { emoji: "🔥", title: "Boiler service", meta: "Annual check", right: "from $120" },
-      { emoji: "🛁", title: "Bathroom fitting", meta: "Free survey", right: "Quote" },
+      { icon: "ShowerHead", title: "Leaks & repairs", meta: "Same-day visits", right: "from $89" },
+      { icon: "Flame", title: "Boiler service", meta: "Annual check", right: "from $120" },
+      { icon: "Bath", title: "Bathroom fitting", meta: "Free survey", right: "Quote" },
     ],
     tabs: [
-      ["🏠", "Home"],
-      ["🧾", "Quotes"],
-      ["📍", "Areas"],
+      ["House", "Home"],
+      ["ReceiptText", "Quotes"],
+      ["MapPin", "Areas"],
     ],
   },
 };
 
-/** One-screen app that draws a Screen; same look as the sample apps. */
+/** Action labels and their icons (business apps). */
+const ACTION_ICONS: Record<string, string> = { Call: "Phone", Directions: "Navigation", Book: "CalendarCheck", Order: "Bike", WhatsApp: "MessageCircle", Quote: "ReceiptText", Visit: "MapPin", Email: "Mail", Prayer: "HandHeart", Give: "HeartHandshake", Reviews: "Star" };
+
+/**
+ * One-screen app that draws a Screen, following Appmaker's modern design rules:
+ * Lucide icons (no emoji), a calm surface with the brand color saved for the hero
+ * and the primary action, a short type scale, left alignment, grouped lists and a
+ * composition chosen per template (big number, feature card, tile grid, list).
+ */
 function screenApp(s: Screen): string {
+  const icons = [
+    ...new Set([
+      ...(s.hero.icon ? [s.hero.icon] : []),
+      ...s.rows.flatMap((r) => [r.icon, ...(r.rightIcon ? [r.rightIcon] : [])]),
+      ...s.tabs.map(([i]) => i),
+      ...(s.actions ?? []).map((a) => {
+        if (!ACTION_ICONS[a]) throw new Error(`No icon for the action ${a}`);
+        return ACTION_ICONS[a];
+      }),
+      "ChevronRight",
+    ]),
+  ];
+  for (const i of icons) if (!isLucideIcon(i)) throw new Error(`Not a Lucide icon: ${i}`);
   return `import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { ${icons.join(", ")} } from 'lucide-react-native';
 
 const S = ${JSON.stringify(s)};
-const tint = S.color + '1A';
+const ICON = { ${icons.join(", ")} };
+const ACTION = ${JSON.stringify(ACTION_ICONS)};
+const C = { ink: '#0C0C0E', muted: '#6A6A72', line: '#E6E5E1', surface: '#FFFFFF', open: '#15803D', onBrand: '#FFFFFF' };
+const tint = S.color + '14';
+const Icon = ({ name, size = 20, color = S.color, strokeWidth = 2 }) => {
+  const I = ICON[name];
+  return I ? <I size={size} color={color} strokeWidth={strokeWidth} /> : null;
+};
+
+function Hero() {
+  const h = S.hero;
+  if (S.layout === 'stat') {
+    return (
+      <View style={[styles.card, { padding: 20, marginTop: 24 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.big}>{h.big}</Text>
+            <Text style={[styles.sub, { marginTop: 4 }]}>{h.sub}</Text>
+          </View>
+          {h.icon ? (
+            <View style={[styles.tile, { width: 48, height: 48 }]}>
+              <Icon name={h.icon} size={24} />
+            </View>
+          ) : null}
+        </View>
+        {h.progress != null ? (
+          <View style={{ height: 6, borderRadius: 999, backgroundColor: tint, marginTop: 20, overflow: 'hidden' }}>
+            <View style={{ height: 6, width: Math.round(h.progress * 100) + '%', backgroundColor: S.color, borderRadius: 999 }} />
+          </View>
+        ) : null}
+        {h.button ? (
+          <View style={[styles.primary, { marginTop: 20 }]}>
+            <Text style={styles.primaryText}>{h.button}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+  return (
+    <View style={{ marginTop: 24, borderRadius: 20, backgroundColor: S.color, padding: 20, overflow: 'hidden', minHeight: 196, justifyContent: 'flex-end' }}>
+      {h.icon ? (
+        <View style={{ position: 'absolute', right: -24, top: -24, width: 160, height: 160, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={h.icon} size={64} color={C.onBrand} strokeWidth={1.5} />
+        </View>
+      ) : null}
+      <Text style={[styles.big, { color: C.onBrand, maxWidth: '78%' }]}>{h.big}</Text>
+      <Text style={[styles.sub, { color: C.onBrand, opacity: 0.85, marginTop: 4 }]}>{h.sub}</Text>
+      {h.button ? (
+        <View style={{ alignSelf: 'flex-start', marginTop: 16, backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 16, height: 44, justifyContent: 'center' }}>
+          <Text style={[styles.primaryText, { color: S.color }]}>{h.button}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function Rows() {
+  if (S.layout === 'grid') {
+    return (
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        {S.rows.map((r, i) => (
+          <View key={r.title} style={[styles.card, { width: i === S.rows.length - 1 && S.rows.length % 2 ? '100%' : '47.5%', padding: 16 }]}>
+            <View style={styles.tile}>
+              <Icon name={r.icon} />
+            </View>
+            <Text style={[styles.rowTitle, { marginTop: 12 }]} numberOfLines={2}>{r.title}</Text>
+            <Text style={styles.meta} numberOfLines={2}>{r.meta}</Text>
+            {r.right ? <Text style={[styles.value, { marginTop: 8 }]}>{r.right}</Text> : null}
+          </View>
+        ))}
+      </View>
+    );
+  }
+  return (
+    <View style={styles.card}>
+      {S.rows.map((r, i) => (
+        <View key={r.title} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 64 }}>
+          <View style={styles.tile}>
+            <Icon name={r.icon} />
+          </View>
+          <View style={{ flex: 1, marginLeft: 12, paddingVertical: 12, borderBottomWidth: i < S.rows.length - 1 ? StyleSheet.hairlineWidth : 0, borderBottomColor: C.line, flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>{r.title}</Text>
+              <Text style={styles.meta}>{r.meta}</Text>
+            </View>
+            {r.rightIcon ? <Icon name={r.rightIcon} size={20} /> : r.right ? <Text style={styles.value}>{r.right}</Text> : <Icon name="ChevronRight" size={20} color={C.muted} />}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 export default function App() {
   return (
     <View style={{ flex: 1, backgroundColor: S.bg }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 60, paddingBottom: 110 }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: S.color }}>{S.eyebrow}</Text>
-        <Text style={{ fontSize: 34, fontWeight: '800', color: '#111827', marginTop: 2 }}>{S.title}</Text>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 120 }}>
+        <Text style={styles.eyebrow}>{S.eyebrow}</Text>
+        <Text style={styles.title}>{S.title}</Text>
         {S.open ? (
-          <View style={{ alignSelf: 'flex-start', marginTop: 10, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: '#DCFCE7' }}>
-            <Text style={{ color: '#166534', fontWeight: '700', fontSize: 13 }}>● {S.open}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: C.open }} />
+            <Text style={[styles.meta, { color: C.open, marginTop: 0, marginLeft: 8, fontWeight: '600' }]}>{S.open}</Text>
           </View>
         ) : null}
-        <View style={{ marginTop: 18, borderRadius: 24, padding: 20, backgroundColor: S.color }}>
-          {S.hero.emoji ? <Text style={{ fontSize: 34 }}>{S.hero.emoji}</Text> : null}
-          <Text style={{ color: '#fff', fontSize: 26, fontWeight: '800', marginTop: 6 }}>{S.hero.big}</Text>
-          <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, marginTop: 4 }}>{S.hero.sub}</Text>
-          {S.hero.progress != null ? (
-            <View style={{ height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)', marginTop: 16 }}>
-              <View style={{ height: 8, borderRadius: 4, width: Math.round(S.hero.progress * 100) + '%', backgroundColor: '#fff' }} />
-            </View>
-          ) : null}
-          {S.hero.button ? (
-            <View style={{ alignSelf: 'flex-start', marginTop: 16, backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 }}>
-              <Text style={{ color: S.color, fontWeight: '800', fontSize: 15 }}>{S.hero.button}</Text>
-            </View>
-          ) : null}
-        </View>
+        <Hero />
         {S.actions ? (
-          <View style={{ flexDirection: 'row', marginTop: 14 }}>
-            {S.actions.map((a, i) => (
-              <View key={a} style={{ flex: 1, marginLeft: i ? 10 : 0, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#EEF0F3' }}>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#111827' }}>{a}</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+            {S.actions.map((a) => (
+              <View key={a} style={[styles.card, { flex: 1, height: 64, alignItems: 'center', justifyContent: 'center' }]}>
+                <Icon name={ACTION[a]} size={20} />
+                <Text style={[styles.meta, { color: C.ink, fontWeight: '600', marginTop: 4 }]}>{a}</Text>
               </View>
             ))}
           </View>
         ) : null}
         {S.chips ? (
-          <View style={{ flexDirection: 'row', marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 24 }}>
             {S.chips.map((c, i) => (
-              <View key={c} style={{ marginRight: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: i ? '#fff' : S.color, borderWidth: 1, borderColor: i ? '#EEF0F3' : S.color }}>
-                <Text style={{ fontWeight: '700', fontSize: 14, color: i ? '#374151' : '#fff' }}>{c}</Text>
+              <View key={c} style={{ paddingHorizontal: 16, height: 36, justifyContent: 'center', borderRadius: 999, backgroundColor: i ? C.surface : C.ink, borderWidth: i ? StyleSheet.hairlineWidth : 0, borderColor: C.line }}>
+                <Text style={[styles.sub, { color: i ? C.ink : C.onBrand, fontWeight: '600' }]}>{c}</Text>
               </View>
             ))}
           </View>
         ) : null}
-        <Text style={{ fontSize: 19, fontWeight: '800', color: '#111827', marginTop: 22, marginBottom: 10 }}>{S.section}</Text>
-        {S.rows.map((r) => (
-          <View key={r.title} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 20, padding: 14, marginBottom: 10 }}>
-            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: tint, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 24 }}>{r.emoji}</Text>
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>{r.title}</Text>
-              <Text style={{ fontSize: 13, color: '#5F6B7A', marginTop: 2 }}>{r.meta}</Text>
-            </View>
-            {r.right ? <Text style={{ fontSize: 15, fontWeight: '800', color: S.color }}>{r.right}</Text> : null}
-          </View>
-        ))}
+        <Text style={styles.section}>{S.section}</Text>
+        <Rows />
       </ScrollView>
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 10, paddingBottom: 26 }}>
+      <View style={styles.tabs}>
         {S.tabs.map(([icon, label], i) => (
           <View key={label} style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 22 }}>{icon}</Text>
-            <Text style={{ fontSize: 12, fontWeight: '700', marginTop: 2, color: i ? '#6B7280' : S.color }}>{label}</Text>
+            <Icon name={icon} size={24} color={i ? C.muted : S.color} strokeWidth={i ? 1.75 : 2.25} />
+            <Text style={[styles.meta, { marginTop: 4, color: i ? C.muted : S.color, fontWeight: i ? '500' : '600' }]}>{label}</Text>
           </View>
         ))}
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  eyebrow: { fontSize: 15, fontWeight: '500', color: C.muted },
+  title: { fontSize: 34, fontWeight: '700', letterSpacing: -0.8, color: C.ink, marginTop: 4 },
+  big: { fontSize: 40, fontWeight: '700', letterSpacing: -1, color: C.ink, fontVariant: ['tabular-nums'] },
+  sub: { fontSize: 15, color: C.muted },
+  section: { fontSize: 20, fontWeight: '600', letterSpacing: -0.3, color: C.ink, marginTop: 32, marginBottom: 12 },
+  card: { backgroundColor: C.surface, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line, shadowColor: C.ink, shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  tile: { width: 40, height: 40, borderRadius: 12, backgroundColor: tint, alignItems: 'center', justifyContent: 'center' },
+  rowTitle: { fontSize: 17, fontWeight: '600', color: C.ink },
+  meta: { fontSize: 13, color: C.muted, marginTop: 2 },
+  value: { fontSize: 15, fontWeight: '600', color: C.ink, fontVariant: ['tabular-nums'] },
+  primary: { height: 48, borderRadius: 12, backgroundColor: S.color, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontSize: 15, fontWeight: '600', color: C.onBrand },
+  tabs: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: C.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, paddingTop: 8, paddingBottom: 28 },
+});
 `;
 }
 
@@ -375,7 +498,23 @@ const SAMPLES: Record<string, { prompt: string; prepare?: (page: Page) => Promis
   "mood-journal": { prompt: "mood journal" },
 };
 
+/** The app behind each template's screenshot. */
+export function templateFiles(slug: string) {
+  const sample = SAMPLES[slug];
+  const screen = SCREENS[slug];
+  return sample ? parseGeneration(demoResponse(sample.prompt, false)).files : screen ? { "App.js": screenApp(screen) } : null;
+}
+
 async function main() {
+  // CHECK_ONLY=1: run the design check on every template's app, without screenshots.
+  if (process.env.CHECK_ONLY) {
+    for (const t of [...TEMPLATES, ...BUSINESS_TEMPLATES]) {
+      const files = templateFiles(templateSlug(t));
+      const looks = files ? designIssues(files) : [];
+      console.log(`${looks.length ? "FAIL" : "ok  "} ${templateSlug(t)}${looks.map((i) => `\n  - ${i.file}: ${i.message}`).join("")}`);
+    }
+    return;
+  }
   mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -383,15 +522,21 @@ async function main() {
   for (const t of [...TEMPLATES, ...BUSINESS_TEMPLATES]) {
     const slug = templateSlug(t);
     const sample = SAMPLES[slug];
-    const screen = SCREENS[slug];
-    const files = sample ? parseGeneration(demoResponse(sample.prompt, false)).files : screen ? { "App.js": screenApp(screen) } : null;
+    const files = templateFiles(slug);
     if (!files) {
       console.warn(`skip ${slug}: no sample app or screen`);
       continue;
     }
-    await page.goto(SERVER);
+    // The home page shows Appmaker's design skills: every app passes the design check.
+    const looks = designIssues(files);
+    if (looks.length) throw new Error(`${slug} fails the design check:\n${looks.map((i) => `- ${i.file}: ${i.message}`).join("\n")}`);
+    // A plain file on the server gives the page its origin (the home page's own React would still be running).
+    await page.goto(`${SERVER}/preview/axe-core-LICENSE.txt`);
     await page.setContent(buildPreviewHtml(files, SERVER, "ios"), { waitUntil: "networkidle" });
-    await page.waitForTimeout(1500);
+    // Wait until the app has drawn (the preview compiles it first), then let images and fonts settle.
+    // (A plain loop: the preview's content security policy blocks waitForFunction's polling.)
+    for (let i = 0; i < 60 && (await page.evaluate(() => document.body.innerText.trim().length)) < 20; i++) await page.waitForTimeout(500);
+    await page.waitForTimeout(1200);
     await sample?.prepare?.(page);
     const file = path.join(OUT, `${slug}.jpg`);
     await page.screenshot({ path: file, type: "jpeg", quality: 82 });

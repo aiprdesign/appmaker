@@ -7,13 +7,13 @@ import * as Haptics from 'expo-haptics';
 import { House, Plus, ChartBar, Wallet, Receipt, Utensils, TrainFront, ShoppingBag, Lightbulb, Clapperboard, Check } from 'lucide-react-native';
 import { colors, radius, font, card, mode } from './src/theme';
 
-// Category colors and emoji are content (chart series and tags), not UI colors.
+// Category colors are content (chart series and tags), not UI colors.
 const CATEGORIES = [
-  { key: 'food', label: 'Food', emoji: '🍜', color: '#F59E0B', Icon: Utensils },
-  { key: 'transport', label: 'Transport', emoji: '🚇', color: '#3B82F6', Icon: TrainFront },
-  { key: 'shopping', label: 'Shopping', emoji: '🛍️', color: '#EC4899', Icon: ShoppingBag },
-  { key: 'bills', label: 'Bills', emoji: '💡', color: '#8B5CF6', Icon: Lightbulb },
-  { key: 'fun', label: 'Fun', emoji: '🎬', color: '#EF4444', Icon: Clapperboard },
+  { key: 'food', label: 'Food', color: '#F59E0B', Icon: Utensils },
+  { key: 'transport', label: 'Transport', color: '#3B82F6', Icon: TrainFront },
+  { key: 'shopping', label: 'Shopping', color: '#EC4899', Icon: ShoppingBag },
+  { key: 'bills', label: 'Bills', color: '#8B5CF6', Icon: Lightbulb },
+  { key: 'fun', label: 'Fun', color: '#EF4444', Icon: Clapperboard },
 ];
 const SEED = [
   { id: '1', title: 'Groceries', amount: 64.2, category: 'food', date: Date.now() - 86400000 },
@@ -239,7 +239,7 @@ export default function App() {
                       style={(s) => [styles.chip, selected && styles.chipActive, pressed(s)]}
                     >
                       <Text style={[styles.chipText, selected && styles.chipTextActive]}>
-                        {c.emoji} {c.label}
+                        {c.label}
                       </Text>
                     </Pressable>
                   );
@@ -276,7 +276,7 @@ export default function App() {
               {byCategory.map((c) => (
                 <View key={c.key} style={styles.barRow}>
                   <Text style={styles.barLabel}>
-                    {c.emoji} {c.label}
+                    {c.label}
                   </Text>
                   <View style={styles.barTrack}>
                     <View style={[styles.barFill, { width: `${spent ? (c.total / spent) * 100 : 0}%`, backgroundColor: c.color }]} />
