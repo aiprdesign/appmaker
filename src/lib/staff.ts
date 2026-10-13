@@ -17,7 +17,7 @@ export function staffModule(apiUrl: string | null): string {
   return `// Staff mode: written by Appmaker — don't change this file.
 // Screens show it with: <StaffScreen onClose={() => …} />
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, Vibration, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, Vibration, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { ArrowRight, Bell, ChevronDown, ChevronLeft, Inbox, KeyRound, LogOut, Phone, Plus, Trash2 } from 'lucide-react-native';
@@ -259,8 +259,19 @@ export default function StaffScreen({ onClose }) {
     if (!key) return;
     load();
     registerAlerts(key).then(setAlerts);
-    const t = setInterval(load, 15000);
-    return () => clearInterval(t);
+    // Every 20 seconds while staff look at it; nothing in the background (push alerts cover that).
+    let t = setInterval(load, 20000);
+    const sub = AppState.addEventListener('change', (state) => {
+      clearInterval(t);
+      if (state === 'active') {
+        load();
+        t = setInterval(load, 20000);
+      }
+    });
+    return () => {
+      clearInterval(t);
+      if (sub && sub.remove) sub.remove();
+    };
   }, [key, load]);
 
   const refresh = async () => {

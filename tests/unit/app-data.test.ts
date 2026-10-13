@@ -109,6 +109,24 @@ function runModule(api: string | null, fetcher?: typeof fetch) {
 }
 
 describe("the app's data module", () => {
+  it("is light on the server: one request for screens at once, and tiny replies when nothing changed", async () => {
+    const calls: RequestInit[] = [];
+    const fetcher = (async (_url: string, init: RequestInit) => {
+      calls.push(init);
+      const etag = (init.headers as Record<string, string>)["if-none-match"];
+      if (etag === '"v1"') return new Response(null, { status: 304 });
+      return new Response(JSON.stringify({ items: [{ id: "m1", name: "Margherita" }] }), { status: 200, headers: { etag: '"v1"' } });
+    }) as unknown as typeof fetch;
+    const m = runModule("https://appmaker.example/api/appdata/abc12345", fetcher);
+    const [a, b] = await Promise.all([m.list("menu"), m.list("menu")]);
+    expect(a).toEqual(b);
+    expect(calls).toHaveLength(1); // shared
+    await m.list("menu");
+    expect(calls).toHaveLength(1); // fresh copy reused
+    expect(await m.list("menu", true)).toEqual([{ id: "m1", name: "Margherita" }]); // 304: same items
+    expect((calls[1].headers as Record<string, string>)["if-none-match"]).toBe('"v1"');
+  });
+
   it("works on the phone before the database is on: seeds, add, update and remove", async () => {
     const m = runModule(null);
     expect(((await m.list("menu")) as { name: string }[]).map((x) => x.name)).toEqual(["Margherita", "Marinara"]);
@@ -253,6 +271,13 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     const { purge, getStore } = await import("@/lib/server/app-data");
     await purge((await getStore(store.id))!, true);
     expect((await (await appGet(app("GET", undefined, ANA, "?collection=orders"), ctx(store.id))).json()).items.map((o: { id: string }) => o.id)).not.toContain(order.id);
+
+    // Public data needs no device and can be cached; unchanged data gets a tiny 304.
+    const first = await appGet(req(`/api/appdata/${store.id}?collection=menu`, "GET"), ctx(store.id));
+    expect(first.status).toBe(200);
+    expect(first.headers.get("cache-control")).toMatch(/^public/);
+    const again = await appGet(req(`/api/appdata/${store.id}?collection=menu`, "GET", undefined, { "if-none-match": first.headers.get("etag")! }), ctx(store.id));
+    expect(again.status).toBe(304);
 
     // Names that are really object properties aren't collections.
     for (const name of ["constructor", "__proto__", "toString"]) {

@@ -303,9 +303,22 @@ export interface OwnerCollection {
 export async function ownerData(store: DataStore): Promise<{ name: string; hasStaffPin: boolean; collections: OwnerCollection[] }> {
   await purge(store);
   const collections: OwnerCollection[] = [];
+  // Two queries for the whole page, whatever the number of collections: the counts, and the newest items of each.
+  const names = Object.keys(store.rules);
+  const shown = Object.entries(store.rules).filter(([, r]) => r.access !== "private").map(([n]) => n);
+  const [counts, all] = await Promise.all([
+    query<{ collection: string; n: string }>("select collection, count(*) as n from app_data_records where store_id = $1 and collection = any($2::text[]) group by collection", [store.id, names]),
+    shown.length
+      ? query<RecordRow>(
+          `select * from (select *, row_number() over (partition by collection order by created_at desc) as rn
+             from app_data_records where store_id = $1 and collection = any($2::text[])) t where rn <= $3 order by created_at desc`,
+          [store.id, shown, PAGE],
+        )
+      : Promise.resolve([] as RecordRow[]),
+  ]);
   for (const [name, r] of Object.entries(store.rules)) {
-    const [{ n }] = await query<{ n: string }>("select count(*) as n from app_data_records where store_id = $1 and collection = $2", [store.id, name]);
-    const rows = r.access === "private" ? [] : await query<RecordRow>("select * from app_data_records where store_id = $1 and collection = $2 order by created_at desc limit $3", [store.id, name, PAGE]);
+    const n = counts.find((c) => c.collection === name)?.n ?? "0";
+    const rows = r.access === "private" ? [] : all.filter((row) => row.collection === name);
     // Fields: the rules' fields, then any others the app saved.
     const seen = new Set(r.fields);
     for (const row of rows) for (const k of Object.keys(row.data)) seen.add(k);

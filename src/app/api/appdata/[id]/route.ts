@@ -1,4 +1,5 @@
 import { DataInputError } from "@/lib/app-data";
+import { createHash } from "node:crypto";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { DataForbidden, addItem, cancelItem, checkDevice, forgetDevice, getStore, listItems, removeItem, setPushToken, updateItem } from "@/lib/server/app-data";
 import { databaseConfigured } from "@/lib/server/db";
@@ -10,7 +11,8 @@ type Ctx = { params: Promise<{ id: string }> };
 const CORS = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, PATCH, DELETE",
-  "access-control-allow-headers": "content-type, x-device, x-push-token",
+  "access-control-allow-headers": "content-type, x-device, x-push-token, if-none-match",
+  "access-control-expose-headers": "etag",
 };
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { ...CORS, "cache-control": "no-store" } });
 
@@ -36,7 +38,16 @@ export async function GET(req: Request, ctx: Ctx) {
     const store = await load(ctx);
     if (!store) return json({ error: "This app's data isn't available." }, 404);
     const url = new URL(req.url);
-    return json({ items: await listItems(store, url.searchParams.get("collection") ?? "", checkDevice(req.headers.get("x-device"))) });
+    const collection = url.searchParams.get("collection") ?? "";
+    // Public data (a menu, offers) is the same for everyone: no device needed, and caches may keep it briefly.
+    const isPublic = store.rules[collection]?.access === "public" && Object.hasOwn(store.rules, collection);
+    const device = isPublic && !req.headers.get("x-device") ? "public-reader-000" : checkDevice(req.headers.get("x-device"));
+    const body = JSON.stringify({ items: await listItems(store, collection, device) });
+    // Unchanged since the app's last look: a tiny "not modified" reply instead of the whole list.
+    const etag = `"${createHash("sha1").update(body).digest("base64url").slice(0, 22)}"`;
+    const cache = isPublic ? "public, max-age=15, stale-while-revalidate=60" : "private, no-cache";
+    if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { ...CORS, etag, "cache-control": cache } });
+    return new Response(body, { status: 200, headers: { ...CORS, "content-type": "application/json", etag, "cache-control": cache } });
   } catch (e) {
     return failed(e);
   }

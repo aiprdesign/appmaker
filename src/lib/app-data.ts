@@ -174,6 +174,7 @@ export function dataModule(apiUrl: string | null, rules: DataRules): string {
 // Screens import useCollection from this file, then:
 //   const { items, loading, error, add, update, remove, refresh } = useCollection('orders');
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
@@ -250,12 +251,16 @@ async function call(method, params, body, extra) {
   } finally {
     if (timer) clearTimeout(timer);
   }
+  if (res.status === 304) return { notModified: true };
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Couldn't reach the server. Check your connection and try again.");
+  const etag = res.headers && res.headers.get ? res.headers.get('etag') : null;
+  if (etag) data.etag = etag;
   return data;
 }
 
 function changed(collection) {
+  if (memo[collection]) memo[collection].at = 0;
   (listeners[collection] || []).forEach((fn) => fn());
 }
 
@@ -264,14 +269,31 @@ function check(collection) {
 }
 
 /** All the items this person can see, newest first. */
-export async function list(collection) {
+// Light on the server: screens showing the same collection share one request, a
+// copy fresher than 5 seconds is reused, and unchanged data costs a tiny "not modified" reply.
+const memo = {};
+export async function list(collection, fresh) {
   check(collection);
   if (!API) return readLocal(collection);
-  const data = await call('GET', { collection });
-  const items = data.items || [];
-  // The last good copy, for when the phone is offline (see useCollection).
-  AsyncStorage.setItem('appdata:cache:' + collection, JSON.stringify(items.slice(0, 200))).catch(() => {});
-  return items;
+  const m = memo[collection] || (memo[collection] = {});
+  if (m.pending) return m.pending;
+  if (!fresh && m.items && Date.now() - m.at < 5000) return m.items;
+  m.pending = (async () => {
+    try {
+      const data = await call('GET', { collection }, null, m.etag ? { 'if-none-match': m.etag } : null);
+      if (!data.notModified) {
+        m.items = data.items || [];
+        m.etag = data.etag || null;
+        // The last good copy, for when the phone is offline (see useCollection).
+        AsyncStorage.setItem('appdata:cache:' + collection, JSON.stringify(m.items.slice(0, 200))).catch(() => {});
+      }
+      m.at = Date.now();
+      return m.items || [];
+    } finally {
+      m.pending = null;
+    }
+  })();
+  return m.pending;
 }
 
 const firstStatus = (collection) => (STATUSES[collection] || ['new'])[0];
@@ -387,7 +409,7 @@ export function useCollection(collection) {
   const alive = useRef(true);
   const refresh = useCallback(async () => {
     try {
-      const next = await list(collection);
+      const next = await list(collection, true);
       if (alive.current) {
         setItems(next);
         setError(null);
@@ -406,15 +428,40 @@ export function useCollection(collection) {
       if (alive.current) setLoading(false);
     }
   }, [collection]);
+  // Checking for changes only when it matters: never in the background; every 30 seconds while
+  // this person has an order or request in progress; otherwise every few minutes (and when the app reopens).
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   useEffect(() => {
     alive.current = true;
     refresh();
     (listeners[collection] = listeners[collection] || []).push(refresh);
-    const timer = API ? setInterval(refresh, 30000) : null;
+    let timer = null;
+    const waiting = () => ACCESS[collection] === 'inbox' && itemsRef.current.some((x) => x.mine && !statusInfo(collection, x.status).done);
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (!API || AppState.currentState === 'background') return;
+      timer = setTimeout(async () => {
+        await refresh();
+        schedule();
+      }, waiting() ? 30000 : 180000);
+    };
+    schedule();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        refresh();
+        schedule();
+      } else if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    });
     return () => {
       alive.current = false;
       listeners[collection] = (listeners[collection] || []).filter((fn) => fn !== refresh);
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
+      if (sub && sub.remove) sub.remove();
     };
   }, [collection, refresh]);
   return {

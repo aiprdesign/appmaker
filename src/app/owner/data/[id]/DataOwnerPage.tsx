@@ -163,11 +163,21 @@ export function DataOwnerPage({ id }: { id: string }) {
     key.current = readKey(id);
     if (window.location.hash) history.replaceState(null, "", window.location.pathname);
     const first = setTimeout(load, 0);
-    // New orders and requests show up without reloading.
-    const t = setInterval(load, 30_000);
+    // New orders and requests show up without reloading: every 30 seconds while the page is in view,
+    // nothing while it's hidden (alerts cover that), and at once when it's back.
+    let t = setInterval(load, 30_000);
+    const onVisible = () => {
+      clearInterval(t);
+      if (document.visibilityState === "visible") {
+        void load();
+        t = setInterval(load, 30_000);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       clearTimeout(first);
       clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [id, load]);
 
