@@ -1,3 +1,4 @@
+import { DataInputError, parseRules } from "./app-data";
 import { checkCodeSafety } from "./code-safety";
 import { userFacingText } from "./claims";
 import type { FileMap } from "./types";
@@ -162,6 +163,16 @@ export function validateApp(files: FileMap): ValidationIssue[] {
           issues.push({ file: path, message: `imports the icon '${name}' from lucide-react-native, which doesn't exist — use a real Lucide icon name (e.g. House, Heart, Search, Calendar, ShoppingBag)` });
         }
       }
+    }
+  }
+  // App data rules: a clear message when they're broken (the data module can't be made from them).
+  const rulesText = files["src/data-rules.json"];
+  if (rulesText != null) {
+    try {
+      parseRules(JSON.parse(rulesText));
+    } catch (e) {
+      // (Invalid JSON is already reported above.)
+      if (e instanceof DataInputError) issues.push({ file: "src/data-rules.json", message: `app data rules: ${e.message}` });
     }
   }
   for (const f of checkCodeSafety(files)) issues.push({ file: f.file, message: `${SAFETY_PREFIX}${f.message}` });

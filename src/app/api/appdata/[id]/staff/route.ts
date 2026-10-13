@@ -19,7 +19,9 @@ export async function POST(req: Request, ctx: Ctx) {
     const store = await getStore((await ctx.params).id);
     if (!store) return json({ error: "Staff mode isn't available." }, 404);
     // Few tries: a PIN is short.
-    if (!rateLimit(`staff-pin:${store.id}:${clientIp(req)}`, 5, 15 * 60 * 1000).ok) return json({ error: "Too many tries. Wait 15 minutes and try again." }, 429);
+    // Few tries per phone, and few for the whole app (guessing from many addresses doesn't help).
+    if (!rateLimit(`staff-pin:${store.id}:${clientIp(req)}`, 5, 15 * 60 * 1000).ok || !rateLimit(`staff-pin:${store.id}`, 30, 60 * 60 * 1000).ok)
+      return json({ error: "Too many tries. Wait 15 minutes and try again." }, 429);
     if (!store.staffPin) return json({ error: "Set a staff PIN on the owner page first." }, 403);
     const body = (await req.json().catch(() => ({}))) as { pin?: unknown };
     const pin = String(body.pin ?? "");

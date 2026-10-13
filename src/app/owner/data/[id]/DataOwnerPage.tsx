@@ -91,7 +91,11 @@ function ago(ms: number) {
 
 function csv(c: Collection): string {
   const cols = ["createdAt", ...(c.statuses ? ["status"] : []), ...c.fields];
-  const cell = (v: unknown) => `"${show(v).replace(/"/g, '""')}"`;
+  // Customers wrote these: a leading = + - @ would run as a formula in a spreadsheet, so it's kept as text.
+  const cell = (v: unknown) => {
+    const t = show(v);
+    return `"${(/^[=+\-@\t\r]/.test(t) ? `'${t}` : t).replace(/"/g, '""')}"`;
+  };
   return [cols.map((x) => cell(label(x))).join(","), ...c.items.map((i) => cols.map((k) => cell(k === "createdAt" ? new Date(i.createdAt).toISOString() : i[k])).join(","))].join("\n");
 }
 

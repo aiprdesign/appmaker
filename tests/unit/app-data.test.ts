@@ -27,7 +27,7 @@ describe("app data rules and module", () => {
   it("reads the rules the AI writes, keeping only what's valid", () => {
     const rules = parseRules(RULES);
     expect(rules.notes).toEqual({ access: "private", fields: [] });
-    expect(rules.orders.statuses).toEqual(["new", "preparing", "ready"]);
+    expect(rules.orders.statuses).toEqual(["new", "preparing", "ready", "cancelled"]);
     expect(parseRules({ requests: { access: "inbox", fields: ["name", "bad field"] } }).requests).toEqual({ access: "inbox", fields: ["name"], statuses: ["new", "accepted", "ready", "done", "cancelled"] });
     expect(rules.menu.seed).toHaveLength(2);
     expect(() => parseRules({ Orders: "inbox" })).toThrow(/valid collection name/);
@@ -78,6 +78,13 @@ describe("app data rules and module", () => {
     expect(text).toContain("ciao@luigis.example to see, correct or delete");
   });
 
+  it("explains broken rules to the AI, and always lets customers cancel", () => {
+    expect(validateApp({ "App.js": "export default function App() { return null; }", [RULES_FILE]: JSON.stringify({ Orders: "inbox" }) }).map((i) => i.message)).toContain(
+      'app data rules: "Orders" isn\'t a valid collection name (letters and numbers, starting with a lowercase letter).',
+    );
+    expect(parseRules({ orders: { access: "inbox", statuses: ["new", "ready"] } }).orders.statuses).toEqual(["new", "ready", "cancelled"]);
+  });
+
   it("keeps staff PINs hashed and only accepts real Expo push tokens", () => {
     const h = hashPin("246810");
     expect(h).not.toContain("246810");
@@ -91,7 +98,7 @@ describe("app data rules and module", () => {
 /** Runs src/appdata.js with a fake AsyncStorage (and fetch), as an app would. */
 function runModule(api: string | null, fetcher?: typeof fetch) {
   const store = new Map<string, string>();
-  const storage = { getItem: async (k: string) => store.get(k) ?? null, setItem: async (k: string, v: string) => void store.set(k, v), removeItem: async (k: string) => void store.delete(k) };
+  const storage = { getItem: async (k: string) => store.get(k) ?? null, setItem: async (k: string, v: string) => void store.set(k, v), removeItem: async (k: string) => void store.delete(k), multiRemove: async (ks: string[]) => ks.forEach((k) => store.delete(k)) };
   const code = dataModule(api, parseRules(RULES))
     .replace(/^import .*$/gm, "")
     .replace(/^export (async )?function (\w+)/gm, (_m, a: string | undefined, name: string) => `${a ?? ""}function ${name}`);
@@ -141,7 +148,8 @@ describe("the app's data module", () => {
       return new Response(JSON.stringify(init.method === "GET" ? { items: [] } : { item: { id: "x1", name: "Ana" } }), { status: 200 });
     }) as unknown as typeof fetch;
     const m = runModule("https://appmaker.example/api/appdata/abc12345", fetcher);
-    expect(((await m.list("menu")) as unknown[]).length).toBe(2); // empty public menu: the seed items show
+    // The server seeds the menu once; if the business empties it on purpose, it stays empty.
+    expect(((await m.list("menu")) as unknown[]).length).toBe(0);
     await m.add("orders", { name: "Ana" });
     expect(calls[0].url).toBe("https://appmaker.example/api/appdata/abc12345?collection=menu");
     expect(calls[1].init).toMatchObject({ method: "POST", body: JSON.stringify({ collection: "orders", data: { name: "Ana" } }) });
@@ -245,6 +253,17 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     const { purge, getStore } = await import("@/lib/server/app-data");
     await purge((await getStore(store.id))!, true);
     expect((await (await appGet(app("GET", undefined, ANA, "?collection=orders"), ctx(store.id))).json()).items.map((o: { id: string }) => o.id)).not.toContain(order.id);
+
+    // Names that are really object properties aren't collections.
+    for (const name of ["constructor", "__proto__", "toString"]) {
+      expect((await appPost(app("POST", { collection: name, data: { x: 1 } }), ctx(store.id))).status).toBe(400);
+    }
+    // An item can't grow without limit through repeated edits.
+    const big = (await (await appPost(app("POST", { collection: "reviews", data: { text: "a" } }, BO), ctx(store.id))).json()).item;
+    for (let i = 0; i < 3; i++) await appPatch(app("PATCH", { collection: "reviews", id: big.id, data: { [`t${i}`]: "x".repeat(3900) } }, BO), ctx(store.id));
+    const tooBig = await appPatch(app("PATCH", { collection: "reviews", id: big.id, data: { t9: "x".repeat(3900), t8: "y".repeat(3900) } }, BO), ctx(store.id));
+    expect(tooBig.status).toBe(400);
+    expect((await tooBig.json()).error).toMatch(/too much/);
 
     // Saving the rules again keeps the data (seeds aren't added twice); turning off deletes it.
     await storeRoute(req("/api/appdata", "POST", { projectId: "proj789abc", name: "Luigi's", rules: RULES }, { cookie }));

@@ -29,7 +29,11 @@ const DONE = ${done};
 const label = (f) => String(f).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase());
 const show = (v) => (v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 const isPhone = (f) => /phone|tel|mobile|whatsapp/i.test(f);
-const isDone = (status, statuses) => DONE.test(String(status || '')) || /^(cancel|declin|reject)/i.test(String(status || '')) || status === statuses[statuses.length - 1];
+const STOPPED = /^(cancel|declin|reject)/i;
+const isDone = (status, statuses) => {
+  const steps = statuses.filter((x) => !STOPPED.test(x));
+  return DONE.test(String(status || '')) || STOPPED.test(String(status || '')) || status === steps[steps.length - 1];
+};
 /** "Just now", "4 min ago", "2 h ago", then the day and time. */
 function ago(ms) {
   const min = Math.round((Date.now() - ms) / 60000);

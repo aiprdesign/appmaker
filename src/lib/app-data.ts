@@ -41,8 +41,13 @@ export const DEFAULT_STATUSES = ["new", "accepted", "ready", "done", "cancelled"
 
 /** Statuses that mean an order or request is finished (or the last one in the list). */
 export const DONE_STATUS = /^(done|complete|completed|collected|delivered|closed|picked ?up|served|finished|archived|cancel+ed|declined|rejected)$/i;
-export const isDone = (status: string | undefined, statuses: string[] | undefined) =>
-  !!status && (DONE_STATUS.test(status) || (!!statuses?.length && status === statuses[statuses.length - 1]));
+const STOPPED = /^(cancel|declin|reject)/i;
+/** The statuses that end an order or request: done-like words, cancelled ones, and the last real step. */
+export function doneStatuses(statuses: string[] | undefined): string[] {
+  const steps = (statuses ?? []).filter((x) => !STOPPED.test(x));
+  return (statuses ?? []).filter((x) => DONE_STATUS.test(x) || STOPPED.test(x) || x === steps[steps.length - 1]);
+}
+export const isDone = (status: string | undefined, statuses: string[] | undefined) => !!status && (DONE_STATUS.test(status) || STOPPED.test(status) || doneStatuses(statuses).includes(status));
 
 /** What customers read for a status ("preparing" → "Being prepared"). */
 export const STATUS_WORDS: Record<string, string> = {
@@ -91,6 +96,8 @@ export function parseRules(v: unknown): DataRules {
     if (access === "inbox") {
       const st = (Array.isArray(r.statuses) ? r.statuses : []).filter((s): s is string => typeof s === "string" && s.length > 0 && s.length <= 24).slice(0, 8);
       rule.statuses = st.length ? st : DEFAULT_STATUSES;
+      // Customers can always cancel while waiting, so there's always a status for it.
+      if (!rule.statuses.some((x) => /^cancel/i.test(x))) rule.statuses = [...rule.statuses, "cancelled"];
     }
     if (access === "public" && Array.isArray(r.seed)) {
       rule.seed = r.seed
@@ -227,11 +234,22 @@ async function pushToken() {
 
 async function call(method, params, body, extra) {
   const query = Object.keys(params).map((k) => k + '=' + encodeURIComponent(params[k])).join('&');
-  const res = await fetch(API + (query ? '?' + query : ''), {
-    method,
-    headers: { 'content-type': 'application/json', 'x-device': await device(), ...(extra || {}) },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  // A slow or dropped connection gives up after 15 seconds instead of waiting forever.
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 15000) : null;
+  let res;
+  try {
+    res = await fetch(API + (query ? '?' + query : ''), {
+      method,
+      headers: { 'content-type': 'application/json', 'x-device': await device(), ...(extra || {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller ? controller.signal : undefined,
+    });
+  } catch (e) {
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Couldn't reach the server. Check your connection and try again.");
   return data;
@@ -251,7 +269,8 @@ export async function list(collection) {
   if (!API) return readLocal(collection);
   const data = await call('GET', { collection });
   const items = data.items || [];
-  if (!items.length && ACCESS[collection] === 'public' && SEED[collection]) return readLocal(collection);
+  // The last good copy, for when the phone is offline (see useCollection).
+  AsyncStorage.setItem('appdata:cache:' + collection, JSON.stringify(items.slice(0, 200))).catch(() => {});
   return items;
 }
 
@@ -332,7 +351,7 @@ export async function remove(collection, id) {
 export async function forgetMe() {
   if (API) await call('DELETE', { all: 1 });
   for (const collection of Object.keys(ACCESS)) {
-    if (ACCESS[collection] !== 'public') await AsyncStorage.removeItem('appdata:' + collection);
+    if (ACCESS[collection] !== 'public') await AsyncStorage.multiRemove(['appdata:' + collection, 'appdata:cache:' + collection]);
   }
   await AsyncStorage.removeItem('appdata:device');
   devicePromise = null;
@@ -374,6 +393,14 @@ export function useCollection(collection) {
         setError(null);
       }
     } catch (e) {
+      // Offline: show the last copy this phone saw (or the business's starting items), with the error.
+      if (API) {
+        try {
+          const cached = JSON.parse((await AsyncStorage.getItem('appdata:cache:' + collection)) || 'null');
+          const fallback = cached || (ACCESS[collection] === 'public' ? await readLocal(collection) : null);
+          if (fallback && alive.current) setItems((now) => (now.length ? now : fallback));
+        } catch (err) {}
+      }
       if (alive.current) setError(e.message || String(e));
     } finally {
       if (alive.current) setLoading(false);

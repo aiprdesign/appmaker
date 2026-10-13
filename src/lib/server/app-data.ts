@@ -1,5 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { DataInputError, DONE_STATUS, cleanRecord, parseRules, type Access, type DataRules } from "../app-data";
+import { COLLECTION_NAME, DataInputError, MAX_RECORD_BYTES, doneStatuses, isDone, cleanRecord, parseRules, type Access, type DataRules } from "../app-data";
 import { currentUser } from "./auth";
 import { query } from "./db";
 import { alertOwner, isExpoToken, sendExpo, shortRef } from "./app-alerts";
@@ -29,6 +29,8 @@ export class DataForbidden extends Error {}
 
 /** Most records one app keeps, and most returned at once. */
 export const MAX_RECORDS = 20_000;
+/** Most items one phone keeps in a collection (one phone can't fill an app's storage). */
+export const MAX_PER_DEVICE = { inbox: 200, shared: 200, private: 2_000 } as const;
 export const PAGE = 500;
 const DEVICE = /^[A-Za-z0-9_-]{16,64}$/;
 const STORE_ID = /^[A-Za-z0-9_-]{8,20}$/;
@@ -117,8 +119,9 @@ export async function canManageData(req: Request, store: DataStore): Promise<boo
 }
 
 function rule(store: DataStore, collection: string) {
-  const r = store.rules[collection];
-  if (!r) throw new DataInputError(`This app has no "${collection}" data.`);
+  // Own, well-formed names only ("constructor" or "__proto__" must never reach the object's prototype).
+  const r = COLLECTION_NAME.test(collection) && Object.hasOwn(store.rules, collection) ? store.rules[collection] : null;
+  if (!r) throw new DataInputError(`This app has no "${String(collection).slice(0, 40)}" data.`);
   return r;
 }
 
@@ -139,9 +142,15 @@ export async function purge(store: DataStore, force = false): Promise<void> {
   const now = Date.now();
   if (!force && now - (lastPurge.get(store.id) ?? 0) < 10 * 60 * 1000) return;
   lastPurge.set(store.id, now);
+  // Data of collections the app no longer has (kept 90 days in case they come back, then deleted).
+  await query("delete from app_data_records where store_id = $1 and not (collection = any($2::text[])) and updated_at < now() - make_interval(days => $3)", [
+    store.id,
+    Object.keys(store.rules),
+    KEEP_DONE_DAYS,
+  ]);
   for (const [collection, r] of Object.entries(store.rules)) {
     if (r.access !== "inbox") continue;
-    const done = (r.statuses ?? []).filter((x, i, all) => DONE_STATUS.test(x) || /^(cancel|declin|reject)/i.test(x) || i === all.length - 1);
+    const done = doneStatuses(r.statuses);
     await query(
       `delete from app_data_records where store_id = $1 and collection = $2 and (
          (status = any($3::text[]) and updated_at < now() - make_interval(days => $4))
@@ -161,7 +170,7 @@ export async function forgetDevice(store: DataStore, device: string): Promise<nu
     if (r.access === "public") continue;
     if (r.access === "inbox") {
       const waiting = r.statuses?.[0] ?? "new";
-      const done = (r.statuses ?? []).filter((x, i, all) => DONE_STATUS.test(x) || /^(cancel|declin|reject)/i.test(x) || i === all.length - 1);
+      const done = doneStatuses(r.statuses);
       // Waiting ones are cancelled and removed; in-progress ones stay until finished, without the notification token.
       const rows = await query("delete from app_data_records where store_id = $1 and collection = $2 and device = $3 and (status = $4 or status = any($5::text[])) returning id", [store.id, collection, device, waiting, done]);
       removed += rows.length;
@@ -201,8 +210,12 @@ export async function addItem(store: DataStore, collection: string, device: stri
   if (access === "public") throw new DataForbidden("Only the business can add to this.");
   const data = cleanRecord(fields);
   await purge(store);
-  const [{ n }] = await query<{ n: string }>("select count(*) as n from app_data_records where store_id = $1", [store.id]);
+  const [{ n, mine }] = await query<{ n: string; mine: string }>(
+    "select count(*) as n, count(*) filter (where collection = $2 and device = $3) as mine from app_data_records where store_id = $1",
+    [store.id, collection, device],
+  );
   if (Number(n) >= MAX_RECORDS) throw new DataInputError("This app's storage is full. Please contact the business.");
+  if (Number(mine) >= MAX_PER_DEVICE[access]) throw new DataInputError("You've sent a lot from this phone. Please contact the business, or delete some first.");
   const rows = await query<RecordRow>(
     "insert into app_data_records (id, store_id, collection, device, data, status, push_token) values ($1, $2, $3, $4, $5, $6, $7) returning *",
     [randomBytes(9).toString("base64url"), store.id, collection, device, JSON.stringify(data), access === "inbox" ? (statuses?.[0] ?? "new") : "", isExpoToken(pushToken) ? pushToken : ""],
@@ -225,10 +238,15 @@ export async function updateItem(store: DataStore, collection: string, device: s
   const data = cleanRecord(fields);
   const rows = await query<RecordRow>(
     `update app_data_records set data = data || $5::jsonb, updated_at = now()
-     where store_id = $1 and collection = $2 and id = $3 and device = $4 ${access === "inbox" ? "and status = $6" : ""} returning *`,
+     where store_id = $1 and collection = $2 and id = $3 and device = $4 and octet_length((data || $5::jsonb)::text) <= ${MAX_RECORD_BYTES * 2}
+       ${access === "inbox" ? "and status = $6" : ""} returning *`,
     access === "inbox" ? [store.id, collection, id, device, JSON.stringify(data), statuses?.[0] ?? "new"] : [store.id, collection, id, device, JSON.stringify(data)],
   );
-  if (!rows[0]) throw new DataForbidden(access === "inbox" && (await own(store, collection, id, device)) ? STARTED : "You can only change your own items.");
+  if (!rows[0]) {
+    if (!(await own(store, collection, id, device))) throw new DataForbidden("You can only change your own items.");
+    const [{ big }] = await query<{ big: boolean }>("select octet_length((data || $2::jsonb)::text) > $3 as big from app_data_records where id = $1", [id, JSON.stringify(data), MAX_RECORD_BYTES * 2]);
+    throw big ? new DataInputError("That's too much to save in one item.") : new DataForbidden(STARTED);
+  }
   return toItem(rows[0], device, access);
 }
 
@@ -291,7 +309,9 @@ export async function ownerData(store: DataStore): Promise<{ name: string; hasSt
     // Fields: the rules' fields, then any others the app saved.
     const seen = new Set(r.fields);
     for (const row of rows) for (const k of Object.keys(row.data)) seen.add(k);
-    collections.push({ name, access: r.access, fields: [...seen].slice(0, 20), ...(r.statuses ? { statuses: r.statuses } : {}), count: Number(n), items: rows.map((row) => toItem(row, null, r.access)) });
+    // Statuses: the rules', plus any an item still has (e.g. from before the rules changed), so it can always be shown.
+    const statuses = r.statuses ? [...new Set([...r.statuses, ...rows.map((row) => row.status).filter(Boolean)])] : undefined;
+    collections.push({ name, access: r.access, fields: [...seen].slice(0, 20), ...(statuses ? { statuses } : {}), count: Number(n), items: rows.map((row) => toItem(row, null, r.access)) });
   }
   return { name: store.name, hasStaffPin: !!store.staffPin, collections };
 }
@@ -325,8 +345,7 @@ export async function ownerAction(store: DataStore, body: Record<string, unknown
         const name = singular(collection);
         void sendExpo([row.push_token], `${store.name || "Update"}`, `Your ${name} #${shortRef(row.id)} is now ${status}.`, { appmaker: "status", collection, id }).catch(() => undefined);
         // Finished: no more updates to send, so the phone's notification token isn't kept.
-        const finished = DONE_STATUS.test(status) || /^(cancel|declin|reject)/i.test(status) || status === r.statuses?.[r.statuses.length - 1];
-        if (finished) await query("update app_data_records set push_token = '' where id = $1", [row.id]);
+        if (isDone(status, r.statuses)) await query("update app_data_records set push_token = '' where id = $1", [row.id]);
       }
       return;
     }
