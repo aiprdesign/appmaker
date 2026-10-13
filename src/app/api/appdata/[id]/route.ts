@@ -1,6 +1,6 @@
 import { DataInputError } from "@/lib/app-data";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { DataForbidden, addItem, cancelItem, checkDevice, getStore, listItems, removeItem, setPushToken, updateItem } from "@/lib/server/app-data";
+import { DataForbidden, addItem, cancelItem, checkDevice, forgetDevice, getStore, listItems, removeItem, setPushToken, updateItem } from "@/lib/server/app-data";
 import { databaseConfigured } from "@/lib/server/db";
 import { feature } from "@/lib/server/features";
 
@@ -90,6 +90,8 @@ export async function DELETE(req: Request, ctx: Ctx) {
     if (!store) return json({ error: "This app's data isn't available." }, 404);
     if (!rateLimit(`data-edit:${store.id}:${clientIp(req)}`, 300, 60 * 60 * 1000).ok) return json({ error: "Too many changes. Please try again later." }, 429);
     const url = new URL(req.url);
+    // "Delete my data" in the app.
+    if (url.searchParams.get("all") === "1") return json({ ok: true, removed: await forgetDevice(store, checkDevice(req.headers.get("x-device"))) });
     await removeItem(store, url.searchParams.get("collection") ?? "", checkDevice(req.headers.get("x-device")), url.searchParams.get("id") ?? "");
     return json({ ok: true });
   } catch (e) {

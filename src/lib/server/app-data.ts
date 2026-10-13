@@ -1,5 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { DataInputError, cleanRecord, parseRules, type Access, type DataRules } from "../app-data";
+import { DataInputError, DONE_STATUS, cleanRecord, parseRules, type Access, type DataRules } from "../app-data";
 import { currentUser } from "./auth";
 import { query } from "./db";
 import { alertOwner, isExpoToken, sendExpo, shortRef } from "./app-alerts";
@@ -127,6 +127,53 @@ export function checkDevice(v: string | null): string {
   return v;
 }
 
+// ---------- keeping as little as possible ----------
+
+/** Finished orders and requests are deleted after this; any order or request after a year. */
+export const KEEP_DONE_DAYS = 90;
+export const KEEP_ANY_DAYS = 365;
+const lastPurge = new Map<string, number>();
+
+/** Deletes what the business no longer needs (at most every 10 minutes per app). */
+export async function purge(store: DataStore, force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - (lastPurge.get(store.id) ?? 0) < 10 * 60 * 1000) return;
+  lastPurge.set(store.id, now);
+  for (const [collection, r] of Object.entries(store.rules)) {
+    if (r.access !== "inbox") continue;
+    const done = (r.statuses ?? []).filter((x, i, all) => DONE_STATUS.test(x) || /^(cancel|declin|reject)/i.test(x) || i === all.length - 1);
+    await query(
+      `delete from app_data_records where store_id = $1 and collection = $2 and (
+         (status = any($3::text[]) and updated_at < now() - make_interval(days => $4))
+         or created_at < now() - make_interval(days => $5))`,
+      [store.id, collection, done, KEEP_DONE_DAYS, KEEP_ANY_DAYS],
+    );
+  }
+}
+
+/**
+ * "Delete my data": everything this phone added that isn't an order still in
+ * progress (those are kept until finished, so the business can complete them).
+ */
+export async function forgetDevice(store: DataStore, device: string): Promise<number> {
+  let removed = 0;
+  for (const [collection, r] of Object.entries(store.rules)) {
+    if (r.access === "public") continue;
+    if (r.access === "inbox") {
+      const waiting = r.statuses?.[0] ?? "new";
+      const done = (r.statuses ?? []).filter((x, i, all) => DONE_STATUS.test(x) || /^(cancel|declin|reject)/i.test(x) || i === all.length - 1);
+      // Waiting ones are cancelled and removed; in-progress ones stay until finished, without the notification token.
+      const rows = await query("delete from app_data_records where store_id = $1 and collection = $2 and device = $3 and (status = $4 or status = any($5::text[])) returning id", [store.id, collection, device, waiting, done]);
+      removed += rows.length;
+      await query("update app_data_records set push_token = '' where store_id = $1 and collection = $2 and device = $3", [store.id, collection, device]);
+    } else {
+      const rows = await query("delete from app_data_records where store_id = $1 and collection = $2 and device = $3 returning id", [store.id, collection, device]);
+      removed += rows.length;
+    }
+  }
+  return removed;
+}
+
 // ---------- the app's side ----------
 
 /** What one device may see of a collection. */
@@ -153,6 +200,7 @@ export async function addItem(store: DataStore, collection: string, device: stri
   const { access, statuses } = rule(store, collection);
   if (access === "public") throw new DataForbidden("Only the business can add to this.");
   const data = cleanRecord(fields);
+  await purge(store);
   const [{ n }] = await query<{ n: string }>("select count(*) as n from app_data_records where store_id = $1", [store.id]);
   if (Number(n) >= MAX_RECORDS) throw new DataInputError("This app's storage is full. Please contact the business.");
   const rows = await query<RecordRow>(
@@ -235,6 +283,7 @@ export interface OwnerCollection {
 }
 
 export async function ownerData(store: DataStore): Promise<{ name: string; hasStaffPin: boolean; collections: OwnerCollection[] }> {
+  await purge(store);
   const collections: OwnerCollection[] = [];
   for (const [name, r] of Object.entries(store.rules)) {
     const [{ n }] = await query<{ n: string }>("select count(*) as n from app_data_records where store_id = $1 and collection = $2", [store.id, name]);
@@ -275,6 +324,9 @@ export async function ownerAction(store: DataStore, body: Record<string, unknown
       if (row?.push_token) {
         const name = singular(collection);
         void sendExpo([row.push_token], `${store.name || "Update"}`, `Your ${name} #${shortRef(row.id)} is now ${status}.`, { appmaker: "status", collection, id }).catch(() => undefined);
+        // Finished: no more updates to send, so the phone's notification token isn't kept.
+        const finished = DONE_STATUS.test(status) || /^(cancel|declin|reject)/i.test(status) || status === r.statuses?.[r.statuses.length - 1];
+        if (finished) await query("update app_data_records set push_token = '' where id = $1", [row.id]);
       }
       return;
     }

@@ -499,6 +499,10 @@ export function DataOwnerPage({ id }: { id: string }) {
           }}
         />
       )}
+      <p className="px-1 text-xs leading-relaxed text-muted">
+        Your customers&apos; details are for handling their orders and requests only. Spreadsheets you download contain personal information: keep them private and delete them when you&apos;re done.
+        Finished orders and requests are deleted automatically after 90 days (any after a year), and customers can delete their own data in the app.
+      </p>
       <details className={`${box} group`}>
         <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 font-semibold">
           <Bell className="h-4 w-4" aria-hidden /> Alerts and staff PIN

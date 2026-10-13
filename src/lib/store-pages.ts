@@ -1,3 +1,4 @@
+import { appRules, fieldLabel } from "./app-data";
 import type { Project } from "./types";
 
 /**
@@ -21,6 +22,8 @@ export interface AppFacts {
   bookings?: boolean;
   /** Sends what people enter (orders, requests, reviews) to the app's database at Appmaker. */
   appData?: boolean;
+  /** From src/data-rules.json: the fields people send to the business, and what's shown to others. */
+  dataFields?: { sent: string[]; shared: string[]; personal: boolean };
   /** Web services the app loads content from. */
   services: string[];
 }
@@ -38,10 +41,24 @@ export interface StorePageContent {
 
 export class PageInputError extends Error {}
 
+const FIELD_WORDS = /^[a-z][a-z0-9 ]{0,40}$/;
+function cleanFields(v: Record<string, unknown>): NonNullable<AppFacts["dataFields"]> {
+  const list = (x: unknown) => (Array.isArray(x) ? x.filter((w): w is string => typeof w === "string" && FIELD_WORDS.test(w)).slice(0, 20) : []);
+  return { sent: list(v.sent), shared: list(v.shared), personal: v.personal === true };
+}
+
 const HOST = /^(?=.{3,120}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
 const EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 const uses = (code: string, pkg: string) => code.includes(`'${pkg}'`) || code.includes(`"${pkg}"`);
+
+/** The fields an app with app data collects, in plain words ("pickupTime" → "pickup time"). */
+function dataFieldsOf(files: Record<string, string>): AppFacts["dataFields"] | null {
+  const rules = appRules(files);
+  if (!rules) return null;
+  const words = (access: string) => [...new Set(Object.values(rules).filter((r) => r.access === access).flatMap((r) => r.fields.map((f) => fieldLabel(f).toLowerCase())))].slice(0, 20);
+  return { sent: words("inbox"), shared: words("shared"), personal: Object.values(rules).some((r) => r.access === "private") };
+}
 
 /** What the app's code does, for the privacy policy. */
 export function appFacts(files: Record<string, string>): AppFacts {
@@ -59,6 +76,7 @@ export function appFacts(files: Record<string, string>): AppFacts {
     opensLinks: /Linking\.openURL/.test(code),
     bookings: /\/api\/book\/[A-Za-z0-9_-]+/.test(code),
     appData: /\/api\/appdata\/[A-Za-z0-9_-]+/.test(code),
+    ...(dataFieldsOf(files) ? { dataFields: dataFieldsOf(files)! } : {}),
     services: [...services].sort().slice(0, 15),
   };
 }
@@ -102,6 +120,7 @@ export function parsePageContent(v: unknown): StorePageContent {
       opensLinks: f.opensLinks === true,
       bookings: f.bookings === true,
       appData: f.appData === true,
+      ...(f.dataFields && typeof f.dataFields === "object" ? { dataFields: cleanFields(f.dataFields as Record<string, unknown>) } : {}),
       services,
     },
   };
@@ -144,9 +163,19 @@ export function privacySections(c: StorePageContent): PageSection[] {
             ]
           : []),
         ...(f.appData
-          ? [
-              `When you send something in the app (for example an order, a request or a review), what you entered is sent to ${c.developer} and stored securely by Appmaker, the service that runs the app's data for ${c.developer}. Requests and orders are seen only by ${c.developer}; reviews and other posts are shown to other people using the app. The app identifies your phone with a random code (not your name or phone number) so you can see and change what you sent. ${c.developer} uses this information only to respond to you and run the app.`,
-            ]
+          ? (() => {
+              const d = f.dataFields;
+              const list = (x: string[]) => (x.length > 1 ? `${x.slice(0, -1).join(", ")} and ${x[x.length - 1]}` : x[0]);
+              return [
+                d?.sent.length
+                  ? `When you send an order or request in the app, it sends ${list(d.sent)} to ${c.developer}. Only ${c.developer} sees these, and uses them only to deal with your order or request and to contact you about it.`
+                  : `When you send something in the app (for example an order or a request), what you entered is sent to ${c.developer} and used only to deal with it.`,
+                ...(d?.shared.length ? [`If you post something for other people using the app to see, it shows your ${list(d.shared)}. You can delete your own posts at any time.`] : []),
+                ...(d?.personal ? ["Things you save for yourself in the app are kept only for you: neither other people using the app nor we can read them."] : []),
+                `This information is stored securely by Appmaker, the service that runs the app's data for ${c.developer}, and is not used for anything else. The app identifies your phone with a random code, not your name or phone number. We never ask for passwords, card numbers or ID numbers in the app, and we do not sell or share your information.`,
+                "Finished orders and requests are deleted automatically 90 days after they're completed, and any order or request after a year at most.",
+              ];
+            })()
           : []),
         f.bookings || f.appData
           ? "Apart from this, we do not collect personal information through the app. The app has no user accounts, advertising or analytics, and we do not sell or share personal information."
@@ -202,11 +231,16 @@ export function privacySections(c: StorePageContent): PageSection[] {
     },
     {
       heading: "Deleting your data",
-      paragraphs: [
-        f.onDevice
-          ? "You can delete everything the app has saved by deleting the app from your device. Because we do not hold your data, there is nothing else to delete on our side."
-          : "Because we do not hold your data, there is nothing to delete on our side.",
-      ],
+      paragraphs: f.appData
+        ? [
+            "In the app, open Settings and choose Delete my data: everything you sent or saved is deleted, except orders or requests we're still working on, which are deleted once they're finished. Deleting the app also removes what it saved on your device.",
+            `You can also ask ${c.developer} at ${c.email} to see, correct or delete the information we hold about you, and we will do so within 30 days.`,
+          ]
+        : [
+            f.onDevice
+              ? "You can delete everything the app has saved by deleting the app from your device. Because we do not hold your data, there is nothing else to delete on our side."
+              : "Because we do not hold your data, there is nothing to delete on our side.",
+          ],
     },
     {
       heading: "Changes to this policy",

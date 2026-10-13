@@ -9,6 +9,7 @@ import { SYSTEM_PROMPT } from "@/lib/prompt";
 import { closeDatabase, query } from "@/lib/server/db";
 import { clearFeatureCache, setFeature } from "@/lib/server/features";
 import { validateApp } from "@/lib/validate";
+import { appFacts, privacySections } from "@/lib/store-pages";
 import { POST as staffRoute } from "@/app/api/appdata/[id]/staff/route";
 import { STAFF_FILE, staffModule } from "@/lib/staff";
 import { THEME_FILE, defaultDesign, themeModule } from "@/lib/design";
@@ -57,6 +58,26 @@ describe("app data rules and module", () => {
     expect(staffModule(null)).toContain("Staff mode isn't available yet");
   });
 
+  it("collects as little as possible and refuses what must never be stored", () => {
+    expect(parseRules({ orders: { access: "inbox", fields: ["name", "password", "cardNumber", "cvv", "phone"] } }).orders.fields).toEqual(["name", "phone"]);
+    expect(() => cleanRecord({ note: "my card is 4242 4242 4242 4242" })).toThrow(/card numbers/);
+    expect(() => cleanRecord({ password: "hunter2" })).toThrow(/passwords/);
+    expect(cleanRecord({ phone: "+1 718 555 0142", items: "2 Margherita" })).toEqual({ phone: "+1 718 555 0142", items: "2 Margherita" });
+
+    // The privacy policy names the exact fields, who sees them, how long they're kept and how to delete them.
+    const files = { [RULES_FILE]: JSON.stringify(RULES), "src/appdata.js": "const API = \"https://x.example/api/appdata/abc12345\";" };
+    const facts = appFacts(files);
+    expect(facts.dataFields).toEqual({ sent: ["name", "phone", "items"], shared: ["name", "rating", "text"], personal: true });
+    const text = privacySections({ appName: "Luigi's", developer: "Luigi's Trattoria", email: "ciao@luigis.example", description: "", updated: "2026-10-13", facts })
+      .flatMap((x) => x.paragraphs)
+      .join("\n");
+    expect(text).toContain("it sends name, phone and items to Luigi's Trattoria. Only Luigi's Trattoria sees these");
+    expect(text).toContain("it shows your name, rating and text");
+    expect(text).toContain("deleted automatically 90 days after they're completed");
+    expect(text).toContain("choose Delete my data");
+    expect(text).toContain("ciao@luigis.example to see, correct or delete");
+  });
+
   it("keeps staff PINs hashed and only accepts real Expo push tokens", () => {
     const h = hashPin("246810");
     expect(h).not.toContain("246810");
@@ -70,7 +91,7 @@ describe("app data rules and module", () => {
 /** Runs src/appdata.js with a fake AsyncStorage (and fetch), as an app would. */
 function runModule(api: string | null, fetcher?: typeof fetch) {
   const store = new Map<string, string>();
-  const storage = { getItem: async (k: string) => store.get(k) ?? null, setItem: async (k: string, v: string) => void store.set(k, v) };
+  const storage = { getItem: async (k: string) => store.get(k) ?? null, setItem: async (k: string, v: string) => void store.set(k, v), removeItem: async (k: string) => void store.delete(k) };
   const code = dataModule(api, parseRules(RULES))
     .replace(/^import .*$/gm, "")
     .replace(/^export (async )?function (\w+)/gm, (_m, a: string | undefined, name: string) => `${a ?? ""}function ${name}`);
@@ -108,6 +129,9 @@ describe("the app's data module", () => {
     await m.remove("orders", order.id); // orders are cancelled, not deleted
     expect(await m.list("orders")).toEqual([expect.objectContaining({ id: order.id, status: "cancelled" })]);
     await expect(m.update("orders", order.id, { name: "B" })).rejects.toThrow(/already started/);
+    await m.forgetMe();
+    expect(await m.list("orders")).toEqual([]);
+    expect(((await m.list("menu")) as unknown[]).length).toBe(2); // the business's menu stays
   });
 
   it("talks to the database once it's on, with this phone's random id", async () => {
@@ -211,6 +235,16 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     await ownerPost(owner("POST", { action: "add", collection: "menu", data: { name: "Diavola", price: "14" } }), ctx(store.id));
     expect((await (await appGet(app("GET", undefined, BO, "?collection=menu"), ctx(store.id))).json()).items[0].name).toBe("Diavola");
     expect((await ownerGet(req(`/api/appdata/${store.id}/owner`, "GET", undefined, { "x-owner-key": "wrong" }), ctx(store.id))).status).toBe(404);
+
+    // "Delete my data": Bo's review and waiting order go; the business's menu stays.
+    const forgot = await (await appDelete(app("DELETE", undefined, BO, "?all=1"), ctx(store.id))).json();
+    expect(forgot.removed).toBe(2);
+    expect((await (await appGet(app("GET", undefined, ANA, "?collection=reviews"), ctx(store.id))).json()).items).toEqual([]);
+    // Finished orders older than 90 days are deleted automatically.
+    await query("update app_data_records set updated_at = now() - interval '91 days' where id = $1", [order.id]);
+    const { purge, getStore } = await import("@/lib/server/app-data");
+    await purge((await getStore(store.id))!, true);
+    expect((await (await appGet(app("GET", undefined, ANA, "?collection=orders"), ctx(store.id))).json()).items.map((o: { id: string }) => o.id)).not.toContain(order.id);
 
     // Saving the rules again keeps the data (seeds aren't added twice); turning off deletes it.
     await storeRoute(req("/api/appdata", "POST", { projectId: "proj789abc", name: "Luigi's", rules: RULES }, { cookie }));

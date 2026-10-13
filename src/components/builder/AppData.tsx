@@ -179,7 +179,9 @@ export function AppDataPanel({
                   </button>
                 </div>
               )}
-              <p className="text-xs text-muted">Send the owner link to the business: anyone with it can see and manage the app&apos;s data.</p>
+              <p className="text-xs text-muted">
+                Send the owner link to the business: anyone with it can see and manage the app&apos;s data. Customer details are kept only as long as needed (finished orders are deleted after 90 days), customers can delete their own data in the app, and the app&apos;s privacy policy lists exactly what&apos;s collected.
+              </p>
             </div>
           )}
         </>

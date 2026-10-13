@@ -84,7 +84,9 @@ export function parseRules(v: unknown): DataRules {
     if (!r || typeof r !== "object") throw new DataInputError(`The rule for "${name}" must be an object.`);
     const access = r.access as Access;
     if (!ACCESS.includes(access)) throw new DataInputError(`"${name}" needs an access of ${ACCESS.join(", ")}.`);
-    const fields = (Array.isArray(r.fields) ? r.fields : []).filter((f): f is string => typeof f === "string" && FIELD_NAME.test(f)).slice(0, 20);
+    const fields = (Array.isArray(r.fields) ? r.fields : [])
+      .filter((f): f is string => typeof f === "string" && FIELD_NAME.test(f) && !FORBIDDEN_FIELD.test(f) && !FORBIDDEN_LOOSE.test(f))
+      .slice(0, 20);
     const rule: CollectionRule = { access, fields };
     if (access === "inbox") {
       const st = (Array.isArray(r.statuses) ? r.statuses : []).filter((s): s is string => typeof s === "string" && s.length > 0 && s.length <= 24).slice(0, 8);
@@ -101,7 +103,27 @@ export function parseRules(v: unknown): DataRules {
   return out;
 }
 
-/** A record's fields: plain JSON values only, within the size limit. */
+/** Fields the app must never collect: payment cards, passwords and ID numbers belong with a payment provider or nowhere. */
+export const FORBIDDEN_FIELD = /^(password|passcode|pin|cvv|cvc|card(number|no)?|credit ?card|iban|ssn|social ?security|passport|national ?id|tax ?id|drivers? ?licen[cs]e)$/i;
+const FORBIDDEN_LOOSE = /password|cvv|cvc|creditcard|cardnumber|ssn|passport/i;
+
+/** A payment card number (13–19 digits passing the Luhn check), even with spaces or dashes. */
+export function looksLikeCard(v: string): boolean {
+  for (const m of v.matchAll(/(?:\d[ -]?){13,19}/g)) {
+    const digits = m[0].replace(/\D/g, "");
+    if (digits.length < 13 || digits.length > 19) continue;
+    let sum = 0;
+    for (let i = 0; i < digits.length; i++) {
+      let d = Number(digits[digits.length - 1 - i]);
+      if (i % 2) d = d * 2 > 9 ? d * 2 - 9 : d * 2;
+      sum += d;
+    }
+    if (sum % 10 === 0) return true;
+  }
+  return false;
+}
+
+/** A record's fields: plain JSON values only, within the size limit, and nothing that must not be stored. */
 export function cleanRecord(v: unknown): Record<string, unknown> {
   if (!v || typeof v !== "object" || Array.isArray(v)) throw new DataInputError("A record must be an object of fields.");
   const out: Record<string, unknown> = {};
@@ -111,6 +133,10 @@ export function cleanRecord(v: unknown): Record<string, unknown> {
     else if (Array.isArray(val) || typeof val === "object") out[k] = JSON.parse(JSON.stringify(val));
   }
   if (JSON.stringify(out).length > MAX_RECORD_BYTES) throw new DataInputError("That's too much to save in one item.");
+  for (const [k, val] of Object.entries(out)) {
+    if (FORBIDDEN_FIELD.test(k) || FORBIDDEN_LOOSE.test(k)) throw new DataInputError("For your safety, the app can't store passwords, card details or ID numbers.");
+    if (typeof val === "string" && looksLikeCard(val)) throw new DataInputError("For your safety, please don't send card numbers. Pay the business directly.");
+  }
   return out;
 }
 
@@ -299,6 +325,21 @@ export async function remove(collection, id) {
 }
 
 /**
+ * "Delete my data": removes what this person added (orders still in progress
+ * stay with the business until they're finished) and gives the phone a new
+ * random id, so nothing links back to it.
+ */
+export async function forgetMe() {
+  if (API) await call('DELETE', { all: 1 });
+  for (const collection of Object.keys(ACCESS)) {
+    if (ACCESS[collection] !== 'public') await AsyncStorage.removeItem('appdata:' + collection);
+  }
+  await AsyncStorage.removeItem('appdata:device');
+  devicePromise = null;
+  Object.keys(listeners).forEach(changed);
+}
+
+/**
  * How far an order or request has got, for customers:
  * { label: 'Being prepared', step: 1, steps: ['Received', 'Being prepared', 'Ready', 'Collected'], done, cancelled, canCancel }.
  */
@@ -367,6 +408,13 @@ export function useCollection(collection) {
 
 /** What the AI is told about app data. */
 export const DATA_PROMPT = `## App data (Appmaker's built-in database: no Supabase, Firebase or server to set up)
+Privacy first: collect only what the business needs to do the job, and nothing else.
+- Ask only for fields the order or request can't work without: usually a first name and a phone number (or email) to reach them, plus the details of what they want. No date of birth, gender, full address (unless it's a delivery), or "how did you hear about us" unless the request is about that.
+- Never collect passwords, payment card numbers, bank details, ID or passport numbers, or health details: Appmaker refuses them. Payment happens in person or through the business's own payment link.
+- Next to every form that sends data, one short line says what happens to it, e.g. "We use your name and phone only for this order." The app's privacy policy (made by Appmaker) lists the fields from src/data-rules.json, so keep its fields to what the form really asks.
+- Settings or More has a "Delete my data" row: confirm with Alert.alert, then \`await forgetMe()\` (from src/appdata.js) and say "Your data was deleted. Orders still being prepared stay with {business} until they're finished."
+- Finished orders and requests are deleted automatically after 90 days; say nothing that contradicts this.
+
 When the app needs data that's shared with the business or between customers (orders, requests, sign-ups, reviews, a menu or offers the business updates, a community board), use Appmaker app data. Data only one person needs can stay in AsyncStorage as usual.
 1. Describe the data in src/data-rules.json: each collection's name (camelCase, e.g. "orders"), its access and its fields, for example:
    {"menu": {"access": "public", "fields": ["name", "description", "price", "category"], "seed": [{"name": "Margherita", "description": "Tomato, mozzarella, basil", "price": "12", "category": "Pizza"}]},
