@@ -138,17 +138,18 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
                 <p className="flex items-center gap-1.5 font-medium text-foreground">
                   <CreditCard className="h-3.5 w-3.5" aria-hidden /> Card payments need your own payment account
                 </p>
-                <p className="mt-1">
-                  Appmaker never handles the money. Make a free payment link with your own account, so payments go straight to you, then put it in the app where it says [your payment link]:
-                </p>
-                <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                <p className="mt-1">Appmaker never handles the money. Make a free payment link, paste it in the app where it says [your payment link], and payments go straight to your bank.</p>
+                <ul className="mt-1.5 space-y-1">
                   {PAYMENT_PROVIDERS.map((p) => (
-                    <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-                      {p.name}
-                      <span className="sr-only"> (opens in a new tab)</span>
-                    </a>
+                    <li key={p.name}>
+                      <a href={p.url} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground underline">
+                        {p.name}
+                        <span className="sr-only"> (opens in a new tab)</span>
+                      </a>{" "}
+                      · {p.best}
+                    </li>
                   ))}
-                </p>
+                </ul>
               </div>
             )}
           </fieldset>
