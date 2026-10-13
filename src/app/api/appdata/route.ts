@@ -1,4 +1,5 @@
 import { DataInputError, parseRules } from "@/lib/app-data";
+import { requirePaidPlan } from "@/lib/server/credits";
 import { AuthError, assertSameOrigin } from "@/lib/server/auth";
 import { deleteStore, saveStore, storeFor, type DataStore } from "@/lib/server/app-data";
 import { checkProjectId } from "@/lib/server/cloud-projects";
@@ -30,6 +31,8 @@ export async function POST(req: Request) {
     const user = await requireUser(req);
     assertSameOrigin(req);
     await requireFeature("appData");
+    // Hosting customers' data costs money as apps grow: it's part of the paid plan (when payments are set up).
+    await requirePaidPlan(req, "appData");
     if (!rateLimit(`appdata-setup:${user.id}`, 120, 60 * 60 * 1000).ok) return Response.json({ error: "Too many changes. Try again later." }, { status: 429 });
     const body = await readBody(req);
     const projectId = checkProjectId(String(body.projectId ?? ""));

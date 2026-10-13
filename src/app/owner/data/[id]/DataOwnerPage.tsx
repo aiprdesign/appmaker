@@ -22,6 +22,7 @@ interface Collection {
 interface View {
   name: string;
   hasStaffPin: boolean;
+  usage?: { month: number; limit: number };
   vapidKey?: string | null;
   collections: Collection[];
 }
@@ -512,6 +513,12 @@ export function DataOwnerPage({ id }: { id: string }) {
             setDeleting(null);
           }}
         />
+      )}
+      {view.usage && (
+        <p className={`px-1 text-xs ${view.usage.month >= view.usage.limit * 0.8 ? "text-amber-200" : "text-muted"}`}>
+          This month: {view.usage.month.toLocaleString()} of {view.usage.limit.toLocaleString()} new orders, requests and posts
+          {view.usage.month >= view.usage.limit ? ". The limit is reached: customers can't send more until next month." : view.usage.month >= view.usage.limit * 0.8 ? ". Close to this month's limit." : "."}
+        </p>
       )}
       <p className="px-1 text-xs leading-relaxed text-muted">
         Your customers&apos; details are for handling their orders and requests only. Spreadsheets you download contain personal information: keep them private and delete them when you&apos;re done.

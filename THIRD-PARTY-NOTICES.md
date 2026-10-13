@@ -7,6 +7,7 @@ dependency tree (667 packages) found:
 |---|---|---|
 | MIT, ISC, BSD-2/3-Clause, Apache-2.0, 0BSD, BlueOak-1.0.0, Unlicense, Zlib | ~650 | Yes, keep the notices |
 | MPL-2.0: axe-core | 1 | Yes. Used unmodified (WCAG audits of website previews); its licence ships as `public/preview/axe-core-LICENSE.txt` |
+| MPL-2.0: web-push | 1 | Yes. Used unmodified, on the server only (owner alerts for app databases); its source and licence are in `node_modules/web-push` |
 | LGPL-3.0: libvips binaries inside `sharp` (Next.js image optimisation) | 2 | Yes, dynamically linked and unmodified |
 | CC-BY-4.0: caniuse-lite (browser data used at build time) | 1 | Yes, with attribution |
 | Dual licences, the permissive one applies: jszip (MIT), node-forge (BSD-3-Clause), type-fest (MIT) | 3 | Yes |

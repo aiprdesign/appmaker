@@ -8,6 +8,8 @@ import { useFeatures } from "@/lib/use-features";
 import { DATA_FILE, appRules, dataModule, type Access } from "@/lib/app-data";
 import { STAFF_FILE, staffModule } from "@/lib/staff";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PaidLock } from "@/components/PaidLock";
+import { locked, usePlan } from "@/lib/use-plan";
 import type { Project } from "@/lib/types";
 
 type AppData = NonNullable<Project["appData"]>;
@@ -45,6 +47,7 @@ export function AppDataPanel({
 }) {
   const cloud = useCloud();
   const features = useFeatures();
+  const plan = usePlan();
   const [ownerUrl, setOwnerUrl] = useState("");
   const [busy, setBusy] = useState<"on" | "off" | null>(null);
   const [error, setError] = useState("");
@@ -139,7 +142,9 @@ export function AppDataPanel({
             })}
           </ul>
           {!on ? (
-            signedIn ? (
+            signedIn && locked(plan) ? (
+              <PaidLock feature="App databases" />
+            ) : signedIn ? (
               <div className="space-y-2">
                 <p className="text-sm text-muted">Right now this data stays on each phone (so you can try the app). Turn the database on so it reaches you and every customer.</p>
                 <button

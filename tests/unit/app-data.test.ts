@@ -341,6 +341,39 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     }
   });
 
+  it("stops new items at the monthly limit, and shows the business its usage", async () => {
+    await setFeature("appData", true);
+    const cookie = await account("limit");
+    const { store } = await (await storeRoute(req("/api/appdata", "POST", { projectId: "proj791abc", rules: RULES }, { cookie }))).json();
+    process.env.APPMAKER_DATA_MONTHLY_LIMIT = "2";
+    try {
+      const send = (device: string) => appPost(req(`/api/appdata/${store.id}`, "POST", { collection: "reviews", data: { text: "hi" } }, { "x-device": device }), ctx(store.id));
+      expect((await send(ANA)).status).toBe(200);
+      expect((await send(BO)).status).toBe(200);
+      const third = await send(ANA);
+      expect(third.status).toBe(400);
+      expect((await third.json()).error).toMatch(/limit for this month/);
+      const key = store.ownerUrl.split("#k=")[1];
+      const view = await (await ownerGet(req(`/api/appdata/${store.id}/owner`, "GET", undefined, { "x-owner-key": key }), ctx(store.id))).json();
+      expect(view.usage).toEqual({ month: 2, limit: 2 });
+    } finally {
+      delete process.env.APPMAKER_DATA_MONTHLY_LIMIT;
+    }
+  });
+
+  it("is part of the paid plan when payments are on", async () => {
+    await setFeature("appData", true);
+    const cookie = await account("free");
+    process.env.STRIPE_SECRET_KEY = "sk_test_appmaker";
+    try {
+      const res = await storeRoute(req("/api/appdata", "POST", { projectId: "proj792abc", rules: RULES }, { cookie }));
+      expect(res.status).toBe(402);
+      expect((await res.json()).error).toMatch(/App databases are part of the paid plan/);
+    } finally {
+      delete process.env.STRIPE_SECRET_KEY;
+    }
+  });
+
   it("is off when the site owner turns it off, and needs an account to turn on", async () => {
     expect((await storeRoute(req("/api/appdata", "POST", { projectId: "proj789abc", rules: RULES }))).status).toBe(401);
     await setFeature("appData", false);

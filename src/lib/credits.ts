@@ -79,6 +79,7 @@ export type Plan = "guest" | "free" | "paid";
 export const PAID_FEATURES = {
   storeBuilds: "Store builds",
   bookings: "Bookings",
+  appData: "App databases",
   liveUpdates: "Live website updates",
   noBranding: "No “Made with Appmaker” line",
 } as const;

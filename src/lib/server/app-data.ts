@@ -3,6 +3,7 @@ import { COLLECTION_NAME, DataInputError, MAX_RECORD_BYTES, doneStatuses, isDone
 import { currentUser } from "./auth";
 import { query } from "./db";
 import { alertOwner, isExpoToken, sendExpo, shortRef } from "./app-alerts";
+import { isPaid, paymentsConfig } from "./credits";
 
 /** Appmaker app data on the server: one store per app, records by collection (see src/lib/app-data.ts). */
 
@@ -205,6 +206,23 @@ export function summary(store: DataStore, collection: string, data: Record<strin
 
 const singular = (name: string) => name.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/ies$/, "y").replace(/s$/, "").toLowerCase();
 
+/** New items customers can add to one app each month (orders, posts, saved items); APPMAKER_DATA_MONTHLY_LIMIT changes it. */
+export function monthlyLimit(): number {
+  const n = Number(process.env.APPMAKER_DATA_MONTHLY_LIMIT);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 10_000;
+}
+
+const paidCache = new Map<string, { paid: boolean; at: number }>();
+/** Whether the app's maker is on the paid plan (always true without payments); cached for 10 minutes. */
+async function ownerPaid(store: DataStore): Promise<boolean> {
+  if (!paymentsConfig().enabled) return true;
+  const hit = paidCache.get(store.userId);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.paid;
+  const paid = await isPaid(store.userId).catch(() => true);
+  paidCache.set(store.userId, { paid, at: Date.now() });
+  return paid;
+}
+
 export async function addItem(store: DataStore, collection: string, device: string, fields: unknown, pushToken?: string | null): Promise<DataItem> {
   const { access, statuses } = rule(store, collection);
   if (access === "public") throw new DataForbidden("Only the business can add to this.");
@@ -215,6 +233,12 @@ export async function addItem(store: DataStore, collection: string, device: stri
     [store.id, collection, device],
   );
   if (Number(n) >= MAX_RECORDS) throw new DataInputError("This app's storage is full. Please contact the business.");
+  if (!(await ownerPaid(store))) throw new DataForbidden("This app can't take new orders right now. Please contact the business.");
+  const [{ month }] = await query<{ month: string }>(
+    "select count(*) as month from app_data_records where store_id = $1 and device <> '' and created_at >= date_trunc('month', now())",
+    [store.id],
+  );
+  if (Number(month) >= monthlyLimit()) throw new DataInputError("This app has reached its limit for this month. Please contact the business directly.");
   if (Number(mine) >= MAX_PER_DEVICE[access]) throw new DataInputError("You've sent a lot from this phone. Please contact the business, or delete some first.");
   const rows = await query<RecordRow>(
     "insert into app_data_records (id, store_id, collection, device, data, status, push_token) values ($1, $2, $3, $4, $5, $6, $7) returning *",
@@ -300,7 +324,7 @@ export interface OwnerCollection {
   items: DataItem[];
 }
 
-export async function ownerData(store: DataStore): Promise<{ name: string; hasStaffPin: boolean; collections: OwnerCollection[] }> {
+export async function ownerData(store: DataStore): Promise<{ name: string; hasStaffPin: boolean; usage: { month: number; limit: number }; collections: OwnerCollection[] }> {
   await purge(store);
   const collections: OwnerCollection[] = [];
   // Two queries for the whole page, whatever the number of collections: the counts, and the newest items of each.
@@ -326,7 +350,11 @@ export async function ownerData(store: DataStore): Promise<{ name: string; hasSt
     const statuses = r.statuses ? [...new Set([...r.statuses, ...rows.map((row) => row.status).filter(Boolean)])] : undefined;
     collections.push({ name, access: r.access, fields: [...seen].slice(0, 20), ...(statuses ? { statuses } : {}), count: Number(n), items: rows.map((row) => toItem(row, null, r.access)) });
   }
-  return { name: store.name, hasStaffPin: !!store.staffPin, collections };
+  const [{ month }] = await query<{ month: string }>(
+    "select count(*) as month from app_data_records where store_id = $1 and device <> '' and created_at >= date_trunc('month', now())",
+    [store.id],
+  );
+  return { name: store.name, hasStaffPin: !!store.staffPin, usage: { month: Number(month), limit: monthlyLimit() }, collections };
 }
 
 /** The business adds, edits, deletes or sets the status of items (any collection but private). */
