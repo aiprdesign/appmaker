@@ -113,14 +113,21 @@ test("a logo that isn't an image is explained", async ({ page }) => {
   await expect(section.getByRole("alert")).toContainText("isn't an image");
 });
 
-test("business templates fill the prompt with blanks to complete", async ({ page }) => {
+test("business templates open a working app straight away, and the owner's details update it live", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /Restaurant or café/ }).click();
-  const box = page.getByLabel("Describe your app");
-  await expect(box).toHaveValue(/An app for my restaurant \[name\] in \[city\]/);
-  // The first blank is selected, so typing replaces it.
-  await expect.poll(() => box.evaluate((el: HTMLTextAreaElement) => el.value.slice(el.selectionStart, el.selectionEnd))).toBe("[name]");
-  await page.keyboard.type("Luigi's");
-  await expect(box).toHaveValue(/An app for my restaurant Luigi's in \[city\]/);
-  await expect(page.getByText(/Replace the \[bracketed\] parts/)).toBeVisible();
+  await page.getByRole("button", { name: /Pizza & takeaway/ }).click();
+  await expect(page).toHaveURL(/\/build\/.+details=1/);
+  const phone = page.frameLocator('iframe[title="App preview"]');
+  await expect(phone.getByText("Tony's Pizza").first()).toBeVisible({ timeout: 30_000 });
+  await page.getByLabel("Business name").fill("Luigi's");
+  await page.getByLabel("Name 1").fill("Quattro formaggi");
+  await expect(phone.getByText("Luigi's").first()).toBeVisible({ timeout: 15_000 });
+  await expect(phone.getByText("Quattro formaggi").first()).toBeVisible();
+  // A customer can order from the menu without anything else set up.
+  await phone.getByText("Menu", { exact: true }).last().click();
+  await phone.getByRole("button", { name: "Add Pepperoni" }).click();
+  await phone.getByLabel("Your first name").fill("Sam");
+  await phone.getByLabel("Phone").fill("555 1234");
+  await phone.getByRole("button", { name: "Send order" }).click();
+  await expect(phone.getByText(/^Sent/)).toBeVisible();
 });

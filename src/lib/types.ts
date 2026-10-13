@@ -261,6 +261,8 @@ export interface Project {
   booking?: { id: string; apiUrl: string };
   /** Android push notifications (see src/lib/android-push.ts): the app's google-services.json, and whether Expo has the key. */
   androidPush?: { googleServices: string; firebaseProject: string; keySetAt?: number };
+  /** A ready-made business app (see src/lib/ready-app.ts): its template and the details the owner filled in. */
+  ready?: { slug: string; info: import("./ready-app").ReadyInfo };
   /** Appmaker app data (see src/lib/app-data.ts): the app's database address, once the owner turned it on. */
   appData?: { id: string; apiUrl: string };
   /** Hosted support page and privacy policy (see src/lib/store-pages.ts). */

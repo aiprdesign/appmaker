@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Code2, Coins, Download, Loader2, MessageSquare, Moon, Palette, Sun, RotateCw, Rocket, ShieldCheck, Smartphone, Sparkles, Wand2 } from "lucide-react";
+import { AlertTriangle, Code2, Coins, Download, Loader2, MessageSquare, Moon, Palette, Store, Sun, RotateCw, Rocket, ShieldCheck, Smartphone, Sparkles, Wand2 } from "lucide-react";
 import { HistoryMenu } from "./HistoryMenu";
 import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
@@ -16,6 +16,8 @@ import { STAFF_FILE, staffModule } from "@/lib/staff";
 import { BRAND_FILE, brandModule } from "@/lib/branding";
 import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
+import { ReadyDetails } from "./ReadyDetails";
+import { READY_PRESETS, readyDesign, readyDetailFiles, type ReadyInfo } from "@/lib/ready-app";
 import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
 import { ConceptPicker, SiteColorsPanel } from "./ConceptPicker";
@@ -158,7 +160,7 @@ function statementInfo(p: Project, report: A11yReport | undefined = p.a11yReport
   };
 }
 
-export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
+export function Builder({ id, autoStart, openDetails = false }: { id: string; autoStart: boolean; openDetails?: boolean }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
   const cloud = useCloud();
   const [tab, setTab] = useState<Tab>("preview");
@@ -168,6 +170,8 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
   const [platform, setPlatform] = useState<"ios" | "android" | "ipad">("ios");
   const [generating, setGenerating] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
+  // "Your details" for a ready-made business app: open straight away when it was just picked.
+  const [detailsOpen, setDetailsOpen] = useState(openDetails);
   const [scheme, setScheme] = useState<"light" | "dark">("light");
   // Free apps show "Made with Appmaker" in their settings (only when the site takes payments).
   const plan = usePlan();
@@ -969,6 +973,25 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
     commit({ ...current, design, files, listing: { ...current.listing, primaryColor: design.primary } });
     setPreviewFiles(files);
   };
+  // The owner edited their details: only the business file, its data rules and (for a new color) the theme change.
+  const changeDetails = (info: ReadyInfo) => {
+    const current = projectRef.current ?? project;
+    const preset = current.ready && READY_PRESETS[current.ready.slug];
+    if (!preset) return;
+    const colorChanged = info.color !== current.ready!.info.color;
+    const design = colorChanged ? readyDesign(info, current.prompt, current.design) : current.design;
+    const files = { ...current.files, ...readyDetailFiles(preset, info, current.appData?.apiUrl ?? null), ...(colorChanged && design ? { [THEME_FILE]: themeModule(design) } : {}) };
+    const name = info.name.trim() || current.name;
+    commit({
+      ...current,
+      name,
+      ready: { ...current.ready!, info },
+      files,
+      ...(design ? { design } : {}),
+      listing: { ...current.listing, name: name.slice(0, 30), ...(colorChanged ? { primaryColor: info.color } : {}) },
+    });
+    setPreviewFiles(files);
+  };
   const shownFiles = generating && live ? { ...project.files, ...live.files } : project.files;
 
   const tabs: { key: Tab; label: string; icon: typeof Smartphone }[] = [
@@ -1281,9 +1304,26 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                     {scheme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
                   </button>
                 )}
+                {hasApp && project.ready && (
+                  <button
+                    onClick={() => {
+                      setDetailsOpen((o) => !o);
+                      setDesignOpen(false);
+                    }}
+                    aria-pressed={detailsOpen}
+                    className={`flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
+                      detailsOpen ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <Store className="h-3.5 w-3.5" /> Your details
+                  </button>
+                )}
                 {hasApp && (
                   <button
-                    onClick={() => setDesignOpen((o) => !o)}
+                    onClick={() => {
+                      setDesignOpen((o) => !o);
+                      setDetailsOpen(false);
+                    }}
                     aria-pressed={designOpen}
                     className={`flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
                       designOpen ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
@@ -1384,6 +1424,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   )}
                 </PhoneFrame>
                 </div>
+                {detailsOpen && !designOpen && hasApp && project.ready && (
+                  <div className="absolute inset-x-2 bottom-2 z-20 max-h-[60%] lg:static lg:inset-auto lg:z-auto lg:max-h-none lg:w-80 lg:shrink-0">
+                    <ReadyDetails slug={project.ready.slug} info={project.ready.info} onChange={changeDetails} onClose={() => setDetailsOpen(false)} />
+                  </div>
+                )}
                 {designOpen && hasApp && (
                   // Beside the phone on wide screens; a sheet over the lower half on phones.
                   <div className="absolute inset-x-2 bottom-2 z-20 max-h-[60%] lg:static lg:inset-auto lg:z-auto lg:max-h-none lg:w-80 lg:shrink-0">

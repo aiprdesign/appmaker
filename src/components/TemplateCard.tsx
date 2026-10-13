@@ -1,6 +1,8 @@
 import Image from "next/image";
 import { ArrowRight } from "lucide-react";
-import { templateImage, type Template } from "@/lib/templates";
+import { templateImage, templateSlug, type Template } from "@/lib/templates";
+import { hasReadyApp } from "@/lib/ready-app";
+import { ReadyTemplateButton } from "./ReadyTemplateButton";
 import { TemplateButton } from "./PromptBox";
 
 /** A phone-shaped frame around an app screenshot (390×844). */
@@ -29,11 +31,11 @@ export function PhoneShot({
 
 /** A template: its app's home screen, name and category; picking it fills in the prompt. */
 export function TemplateCard({ template: t }: { template: Template }) {
-  return (
-    <TemplateButton
-      prompt={t.prompt}
-      className="lift reveal group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface text-left"
-    >
+  // Business templates open as a ready-made, working app; the others fill in the prompt.
+  const ready = hasReadyApp(templateSlug(t));
+  const className = "lift reveal group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface text-left";
+  const inner = (
+    <>
       <div
         className="relative flex h-56 justify-center overflow-hidden px-3 pt-5 sm:h-64 md:h-72"
         style={{ background: `linear-gradient(160deg, ${t.color}66, ${t.color}14 70%)` }}
@@ -50,9 +52,18 @@ export function TemplateCard({ template: t }: { template: Template }) {
           <div className="text-xs text-muted">{t.category}</div>
         </div>
         <span className="hidden shrink-0 items-center gap-1 text-xs text-violet-300 opacity-80 transition group-hover:opacity-100 sm:inline-flex">
-          Use <ArrowRight className="h-3.5 w-3.5" />
+          {ready ? "Open app" : "Use"} <ArrowRight className="h-3.5 w-3.5" />
         </span>
       </div>
+    </>
+  );
+  return ready ? (
+    <ReadyTemplateButton template={t} className={className}>
+      {inner}
+    </ReadyTemplateButton>
+  ) : (
+    <TemplateButton prompt={t.prompt} className={className}>
+      {inner}
     </TemplateButton>
   );
 }

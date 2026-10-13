@@ -214,8 +214,8 @@ export default function Home() {
           <div className="flex flex-col items-center text-center">
             <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">An app for your business</h2>
             <p className="mt-3 max-w-2xl text-muted">
-              Pick your kind of business, fill in the [bracketed] details, and get an app with your menu or services, opening hours and one-tap call,
-              directions and booking. Or use URL to App above and Appmaker fills them in from your website.
+              Pick your kind of business and get a working app straight away: menu or services, orders and bookings that come to you,
+              opening hours and one-tap call and directions. Then swap in your own details. Or use URL to App above and Appmaker fills them in from your website.
             </p>
           </div>
           <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
