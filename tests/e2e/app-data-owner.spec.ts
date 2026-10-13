@@ -24,11 +24,12 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   await expect(page).not.toHaveURL(/#k=/); // the key leaves the address bar
   await expect(page.getByRole("tab", { name: /Orders/ })).toHaveAttribute("aria-selected", "true");
 
-  // A customer orders from the app: the open page notices within its refresh.
+  // A customer orders from the app: the open page hears it straight away.
+  await page.waitForTimeout(1500); // the page opens its live connection
   const device = "deviceE2EE2EE2EE2EE2EE2EE2E1234";
   await page.request.post(store.apiUrl, { data: { collection: "orders", data: { name: "Ana", items: "2 Margherita" } }, headers: { "x-device": device } });
-  await page.getByRole("button", { name: "Refresh" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "1 new since you last looked" })).toBeVisible();
+  // No Refresh: the live connection brings it (the backup check is 30 seconds away).
+  await expect(page.getByRole("status").filter({ hasText: "1 new since you last looked" })).toBeVisible({ timeout: 10_000 });
   await expect(page).toHaveTitle(/^\(1\) New · Luigi's: app data/);
 
   // Move it on: the customer sees the status.

@@ -14,6 +14,9 @@ import { POST as staffRoute } from "@/app/api/appdata/[id]/staff/route";
 import { STAFF_FILE, staffModule } from "@/lib/staff";
 import { THEME_FILE, defaultDesign, themeModule } from "@/lib/design";
 import { hashPin, isExpoToken, pinMatches } from "@/lib/server/app-alerts";
+import { GET as versionsRoute } from "@/app/api/appdata/[id]/versions/route";
+import { GET as liveRoute } from "@/app/api/appdata/[id]/live/route";
+import { cachedStore, startListening, version } from "@/lib/server/data-versions";
 import { vi } from "vitest";
 
 const RULES = {
@@ -359,6 +362,47 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     } finally {
       delete process.env.APPMAKER_DATA_MONTHLY_LIMIT;
     }
+  });
+
+  it("answers 'anything changed?' from memory, tells live owner pages at once, and hears other servers", async () => {
+    await setFeature("appData", true);
+    const cookie = await account("versions");
+    const { store } = await (await storeRoute(req("/api/appdata", "POST", { projectId: "proj793abc", rules: RULES }, { cookie }))).json();
+    const versions = async () => (await (await versionsRoute(req(`/api/appdata/${store.id}/versions`, "GET"), ctx(store.id))).json()).versions;
+    const before = await versions();
+    expect(Object.keys(before).sort()).toEqual(["menu", "notes", "orders", "reviews"]);
+
+    // The app's rules are kept in memory: checking again doesn't load them.
+    let loads = 0;
+    await cachedStore(store.id, async () => (loads++, null));
+    expect(loads).toBe(0);
+
+    // A live owner page hears about a new order as it happens.
+    const key = store.ownerUrl.split("#k=")[1];
+    const { ticket } = await (await ownerPost(req(`/api/appdata/${store.id}/owner`, "POST", { action: "live-ticket" }, { "x-owner-key": key }), ctx(store.id))).json();
+    expect((await liveRoute(req(`/api/appdata/${store.id}/live?t=wrong`, "GET"), ctx(store.id))).status).toBe(403);
+    const abort = new AbortController();
+    const liveRes = await liveRoute(new Request(`${ORIGIN}/api/appdata/${store.id}/live?t=${ticket}`, { signal: abort.signal }), ctx(store.id));
+    expect(liveRes.headers.get("content-type")).toBe("text/event-stream");
+    const reader = liveRes.body!.getReader();
+    const decoder = new TextDecoder();
+    let text = decoder.decode((await reader.read()).value);
+    expect(text).toContain(": connected");
+    await appPost(req(`/api/appdata/${store.id}`, "POST", { collection: "orders", data: { name: "Ana" } }, { "x-device": ANA }), ctx(store.id));
+    text = decoder.decode((await reader.read()).value);
+    expect(text).toBe('event: change\ndata: {"collection":"orders"}\n\n');
+    abort.abort();
+    await reader.cancel().catch(() => undefined);
+
+    // Only the collection that changed has a new version.
+    const after = await versions();
+    expect(after.orders).not.toBe(before.orders);
+    expect(after.menu).toBe(before.menu);
+
+    // Another server instance's change arrives through PostgreSQL NOTIFY.
+    await startListening();
+    await query("select pg_notify('appmaker_data', $1)", [`other:instance|${store.id}|menu`]);
+    await vi.waitFor(() => expect(version(store.id, "menu")).not.toBe(before.menu));
   });
 
   it("is part of the paid plan when payments are on", async () => {

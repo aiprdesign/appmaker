@@ -249,14 +249,14 @@ try {
   Notifications.getPermissionsAsync().then((p) => { pushOn = !!(p && p.granted); }).catch(() => {});
 } catch (e) {}
 
-async function call(method, params, body, extra) {
+async function call(method, params, body, extra, path) {
   const query = Object.keys(params).map((k) => k + '=' + encodeURIComponent(params[k])).join('&');
   // A slow or dropped connection gives up after 15 seconds instead of waiting forever.
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), 15000) : null;
   let res;
   try {
-    res = await fetch(API + (query ? '?' + query : ''), {
+    res = await fetch(API + (path || '') + (query ? '?' + query : ''), {
       method,
       headers: { 'content-type': 'application/json', 'x-device': await device(), ...(extra || {}) },
       body: body ? JSON.stringify(body) : undefined,
@@ -288,6 +288,40 @@ function check(collection) {
 // Light on the server: screens showing the same collection share one request, a
 // copy fresher than 5 seconds is reused, and unchanged data costs a tiny "not modified" reply.
 const memo = {};
+
+// "Has anything changed?" in one tiny request for all of the app's data (answered from the
+// server's memory). Screens fetch a collection only when its version moved.
+const known = {};
+let versionsCall = null;
+let versionsAt = 0;
+let versionsLast = null;
+async function versionsNow() {
+  if (versionsCall) return versionsCall;
+  if (versionsLast && Date.now() - versionsAt < 3000) return versionsLast;
+  versionsCall = (async () => {
+    try {
+      const data = await call('GET', {}, null, null, '/versions');
+      versionsLast = data.versions || null;
+      versionsAt = Date.now();
+      return versionsLast;
+    } catch (e) {
+      return null;
+    } finally {
+      versionsCall = null;
+    }
+  })();
+  return versionsCall;
+}
+
+/** Whether a collection changed since this phone last fetched it (true when it can't tell). */
+async function hasChanged(collection) {
+  const v = await versionsNow();
+  if (!v || v[collection] == null) return true;
+  if (known[collection] === v[collection]) return false;
+  known[collection] = v[collection];
+  return true;
+}
+
 export async function list(collection, fresh) {
   check(collection);
   if (!API) return readLocal(collection);
@@ -454,6 +488,7 @@ export function useCollection(collection) {
   itemsRef.current = items;
   useEffect(() => {
     alive.current = true;
+    if (API) hasChanged(collection).catch(() => {});
     refresh();
     let timer = null;
     let quiet = 0;
@@ -467,9 +502,14 @@ export function useCollection(collection) {
       timer = null;
       if (!API || AppState.currentState === 'background') return;
       timer = setTimeout(async () => {
-        await refresh();
-        const m = memo[collection];
-        quiet = m && m.changed ? 0 : quiet + 1;
+        // A tiny version check first; the collection itself only when it changed.
+        if (await hasChanged(collection)) {
+          await refresh();
+          const m = memo[collection];
+          quiet = m && m.changed ? 0 : quiet + 1;
+        } else {
+          quiet += 1;
+        }
         schedule();
       }, delay());
     };
@@ -481,9 +521,9 @@ export function useCollection(collection) {
     };
     (listeners[collection] = listeners[collection] || []).push(onChange);
     schedule();
-    const sub = AppState.addEventListener('change', (state) => {
+    const sub = AppState.addEventListener('change', async (state) => {
       if (state === 'active') {
-        refresh();
+        if (await hasChanged(collection)) refresh();
         schedule();
       } else if (timer) {
         clearTimeout(timer);

@@ -229,8 +229,15 @@ export async function databaseHealth(): Promise<{ configured: boolean; ok?: bool
   }
 }
 
+const closers = new Set<() => Promise<void>>();
+/** Other connections to close with the pool (e.g. the LISTEN connection for app data). */
+export function onClose(fn: () => Promise<void>): void {
+  closers.add(fn);
+}
+
 /** Tests only: close connections so the process can exit. */
 export async function closeDatabase(): Promise<void> {
+  for (const fn of closers) await fn();
   await pool?.end();
   pool = null;
   ready = null;

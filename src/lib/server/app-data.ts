@@ -4,6 +4,7 @@ import { currentUser } from "./auth";
 import { query } from "./db";
 import { alertOwner, isExpoToken, sendExpo, shortRef } from "./app-alerts";
 import { isPaid, paymentsConfig } from "./credits";
+import { bump } from "./data-versions";
 
 /** Appmaker app data on the server: one store per app, records by collection (see src/lib/app-data.ts). */
 
@@ -89,21 +90,26 @@ export async function saveStore(userId: string, projectId: string, name: string,
       ]);
     }
   }
+  bump(store.id, "*");
+  for (const c of Object.keys(rules)) bump(store.id, c);
   return store;
 }
 
 export async function deleteStore(userId: string, projectId: string): Promise<boolean> {
   const rows = await query<{ id: string }>("delete from app_data_stores where user_id = $1 and project_id = $2 returning id", [userId, projectId]);
+  for (const r of rows) bump(r.id, "*");
   return rows.length > 0;
 }
 
 export async function setStaffPin(id: string, hash: string): Promise<void> {
   await query("update app_data_stores set staff_pin = $2 where id = $1", [id, hash]);
+  bump(id, "*");
 }
 
 export async function resetDataOwnerKey(id: string): Promise<string> {
   const key = randomBytes(24).toString("base64url");
   await query("update app_data_stores set owner_key = $2 where id = $1", [id, key]);
+  bump(id, "*");
   return key;
 }
 
@@ -152,12 +158,13 @@ export async function purge(store: DataStore, force = false): Promise<void> {
   for (const [collection, r] of Object.entries(store.rules)) {
     if (r.access !== "inbox") continue;
     const done = doneStatuses(r.statuses);
-    await query(
+    const gone = await query(
       `delete from app_data_records where store_id = $1 and collection = $2 and (
          (status = any($3::text[]) and updated_at < now() - make_interval(days => $4))
-         or created_at < now() - make_interval(days => $5))`,
+         or created_at < now() - make_interval(days => $5)) returning id`,
       [store.id, collection, done, KEEP_DONE_DAYS, KEEP_ANY_DAYS],
     );
+    if (gone.length) bump(store.id, collection);
   }
 }
 
@@ -181,6 +188,7 @@ export async function forgetDevice(store: DataStore, device: string): Promise<nu
       removed += rows.length;
     }
   }
+  for (const c of Object.keys(store.rules)) bump(store.id, c);
   return removed;
 }
 
@@ -245,6 +253,7 @@ export async function addItem(store: DataStore, collection: string, device: stri
     [randomBytes(9).toString("base64url"), store.id, collection, device, JSON.stringify(data), access === "inbox" ? (statuses?.[0] ?? "new") : "", isExpoToken(pushToken) ? pushToken : ""],
   );
   const item = toItem(rows[0], device, access);
+  bump(store.id, collection);
   // The business hears about every new order, request or sign-up straight away.
   if (access === "inbox") {
     void alertOwner(store.id, `New ${singular(collection)} #${item.ref}`, summary(store, collection, data) || `${store.name || "Your app"}: open the owner page to see it.`, `/owner/data/${store.id}`).catch(() => undefined);
@@ -271,6 +280,7 @@ export async function updateItem(store: DataStore, collection: string, device: s
     const [{ big }] = await query<{ big: boolean }>("select octet_length((data || $2::jsonb)::text) > $3 as big from app_data_records where id = $1", [id, JSON.stringify(data), MAX_RECORD_BYTES * 2]);
     throw big ? new DataInputError("That's too much to save in one item.") : new DataForbidden(STARTED);
   }
+  bump(store.id, collection);
   return toItem(rows[0], device, access);
 }
 
@@ -289,6 +299,7 @@ export async function cancelItem(store: DataStore, collection: string, device: s
   );
   if (!rows[0]) throw new DataForbidden((await own(store, collection, id, device)) ? STARTED : "You can only cancel your own.");
   const item = toItem(rows[0], device, access);
+  bump(store.id, collection);
   void alertOwner(store.id, `Cancelled: ${singular(collection)} #${item.ref}`, summary(store, collection, rows[0].data), `/owner/data/${store.id}`).catch(() => undefined);
   return item;
 }
@@ -310,6 +321,7 @@ export async function removeItem(store: DataStore, collection: string, device: s
   void statuses;
   const rows = await query("delete from app_data_records where store_id = $1 and collection = $2 and id = $3 and device = $4 returning id", [store.id, collection, id, device]);
   if (!rows.length) throw new DataForbidden("You can only delete your own items.");
+  bump(store.id, collection);
 }
 
 // ---------- the owner's side ----------
@@ -372,9 +384,11 @@ export async function ownerAction(store: DataStore, body: Record<string, unknown
         JSON.stringify(cleanRecord(body.data)),
         r.access === "inbox" ? (r.statuses?.[0] ?? "new") : "",
       ]);
+      bump(store.id, collection);
       return;
     case "update":
       await query("update app_data_records set data = $4::jsonb, updated_at = now() where store_id = $1 and collection = $2 and id = $3", [store.id, collection, id, JSON.stringify(cleanRecord(body.data))]);
+      bump(store.id, collection);
       return;
     case "status": {
       const status = String(body.status ?? "");
@@ -382,6 +396,7 @@ export async function ownerAction(store: DataStore, body: Record<string, unknown
       const rows = await query<RecordRow>("update app_data_records set status = $4, updated_at = now() where store_id = $1 and collection = $2 and id = $3 returning *", [store.id, collection, id, status]);
       // The customer hears when their order or request moves on (if they allowed notifications).
       const row = rows[0];
+      bump(store.id, collection);
       if (row?.push_token) {
         const name = singular(collection);
         void sendExpo([row.push_token], `${store.name || "Update"}`, `Your ${name} #${shortRef(row.id)} is now ${status}.`, { appmaker: "status", collection, id }).catch(() => undefined);
@@ -392,6 +407,7 @@ export async function ownerAction(store: DataStore, body: Record<string, unknown
     }
     case "delete":
       await query("delete from app_data_records where store_id = $1 and collection = $2 and id = $3", [store.id, collection, id]);
+      bump(store.id, collection);
       return;
     default:
       throw new DataInputError("Unknown action.");

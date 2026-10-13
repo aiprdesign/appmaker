@@ -269,12 +269,26 @@ export default function StaffScreen({ onClose }) {
     let t = null;
     let quiet = 0;
     let alertsOn = false;
+    let lastVersions = '';
+    const versionsMoved = async () => {
+      try {
+        const res = await fetch(API + '/versions');
+        if (!res.ok) return true;
+        const v = JSON.stringify((await res.json()).versions || {});
+        const moved = v !== lastVersions;
+        lastVersions = v;
+        return moved;
+      } catch (e) {
+        return true;
+      }
+    };
     const delay = () => Math.min((alertsOn ? 120000 : 20000) * Math.pow(2, quiet), alertsOn ? 600000 : 120000);
     const schedule = () => {
       clearTimeout(t);
       if (AppState.currentState === 'background') return;
       t = setTimeout(async () => {
-        quiet = (await load()) ? 0 : quiet + 1;
+        // A tiny "anything changed?" first (answered from the server's memory); the orders only when it did.
+        quiet = (await versionsMoved()) && (await load()) ? 0 : quiet + 1;
         schedule();
       }, delay());
     };

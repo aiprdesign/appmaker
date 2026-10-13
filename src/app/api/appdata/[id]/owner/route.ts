@@ -4,6 +4,7 @@ import { DataForbidden, canManageData, getStore, ownerAction, ownerData, resetDa
 import { STAFF_PIN, addOwnerAlert, hashPin, isExpoToken, parseWebSubscription, removeOwnerAlert, vapidKeys } from "@/lib/server/app-alerts";
 import { currentUser } from "@/lib/server/auth";
 import { databaseConfigured } from "@/lib/server/db";
+import { liveTicket } from "@/lib/server/data-versions";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -49,6 +50,8 @@ export async function POST(req: Request, ctx: Ctx) {
       }
       return Response.json({ ok: true }, { headers: CORS });
     }
+    // A ticket for this page's live connection (it hears about changes the moment they happen).
+    if (body.action === "live-ticket") return Response.json({ ticket: liveTicket(store.id) }, { headers: CORS });
     if (body.action === "set-pin") {
       const pin = String(body.pin ?? "");
       if (pin && !STAFF_PIN.test(pin)) return Response.json({ error: "Use 6 to 8 digits for the staff PIN." }, { status: 400, headers: CORS });

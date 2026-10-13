@@ -177,7 +177,12 @@ export function DataOwnerPage({ id }: { id: string }) {
     // up to 2 minutes (15 with alerts). Nothing while the page is hidden.
     let t: ReturnType<typeof setTimeout> | undefined;
     let quiet = 0;
-    const delay = () => Math.min((alertsRef.current ? 300_000 : 30_000) * 2 ** quiet, alertsRef.current ? 900_000 : 120_000);
+    // Live: the server tells this page about every change the moment it happens; checks are then only
+    // a rare backup (every 15 minutes).
+    let liveOn = false;
+    let source: EventSource | null = null;
+    const delay = () =>
+      liveOn ? 900_000 : Math.min((alertsRef.current ? 300_000 : 30_000) * 2 ** quiet, alertsRef.current ? 900_000 : 120_000);
     const schedule = () => {
       clearTimeout(t);
       if (document.visibilityState !== "visible") return;
@@ -192,6 +197,32 @@ export function DataOwnerPage({ id }: { id: string }) {
       schedule();
     };
     const first = setTimeout(now, 0);
+    const goLive = async () => {
+      if (typeof EventSource === "undefined" || source) return;
+      try {
+        const res = await fetch(`/api/appdata/${id}/owner`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(key.current ? { "x-owner-key": key.current } : {}) },
+          body: JSON.stringify({ action: "live-ticket" }),
+        });
+        const { ticket } = await res.json();
+        if (!res.ok || !ticket) return;
+        source = new EventSource(`/api/appdata/${id}/live?t=${encodeURIComponent(ticket)}`);
+        source.addEventListener("open", () => {
+          liveOn = true;
+          schedule();
+        });
+        source.addEventListener("change", () => void now());
+        // Dropped: back to normal checks until the browser reconnects by itself.
+        source.addEventListener("error", () => {
+          liveOn = false;
+          schedule();
+        });
+      } catch {
+        // No live connection: the normal checks carry on.
+      }
+    };
+    const firstLive = setTimeout(() => void goLive(), 500);
     const onVisible = () => {
       clearTimeout(t);
       if (document.visibilityState === "visible") void now();
@@ -203,7 +234,9 @@ export function DataOwnerPage({ id }: { id: string }) {
     navigator.serviceWorker?.addEventListener("message", onMessage);
     return () => {
       clearTimeout(first);
+      clearTimeout(firstLive);
       clearTimeout(t);
+      source?.close();
       document.removeEventListener("visibilitychange", onVisible);
       navigator.serviceWorker?.removeEventListener("message", onMessage);
     };
