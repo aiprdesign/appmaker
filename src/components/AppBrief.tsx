@@ -136,9 +136,9 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
             {wantsAppPayment([{ q: q.q, choices: picks[i] ?? [] }]) && (
               <div role="note" className="mt-2 rounded-xl border border-line bg-background/50 p-3 text-xs text-muted">
                 <p className="flex items-center gap-1.5 font-medium text-foreground">
-                  <CreditCard className="h-3.5 w-3.5" aria-hidden /> Card payments need your own payment account
+                  <CreditCard className="h-3.5 w-3.5" aria-hidden /> Card payments: add them later, whenever you like
                 </p>
-                <p className="mt-1">Appmaker never handles the money. Make a free payment link, paste it in the app where it says [your payment link], and payments go straight to your bank.</p>
+                <p className="mt-1">Your app is built now with paying in person, so nothing stops you. Later, make a free payment link with your own account and ask Appmaker in chat to add it: a Pay button appears and money goes straight to your bank.</p>
                 <ul className="mt-1.5 space-y-1">
                   {PAYMENT_PROVIDERS.map((p) => (
                     <li key={p.name}>

@@ -49,7 +49,8 @@ describe("wantsAppPayment", () => {
   });
   it("asks the AI for a payment link, never card fields", () => {
     const p = briefPrompt("A pizza app", { features: [], picks: [{ q: "How do customers pay?", choices: ["Both options"] }] });
-    expect(p).toContain("[your payment link]");
-    expect(p).toContain("never asks for card numbers");
+    expect(p).toContain("PAYMENT_LINK");
+    expect(p).not.toContain("[your payment link]");
+    expect(p).toContain("never ask for card numbers");
   });
 });

@@ -145,7 +145,7 @@ export function briefPrompt(prompt: string, a: BriefAnswers): string {
     ...(a.picks ?? []).filter((p) => p.choices.length).map((p) => `${p.q.replace(/\?$/, "")}: ${p.choices.join(", ")}.`),
     ...(wantsAppPayment(a.picks)
       ? [
-          "Paying in the app: a Pay button opens the business's own payment link (Stripe or Square; a second PayPal button only if the owner asks) in the browser; write it as [your payment link] for the owner to fill in. The app never asks for card numbers. Paying in person stays possible.",
+          "Paying in the app, added later: the app works fully now with paying in person. Put const PAYMENT_LINK = \"\" at the top of App.js (comment: the business's own Stripe or Square payment link, added later). Show a Pay button only when PAYMENT_LINK isn't empty; it opens the link in the browser. Never show a broken or placeholder Pay button, and never ask for card numbers.",
         ]
       : []),
     ...(style ? [`Look and feel: ${style.text}.`] : []),
