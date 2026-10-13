@@ -231,6 +231,8 @@ Respond with exactly these tagged sections, in this order, and nothing outside t
 
 Listing rules: name ≤ 30 characters, subtitle ≤ 30 characters, description 3 short paragraphs of App Store copy, keywords a comma-separated list ≤ 100 characters, category one of the App Store primary categories, bundleId a reverse-DNS identifier in lowercase, privacyNotes a sentence on what data is collected (usually "Data is stored on-device only").
 
+For a new app, write the files in this order so the person can see it while you write: App.js, then the files every screen needs (src/theme.js, data, shared components), then the first screen people see, then the other screens.
+
 When editing an existing app, only emit files that change, keep everything else intact, and keep the listing consistent unless the user asks to change it.`;
 
 /** Stops website text from closing or forging the tags that fence it in. */

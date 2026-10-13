@@ -37,7 +37,7 @@ import { polishPrompt, toJpeg } from "@/lib/polish";
 import { Orb } from "@/components/fx/Orb";
 import { PhoneBuilding, PhoneEditing } from "./PhoneProgress";
 import { fixable, reviewFixRequest, reviewMessage, type Review, type ReviewAgent } from "@/lib/review";
-import { takeSignals, withoutOpenThought, type LiveGeneration } from "@/lib/progress";
+import { earlyPreview, takeSignals, withoutOpenThought, type LiveGeneration } from "@/lib/progress";
 import { captureFrame } from "@/lib/store-shots";
 import { TapTest, type TapTestResult } from "./TapTest";
 import { downloadBlob, exportProjectZip, slugify } from "@/lib/export";
@@ -374,6 +374,11 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
         let lastParse = 0;
         let thinking = false;
         let thoughts = "";
+        // A new app or website shows on the phone as soon as its finished files can run, before the rest is written.
+        // (An edit keeps showing the current app until it's done, so half-changed files never mix.)
+        const kind = current.kind === "website" ? "website" : "app";
+        const fresh = !(kind === "website" ? hasSiteEntry(current.files) : hasEntry(current.files));
+        let shownEarly = "";
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -390,6 +395,14 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
             const parsed = parseGeneration(withoutOpenThought(raw));
             setLive({ ...parsed, thinking, thoughts, lastActivity: Date.now() });
             if (parsed.writing) setSelectedFile(parsed.writing);
+            if (fresh) {
+              const early = earlyPreview(current.files, parsed, kind);
+              const key = early ? Object.keys(early).sort().join("|") : "";
+              if (early && key !== shownEarly) {
+                shownEarly = key;
+                setPreviewFiles(early);
+              }
+            }
           }
         }
         raw = withoutOpenThought(raw);
@@ -1208,7 +1221,7 @@ export function Builder({ id, autoStart }: { id: string; autoStart: boolean }) {
                   assets={project.siteAssets}
                   onEdit={generating || checking ? undefined : editText}
                   report={project.a11yReport}
-                  onReport={(report) => {
+                  onReport={generating ? undefined : (report) => {
                     const p = projectRef.current ?? project;
                     // The statement says what this check found.
                     const files = withStatement(p.files, statementInfo(p, report));

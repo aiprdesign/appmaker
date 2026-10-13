@@ -248,3 +248,84 @@ export function buildingParts(
   const imagesFromSite = images.length === 0 && siteImages.length > 0;
   return { images: (imagesFromSite ? siteImages : images).slice(0, 8), imagesFromSite, icons: icons.slice(0, 16), colors, events: events.slice(-4) };
 }
+
+const LOCAL_IMPORT = /(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s+)["'](\.{1,2}\/[^"']+)["']/g;
+/** `import Home, { Menu as M } from "./src/screens/Home"`: the default name and the named ones. */
+const IMPORT_NAMES = /import\s+([\w$]+)?\s*,?\s*(?:\{([^}]*)\})?\s*from\s*["']([^"']+)["']/g;
+
+/** A screen that isn't written yet, shown in its place until it is. */
+const pendingScreen = (names: string[]) => `import React from "react";
+import { ActivityIndicator, Text, View } from "react-native";
+function StillWriting() {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <ActivityIndicator />
+      <Text style={{ marginTop: 12, color: "#6B7280", textAlign: "center" }}>This screen is still being written…</Text>
+    </View>
+  );
+}
+export default StillWriting;
+${names.map((n) => `export const ${n} = StillWriting;`).join("\n")}
+`;
+
+/** Where a relative import points, as a path without extension. */
+function importPath(from: string, spec: string): string {
+  const parts = from.split("/").slice(0, -1);
+  for (const seg of spec.split("/")) {
+    if (seg === "..") parts.pop();
+    else if (seg !== ".") parts.push(seg);
+  }
+  return parts.join("/");
+}
+
+/** The file a relative import points at, or null when it isn't there (yet). */
+function resolveImport(from: string, spec: string, files: Record<string, string>): string | null {
+  const path = importPath(from, spec);
+  return ["", ".js", ".jsx", ".json", "/index.js", "/index.jsx"].map((ext) => path + ext).find((p) => files[p] != null) ?? null;
+}
+
+/**
+ * The app or website so far, once it can be shown: the files the AI has
+ * finished (not the one it's writing), when the entry file is there and every
+ * file it imports is finished too. Screens not written yet show "still being
+ * written" in their place; anything else missing (theme, data, components)
+ * means it can't run yet: null.
+ */
+export function earlyPreview(base: Record<string, string>, live: LiveGeneration | null, kind: "app" | "website"): Record<string, string> | null {
+  if (!live) return null;
+  const done = Object.fromEntries(Object.entries(live.files).filter(([p]) => p !== live.writing));
+  const files = { ...base, ...done };
+  if (kind === "website") return done["index.html"] != null ? files : null;
+  const entry = files["App.js"] != null ? "App.js" : files["App.jsx"] != null ? "App.jsx" : null;
+  if (!entry || (done["App.js"] == null && done["App.jsx"] == null)) return null;
+  // Everything reachable from the entry must be finished.
+  const seen = new Set<string>();
+  const queue = [entry];
+  while (queue.length) {
+    const path = queue.pop()!;
+    if (seen.has(path)) continue;
+    seen.add(path);
+    if (!/\.jsx?$/.test(path)) continue;
+    for (const m of files[path].matchAll(LOCAL_IMPORT)) {
+      const hit = resolveImport(path, m[1], files);
+      if (hit) {
+        queue.push(hit);
+        continue;
+      }
+      const target = importPath(path, m[1]);
+      const screen = /(^|\/)screens\//.test(target) || /Screen$/.test(target);
+      if (!screen) return null;
+      const names = new Set<string>();
+      for (const imp of files[path].matchAll(IMPORT_NAMES)) {
+        if (imp[3] !== m[1] || !imp[2]) continue;
+        for (const n of imp[2].split(",")) {
+          const name = n.trim().split(/\s+as\s+/)[0].trim();
+          if (/^[A-Za-z_$][\w$]*$/.test(name) && name !== "default") names.add(name);
+        }
+      }
+      files[`${target}.js`] = pendingScreen([...names]);
+      seen.add(`${target}.js`);
+    }
+  }
+  return files;
+}

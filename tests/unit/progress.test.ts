@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildingParts, buildProgress, colorName, friendlyFile, kebabIcon, latestThoughts, progressNote, takeSignals, thoughtSignal, withoutOpenThought, type LiveGeneration } from "@/lib/progress";
+import { buildingParts, buildProgress, colorName, earlyPreview, friendlyFile, kebabIcon, latestThoughts, progressNote, takeSignals, thoughtSignal, withoutOpenThought, type LiveGeneration } from "@/lib/progress";
 import { autoDesign, PALETTES } from "@/lib/design";
 
 describe("build progress", () => {
@@ -115,5 +115,24 @@ const notAPhoto = 'https://example.com/menu';`;
     expect(kebabIcon("Building2")).toBe("building-2");
     expect(kebabIcon("Grid2x2")).toBe("grid-2x2");
     expect(kebabIcon("House")).toBe("house");
+  });
+});
+
+describe("early preview", () => {
+  const app = 'import Home from "./src/screens/HomeScreen";\nimport { Menu } from "./src/screens/MenuScreen";\nimport { colors } from "./src/theme";\nexport default function App() { return null; }';
+  const live = (files: Record<string, string>, writing?: string) => ({ plan: "", files, deleted: [], listing: null, summary: "", writing }) as unknown as LiveGeneration;
+  it("waits for the entry file and shared files the app needs", () => {
+    expect(earlyPreview({}, live({ "App.js": app }, "App.js"), "app")).toBeNull();
+    expect(earlyPreview({}, live({ "App.js": app }), "app")).toBeNull(); // theme not written yet
+  });
+  it("shows the app with screens still being written as placeholders", () => {
+    const files = earlyPreview({}, live({ "App.js": app, "src/theme.js": "export const colors = {};", "src/screens/HomeScreen.js": "export default () => null;" }, "src/screens/MenuScreen.js"), "app")!;
+    expect(files["src/screens/HomeScreen.js"]).toBe("export default () => null;");
+    expect(files["src/screens/MenuScreen.js"]).toContain("still being written");
+    expect(files["src/screens/MenuScreen.js"]).toContain("export const Menu = StillWriting;");
+  });
+  it("shows a website once its home page is finished", () => {
+    expect(earlyPreview({}, live({ "index.html": "<h1>" }, "index.html"), "website")).toBeNull();
+    expect(earlyPreview({}, live({ "index.html": "<h1>Hi</h1>", "about.html": "<p" }, "about.html"), "website")).toEqual({ "index.html": "<h1>Hi</h1>" });
   });
 });
