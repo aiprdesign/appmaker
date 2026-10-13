@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowRight, Check, CreditCard, Loader2 } from "lucide-react";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
-import { AUDIENCES, BRIEF_SKIP_KEY, needsBrief, STYLES, suggestFeatures, type AiBrief, type BriefAnswers } from "@/lib/brief";
+import { AUDIENCES, BRIEF_SKIP_KEY, needsBrief, PAYMENT_PROVIDERS, STYLES, suggestFeatures, wantsAppPayment, type AiBrief, type BriefAnswers } from "@/lib/brief";
 
 /** How long to wait for the AI's questions before using Appmaker's own. */
 const ASK_TIMEOUT_MS = 20_000;
@@ -133,6 +133,24 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
                 );
               })}
             </div>
+            {wantsAppPayment([{ q: q.q, choices: picks[i] ?? [] }]) && (
+              <div role="note" className="mt-2 rounded-xl border border-line bg-background/50 p-3 text-xs text-muted">
+                <p className="flex items-center gap-1.5 font-medium text-foreground">
+                  <CreditCard className="h-3.5 w-3.5" aria-hidden /> Card payments need your own payment account
+                </p>
+                <p className="mt-1">
+                  Appmaker never handles the money. Make a free payment link with your own account, so payments go straight to you, then put it in the app where it says [your payment link]:
+                </p>
+                <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                  {PAYMENT_PROVIDERS.map((p) => (
+                    <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                      {p.name}
+                      <span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                  ))}
+                </p>
+              </div>
+            )}
           </fieldset>
         ))}
       {phase === "ai" && (

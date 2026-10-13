@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { briefPrompt, needsBrief, parseAiBrief, suggestFeatures } from "@/lib/brief";
+import { briefPrompt, needsBrief, parseAiBrief, suggestFeatures, wantsAppPayment } from "@/lib/brief";
 
 describe("app brief", () => {
   it("asks only about short, vague ideas", () => {
@@ -37,5 +37,19 @@ describe("the AI's own questions", () => {
   it("adds the answers to the prompt", () => {
     const prompt = briefPrompt("a salon app", { features: [], picks: [{ q: "Which features?", choices: ["Pick a stylist", "Reminders"] }, { q: "Skipped?", choices: [] }] });
     expect(prompt).toBe("a salon app\n\nWhich features: Pick a stylist, Reminders.");
+  });
+});
+
+describe("wantsAppPayment", () => {
+  it("spots paying in the app, not paying in person", () => {
+    expect(wantsAppPayment([{ q: "How do customers pay?", choices: ["Pay in the app by card"] }])).toBe(true);
+    expect(wantsAppPayment([{ q: "How do customers pay?", choices: ["Both options"] }])).toBe(true);
+    expect(wantsAppPayment([{ q: "How do customers pay?", choices: ["Cash on collection"] }])).toBe(false);
+    expect(wantsAppPayment([{ q: "Which menu sections?", choices: ["Both options"] }])).toBe(false);
+  });
+  it("asks the AI for a payment link, never card fields", () => {
+    const p = briefPrompt("A pizza app", { features: [], picks: [{ q: "How do customers pay?", choices: ["Both options"] }] });
+    expect(p).toContain("[your payment link]");
+    expect(p).toContain("never asks for card numbers");
   });
 });

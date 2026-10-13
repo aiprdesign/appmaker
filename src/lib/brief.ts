@@ -143,8 +143,33 @@ export function briefPrompt(prompt: string, a: BriefAnswers): string {
         : []),
     ...(features.length ? [`Must-have features: ${features.join("; ")}.`] : []),
     ...(a.picks ?? []).filter((p) => p.choices.length).map((p) => `${p.q.replace(/\?$/, "")}: ${p.choices.join(", ")}.`),
+    ...(wantsAppPayment(a.picks)
+      ? [
+          "Paying in the app: a Pay button opens the business's own payment link (Stripe, PayPal or Square) in the browser; write it as [your payment link] for the owner to fill in. The app never asks for card numbers. Paying in person stays possible.",
+        ]
+      : []),
     ...(style ? [`Look and feel: ${style.text}.`] : []),
   ]
     .join("\n")
     .trim();
 }
+
+/**
+ * True when a payment question was answered with paying in the app (card,
+ * online, PayPal, "both"...). Appmaker never takes the money itself, so the
+ * owner needs their own payment account and link.
+ */
+export function wantsAppPayment(picks: { q: string; choices: string[] }[] | undefined): boolean {
+  return (picks ?? []).some(
+    (p) =>
+      /pay|checkout|card/i.test(p.q) &&
+      p.choices.some((c) => /card|online|in[- ]app|in the app|both|all of|paypal|stripe|square|apple pay|google pay|link/i.test(c) && !/^(cash|no|none|not now)\b/i.test(c)),
+  );
+}
+
+/** Where owners get a payment link: their own account, so the money goes straight to them. */
+export const PAYMENT_PROVIDERS = [
+  { name: "Stripe Payment Links", url: "https://stripe.com/payments/payment-links" },
+  { name: "PayPal", url: "https://www.paypal.com/business" },
+  { name: "Square", url: "https://squareup.com/us/en/online-checkout" },
+] as const;
