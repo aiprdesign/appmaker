@@ -155,7 +155,103 @@ export const BUSINESS_TEMPLATES: Template[] = [
     color: "#EA580C",
     category: "Business",
     prompt:
-      "An app for my [plumbing / cleaning / electrical] business [name]. Services with starting prices, quote requests that come straight to me (I set them to quoted, booked or done, and the customer sees the status), service areas, reviews, opening hours [hours], and one-tap Call [phone] and WhatsApp.",
+      "An app for my [plumbing / electrical / roofing] business [name]. Services with starting prices, quote requests that come straight to me (I set them to quoted, booked or done, and the customer sees the status), service areas, reviews, opening hours [hours], and one-tap Call [phone] and WhatsApp.",
+  },
+  {
+    title: "Car repair / auto shop",
+    emoji: "🔧",
+    color: "#2563EB",
+    category: "Business",
+    prompt:
+      "An app for my car repair shop [name]. Services with starting prices (oil change, brakes, tyres, inspection, diagnostics), service requests that come straight to me with the car's make, model and registration and a preferred day (I set them to received, inspecting, waiting for parts, ready to collect, and the customer sees the status and gets a notification when the car is ready), a service reminder the customer sets for their next oil change or inspection, opening hours with an Open now badge [hours], reviews, and one-tap Call [phone], WhatsApp and Directions to [address].",
+  },
+  {
+    title: "Bakery",
+    emoji: "🥐",
+    color: "#B45309",
+    category: "Food & Drink",
+    prompt:
+      "An app for my bakery [name]. Today's bakes and specials that I can update myself, a menu of breads, pastries and cakes with prices and allergen information, pre-orders for pickup (custom cakes too, with the date, size and message on the cake) that come straight to me and that I mark accepted, baking or ready, a loyalty card (every 10th coffee free, staff PIN), opening hours with an Open now badge [hours], and one-tap Call [phone] and Directions to [address].",
+  },
+  {
+    title: "Cleaning service",
+    emoji: "🧽",
+    color: "#0891B2",
+    category: "Business",
+    prompt:
+      "An app for my cleaning business [name]. Services with starting prices (regular home cleaning, deep cleaning, end of tenancy, office cleaning), booking requests with the home size, the preferred day and how often, that come straight to me (I set them to quoted, booked, done, and the customer sees the status), the areas we cover, what's included in each clean, reviews, and one-tap Call [phone] and WhatsApp.",
+  },
+  {
+    title: "Pizza & takeaway",
+    emoji: "🍕",
+    color: "#DC2626",
+    category: "Food & Drink",
+    prompt:
+      "An app for my pizza and takeaway shop [name]. The full menu with sizes, extra toppings and prices that I can update myself, ordering for pickup or delivery in our area (orders come straight to me and I mark them preparing, out for delivery or ready, and the customer sees the status and gets a notification), today's deals, a loyalty card (every 10th pizza free, staff PIN), opening hours with an Open now badge [hours], and one-tap Call [phone] and Directions to [address].",
+  },
+  {
+    title: "Coffee shop",
+    emoji: "☕",
+    color: "#7C4A2D",
+    category: "Food & Drink",
+    prompt:
+      "An app for my coffee shop [name]. Drinks and food with prices and milk options that I can update myself, order ahead for pickup (orders come straight to me and I mark them making or ready, with a notification for the customer), a stamp card (every 9th coffee free, staff PIN), today's specials, opening hours with an Open now badge [hours], and one-tap Directions to [address].",
+  },
+  {
+    title: "Hotel or B&B",
+    emoji: "🏨",
+    color: "#0F766E",
+    category: "Travel",
+    prompt:
+      "An app for my hotel [name]. Rooms with photos, what's included and prices from, booking requests with dates, guests and room type that come straight to me (I set them to confirmed or declined, and the guest sees the status), a guest guide (Wi-Fi, breakfast times, check-in and check-out, house rules), local tips and things to do nearby, and one-tap Call [phone], WhatsApp, Email [email] and Directions to [address].",
+  },
+  {
+    title: "Pet grooming & vet",
+    emoji: "🐾",
+    color: "#7C3AED",
+    category: "Business",
+    prompt:
+      "An app for my pet care business [name]. Services with prices by pet size (grooming, nail trim, check-ups, vaccinations), appointment requests with the pet's name, type and age and a preferred day that come straight to me (I set them to booked, in progress or ready for pickup, and the owner gets a notification), reminders the owner sets for vaccinations and grooming, opening hours [hours], reviews, and one-tap Call [phone] and Directions to [address].",
+  },
+  {
+    title: "Florist",
+    emoji: "💐",
+    color: "#DB2777",
+    category: "Shopping",
+    prompt:
+      "An app for my flower shop [name]. Bouquets and arrangements with photos and prices that I can update myself, orders for pickup or local delivery with a date and a card message that come straight to me (I mark them accepted, preparing or ready), occasions (birthday, sympathy, wedding), care tips, opening hours with an Open now badge [hours], and one-tap Call [phone] and Directions to [address].",
+  },
+  {
+    title: "Driving school",
+    emoji: "🚗",
+    color: "#1D4ED8",
+    category: "Education",
+    prompt:
+      "An app for my driving school [name]. Lesson packages with prices, instructors, lesson requests with a preferred day and pickup area that come straight to me (I set them to booked or done), a theory test practice quiz with road signs, tips for the practical test, reviews from students who passed, and one-tap Call [phone] and WhatsApp.",
+  },
+  {
+    title: "Tutoring & lessons",
+    emoji: "📚",
+    color: "#4F46E5",
+    category: "Education",
+    prompt:
+      "An app for my tutoring business [name]. Subjects and levels with prices per lesson, tutors, trial lesson requests with the student's level and goals that come straight to me (I set them to booked or done), homework and progress notes the student keeps, reminders for upcoming lessons, and one-tap Call [phone], WhatsApp and Email [email].",
+  },
+  {
+    title: "Laundry & dry cleaning",
+    emoji: "🧺",
+    color: "#0284C7",
+    category: "Business",
+    prompt:
+      "An app for my laundry and dry cleaning shop [name]. Services with prices (wash and fold, dry cleaning, ironing, alterations), pickup and drop-off requests with a time slot that come straight to me (I set them to received, cleaning, ready for pickup or delivered, and the customer gets a notification when it's ready), opening hours with an Open now badge [hours], and one-tap Call [phone] and Directions to [address].",
+  },
+  {
+    title: "Accountant or law office",
+    emoji: "💼",
+    color: "#334155",
+    category: "Business",
+    prompt:
+      "An information app for my accounting firm [name]. Services we offer (descriptions only, no promises of results), our team, appointment requests with a short note about the matter that come straight to me (I set them to booked or done), important tax dates as reminders the client sets, a checklist of documents to bring, opening hours [hours], and one-tap Call [phone], Email [email] and Directions to [address].",
   },
 ];
 
