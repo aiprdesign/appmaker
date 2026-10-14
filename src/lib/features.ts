@@ -18,6 +18,12 @@ export const FEATURES = {
     description: "Apps can keep shared data (orders, requests, reviews, a menu the business edits) in Appmaker's own database: no Supabase or server to set up.",
     default: true,
   },
+  autoAppData: {
+    label: "Turn on the app database automatically",
+    description:
+      "While you're developing: when an app needs one (orders, bookings, requests), its database turns on by itself for signed-in builders, so the owner page and staff mode work at once. Turn off to have people turn it on themselves in Publish.",
+    default: true,
+  },
   cloudBuilds: { label: "Expo cloud builds", description: "“Build & upload with Expo” in the Publish tab.", default: true },
   publicStatus: { label: "Public status page", description: "Anyone can open /status. When off, only a signed-in admin can.", default: true },
 } as const;

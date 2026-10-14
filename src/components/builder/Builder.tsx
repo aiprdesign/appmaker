@@ -30,6 +30,7 @@ import { addEdit, applyEdit, applyEdits, editsNote, selectedSite, type ContentEd
 import { conceptPrompt, conceptStyles, contentIssues, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
+import { useFeatures } from "@/lib/use-features";
 import { Logo } from "@/components/Logo";
 import { aiChoiceFor, getAiSettings } from "@/lib/ai/settings";
 import { PhoneFrame } from "@/components/PhoneFrame";
@@ -318,6 +319,39 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appDataId]);
+  // While developing (admin: "Turn on the app database automatically"): an app that needs a database gets
+  // one as soon as it has data rules and the builder is signed in, so the owner page and staff mode work at once.
+  const features = useFeatures();
+  const autoTried = useRef(new Set<string>());
+  const needsData = !!project && !project.appData && project.kind !== "website" && !!appRules(project.files);
+  useEffect(() => {
+    if (!project || !needsData || generating || !cloud.user || !features.appData || !features.autoAppData || locked(plan)) return;
+    if (autoTried.current.has(project.id)) return;
+    autoTried.current.add(project.id);
+    const projectId = project.id;
+    void (async () => {
+      const current = projectRef.current;
+      const rules = current && appRules(current.files);
+      if (!current || current.id !== projectId || !rules || current.appData) return;
+      const res = await fetch("/api/appdata", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projectId, name: current.listing.name || current.name, rules }),
+      }).catch(() => null);
+      const body = res?.ok ? await res.json().catch(() => null) : null;
+      if (!body?.store) return; // Not now (offline, a limit): Publish still has the switch.
+      const latest = projectRef.current;
+      if (!latest || latest.id !== projectId || latest.appData) return;
+      const latestRules = appRules(latest.files) ?? rules;
+      const files = { ...latest.files, [DATA_FILE]: dataModule(body.store.apiUrl, latestRules), [STAFF_FILE]: staffModule(body.store.apiUrl) };
+      syncedRules.current = JSON.stringify(rules);
+      setOwnerUrl(body.store.ownerUrl ?? "");
+      commit({ ...latest, appData: { id: body.store.id, apiUrl: body.store.apiUrl }, files });
+      setPreviewFiles(files);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, needsData, generating, cloud.user, features.appData, features.autoAppData, plan]);
+
   // "Get your owner page" / "Owner page" before the database is on: straight to Publish → App database.
   const [showAppData, setShowAppData] = useState(0);
   const openAppData = () => {

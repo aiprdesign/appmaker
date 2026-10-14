@@ -54,3 +54,26 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
   await ctx.close();
 });
+
+test("while developing, an app that needs a database gets one by itself; one that doesn't, doesn't", async ({ browser }) => {
+  const ctx = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": "10.67.0.7" } });
+  const page = await ctx.newPage();
+  await page.goto("/");
+  expect((await page.request.post("/api/auth/signup", { data: { email: `auto-${Date.now()}@appdata.example.com`, password: "correct horse" } })).ok()).toBe(true);
+
+  // A pizza app takes orders: its database turns on, and the owner page is one click away.
+  await page.goto("/");
+  await page.getByRole("button", { name: /Pizza & takeaway/ }).click();
+  await expect(page.getByRole("link", { name: /Owner page/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("link", { name: /Owner page/ })).toHaveAttribute("href", /\/owner\/data\/.+#k=/);
+
+  // A habit tracker keeps its data on the phone: no database, no owner page.
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("A habit tracker");
+  await page.keyboard.press("Enter");
+  await expect(page.frameLocator('iframe[title="App preview"]').getByText(/habit/i).first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(2000);
+  await expect(page.getByRole("link", { name: /Owner page/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Owner page", exact: true })).toHaveCount(0);
+  await ctx.close();
+});

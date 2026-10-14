@@ -53,6 +53,7 @@ const OFF_MESSAGES: Record<FeatureKey, string> = {
   websiteImport: "Building from a website is turned off on this site.",
   bookings: "Bookings are turned off on this site.",
   appData: "The app database is turned off on this site.",
+  autoAppData: "Turning on the app database automatically is off on this site.",
   cloudBuilds: "Cloud builds are turned off on this site. Download the project to build it yourself.",
   publicStatus: "The status page is private.",
 };
