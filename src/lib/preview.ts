@@ -21,6 +21,10 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
   #root > div { flex: 1; }
   ::-webkit-scrollbar { display: none; }
 </style>
+<script>
+  // React Native's animation code expects "global" (as on a phone): stopping an animation calls global.cancelAnimationFrame.
+  window.global = window;
+</script>
 <script src="${origin}/preview/runtime.js"></script>
 <script src="${origin}/preview/babel.min.js"></script>
 </head>

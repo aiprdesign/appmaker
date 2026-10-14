@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUSINESS_TEMPLATES, templateSlug } from "@/lib/templates";
-import { READY_PRESETS, infoFromSite, parseItemList, readyAppFiles, readyDesign, readyListing, readyRules } from "@/lib/ready-app";
+import { READY_PRESETS, stagesOf, infoFromSite, parseItemList, readyAppFiles, readyDesign, readyListing, readyRules } from "@/lib/ready-app";
 import { validateApp, isLucideIcon } from "@/lib/validate";
 import { designIssues } from "@/lib/app-design";
 import { parseRules } from "@/lib/app-data";
@@ -14,7 +14,9 @@ describe("ready-made business apps", () => {
       const files = readyAppFiles(preset, preset.sample, readyDesign(preset.sample, slug));
       expect(validateApp(files), slug).toEqual([]);
       expect(designIssues(files), slug).toEqual([]);
-      for (const icon of [preset.itemsIcon, preset.heroIcon]) expect(isLucideIcon(icon), icon).toBe(true);
+      for (const icon of [preset.itemsIcon, preset.heroIcon, ...stagesOf(preset).map((st) => st[2])]) expect(isLucideIcon(icon), icon).toBe(true);
+      // The tracker's steps are the statuses staff set, in order, and finishing one is recognised as done.
+      expect(readyRules(preset, preset.sample).requests.statuses).toEqual([...stagesOf(preset).map((st) => st[0]), "cancelled"]);
       // The rules are ones Appmaker's database accepts as they are.
       expect(parseRules(readyRules(preset, preset.sample))).toEqual(readyRules(preset, preset.sample));
       const listing = readyListing(slug, preset, preset.sample, "x");

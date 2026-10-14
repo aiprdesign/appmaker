@@ -1,6 +1,7 @@
 import { autoDesign, THEME_FILE, themeModule } from "./design";
 import { DATA_FILE, RULES_FILE, dataModule, type DataRules } from "./app-data";
 import { STAFF_FILE, staffModule } from "./staff";
+import { APP, HOME, ITEMS, REQUEST, UI } from "./ready-app-screens";
 import type { AppDesign, FileMap, SiteSummary, StoreListing } from "./types";
 
 /**
@@ -46,8 +47,36 @@ export interface ReadyPreset {
   heroIcon: string;
   /** Asks for the customer's address (work done at their place). */
   onSite?: boolean;
+  /** The steps the live tracker shows, when this business has its own (pizza: "In the oven"). */
+  stages?: Stage[];
   sample: ReadyInfo;
 }
+
+/** One step of an order or job: its status word (what staff set), what customers read, a Lucide icon and a short line. */
+export type Stage = [status: string, label: string, icon: string, note: string];
+
+const DEFAULT_STAGES: Record<ReadyKind, Stage[]> = {
+  order: [
+    ["new", "Order received", "ReceiptText", "We've got it and we're on it"],
+    ["preparing", "Being prepared", "ChefHat", "Made fresh, just for you"],
+    ["ready", "Ready to collect", "ShoppingBag", "Waiting for you at the counter"],
+    ["collected", "Collected", "Smile", "Enjoy, and see you soon"],
+  ],
+  booking: [
+    ["new", "Request sent", "Send", "We'll confirm your time shortly"],
+    ["confirmed", "Confirmed", "CalendarCheck", "It's in our diary. See you then"],
+    ["done", "All done", "Sparkles", "Thanks for coming in"],
+  ],
+  quote: [
+    ["new", "Request sent", "Send", "We'll look at it and reply soon"],
+    ["quoted", "Quote sent", "ReceiptText", "We've sent you a price"],
+    ["booked", "Booked in", "CalendarCheck", "It's in our diary"],
+    ["done", "Job done", "BadgeCheck", "Thanks for choosing us"],
+  ],
+};
+
+/** The tracker's steps for a business: its own, or the usual ones for orders, bookings or quotes. */
+export const stagesOf = (preset: ReadyPreset): Stage[] => preset.stages ?? DEFAULT_STAGES[preset.kind];
 
 const hours = (weekday: string, sat: string, sun = "Closed") => `Mon–Fri: ${weekday}\nSat: ${sat}\nSun: ${sun}`;
 const item = (name: string, description: string, price: string, category: string): ReadyItem => ({ name, description, price, category });
@@ -70,6 +99,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Menu",
     itemsIcon: "UtensilsCrossed",
     heroIcon: "UtensilsCrossed",
+    stages: [["new", "Order received", "ReceiptText", "We've got it and we're on it"], ["preparing", "In the kitchen", "ChefHat", "Our chefs are cooking it now"], ["ready", "Ready to collect", "ShoppingBag", "Packed and waiting for you"], ["collected", "Collected", "Smile", "Enjoy your meal"]],
     sample: contact("Olive & Thyme", "Seasonal plates, made fresh every day", "#B91C1C", hours("11 am – 10 pm", "11 am – 11 pm", "12 pm – 9 pm"), [
       item("Burrata salad", "Heirloom tomatoes, basil oil", "12", "Starters"),
       item("Grilled sea bass", "Lemon butter, new potatoes", "24", "Mains"),
@@ -82,6 +112,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Services",
     itemsIcon: "Scissors",
     heroIcon: "Scissors",
+    stages: [["new", "Request sent", "Send", "We'll confirm your time shortly"], ["confirmed", "Confirmed", "CalendarCheck", "Your chair is booked"], ["done", "Looking great", "Sparkles", "Thanks for coming in"]],
     sample: contact("Fade & Co.", "Cuts, colour and beard care", "#7C3AED", hours("9 am – 7 pm", "9 am – 5 pm"), [
       item("Haircut", "Wash, cut and style · 45 min", "35", "Hair"),
       item("Skin fade", "Clipper fade, scissor top · 40 min", "30", "Hair"),
@@ -118,6 +149,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Shop",
     itemsIcon: "ShoppingBag",
     heroIcon: "ShoppingBag",
+    stages: [["new", "Order received", "ReceiptText", "We've got it and we're on it"], ["packing", "Being packed", "Package", "Picked and packed with care"], ["ready", "Ready to collect", "ShoppingBag", "Waiting for you at the till"], ["collected", "Collected", "Smile", "Thanks for shopping local"]],
     sample: contact("Corner Goods", "Local makers, everyday essentials", "#059669", hours("9 am – 6 pm", "10 am – 5 pm"), [
       item("Hand-poured candle", "Fig and cedar · 200 g", "18", "Home"),
       item("Local honey", "Raw, from 3 miles away · 340 g", "9", "Pantry"),
@@ -166,6 +198,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Services",
     itemsIcon: "Wrench",
     heroIcon: "CarFront",
+    stages: [["new", "Request sent", "Send", "We'll confirm a time shortly"], ["confirmed", "Booked in", "CalendarCheck", "See you at the workshop"], ["in the workshop", "In the workshop", "Wrench", "Our mechanics are on it"], ["ready", "Ready to collect", "CarFront", "Your car is ready to go"], ["collected", "Collected", "Smile", "Drive safe"]],
     sample: contact("Northside Motors", "Honest repairs, done right first time", "#2563EB", hours("8 am – 6 pm", "8 am – 1 pm"), [
       item("Oil & filter change", "About 45 minutes", "from 59", "Servicing"),
       item("Full service", "Checks, fluids, filters · half a day", "from 189", "Servicing"),
@@ -178,6 +211,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Menu",
     itemsIcon: "Croissant",
     heroIcon: "Croissant",
+    stages: [["new", "Order received", "ReceiptText", "We've got it and we're on it"], ["packing", "Being boxed up", "Package", "Fresh from the oven, packed with care"], ["ready", "Ready to collect", "Croissant", "Waiting for you at the counter"], ["collected", "Collected", "Smile", "Enjoy it while it's fresh"]],
     sample: contact("Crumb & Co.", "Baked this morning, every morning", "#B45309", hours("7 am – 4 pm", "7 am – 2 pm"), [
       item("Sourdough loaf", "48-hour ferment · Vegan", "7", "Bread"),
       item("Almond croissant", "Out of the oven at 8 am", "3.80", "Pastries"),
@@ -191,6 +225,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsIcon: "Sparkles",
     heroIcon: "Sparkles",
     onSite: true,
+    stages: [["new", "Request sent", "Send", "We'll reply with a price soon"], ["quoted", "Quote sent", "ReceiptText", "We've sent you a price"], ["booked", "Booked in", "CalendarCheck", "Your clean is in our diary"], ["done", "Sparkling clean", "Sparkles", "Enjoy your fresh space"]],
     sample: contact("Sparkle Home Cleaning", "Trusted, insured local cleaners", "#0891B2", hours("8 am – 6 pm", "9 am – 3 pm"), [
       item("Regular clean", "Weekly or every 2 weeks · per hour", "25", "Homes"),
       item("Deep clean", "Kitchen, bathrooms, every corner", "from 180", "Homes"),
@@ -203,6 +238,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Menu",
     itemsIcon: "Pizza",
     heroIcon: "Pizza",
+    stages: [["new", "Order received", "ReceiptText", "We've got it and we're on it"], ["in the oven", "In the oven", "Flame", "Stone-baked, nice and hot"], ["ready", "Ready for pickup", "Pizza", "Hot and waiting at the counter"], ["collected", "Collected", "Smile", "Enjoy every slice"]],
     sample: contact("Tony's Pizza", "Stone-baked, ready in 20 minutes", "#DC2626", hours("4 pm – 11 pm", "12 pm – 11 pm", "12 pm – 10 pm"), [
       item("Margherita", "Tomato, mozzarella, basil", "11", "Pizza"),
       item("Pepperoni", "Double pepperoni, oregano", "13", "Pizza"),
@@ -215,6 +251,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Menu",
     itemsIcon: "Coffee",
     heroIcon: "Coffee",
+    stages: [["new", "Order received", "ReceiptText", "We've got it and we're on it"], ["brewing", "Brewing", "Coffee", "Your barista is on it"], ["ready", "Ready at the counter", "CupSoda", "Grab it while it's hot"], ["collected", "Collected", "Smile", "Enjoy, see you tomorrow"]],
     sample: contact("Daily Grind", "Order ahead, skip the line", "#7C4A2D", hours("7 am – 5 pm", "8 am – 4 pm", "9 am – 2 pm"), [
       item("Flat white", "Double shot, whole or oat milk", "3.60", "Coffee"),
       item("Iced latte", "Oat milk at no extra cost", "4.20", "Coffee"),
@@ -227,6 +264,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Rooms",
     itemsIcon: "BedDouble",
     heroIcon: "BedDouble",
+    stages: [["new", "Request sent", "Send", "We'll confirm your stay shortly"], ["confirmed", "Confirmed", "CalendarCheck", "Your room is waiting"], ["checked in", "Checked in", "KeyRound", "Enjoy your stay"], ["checked out", "Checked out", "Heart", "Thanks for staying with us"]],
     sample: contact("Seaview B&B", "Six rooms, two minutes from the beach", "#0F766E", "Check-in: 3 pm – 8 pm\nCheck-out: by 11 am\nBreakfast: 7:30 – 9:30 am", [
       item("Double room", "Sea view, breakfast included · per night", "120", "Rooms"),
       item("Twin room", "Garden view, breakfast included · per night", "105", "Rooms"),
@@ -238,6 +276,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Services",
     itemsIcon: "PawPrint",
     heroIcon: "PawPrint",
+    stages: [["new", "Request sent", "Send", "We'll confirm a time shortly"], ["confirmed", "Booked in", "CalendarCheck", "We can't wait to meet them"], ["pampering", "Being pampered", "Bath", "Bath, brush and lots of fuss"], ["ready", "Ready for pickup", "PawPrint", "Someone can't wait to see you"], ["collected", "Collected", "Heart", "See you next time"]],
     sample: contact("Happy Paws", "Grooming and care your pet will love", "#7C3AED", hours("8 am – 6 pm", "9 am – 3 pm"), [
       item("Full groom", "Bath, cut, nails · small dogs", "from 45", "Grooming"),
       item("Bath & brush", "Shampoo, dry, brush out", "from 30", "Grooming"),
@@ -250,6 +289,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Flowers",
     itemsIcon: "Flower2",
     heroIcon: "Flower2",
+    stages: [["new", "Order received", "ReceiptText", "We've got it and we're on it"], ["arranging", "Being arranged", "Flower2", "Hand-tied by our florist"], ["ready", "Ready to collect", "Gift", "Wrapped and ready"], ["collected", "Collected", "Heart", "Hope they love them"]],
     sample: contact("Petal & Stem", "Fresh flowers, hand-tied today", "#DB2777", hours("8 am – 6 pm", "9 am – 5 pm"), [
       item("Seasonal bouquet", "Florist's choice, hand-tied", "from 35", "Bouquets"),
       item("Dozen red roses", "Wrapped, with a card", "55", "Bouquets"),
@@ -286,6 +326,7 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
     itemsTab: "Prices",
     itemsIcon: "Shirt",
     heroIcon: "Shirt",
+    stages: [["new", "Booked in", "ReceiptText", "We'll take good care of it"], ["cleaning", "Being cleaned", "WashingMachine", "Washed, pressed and folded"], ["ready", "Ready to collect", "Shirt", "Fresh and waiting for you"], ["collected", "Collected", "Smile", "Looking sharp"]],
     sample: contact("Fresh Press", "Clean clothes, back the next day", "#0284C7", hours("7 am – 7 pm", "8 am – 4 pm"), [
       item("Shirt, washed and pressed", "On a hanger", "3.50", "Laundry"),
       item("Suit, dry cleaned", "2 pieces", "16", "Dry cleaning"),
@@ -315,11 +356,6 @@ function requestFields(preset: ReadyPreset): string[] {
   return ["name", "phone", ...(preset.onSite ? ["address"] : []), "service", "details"];
 }
 
-const STATUSES: Record<ReadyKind, string[]> = {
-  order: ["new", "preparing", "ready", "collected", "cancelled"],
-  booking: ["new", "confirmed", "done", "cancelled"],
-  quote: ["new", "quoted", "booked", "done", "cancelled"],
-};
 
 /** The data the app keeps: the business's items (it edits them on its owner page) and the requests customers send. */
 export function readyRules(preset: ReadyPreset, info: ReadyInfo): DataRules {
@@ -331,7 +367,7 @@ export function readyRules(preset: ReadyPreset, info: ReadyInfo): DataRules {
         .filter((i) => i.name.trim())
         .map(({ image, ...i }) => ({ ...i, ...(image && /^https:\/\/[^\s"'<>]{4,500}$/.test(image) ? { image } : {}) })),
     },
-    requests: { access: "inbox", fields: requestFields(preset), statuses: STATUSES[preset.kind] },
+    requests: { access: "inbox", fields: requestFields(preset), statuses: [...stagesOf(preset).map((st) => st[0]), "cancelled"] },
   };
 }
 
@@ -364,86 +400,11 @@ export const kind = ${JSON.stringify(preset.kind)};
 export const words = ${JSON.stringify({ ...words, items: preset.itemsTab }, null, 2)};
 export const icons = ${JSON.stringify({ items: preset.itemsIcon, hero: preset.heroIcon, request: words.tabIcon })};
 export const onSite = ${preset.onSite ? "true" : "false"};
+
+// The steps customers follow live, in order: status (what staff set), label, icon and a short line.
+export const stages = ${JSON.stringify(stagesOf(preset).map(([status, label, icon, note]) => ({ status, label, icon, note })), null, 2)};
 `;
 }
-
-const APP = `import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Icons from 'lucide-react-native';
-import { colors, mode } from './src/theme';
-import { icons, words } from './src/business';
-import HomeScreen from './src/screens/HomeScreen';
-import ItemsScreen from './src/screens/ItemsScreen';
-import RequestScreen from './src/screens/RequestScreen';
-import InfoScreen from './src/screens/InfoScreen';
-
-const TABS = [
-  { key: 'home', label: 'Home', icon: 'House' },
-  { key: 'items', label: words.items, icon: icons.items },
-  { key: 'request', label: words.tab, icon: icons.request },
-  { key: 'info', label: 'Info', icon: 'Info' },
-];
-
-function Shell() {
-  const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState('home');
-  // What the customer picked on the menu or services list, carried into the request form.
-  const [picked, setPicked] = useState([]);
-  const pick = (name) => {
-    setPicked((now) => (now.includes(name) ? now : [...now, name]));
-    setTab('request');
-  };
-  const screens = {
-    home: <HomeScreen go={setTab} pick={pick} />,
-    items: <ItemsScreen pick={pick} />,
-    request: <RequestScreen picked={picked} setPicked={setPicked} go={setTab} />,
-    info: <InfoScreen />,
-  };
-  return (
-    <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-        <View style={styles.body}>{screens[tab]}</View>
-        <View style={[styles.bar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
-          {TABS.map((t) => {
-            const Icon = Icons[t.icon] || Icons.Circle;
-            const on = tab === t.key;
-            return (
-              <Pressable
-                key={t.key}
-                onPress={() => setTab(t.key)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={t.label}
-                style={styles.tab}
-              >
-                <Icon size={24} color={on ? colors.primary : colors.muted} strokeWidth={on ? 2.4 : 2} />
-                <Text style={[styles.tabText, { color: on ? colors.primary : colors.muted }]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-    </View>
-  );
-}
-
-export default function App() {
-  return (
-    <SafeAreaProvider>
-      <Shell />
-    </SafeAreaProvider>
-  );
-}
-
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  body: { flex: 1 },
-  bar: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8 },
-  tab: { flex: 1, alignItems: 'center', gap: 4, minHeight: 48, paddingBottom: 4 },
-  tabText: { fontSize: 12, fontWeight: '600' },
-});
-`;
 
 const ACTIONS = `import { Alert, Linking } from 'react-native';
 import { business } from './business';
@@ -460,374 +421,6 @@ export const call = () => open('tel:' + business.phone.replace(/[^+\\d]/g, ''), 
 export const whatsapp = () => open('https://wa.me/' + business.whatsapp.replace(/\\D/g, ''), 'Message us on WhatsApp: ' + business.whatsapp);
 export const email = () => open('mailto:' + business.email, 'Email us at ' + business.email);
 export const directions = () => open('https://maps.google.com/?q=' + encodeURIComponent(business.address), business.address);
-`;
-
-const HOME = `import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import * as Icons from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { card, colors, gradient, heading, label, onGradient, radius } from '../theme';
-import { business, icons, words } from '../business';
-import { useCollection } from '../appdata';
-import { call, directions, whatsapp } from '../actions';
-
-export default function HomeScreen({ go, pick }) {
-  const { items } = useCollection('items');
-  const Hero = Icons[icons.hero] || Icons.Store;
-  const actions = [
-    business.phone ? { label: 'Call', icon: Icons.Phone, onPress: call } : null,
-    business.whatsapp ? { label: 'WhatsApp', icon: Icons.MessageCircle, onPress: whatsapp } : null,
-    business.address ? { label: 'Directions', icon: Icons.Navigation, onPress: directions } : null,
-  ].filter(Boolean);
-  return (
-    <ScrollView contentContainerStyle={styles.page}>
-      <Text style={[styles.title, heading, { color: colors.text }]}>{business.name}</Text>
-      {!!business.tagline && <Text style={[styles.body, { color: colors.muted }]}>{business.tagline}</Text>}
-      {!!business.hours[0] && (
-        <View style={styles.row}>
-          <Icons.Clock size={16} color={colors.success} />
-          <Text style={[styles.small, { color: colors.success }]}>{business.hours[0]}</Text>
-        </View>
-      )}
-
-      <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { borderRadius: radius.lg }]}>
-        <Hero size={40} color={onGradient} />
-        <Text style={[styles.heroTitle, heading, { color: onGradient }]}>{words.cta}</Text>
-        <Text style={[styles.body, { color: onGradient, opacity: 0.9 }]}>We reply quickly and keep you posted on every step.</Text>
-        <Pressable
-          onPress={() => go('request')}
-          accessibilityRole="button"
-          style={[styles.heroButton, { backgroundColor: onGradient, borderRadius: radius.md }]}
-        >
-          <Text style={[styles.buttonText, { color: colors.primary }]}>{words.cta}</Text>
-        </Pressable>
-      </LinearGradient>
-
-      {actions.length > 0 && (
-        <View style={styles.actions}>
-          {actions.map((a) => (
-            <Pressable key={a.label} onPress={a.onPress} accessibilityRole="button" style={[styles.action, card]}>
-              <a.icon size={24} color={colors.primary} />
-              <Text style={[styles.small, { color: colors.text }]}>{a.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.sectionHead}>
-        <Text style={[label, { color: colors.muted }]}>{words.items}</Text>
-        <Pressable onPress={() => go('items')} accessibilityRole="button" hitSlop={12}>
-          <Text style={[styles.small, { color: colors.primary }]}>See all</Text>
-        </Pressable>
-      </View>
-      <View style={[card, styles.list]}>
-        {items.slice(0, 3).map((it, i) => (
-          <Pressable
-            key={it.id || it.name}
-            onPress={() => pick(it.name)}
-            accessibilityRole="button"
-            accessibilityHint={words.add + ' ' + it.name}
-            style={[styles.item, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}
-          >
-            {!!it.image && <Image source={{ uri: it.image }} style={[styles.photo, { borderRadius: radius.md, backgroundColor: colors.primarySoft }]} accessibilityIgnoresInvertColors />}
-            <View style={styles.flex}>
-              <Text style={[styles.itemName, { color: colors.text }]}>{it.name}</Text>
-              {!!it.description && <Text style={[styles.small, { color: colors.muted }]}>{it.description}</Text>}
-            </View>
-            {!!it.price && <Text style={[styles.itemName, { color: colors.text }]}>{/^[\\d.,]+$/.test(String(it.price)) ? '$' + it.price : it.price}</Text>}
-          </Pressable>
-        ))}
-      </View>
-    </ScrollView>
-  );
-}
-
-const styles = StyleSheet.create({
-  page: { padding: 20, paddingBottom: 32, gap: 12 },
-  title: { fontSize: 28, marginTop: 8 },
-  body: { fontSize: 15, lineHeight: 22 },
-  small: { fontSize: 13 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  hero: { padding: 20, gap: 8, marginTop: 8 },
-  heroTitle: { fontSize: 22 },
-  heroButton: { marginTop: 8, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { fontSize: 17, fontWeight: '700' },
-  actions: { flexDirection: 'row', gap: 12 },
-  action: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 16 },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
-  list: { paddingHorizontal: 16 },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
-  itemName: { fontSize: 15, fontWeight: '600' },
-  flex: { flex: 1, gap: 4 },
-  photo: { width: 48, height: 48 },
-});
-`;
-
-const ITEMS = `import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import * as Icons from 'lucide-react-native';
-import { card, colors, heading, radius } from '../theme';
-import { words } from '../business';
-import { useCollection } from '../appdata';
-
-const money = (p) => (/^[\\d.,]+$/.test(String(p)) ? '$' + p : p);
-
-export default function ItemsScreen({ pick }) {
-  const { items, loading, error, refresh } = useCollection('items');
-  const [category, setCategory] = useState('All');
-  const [added, setAdded] = useState(null);
-  const categories = useMemo(() => ['All', ...new Set(items.map((i) => i.category).filter(Boolean))], [items]);
-  const shown = category === 'All' ? items : items.filter((i) => i.category === category);
-  return (
-    <ScrollView contentContainerStyle={styles.page} refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} />}>
-      <Text style={[styles.title, heading, { color: colors.text }]}>{words.items}</Text>
-      {categories.length > 2 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {categories.map((c) => {
-            const on = c === category;
-            return (
-              <Pressable
-                key={c}
-                onPress={() => setCategory(c)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
-                style={[styles.chip, { borderRadius: radius.pill, backgroundColor: on ? colors.primary : colors.surface, borderColor: on ? colors.primary : colors.border }]}
-              >
-                <Text style={[styles.small, { color: on ? colors.onPrimary : colors.text }]}>{c}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      )}
-      {loading && !items.length ? <ActivityIndicator color={colors.primary} /> : null}
-      {error && !items.length ? (
-        <Pressable onPress={refresh} accessibilityRole="button" style={[card, styles.item]}>
-          <Text style={[styles.body, { color: colors.text }]}>Couldn't load this. Tap to try again.</Text>
-        </Pressable>
-      ) : null}
-      {shown.map((it) => (
-        <View key={it.id || it.name} style={[card, styles.item]}>
-          {!!it.image && <Image source={{ uri: it.image }} style={[styles.photo, { borderRadius: radius.md, backgroundColor: colors.primarySoft }]} accessibilityIgnoresInvertColors />}
-          <View style={styles.flex}>
-            <Text style={[styles.name, { color: colors.text }]}>{it.name}</Text>
-            {!!it.description && <Text style={[styles.small, { color: colors.muted }]}>{it.description}</Text>}
-            {!!it.price && <Text style={[styles.name, { color: colors.primary }]}>{money(it.price)}</Text>}
-          </View>
-          <Pressable
-            onPress={() => {
-              setAdded(it.name);
-              pick(it.name);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={words.add + ' ' + it.name}
-            style={[styles.add, { backgroundColor: colors.primarySoft, borderRadius: radius.md }]}
-          >
-            {added === it.name ? <Icons.Check size={16} color={colors.primary} /> : <Icons.Plus size={16} color={colors.primary} />}
-            <Text style={[styles.small, { color: colors.primary, fontWeight: '700' }]}>{words.add}</Text>
-          </Pressable>
-        </View>
-      ))}
-    </ScrollView>
-  );
-}
-
-const styles = StyleSheet.create({
-  page: { padding: 20, paddingBottom: 32, gap: 12 },
-  title: { fontSize: 28, marginTop: 8 },
-  chips: { gap: 8, paddingVertical: 4 },
-  chip: { paddingHorizontal: 16, minHeight: 40, justifyContent: 'center', borderWidth: 1 },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
-  flex: { flex: 1, gap: 4 },
-  name: { fontSize: 17, fontWeight: '600' },
-  body: { fontSize: 15 },
-  small: { fontSize: 13 },
-  add: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, minHeight: 44 },
-  photo: { width: 72, height: 72 },
-});
-`;
-
-const REQUEST = `import React, { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import * as Icons from 'lucide-react-native';
-import { card, colors, heading, label, radius } from '../theme';
-import { business, kind, onSite, words } from '../business';
-import { useCollection } from '../appdata';
-
-function Field({ title, value, onChange, hint, multiline, keyboardType, autoComplete }) {
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.small, { color: colors.text, fontWeight: '600' }]}>{title}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={hint}
-        placeholderTextColor={colors.muted}
-        multiline={multiline}
-        keyboardType={keyboardType}
-        autoComplete={autoComplete}
-        accessibilityLabel={title}
-        style={[styles.input, multiline && styles.multi, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radius.md }]}
-      />
-    </View>
-  );
-}
-
-export default function RequestScreen({ picked, setPicked, go }) {
-  const { items, add, cancel, statusInfo, refresh } = useCollection('requests');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [when, setWhen] = useState('');
-  const [details, setDetails] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(null);
-  const [problem, setProblem] = useState('');
-  const what = picked.join(', ');
-  const ready = name.trim() && phone.trim() && (kind === 'quote' ? what || details.trim() : what) && (!onSite || address.trim());
-  const mine = items.filter((x) => x.mine);
-
-  const send = async () => {
-    setSending(true);
-    setProblem('');
-    try {
-      const fields =
-        kind === 'order'
-          ? { name, phone, items: what, pickupTime: when, note: details }
-          : kind === 'booking'
-            ? { name, phone, service: what, preferredTime: when, note: details }
-            : { name, phone, ...(onSite ? { address } : {}), service: what, details };
-      const item = await add(fields);
-      setSent(item);
-      setPicked([]);
-      setWhen('');
-      setDetails('');
-    } catch (e) {
-      setProblem((e && e.message) || 'Something went wrong. Try again.');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const confirmCancel = (id) =>
-    Alert.alert('Cancel this?', 'To change it instead, call ' + business.name + '.', [
-      { text: 'Keep it', style: 'cancel' },
-      { text: 'Cancel it', style: 'destructive', onPress: () => cancel(id).catch((e) => Alert.alert('Couldn\\'t cancel', e.message)) },
-    ]);
-
-  return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, heading, { color: colors.text }]}>{words.cta}</Text>
-
-        {sent && (
-          <View style={[card, styles.box, { borderColor: colors.success, borderWidth: 1 }]}>
-            <Icons.CircleCheck size={24} color={colors.success} />
-            <View style={styles.flex}>
-              <Text style={[styles.name, { color: colors.text }]}>Sent{sent.ref ? ' · #' + sent.ref : ''}</Text>
-              <Text style={[styles.small, { color: colors.muted }]}>{business.name} will get back to you. You'll see updates below.</Text>
-            </View>
-          </View>
-        )}
-
-        <View style={[card, styles.form]}>
-          <Text style={[styles.small, { color: colors.text, fontWeight: '600' }]}>{kind === 'order' ? 'Your order' : 'What you need'}</Text>
-          {picked.length ? (
-            <View style={styles.tags}>
-              {picked.map((p) => (
-                <Pressable
-                  key={p}
-                  onPress={() => setPicked(picked.filter((x) => x !== p))}
-                  accessibilityRole="button"
-                  accessibilityLabel={'Remove ' + p}
-                  style={[styles.tag, { backgroundColor: colors.primarySoft, borderRadius: radius.pill }]}
-                >
-                  <Text style={[styles.small, { color: colors.primary }]}>{p}</Text>
-                  <Icons.X size={16} color={colors.primary} />
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-          <Pressable onPress={() => go('items')} accessibilityRole="button" style={styles.row}>
-            <Icons.Plus size={16} color={colors.primary} />
-            <Text style={[styles.small, { color: colors.primary, fontWeight: '600' }]}>{picked.length ? 'Add more' : 'Choose from ' + words.items.toLowerCase()}</Text>
-          </Pressable>
-
-          <Field title="Your first name" value={name} onChange={setName} autoComplete="given-name" />
-          <Field title="Phone" value={phone} onChange={setPhone} keyboardType="phone-pad" autoComplete="tel" hint="So we can reach you about this" />
-          {onSite && <Field title="Address" value={address} onChange={setAddress} autoComplete="street-address" hint="Where the work is" />}
-          {!!words.when && <Field title={words.when} value={when} onChange={setWhen} hint={words.whenHint} />}
-          <Field title={words.details} value={details} onChange={setDetails} hint={words.detailsHint} multiline />
-          <Text style={[styles.small, { color: colors.muted }]}>We use your name and phone only for this {kind === 'order' ? 'order' : 'request'}. Payment is in person.</Text>
-          {!!problem && <Text style={[styles.small, { color: colors.danger }]}>{problem}</Text>}
-          <Pressable
-            onPress={send}
-            disabled={!ready || sending}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !ready || sending }}
-            style={[styles.button, { backgroundColor: colors.primary, borderRadius: radius.md, opacity: !ready || sending ? 0.5 : 1 }]}
-          >
-            {sending ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={[styles.buttonText, { color: colors.onPrimary }]}>{words.send}</Text>}
-          </Pressable>
-        </View>
-
-        {mine.length > 0 && (
-          <>
-            <View style={styles.sectionHead}>
-              <Text style={[label, { color: colors.muted }]}>{words.mine}</Text>
-              <Pressable onPress={refresh} accessibilityRole="button" hitSlop={12}>
-                <Text style={[styles.small, { color: colors.primary }]}>Refresh</Text>
-              </Pressable>
-            </View>
-            {mine.map((x) => {
-              const s = statusInfo(x.status);
-              return (
-                <View key={x.id} style={[card, styles.box, s.cancelled && { opacity: 0.6 }]}>
-                  <View style={styles.flex}>
-                    <Text style={[styles.name, { color: colors.text }]}>{x.items || x.service || x.details}</Text>
-                    <Text style={[styles.small, { color: s.done ? colors.muted : colors.primary, fontWeight: '600' }]}>{s.label}</Text>
-                    {!s.cancelled && s.steps.length > 1 && (
-                      <View style={styles.steps} accessibilityLabel={'Step ' + (s.step + 1) + ' of ' + s.steps.length + ': ' + s.label}>
-                        {s.steps.map((step, i) => (
-                          <View key={step} style={[styles.step, { borderRadius: radius.pill, backgroundColor: i <= s.step ? colors.primary : colors.border }]} />
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                  {s.canCancel && (
-                    <Pressable onPress={() => confirmCancel(x.id)} accessibilityRole="button" hitSlop={8}>
-                      <Text style={[styles.small, { color: colors.danger }]}>Cancel</Text>
-                    </Pressable>
-                  )}
-                </View>
-              );
-            })}
-          </>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
-}
-
-const styles = StyleSheet.create({
-  flex: { flex: 1, gap: 4 },
-  page: { padding: 20, paddingBottom: 32, gap: 12 },
-  title: { fontSize: 28, marginTop: 8 },
-  form: { padding: 16, gap: 12 },
-  field: { gap: 8 },
-  input: { borderWidth: 1, minHeight: 48, paddingHorizontal: 12, fontSize: 15 },
-  multi: { minHeight: 96, paddingTop: 12, textAlignVertical: 'top' },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, minHeight: 32 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
-  button: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { fontSize: 17, fontWeight: '700' },
-  box: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
-  name: { fontSize: 15, fontWeight: '600' },
-  small: { fontSize: 13 },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
-  steps: { flexDirection: 'row', gap: 4, marginTop: 4 },
-  step: { flex: 1, height: 4 },
-});
 `;
 
 const INFO = `import React, { useState } from 'react';
@@ -938,6 +531,7 @@ export function readyAppFiles(preset: ReadyPreset, info: ReadyInfo, design: AppD
   return {
     "App.js": APP,
     "src/actions.js": ACTIONS,
+    "src/ui.js": UI,
     "src/screens/HomeScreen.js": HOME,
     "src/screens/ItemsScreen.js": ITEMS,
     "src/screens/RequestScreen.js": REQUEST,

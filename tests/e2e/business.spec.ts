@@ -127,21 +127,29 @@ test("business templates open a working app straight away, and the owner's detai
   // A customer can order from the menu without anything else set up.
   await phone.getByText("Menu", { exact: true }).last().click();
   await phone.getByRole("button", { name: "Add Pepperoni" }).click();
+  // Like the big food apps: Add becomes a stepper, and a "View order" bar shows the basket and total.
+  await phone.getByRole("button", { name: "One more Pepperoni" }).click();
+  await expect(phone.getByText("$26").first()).toBeVisible();
+  await phone.getByRole("button", { name: /^View order/ }).click();
   await phone.getByLabel("Your first name").fill("Sam");
   await phone.getByLabel("Phone").fill("555 1234");
-  await phone.getByRole("button", { name: "Send order" }).click();
-  await expect(phone.getByText(/^Sent/)).toBeVisible();
+  await phone.getByRole("button", { name: /^Send order/ }).click();
+  await expect(phone.getByText(/^Order sent/)).toBeVisible();
+  // The live tracker, with the pizza place's own steps.
+  await expect(phone.getByText("Order received").first()).toBeVisible();
+  await expect(phone.getByText("In the oven").first()).toBeVisible();
   // The business area is built in: staff mode moves the order on, and the customer sees it.
   await phone.getByText("Info", { exact: true }).last().click();
   await phone.getByRole("button", { name: /Staff mode/ }).click();
   await expect(phone.getByText(/Try it now with orders from this phone/)).toBeVisible();
   await expect(phone.getByText("Sam").first()).toBeVisible();
-  await phone.getByRole("button", { name: "Mark as preparing" }).click();
+  await phone.getByRole("button", { name: "Mark as in the oven" }).click();
   await phone.getByRole("button", { name: "Mark as ready" }).click();
   await page.screenshot({ path: test.info().outputPath("staff.png") });
   await phone.getByRole("button", { name: /Back|Close/ }).first().click();
-  await phone.getByText("Order", { exact: true }).last().click();
-  await expect(phone.getByText("Ready", { exact: true }).first()).toBeVisible();
+  await phone.getByText("Home", { exact: true }).last().click();
+  await expect(phone.getByText("Ready for pickup").first()).toBeVisible();
+  await expect(phone.getByText("Hot and waiting at the counter")).toBeVisible();
 });
 
 test("the owner fills the app in from their website, pastes a menu and adds photos", async ({ page }) => {
@@ -171,5 +179,5 @@ test("the owner fills the app in from their website, pastes a menu and adds phot
   await page.getByLabel("Photo link").fill("https://images.luigis.example/cacio.jpg");
   await page.getByRole("button", { name: "Use this link" }).click();
   await expect(page.getByRole("button", { name: "Change the photo of Cacio e pepe" })).toBeVisible();
-  await expect(phone.locator('img[src="https://images.luigis.example/cacio.jpg"]').first()).toBeAttached({ timeout: 15_000 });
+  await expect(phone.locator('[src*="cacio.jpg"], [style*="cacio.jpg"]').first()).toBeAttached({ timeout: 15_000 });
 });
