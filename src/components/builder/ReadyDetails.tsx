@@ -22,8 +22,18 @@ function Text({ label, value, onChange, hint, type = "text", rows }: { label: st
 }
 
 /** One item's photo: upload one, pick one of the website's, or paste a link. */
-function ItemPhoto({ name, image, photos, onChange }: { name: string; image?: string; photos: string[]; onChange: (image: string | undefined) => void }) {
+function ItemPhoto({ name, image, photos, onChange, request = 0 }: { name: string; image?: string; photos: string[]; onChange: (image: string | undefined) => void; request?: number }) {
   const [open, setOpen] = useState(false);
+  // Opened from the phone (the owner tapped this item's photo in the preview): open here and come into view.
+  const [seen, setSeen] = useState(request);
+  if (request !== seen) {
+    setSeen(request);
+    setOpen(true);
+  }
+  const here = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (request) here.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [request]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [link, setLink] = useState("");
@@ -44,7 +54,7 @@ function ItemPhoto({ name, image, photos, onChange }: { name: string; image?: st
     }
   };
   return (
-    <div>
+    <div ref={here}>
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
@@ -110,6 +120,7 @@ export function ReadyDetails({
   onClose,
   ownerUrl = "",
   onOpenPublish,
+  photoFor,
 }: {
   slug: string;
   info: ReadyInfo;
@@ -118,6 +129,8 @@ export function ReadyDetails({
   /** The business's owner page, once the app database is on. */
   ownerUrl?: string;
   onOpenPublish?: () => void;
+  /** The owner tapped an item's photo on the phone: open that item's photo picker (n changes on every tap). */
+  photoFor?: { item: string; n: number } | null;
 }) {
   const preset = READY_PRESETS[slug];
   const [draft, setDraft] = useState(info);
@@ -181,7 +194,9 @@ export function ReadyDetails({
         </button>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-        <p className="text-xs text-muted">This app works already. Replace the example details with yours and watch the phone update. For bigger changes, ask the AI in the chat.</p>
+        <p className="text-xs text-muted">
+          This app works already. Replace the example details with yours and watch the phone update. Tip: tap a photo or its camera badge on the phone to add a picture. For bigger changes, ask the AI in the chat.
+        </p>
         <div className="rounded-xl border border-line bg-surface/60 p-3">
           <label htmlFor="ready-site" className="flex items-center gap-1.5 text-sm font-semibold">
             <Globe className="h-4 w-4 text-violet-300" aria-hidden /> Fill in from your website
@@ -274,7 +289,7 @@ export function ReadyDetails({
           <ul className="mt-2 space-y-2">
             {draft.items.map((it, i) => (
               <li key={i} className="flex gap-3 rounded-xl border border-line bg-surface/60 p-3">
-                <ItemPhoto name={it.name} image={it.image} photos={photos} onChange={(image) => setItem(i, { image })} />
+                <ItemPhoto name={it.name} image={it.image} photos={photos} onChange={(image) => setItem(i, { image })} request={photoFor && photoFor.item === it.name ? photoFor.n : 0} />
                 <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex gap-2">
                   <input aria-label={`Name ${i + 1}`} value={it.name} onChange={(e) => setItem(i, { name: e.target.value })} placeholder="Name" className={`${box} min-w-0 flex-1`} />

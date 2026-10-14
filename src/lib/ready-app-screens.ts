@@ -9,7 +9,7 @@
 
 /** src/ui.js: shared pieces: press feedback, entrance animations, skeletons, the live tracker and the success check. */
 export const UI = `import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Icons from 'lucide-react-native';
 import { card, colors, heading, label, radius } from './theme';
@@ -50,6 +50,31 @@ export function Rise({ delay = 0, style, children }) {
   }, []);
   const translateY = t.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
   return <Animated.View style={[style, { opacity: t, transform: [{ translateY }] }]}>{children}</Animated.View>;
+}
+
+/**
+ * An item's photo, or its icon until it has one. In Appmaker's builder (never on customers' phones)
+ * it carries a small camera badge: tapping it opens this item's photo picker next to the phone.
+ */
+const EDIT = typeof global !== 'undefined' ? global.__APPMAKER_EDIT__ : null;
+export function PhotoSlot({ item, style, iconName, iconSize = 24 }) {
+  const box = [style, { borderRadius: radius.md, backgroundColor: colors.primarySoft }];
+  const photo = item.image ? (
+    <Image source={{ uri: item.image }} style={box} accessibilityIgnoresInvertColors />
+  ) : (
+    <View style={[box, { alignItems: 'center', justifyContent: 'center' }]}>
+      <Icon name={iconName} size={iconSize} color={colors.primary} />
+    </View>
+  );
+  if (!EDIT) return photo;
+  return (
+    <Tap onPress={() => EDIT({ kind: 'photo', item: item.name })} accessibilityRole="button" accessibilityLabel={(item.image ? 'Change the photo of ' : 'Add a photo of ') + item.name}>
+      {photo}
+      <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
+        <Icons.Camera size={12} color={colors.onPrimary} />
+      </View>
+    </Tap>
+  );
 }
 
 /** A soft placeholder while something loads. */
@@ -252,6 +277,7 @@ const styles = StyleSheet.create({
   liveWrap: { width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
   liveRing: { position: 'absolute', width: 8, height: 8, borderRadius: 999, backgroundColor: colors.success },
   liveDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: colors.success },
+  editBadge: { position: 'absolute', right: -4, bottom: -4, width: 24, height: 24, borderRadius: 999, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   checkWrap: { alignSelf: 'center', width: 96, height: 96, alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
   checkRing: { position: 'absolute', width: 96, height: 96, borderRadius: 999, borderWidth: 4 },
   check: { width: 80, height: 80, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
@@ -404,7 +430,7 @@ import { card, colors, gradient, heading, label, onGradient, radius } from '../t
 import { business, icons, kind, words } from '../business';
 import { useCollection } from '../appdata';
 import { call, directions, whatsapp } from '../actions';
-import { Icon, Rise, Tap, Tracker, again, money } from '../ui';
+import { Icon, PhotoSlot, Rise, Tap, Tracker, again, money } from '../ui';
 
 export default function HomeScreen({ go, pick, reorder }) {
   const { items } = useCollection('items');
@@ -517,13 +543,7 @@ export default function HomeScreen({ go, pick, reorder }) {
               accessibilityLabel={words.add + ' ' + it.name + (it.price ? ', ' + money(it.price) : '')}
               style={[card, styles.favourite]}
             >
-              {it.image ? (
-                <Image source={{ uri: it.image }} style={[styles.photo, { borderRadius: radius.md, backgroundColor: colors.primarySoft }]} accessibilityIgnoresInvertColors />
-              ) : (
-                <View style={[styles.photo, styles.photoIcon, { borderRadius: radius.md, backgroundColor: colors.primarySoft }]}>
-                  <Icon name={icons.items} size={32} color={colors.primary} />
-                </View>
-              )}
+              <PhotoSlot item={it} style={styles.photo} iconName={icons.items} iconSize={32} />
               <Text numberOfLines={1} style={[styles.itemName, { color: colors.text }]}>{it.name}</Text>
               <View style={styles.row}>
                 <Text style={[styles.small, styles.flex, { color: colors.muted }]}>{it.price ? money(it.price) : ' '}</Text>
@@ -572,7 +592,7 @@ import * as Icons from 'lucide-react-native';
 import { card, colors, heading, radius } from '../theme';
 import { icons, kind, words } from '../business';
 import { useCollection } from '../appdata';
-import { Icon, Rise, Skeleton, Tap, money } from '../ui';
+import { Icon, PhotoSlot, Rise, Skeleton, Tap, money } from '../ui';
 
 export default function ItemsScreen({ pick, picked, setQty }) {
   const { items, loading, error, refresh } = useCollection('items');
@@ -613,13 +633,7 @@ export default function ItemsScreen({ pick, picked, setQty }) {
         return (
           <Rise key={it.id || it.name} delay={Math.min(i, 8) * 50}>
             <View style={[card, styles.item]}>
-              {it.image ? (
-                <Image source={{ uri: it.image }} style={[styles.photo, { borderRadius: radius.md, backgroundColor: colors.primarySoft }]} accessibilityIgnoresInvertColors />
-              ) : (
-                <View style={[styles.photo, styles.photoIcon, { borderRadius: radius.md, backgroundColor: colors.primarySoft }]}>
-                  <Icon name={icons.items} size={24} color={colors.primary} />
-                </View>
-              )}
+              <PhotoSlot item={it} style={styles.photo} iconName={icons.items} />
               <View style={styles.flex}>
                 <Text style={[styles.name, { color: colors.text }]}>{it.name}</Text>
                 {!!it.description && <Text numberOfLines={2} style={[styles.small, { color: colors.muted }]}>{it.description}</Text>}

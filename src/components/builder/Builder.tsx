@@ -173,6 +173,8 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
   // "Your details" for a ready-made business app: always open (it's how the owner makes the template theirs);
   // only its own close button hides it. Design opens over it and gives it back when closed.
   // (On phone-sized screens it would cover the app, so there it starts closed.)
+  // The owner tapped a menu item's photo on the phone: that item's photo picker opens in Your details.
+  const [photoFor, setPhotoFor] = useState<{ item: string; n: number } | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(() => typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches);
   void openDetails;
   const [scheme, setScheme] = useState<"light" | "dark">("light");
@@ -886,6 +888,13 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
   // Problems the preview's quality check finds right after a generation
   // (layout, contrast, text size, overflow, small buttons) go back to the AI
   // too, once; later ones show a banner with Fix with AI.
+  const onPreviewEdit = useCallback((edit: { kind: string; item: string }) => {
+    if (edit.kind !== "photo") return;
+    setDesignOpen(false);
+    setDetailsOpen(true);
+    setPhotoFor((p) => ({ item: edit.item, n: (p?.n ?? 0) + 1 }));
+  }, []);
+
   const onQualityIssues = useCallback((issues: QualityIssue[]) => {
     setQuality(issues.length ? issues : null);
     const justBuilt = Date.now() < runtimeWatchUntil.current;
@@ -1494,7 +1503,15 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                   {checking && <ChecksOverlay generating={generating} />}
                   {generating && hasApp && !checking && <PhoneEditing live={live} />}
                   {hasApp || hasEntry(previewFiles) ? (
-                    <Preview files={previewFiles} platform={device} reloadKey={reloadKey} onError={onPreviewError} onQualityIssues={onQualityIssues} scheme={scheme} />
+                    <Preview
+                      files={previewFiles}
+                      platform={device}
+                      reloadKey={reloadKey}
+                      onError={onPreviewError}
+                      onQualityIssues={onQualityIssues}
+                      scheme={scheme}
+                      onEdit={project.ready && !generating ? onPreviewEdit : undefined}
+                    />
                   ) : generating && !checking ? (
                     <PhoneBuilding live={live} startedAt={startedAt} source={project.source} design={project.design} prompt={project.prompt} />
                   ) : (
@@ -1516,6 +1533,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                       onClose={() => setDetailsOpen(false)}
                       ownerUrl={project.appData ? ownerUrl : ""}
                       onOpenPublish={() => setTab("publish")}
+                      photoFor={photoFor}
                     />
                   </div>
                 )}

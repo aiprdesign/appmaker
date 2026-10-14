@@ -24,11 +24,13 @@ interface Props {
   onQualityIssues?: (issues: QualityIssue[]) => void;
   /** Show the app in light or dark mode (apps in "auto" follow this, like a phone's setting). */
   scheme?: "light" | "dark";
+  /** Edit in place (ready-made apps): the app asks the builder to, say, add a photo to a menu item. */
+  onEdit?: (edit: { kind: string; item: string }) => void;
 }
 
 const noopSubscribe = () => () => {};
 
-export function Preview({ files, platform, reloadKey, onError, onQualityIssues, scheme }: Props) {
+export function Preview({ files, platform, reloadKey, onError, onQualityIssues, scheme, onEdit }: Props) {
   const origin = useSyncExternalStore(
     noopSubscribe,
     () => window.location.origin,
@@ -36,9 +38,10 @@ export function Preview({ files, platform, reloadKey, onError, onQualityIssues, 
   );
 
   const frame = useRef<HTMLIFrameElement>(null);
+  const editable = !!onEdit;
   const html = useMemo(
-    () => (origin && Object.keys(files).length ? buildPreviewHtml(files, origin, platform, scheme) : ""),
-    [files, origin, platform, scheme],
+    () => (origin && Object.keys(files).length ? buildPreviewHtml(files, origin, platform, scheme, { edit: editable }) : ""),
+    [files, origin, platform, scheme, editable],
   );
 
   useEffect(() => {
@@ -47,6 +50,7 @@ export function Preview({ files, platform, reloadKey, onError, onQualityIssues, 
       // Only trust messages from our own preview frame.
       if (e.source !== frame.current?.contentWindow || e.data?.source !== "appmaker-preview") return;
       if (e.data.type === "error") onError?.({ message: e.data.message, stack: e.data.stack });
+      if (e.data.type === "edit" && typeof e.data.kind === "string" && typeof e.data.item === "string") onEdit?.({ kind: e.data.kind, item: e.data.item });
       if (e.data.type === "quality" && Array.isArray(e.data.issues)) {
         const kinds = ["layout", "contrast", "text-size", "overflow", "touch", "label"];
         const issues = (e.data.issues as { kind?: unknown; message?: unknown }[])
@@ -58,7 +62,7 @@ export function Preview({ files, platform, reloadKey, onError, onQualityIssues, 
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [html, reloadKey, onError, onQualityIssues]);
+  }, [html, reloadKey, onError, onQualityIssues, onEdit]);
 
   if (!html) return <div className="h-full w-full bg-white" />;
   return (

@@ -6,9 +6,9 @@ import type { FileMap } from "./types";
  * wired together with a tiny CommonJS loader; `react-native` resolves to
  * React Native Web from the self-hosted runtime in /public/preview.
  */
-export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android" | "ipad", scheme?: "light" | "dark", opts: { test?: boolean } = {}): string {
+export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android" | "ipad", scheme?: "light" | "dark", opts: { test?: boolean; edit?: boolean } = {}): string {
   // An iPad runs iOS; the runtime gets "ipad" for its safe areas and Platform.isPad.
-  const payload = JSON.stringify({ files, platform: platform === "ipad" ? "ios" : platform, device: platform, scheme: scheme ?? null, test: !!opts.test }).replace(/</g, "\\u003c");
+  const payload = JSON.stringify({ files, platform: platform === "ipad" ? "ios" : platform, device: platform, scheme: scheme ?? null, test: !!opts.test, edit: !!opts.edit && !opts.test }).replace(/</g, "\\u003c");
   return `<!doctype html>
 <html>
 <head>
@@ -37,6 +37,9 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
   window.__APPMAKER_DEVICE__ = payload.device;
   var files = payload.files;
   var post = function (msg) { parent.postMessage(Object.assign({ source: "appmaker-preview" }, msg), "*"); };
+  // In the builder, ready-made apps let the owner edit in place (e.g. tap a menu item's photo to add one).
+  // Never on customers' phones: this only exists in the builder's preview.
+  if (payload.edit) window.__APPMAKER_EDIT__ = function (msg) { post({ type: "edit", kind: String(msg && msg.kind || ""), item: String(msg && msg.item || "").slice(0, 120) }); };
   var reported = false;
   // Tap-test mode (a hidden copy of the app): crashes are collected, not posted,
   // pop-ups don't block, and nothing is sent to servers.

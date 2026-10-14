@@ -229,3 +229,17 @@ test("Your data: the business changes its steps safely, and the app's tracker fo
   await phone.getByText("Order", { exact: true }).last().click();
   await expect(phone.getByText(/Ready for pickup → Out for delivery → Collected/)).toBeVisible({ timeout: 15_000 });
 });
+
+test("tapping a menu photo on the phone opens its photo picker next to it", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Pizza & takeaway/ }).click();
+  const phone = page.frameLocator('iframe[title="App preview"]');
+  await phone.getByText("Menu", { exact: true }).last().click({ timeout: 30_000 });
+  await phone.getByRole("button", { name: "Add a photo of Pepperoni" }).click();
+  // The right panel opens that item's picker: upload, the website's photos, or a link.
+  await expect(page.getByRole("button", { name: "Add a photo of Pepperoni" })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("Upload a photo")).toBeVisible();
+  await page.getByLabel("Photo link").fill("https://images.example/pepperoni.jpg");
+  await page.getByRole("button", { name: "Use this link" }).click();
+  await expect(phone.getByRole("button", { name: "Change the photo of Pepperoni" })).toBeVisible({ timeout: 15_000 });
+});
