@@ -16,6 +16,7 @@ import { chromium, type Page } from "@playwright/test";
 import { demoResponse } from "../src/lib/demo";
 import { parseGeneration } from "../src/lib/parse";
 import { buildPreviewHtml } from "../src/lib/preview";
+import { READY_PRESETS, readyAppFiles, readyDesign } from "../src/lib/ready-app";
 import { BUSINESS_TEMPLATES, TEMPLATES, templateSlug } from "../src/lib/templates";
 import { isLucideIcon } from "../src/lib/validate";
 import { designIssues } from "../src/lib/app-design";
@@ -995,7 +996,11 @@ const SAMPLES: Record<string, { prompt: string; prepare?: (page: Page) => Promis
 export function templateFiles(slug: string) {
   const sample = SAMPLES[slug];
   const screen = SCREENS[slug];
-  return sample ? parseGeneration(demoResponse(sample.prompt, false)).files : screen ? { "App.js": screenApp(screen) } : null;
+  if (sample) return parseGeneration(demoResponse(sample.prompt, false)).files;
+  if (screen) return { "App.js": screenApp(screen) };
+  // Business templates without their own screen: the real ready-made app, as people get it.
+  const ready = READY_PRESETS[slug];
+  return ready ? readyAppFiles(ready, ready.sample, readyDesign(ready.sample, slug)) : null;
 }
 
 async function main() {
@@ -1012,8 +1017,11 @@ async function main() {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   page.on("pageerror", (e) => console.warn("  page error:", e.message));
+  // ONLY=slug,slug: just those templates' screenshots.
+  const only = process.env.ONLY?.split(",");
   for (const t of [...TEMPLATES, ...BUSINESS_TEMPLATES]) {
     const slug = templateSlug(t);
+    if (only && !only.includes(slug)) continue;
     const sample = SAMPLES[slug];
     const files = templateFiles(slug);
     if (!files) {

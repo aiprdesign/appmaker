@@ -15,6 +15,9 @@ test("imports a website and builds a branded app from it", async ({ page }) => {
   await expect(page.getByText(/read 4 pages/)).toBeVisible();
   await expect(page.getByText("Found logo, 4 photos, phone, address, hours, booking link, WhatsApp")).toBeVisible();
 
+  // A restaurant fits a ready-made app; this test is about the custom AI build, so it picks that.
+  await expect(page.getByText(/Looks like a restaurant or café business/)).toBeVisible();
+  await page.getByRole("button", { name: "Build a custom app with AI instead" }).click();
   const request = page.waitForRequest("**/api/generate");
   await page.getByLabel("Describe your app").press("Enter");
   const body = (await request).postDataJSON();
@@ -32,6 +35,25 @@ test("imports a website and builds a branded app from it", async ({ page }) => {
   await page.getByRole("button", { name: "Publish" }).first().click();
   await expect(page.getByLabel("App name")).toHaveValue("Luigi's Trattoria");
   expect(errors).toEqual([]);
+});
+
+test("a business website becomes its ready-made app, filled in from the site, in a second", async ({ page }) => {
+  let generated = false;
+  page.on("request", (r) => r.url().includes("/api/generate") && (generated = true));
+  await page.goto("/");
+  await page.getByRole("tab", { name: "URL to App" }).click();
+  await page.getByLabel("Website address").fill(SITE);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(page.getByText(/Looks like a restaurant or café business/)).toBeVisible({ timeout: 20_000 });
+  await page.getByLabel("Describe your app").press("Enter");
+  await expect(page).toHaveURL(/\/build\/.+details=1/);
+  const app = page.frameLocator('iframe[title="App preview"]');
+  await expect(app.getByText("Luigi's Trattoria").first()).toBeVisible({ timeout: 30_000 });
+  await expect(app.getByText("Cacio e pepe").first()).toBeVisible();
+  await expect(page.getByLabel("Business name")).toHaveValue("Luigi's Trattoria");
+  await expect(page.getByLabel("Address")).toHaveValue(/214 Court Street/);
+  await expect(page.getByText(/From your website:/)).toBeVisible();
+  expect(generated).toBe(false); // no AI, no credits
 });
 
 test("offers to import a link typed into the prompt", async ({ page }) => {
@@ -139,6 +161,7 @@ test("a website app whose first build fails shows no broken app, and the retry b
   await page.getByLabel("Website address").fill(SITE);
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(page.getByText(/read 4 pages/)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Build a custom app with AI instead" }).click();
   await page.getByLabel("Describe your app").press("Enter");
 
   await expect(page.getByText("Something went wrong on our side.")).toBeVisible({ timeout: 20_000 });

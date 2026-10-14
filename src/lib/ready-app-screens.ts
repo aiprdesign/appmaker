@@ -8,11 +8,12 @@
  */
 
 /** src/ui.js: shared pieces: press feedback, entrance animations, skeletons, the live tracker and the success check. */
-export const UI = `import React, { useEffect, useRef } from 'react';
+export const UI = `import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Icons from 'lucide-react-native';
-import { card, colors, heading, label, radius } from './theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { card, colors, gradient, heading, label, radius } from './theme';
 import { kind, stages } from './business';
 
 export function Icon({ name, ...props }) {
@@ -150,10 +151,61 @@ export function again(order, menu) {
   return { list, missing };
 }
 
+const celebrated = new Set();
+
+/** A burst of confetti from the middle of its parent, each time "fire" goes up. */
+function Confetti({ fire }) {
+  const pieces = useRef(
+    Array.from({ length: 18 }, (_, i) => ({
+      t: new Animated.Value(0),
+      angle: (i / 18) * Math.PI * 2 + (i % 3) * 0.2,
+      dist: 70 + (i % 4) * 22,
+      spin: (i % 2 ? 1 : -1) * (180 + (i % 5) * 90),
+      round: i % 3 === 0,
+    })),
+  ).current;
+  useEffect(() => {
+    if (!fire) return;
+    Animated.stagger(
+      12,
+      pieces.map((p) => {
+        p.t.setValue(0);
+        return Animated.timing(p.t, { toValue: 1, duration: 1100, easing: Easing.out(Easing.quad), useNativeDriver: true });
+      }),
+    ).start();
+  }, [fire]);
+  if (!fire) return null;
+  const tones = [colors.primary, colors.success, gradient[gradient.length - 1], colors.primarySoft];
+  return (
+    <View pointerEvents="none" style={styles.confetti}>
+      {pieces.map((p, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            p.round ? styles.dotPiece : styles.piece,
+            {
+              backgroundColor: tones[i % tones.length],
+              opacity: p.t.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] }),
+              transform: [
+                { translateX: p.t.interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(p.angle) * p.dist] }) },
+                // Up and out, then falling a little (gravity).
+                { translateY: p.t.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, Math.sin(p.angle) * p.dist * 0.9, Math.sin(p.angle) * p.dist + 36] }) },
+                { rotate: p.t.interpolate({ inputRange: [0, 1], outputRange: ['0deg', p.spin + 'deg'] }) },
+                { scale: p.t.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.2, 1, 0.8] }) },
+              ],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
 /**
  * The live tracker, like the best ordering apps: the stage in big words with its own icon,
- * every step on a track that fills as the business moves it on, the current one pulsing,
- * and a little pop and buzz each time it moves.
+ * every step on a track that fills (with a light sweeping along it) as the business moves it on,
+ * the current step pulsing, the icon gently bobbing while work goes on, a pop and buzz on each
+ * step, and confetti when it's ready.
  */
 export function Tracker({ item, info, title }) {
   const at = info.cancelled ? -1 : Math.max(0, stages.findIndex((s) => s.status === item.status));
@@ -162,21 +214,40 @@ export function Tracker({ item, info, title }) {
   const fill = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const pop = useRef(new Animated.Value(1)).current;
+  const bob = useRef(new Animated.Value(0)).current;
+  const sweep = useRef(new Animated.Value(0)).current;
+  const [track, setTrack] = useState(0);
+  const [fire, setFire] = useState(0);
   const first = useRef(true);
   useEffect(() => {
-    Animated.timing(fill, { toValue: last > 0 ? Math.max(0, at) / last : 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    Animated.timing(fill, { toValue: last > 0 ? Math.max(0, at) / last : 1, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    const big = at > 0 && at >= last - 1;
     if (!first.current && at > 0) {
-      buzz(info.done ? 'success' : 'light');
-      pop.setValue(0.6);
-      Animated.spring(pop, { toValue: 1, friction: 4, useNativeDriver: true }).start();
+      buzz(big ? 'success' : 'light');
+      pop.setValue(0.5);
+      Animated.spring(pop, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }).start();
+    }
+    // Ready (or done): celebrate, once per order, the first time the customer sees it (even if it got ready while they were away).
+    if (big && !celebrated.has(item.id + ':' + at)) {
+      celebrated.add(item.id + ':' + at);
+      setFire((f) => f + 1);
     }
     first.current = false;
   }, [at]);
   useEffect(() => {
     if (info.done) return undefined;
-    const loop = Animated.loop(Animated.timing(pulse, { toValue: 1, duration: 1300, easing: Easing.out(Easing.quad), useNativeDriver: true }));
-    loop.start();
-    return () => loop.stop();
+    const loops = [
+      Animated.loop(Animated.timing(pulse, { toValue: 1, duration: 1300, easing: Easing.out(Easing.quad), useNativeDriver: true })),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(bob, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(bob, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]),
+      ),
+      Animated.loop(Animated.timing(sweep, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true })),
+    ];
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
   }, [info.done]);
   const width = fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
@@ -196,17 +267,34 @@ export function Tracker({ item, info, title }) {
         {!info.done && <LiveDot />}
       </View>
       <View style={styles.row}>
-        <Animated.View style={[styles.bigIcon, { backgroundColor: colors.primary, borderRadius: radius.lg, transform: [{ scale: pop }] }]}>
-          <Icon name={stage.icon} size={28} color={colors.onPrimary} />
-        </Animated.View>
-        <View style={styles.flex}>
+        <View>
+          <Animated.View
+            style={[
+              styles.bigIcon,
+              { borderRadius: radius.lg, overflow: 'hidden', transform: [{ scale: pop }, { translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] },
+            ]}
+          >
+            <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigIconFill}>
+              <Icon name={stage.icon} size={28} color={colors.onPrimary} />
+            </LinearGradient>
+          </Animated.View>
+          <Confetti fire={fire} />
+        </View>
+        <Rise key={stage.status} style={styles.flex}>
           <Text style={[styles.stage, heading, { color: colors.text }]}>{stage.label}</Text>
           <Text style={[styles.note, { color: colors.muted }]}>{stage.note}</Text>
-        </View>
+        </Rise>
       </View>
       <View style={styles.steps}>
-        <View style={[styles.track, { backgroundColor: colors.border }]}>
-          <Animated.View style={[styles.trackFill, { width, backgroundColor: colors.primary }]} />
+        <View style={[styles.track, { backgroundColor: colors.border }]} onLayout={(e) => setTrack(e.nativeEvent.layout.width)}>
+          <Animated.View style={[styles.trackFill, { width }]}>
+            <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+            {!info.done && track > 0 && (
+              <Animated.View style={[styles.sweep, { transform: [{ translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [-64, track] }) }] }]}>
+                <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+              </Animated.View>
+            )}
+          </Animated.View>
         </View>
         {stages.map((s, i) => {
           const done = i < at || (info.done && i === at);
@@ -218,7 +306,7 @@ export function Tracker({ item, info, title }) {
                   <Animated.View
                     style={[
                       styles.ring,
-                      { borderColor: colors.primary, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.9] }) }] },
+                      { borderColor: colors.primary, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.1] }) }] },
                     ]}
                   />
                 )}
@@ -263,12 +351,17 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   tracker: { padding: 20, gap: 16 },
-  bigIcon: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
+  bigIcon: { width: 56, height: 56 },
+  bigIconFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  confetti: { position: 'absolute', left: 28, top: 28, width: 0, height: 0 },
+  piece: { position: 'absolute', width: 6, height: 12, borderRadius: 2 },
+  dotPiece: { position: 'absolute', width: 8, height: 8, borderRadius: 999 },
+  sweep: { position: 'absolute', top: 0, bottom: 0, width: 64 },
   stage: { fontSize: 22 },
   note: { fontSize: 13, marginTop: 4 },
   steps: { flexDirection: 'row', justifyContent: 'space-between' },
-  track: { position: 'absolute', left: 32, right: 32, top: 15, height: 4, borderRadius: 999, overflow: 'hidden' },
-  trackFill: { height: 4 },
+  track: { position: 'absolute', left: 32, right: 32, top: 13, height: 8, borderRadius: 999, overflow: 'hidden' },
+  trackFill: { height: 8, overflow: 'hidden' },
   step: { flex: 1, alignItems: 'center', gap: 8 },
   dotWrap: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 32, height: 32, borderRadius: 999, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },

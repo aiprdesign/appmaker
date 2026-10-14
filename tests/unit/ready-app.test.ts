@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUSINESS_TEMPLATES, templateSlug } from "@/lib/templates";
-import { READY_PRESETS, mergeReadyRules, stagesOf, infoFromSite, parseItemList, readyAppFiles, readyDesign, readyListing, readyRules } from "@/lib/ready-app";
+import { READY_PRESETS, matchReadyPreset, readyProjectFromSite, mergeReadyRules, stagesOf, infoFromSite, parseItemList, readyAppFiles, readyDesign, readyListing, readyRules } from "@/lib/ready-app";
 import { validateApp, isLucideIcon } from "@/lib/validate";
 import { designIssues } from "@/lib/app-design";
 import { parseRules } from "@/lib/app-data";
@@ -87,5 +87,35 @@ describe("the owner's details and the app's data", () => {
     expect(merged.requests).toEqual(later.requests);
     expect(merged.items.seed).toEqual([{ name: "Calzone", description: "", price: "12", category: "Pizza" }]);
     expect(mergeReadyRules(p, p.sample, null)).toEqual(readyRules(p, p.sample));
+  });
+});
+
+describe("URL to App picks the ready-made app that fits", () => {
+  const site = (siteName: string, description: string, text = "") => ({ siteName, title: siteName, description, pages: [{ url: "", title: "", headings: [], navigation: [], text }] });
+  it("matches businesses a template fits", () => {
+    expect(matchReadyPreset(site("Tony's", "Stone-baked pizza, takeaway and delivery in Leeds"))).toBe("pizza-takeaway");
+    expect(matchReadyPreset(site("Fade Lab", "Barbershop in Camden: skin fades, beard trims", "Book your haircut"))).toBe("salon-or-barber");
+    expect(matchReadyPreset(site("Northside Motors", "MOT, servicing and repairs. Family-run garage since 1990."))).toBe("car-repair-auto-shop");
+    expect(matchReadyPreset(site("Bright Smiles", "Friendly family dentist", "New patients welcome. Dental check-ups and hygiene."))).toBe("clinic-or-dentist");
+    expect(matchReadyPreset(site("Sparkle", "Domestic cleaners and end of tenancy cleaning"))).toBe("cleaning-service");
+  });
+  it("leaves sites that don't need orders or a business area to the AI", () => {
+    expect(matchReadyPreset(site("Jane Doe", "Photographer and visual artist. Selected work, exhibitions and contact."))).toBeNull();
+    expect(matchReadyPreset(site("Notes on Rust", "A blog about systems programming"))).toBeNull();
+  });
+  it("fills the app from the site and never shows the example business's contact details", () => {
+    const p = readyProjectFromSite("pizza-takeaway", { title: "Pizza & takeaway", emoji: "🍕", prompt: "pizza" }, {
+      url: "https://tonys.example",
+      siteName: "Tony's",
+      title: "",
+      description: "Stone-baked pizza.",
+      colors: [],
+      language: "en",
+      pages: [],
+      contact: { phones: ["+44 1"], emails: [], hours: [], social: [] },
+    });
+    expect(p.ready.info).toMatchObject({ name: "Tony's", phone: "+44 1", email: "", address: "", hours: "" });
+    expect(p.examples).toBe(true);
+    expect(p.files["src/business.js"]).not.toContain("12 High Street");
   });
 });

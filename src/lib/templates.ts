@@ -166,6 +166,22 @@ export const BUSINESS_TEMPLATES: Template[] = [
       "An app for my car repair shop [name]. Services with starting prices (oil change, brakes, tyres, inspection, diagnostics), service requests that come straight to me with the car's make, model and registration and a preferred day (I set them to received, inspecting, waiting for parts, ready to collect, and the customer sees the status and gets a notification when the car is ready), a service reminder the customer sets for their next oil change or inspection, opening hours with an Open now badge [hours], reviews, and one-tap Call [phone], WhatsApp and Directions to [address].",
   },
   {
+    title: "Car dealership",
+    emoji: "🚗",
+    color: "#0F172A",
+    category: "Business",
+    prompt:
+      "An app for my car dealership [name]. Cars for sale with photos, price, year and mileage, test drive and enquiry requests that come straight to me with a preferred day (I set them to received, test drive booked and done, and the customer sees the status and gets a notification), part-exchange and finance questions, opening hours with an Open now badge [hours], and one-tap Call [phone], WhatsApp and Directions to [address].",
+  },
+  {
+    title: "Car wash & detailing",
+    emoji: "🧽",
+    color: "#0EA5E9",
+    category: "Business",
+    prompt:
+      "An app for my car wash and detailing business [name]. Wash and valet packages with prices, bookings that come straight to me with a preferred day and time (I set them to received, booked, washing and ready to collect, and the customer sees the status and gets a notification when the car is ready), opening hours with an Open now badge [hours], and one-tap Call [phone] and Directions to [address].",
+  },
+  {
     title: "Bakery",
     emoji: "🥐",
     color: "#B45309",

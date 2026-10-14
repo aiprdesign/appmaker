@@ -2,7 +2,7 @@ import { autoDesign, THEME_FILE, themeModule } from "./design";
 import { DATA_FILE, RULES_FILE, dataModule, type DataRules } from "./app-data";
 import { STAFF_FILE, staffModule } from "./staff";
 import { APP, HOME, ITEMS, REQUEST, UI } from "./ready-app-screens";
-import type { AppDesign, FileMap, SiteSummary, StoreListing } from "./types";
+import type { AppDesign, ChatMessage, FileMap, SiteSummary, StoreListing } from "./types";
 
 /**
  * Ready-made business apps: picking a business template opens a working app
@@ -49,6 +49,8 @@ export interface ReadyPreset {
   onSite?: boolean;
   /** The steps the live tracker shows, when this business has its own (pizza: "In the oven"). */
   stages?: Stage[];
+  /** The main button's words, when this business has its own ("Book a test drive"). */
+  cta?: string;
   sample: ReadyInfo;
 }
 
@@ -214,6 +216,44 @@ export const READY_PRESETS: Record<string, ReadyPreset> = {
       item("Full service", "Checks, fluids, filters · half a day", "from 189", "Servicing"),
       item("Brakes", "Pads and discs, checked free", "from 120", "Repairs"),
       item("Diagnostics", "Warning lights, same day", "45", "Repairs"),
+    ]),
+  },
+  "car-dealership": {
+    kind: "booking",
+    itemsTab: "Cars",
+    itemsIcon: "CarFront",
+    cta: "Book a test drive",
+    heroIcon: "KeyRound",
+    stages: [
+      ["new", "Request sent", "Send", "We'll call you to arrange it"],
+      ["confirmed", "Test drive booked", "CalendarCheck", "The car will be ready for you"],
+      ["done", "All done", "KeyRound", "Thanks for coming in"],
+    ],
+    sample: contact("Summit Motors", "Quality used cars, every one checked", "#0F172A", hours("9 am – 7 pm", "9 am – 6 pm", "11 am – 4 pm"), [
+      item("2021 VW Golf 1.5 TSI", "28,000 miles · Petrol · Manual", "18,995", "Hatchback"),
+      item("2020 Toyota RAV4 Hybrid", "34,500 miles · Hybrid · Automatic", "26,450", "SUV"),
+      item("2022 Tesla Model 3", "19,000 miles · Electric · Automatic", "29,990", "Electric"),
+      item("Part-exchange valuation", "Bring your car in, a price in 20 minutes", "Free", "Services"),
+    ]),
+  },
+  "car-wash-detailing": {
+    kind: "booking",
+    itemsTab: "Packages",
+    itemsIcon: "Droplets",
+    cta: "Book a wash",
+    heroIcon: "Sparkles",
+    stages: [
+      ["new", "Request sent", "Send", "We'll confirm your time shortly"],
+      ["confirmed", "Booked in", "CalendarCheck", "See you then"],
+      ["washing", "Being washed", "Droplets", "Foam, rinse and shine"],
+      ["ready", "Ready to collect", "Sparkles", "Gleaming and waiting for you"],
+      ["collected", "Collected", "Smile", "Drive safe"],
+    ],
+    sample: contact("Shine Station", "Hand wash and detailing that lasts", "#0EA5E9", hours("8 am – 6 pm", "8 am – 5 pm", "9 am – 3 pm"), [
+      item("Express wash", "Outside hand wash and dry · 20 min", "15", "Washes"),
+      item("Full valet", "Inside and out · 90 min", "65", "Valets"),
+      item("Ceramic protection", "Lasts up to 12 months · half a day", "from 249", "Detailing"),
+      item("Interior deep clean", "Seats, carpets and mats · 2 hours", "85", "Valets"),
     ]),
   },
   bakery: {
@@ -419,7 +459,7 @@ export const business = ${JSON.stringify(business, null, 2)};
 
 // How customers reach you and what the app calls things.
 export const kind = ${JSON.stringify(preset.kind)};
-export const words = ${JSON.stringify({ ...words, items: preset.itemsTab }, null, 2)};
+export const words = ${JSON.stringify({ ...words, ...(preset.cta ? { cta: preset.cta } : {}), items: preset.itemsTab }, null, 2)};
 export const icons = ${JSON.stringify({ items: preset.itemsIcon, hero: preset.heroIcon, request: words.tabIcon })};
 export const onSite = ${preset.onSite ? "true" : "false"};
 
@@ -665,4 +705,78 @@ export function infoFromSite(site: SiteSummary, current: ReadyInfo): { info: Rea
     items: items.length ? items : current.items,
   };
   return { info, photos: [...new Set([...items.flatMap((i) => (i.image ? [i.image] : [])), ...(site.images ?? [])])].filter((u) => u.startsWith("https://")).slice(0, 24) };
+}
+
+/** Words that say what kind of business a website is, per ready-made app (strong words count double). */
+const KINDS: Record<string, { strong: RegExp; weak?: RegExp }> = {
+  "pizza-takeaway": { strong: /\b(pizzas?|pizzeria|takeaway|take-away|kebab|burgers?|fried chicken|chippy|fish (and|&) chips)\b/i, weak: /\b(delivery|collection|order online)\b/i },
+  "coffee-shop": { strong: /\b(coffee shop|espresso|barista|roastery|caf[eé] bar|latte)\b/i, weak: /\b(coffee|brunch)\b/i },
+  bakery: { strong: /\b(bakery|bakers?|patisserie|p[aâ]tisserie|sourdough|cakes? to order|croissants?)\b/i },
+  "restaurant-or-cafe": { strong: /\b(restaurant|bistro|trattoria|brasserie|tapas|sushi|dining|eatery|caf[eé])\b/i, weak: /\b(menu|reservations?|chef|dishes)\b/i },
+  "salon-or-barber": { strong: /\b(barbers?|barbershop|hair salon|hairdresser|beauty salon|nail salon|nails|lashes|brows|spa)\b/i, weak: /\b(haircuts?|colour|color|styling)\b/i },
+  "gym-or-studio": { strong: /\b(gym|fitness|yoga|pilates|crossfit|boxing|martial arts|personal train(er|ing))\b/i, weak: /\b(classes|membership|workout)\b/i },
+  "clinic-or-dentist": { strong: /\b(dentist|dental|clinic|physio(therapy)?|chiropract\w*|optician|orthodont\w*|medical cent(er|re)|surgery)\b/i, weak: /\b(patients?|appointments?)\b/i },
+  "car-dealership": { strong: /\b(car dealer(ship)?|used cars|cars for sale|approved used|car sales|showroom|part[- ]exchange|test drives?)\b/i, weak: /\b(finance|mileage|stock)\b/i },
+  "car-wash-detailing": { strong: /\b(car wash|hand wash|valet(ing)?|detailing|ceramic coating)\b/i },
+  "car-repair-auto-shop": { strong: /\b(garage|auto repair|mechanics?|mot\b|car service|tyres?|tires|body shop|auto shop)\b/i, weak: /\b(brakes?|vehicles?|cars?)\b/i },
+  "cleaning-service": { strong: /\b(cleaning (services?|company)|cleaners|end of tenancy|deep clean|carpet cleaning|maid)\b/i },
+  "home-services": { strong: /\b(plumb(er|ing)|electrician|electrical|roofing|roofer|heating|boiler|handyman|builders?|landscap\w*|joiner|carpenter|locksmith|painter and decorator)\b/i },
+  "hotel-or-b-b": { strong: /\b(hotel|b&b|bed and breakfast|guest ?house|inn|holiday (let|cottage)|rooms available)\b/i, weak: /\b(check-in|stay|rooms?)\b/i },
+  "pet-grooming-vet": { strong: /\b(dog groom\w*|pet groom\w*|grooming|vets?|veterinary|kennels?|cattery|doggy daycare)\b/i, weak: /\b(dogs?|cats?|pets?)\b/i },
+  florist: { strong: /\b(florists?|flower shop|bouquets?|floral)\b/i },
+  "driving-school": { strong: /\b(driving (school|lessons?|instructor)|learner drivers?|driving test)\b/i },
+  "tutoring-lessons": { strong: /\b(tutor(ing|s)?|tuition|music lessons?|piano lessons?|language school|maths lessons?)\b/i },
+  "laundry-dry-cleaning": { strong: /\b(laundr(y|ette)|dry clean(ing|ers)|launderette|alterations|ironing service)\b/i },
+  "accountant-or-law-office": { strong: /\b(accountants?|accountancy|bookkeep\w*|tax returns?|solicitors?|law firm|lawyers?|attorneys?|legal services)\b/i },
+  "real-estate-agent": { strong: /\b(estate agents?|real estate|realtors?|lettings|properties for (sale|rent)|property management)\b/i },
+  "local-shop": { strong: /\b(shop|boutique|store|gift shop|deli|grocer|butcher|off licen[cs]e|bookshop)\b/i, weak: /\b(buy|products?)\b/i },
+  "church-or-community": { strong: /\b(church|parish|mosque|temple|synagogue|community cent(er|re)|congregation|worship)\b/i },
+};
+
+/**
+ * Which ready-made app fits a business's website, or null when none clearly does (a portfolio, a blog,
+ * an information site): those get a custom app from the AI instead. The name and description count most.
+ */
+export function matchReadyPreset(site: Pick<SiteSummary, "siteName" | "title" | "description" | "pages"> & { items?: SiteSummary["items"] }): string | null {
+  const head = `${site.siteName} ${site.title} ${site.description}`;
+  const body = site.pages
+    .slice(0, 4)
+    .map((p) => `${p.headings.join(" ")} ${p.text.slice(0, 3000)}`)
+    .join(" ");
+  const count = (re: RegExp, text: string) => (text.match(new RegExp(re.source, "gi")) ?? []).length;
+  let best: { slug: string; score: number } | null = null;
+  for (const [slug, k] of Object.entries(KINDS)) {
+    if (!READY_PRESETS[slug]) continue;
+    const score = 6 * Math.min(count(k.strong, head), 2) + 2 * Math.min(count(k.strong, body), 5) + (k.weak ? Math.min(count(k.weak, head + " " + body), 4) : 0);
+    if (!best || score > best.score) best = { slug, score };
+  }
+  return best && best.score >= 6 ? best.slug : null;
+}
+
+/** A ready-made app filled in from the business's website. What the site doesn't say is left empty (never the example business's details). */
+export function readyProjectFromSite(slug: string, template: { title: string; emoji: string; prompt: string }, site: SiteSummary) {
+  const preset = READY_PRESETS[slug];
+  const blank: ReadyInfo = { ...preset.sample, phone: "", whatsapp: "", email: "", address: "", hours: "", items: preset.sample.items.map((i) => ({ ...i })) };
+  const { info, photos } = infoFromSite(site, blank);
+  const design = readyDesign(info, template.prompt);
+  const examples = !(site.items ?? []).length;
+  return {
+    name: info.name,
+    files: readyAppFiles(preset, info, design),
+    design,
+    listing: readyListing(slug, preset, info, template.emoji),
+    ready: { slug, info },
+    photos,
+    examples,
+  };
+}
+
+/** The first chat message of an app made from a business's website. */
+export function readyWelcome(name: string, title: string, found: string[], examples: boolean): ChatMessage {
+  return {
+    id: Math.random().toString(36).slice(2, 12),
+    role: "assistant",
+    content: `Your app for **${name}** is ready and works already, built on the ${title.toLowerCase()} app: customers can browse, order or book, and follow it live.\n\nFrom your website: ${found.length ? found.join(", ") : "your name and colors"}.${examples ? " The menu shows example items for now: replace them in **Your details** (paste a list, or add photos by tapping them on the phone)." : ""}\n\nYour business area is built in: **Staff mode** in the app and your **owner page** (Publish → app database). Want something different? Just ask here.`,
+    createdAt: Date.now(),
+  };
 }

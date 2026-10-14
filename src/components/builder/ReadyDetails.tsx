@@ -121,6 +121,7 @@ export function ReadyDetails({
   ownerUrl = "",
   onOpenPublish,
   photoFor,
+  sitePhotos = [],
 }: {
   slug: string;
   info: ReadyInfo;
@@ -131,6 +132,8 @@ export function ReadyDetails({
   onOpenPublish?: () => void;
   /** The owner tapped an item's photo on the phone: open that item's photo picker (n changes on every tap). */
   photoFor?: { item: string; n: number } | null;
+  /** Photos from the website the app was made from (URL to App), ready to pick. */
+  sitePhotos?: string[];
 }) {
   const preset = READY_PRESETS[slug];
   const [draft, setDraft] = useState(info);
@@ -148,7 +151,7 @@ export function ReadyDetails({
   const [site, setSite] = useState("");
   const [reading, setReading] = useState(false);
   const [siteNote, setSiteNote] = useState<{ ok: boolean; text: string } | null>(null);
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<string[]>(() => sitePhotos.filter((u) => u.startsWith("https://")).slice(0, 24));
   const [pasting, setPasting] = useState(false);
   const [pasted, setPasted] = useState("");
   const fromSite = async () => {

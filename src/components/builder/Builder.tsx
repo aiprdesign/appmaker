@@ -1534,6 +1534,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                       ownerUrl={project.appData ? ownerUrl : ""}
                       onOpenPublish={() => setTab("publish")}
                       photoFor={photoFor}
+                      sitePhotos={project.source?.images ?? []}
                     />
                   </div>
                 )}

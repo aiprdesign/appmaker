@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Globe, LayoutTemplate, Loader2, Sparkles } from "lucide-react";
-import { createProject, emptyListing } from "@/lib/storage";
+import { ArrowUp, Globe, KeyRound, LayoutTemplate, Loader2, Sparkles } from "lucide-react";
+import { createProject, emptyListing, saveProject, withVersion } from "@/lib/storage";
+import { matchReadyPreset, readyProjectFromSite, readyWelcome } from "@/lib/ready-app";
 import { appTitle } from "@/lib/title";
 import { BRIEF_SKIP_KEY, briefPrompt, type BriefAnswers } from "@/lib/brief";
 import { AppBrief } from "./AppBrief";
-import { TEMPLATES } from "@/lib/templates";
+import { BUSINESS_TEMPLATES, TEMPLATES, templateSlug } from "@/lib/templates";
 import type { SiteSummary } from "@/lib/types";
 import Link from "next/link";
 import { getProvider, modelLabel } from "@/lib/ai/providers";
@@ -181,6 +182,29 @@ export function PromptBox() {
     importSite(address);
   };
 
+  // URL to App for a business a ready-made app fits (pizza place, salon, garage…): that app, filled in from the
+  // website, with orders and the business area built in. Sites that don't need them get a custom AI build.
+  const [customApp, setCustomApp] = useState(false);
+  const readyMatch = site && !redesign ? matchReadyPreset(site) : null;
+  const readyTemplate = readyMatch ? BUSINESS_TEMPLATES.find((t) => templateSlug(t) === readyMatch) : undefined;
+  const useReady = !!(site && readyTemplate && !customApp && !value.trim());
+  const openReady = () => {
+    if (!site || !readyMatch || !readyTemplate) return;
+    setBusy(true);
+    const r = readyProjectFromSite(readyMatch, readyTemplate, site);
+    const found = [r.ready.info.phone && "phone", r.ready.info.address && "address", r.ready.info.hours && "hours", !r.examples && "your " + readyTemplate.title.toLowerCase().split(/[ /&]/)[0] + " items and prices", r.photos.length && "photos"].filter(Boolean);
+    const project = createProject(readyTemplate.prompt, site, wording, {
+      name: r.name,
+      files: r.files,
+      design: r.design,
+      listing: r.listing,
+      ready: r.ready,
+      messages: [readyWelcome(r.name, readyTemplate.title, found as string[], r.examples)],
+    });
+    saveProject(withVersion(project, "Ready-made app from your website").project);
+    router.push(`/build/${project.id}?details=1`);
+  };
+
   const build = (text: string, answers: BriefAnswers | null = null) => {
     setBusy(true);
     setBrief(false);
@@ -207,6 +231,7 @@ export function PromptBox() {
       return;
     }
     if (!text || busy || importing || tooLong) return;
+    if (useReady) return openReady();
     // The AI reads the idea first and asks what it needs to know (unless turned off);
     // a clear idea goes straight to building.
     let skip = false;
@@ -266,6 +291,31 @@ export function PromptBox() {
         {site && (
           <div className="mb-2">
             <SiteCard site={site} onRemove={() => setSite(null)} />
+            {readyTemplate && (
+              <div className="mt-2 flex items-start gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-left text-xs">
+                <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
+                <p className="min-w-0 flex-1 text-muted">
+                  {useReady ? (
+                    <>
+                      <span className="font-medium text-foreground">Looks like a {readyTemplate.title.toLowerCase()} business.</span> You&apos;ll get the ready-made app, filled in from
+                      your website, with orders and your business area built in. Ready in a second, no AI credits.{" "}
+                      <button type="button" onClick={() => setCustomApp(true)} className="underline underline-offset-2 hover:text-foreground">
+                        Build a custom app with AI instead
+                      </button>
+                    </>
+                  ) : value.trim() && !customApp ? (
+                    <>Your description builds a custom app with AI. Clear it to use the ready-made {readyTemplate.title.toLowerCase()} app instead.</>
+                  ) : (
+                    <>
+                      Building a custom app with AI.{" "}
+                      <button type="button" onClick={() => setCustomApp(false)} className="underline underline-offset-2 hover:text-foreground">
+                        Use the ready-made {readyTemplate.title.toLowerCase()} app
+                      </button>
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
         )}
         {showUrl && !site && (
