@@ -31,7 +31,10 @@ export function usedBy(files: FileMap): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const [path, code] of Object.entries(files)) {
     if (!/\.(js|jsx)$/.test(path) || /(^|\/)(appdata|staff)\.js$/.test(path)) continue;
-    for (const m of code.matchAll(USE)) (out[m[1]] ??= []).includes(path) || out[m[1]].push(path);
+    for (const m of code.matchAll(USE)) {
+      const list = (out[m[1]] ??= []);
+      if (!list.includes(path)) list.push(path);
+    }
   }
   return out;
 }

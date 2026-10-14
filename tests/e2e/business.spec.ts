@@ -179,7 +179,10 @@ test("the owner fills the app in from their website, pastes a menu and adds phot
   await page.getByLabel("Photo link").fill("https://images.luigis.example/cacio.jpg");
   await page.getByRole("button", { name: "Use this link" }).click();
   await expect(page.getByRole("button", { name: "Change the photo of Cacio e pepe" })).toBeVisible();
-  await expect(phone.locator('[src*="cacio.jpg"], [style*="cacio.jpg"]').first()).toBeAttached({ timeout: 15_000 });
+  // The app's menu carries the photo (the test can't load it: the address is made up, and CI has no internet).
+  await expect
+    .poll(() => page.evaluate(() => Object.values(JSON.parse(localStorage.getItem("appmaker.projects.v1") || "{}")).map((p) => (p as { files: Record<string, string> }).files["src/data-rules.json"] ?? "").join()), { timeout: 15_000 })
+    .toContain('"image": "https://images.luigis.example/cacio.jpg"');
 });
 
 test("Your data: the business changes its steps safely, and the app's tracker follows", async ({ page }) => {

@@ -598,6 +598,8 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
         if (fixChecks) fixBudget.current -= 1;
         if (fixChecks && looks.length) designBudget.current -= 1;
         if (fixContent) contentBudget.current -= 1;
+        // A new app was shown while it was written: it failed a check, so it leaves the phone until the fixed version passes.
+        if (!(isSite ? hasSiteEntry(current.files) : hasEntry(current.files))) setPreviewFiles(current.files);
         setChecking(true);
         const parts = [
           issues.length && `Automatic quality check found ${issues.length} problem${issues.length === 1 ? "" : "s"}:\n${describeIssues(issues)}`,
