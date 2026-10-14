@@ -1,10 +1,10 @@
 import http from "node:http";
 import https from "node:https";
 import zlib from "node:zlib";
-import { parse, type HTMLElement } from "node-html-parser";
+import { HTMLElement, parse } from "node-html-parser";
 import { isPrivateHost, isPublicAddress, makeSafeLookup } from "./net-guard";
 import { cleanEmail, cleanPhone, cleanText, MAX_SITE_IMAGES, safeHttpsUrl, sanitizeContact } from "./site-details";
-import type { SiteContact, SitePage, SiteSection, SiteSummary } from "./types";
+import type { SiteContact, SiteItem, SitePage, SiteSection, SiteSummary } from "./types";
 import { channelIdFrom, feedVideos, isYoutubeChannel, MAX_VIDEOS, pageVideos, type SiteVideo } from "./site-media";
 
 export { isPublicAddress };
@@ -477,6 +477,7 @@ interface Details {
   clientLogos: { src: string; alt: string }[];
   images: string[];
   contact: Partial<SiteContact> & { phones: string[]; emails: string[]; hours: string[]; social: string[] };
+  items: SiteItem[];
 }
 
 function absolute(href: string | undefined, base: URL, picture = false): string | null {
@@ -640,7 +641,7 @@ function hiddenImages(root: HTMLElement, base: URL): string[] {
 }
 
 function extractDetails(root: HTMLElement, base: URL): Details {
-  const d: Details = { videos: pageVideos(root, base), logos: [], clientLogos: extractClientLogos(root, base), images: [], contact: { phones: [], emails: [], hours: [], social: [] } };
+  const d: Details = { videos: pageVideos(root, base), logos: [], clientLogos: extractClientLogos(root, base), images: [], contact: { phones: [], emails: [], hours: [], social: [] }, items: [...structuredItems(root, base), ...priceListItems(root, base)] };
   const c = d.contact;
 
   for (const name of ["og:image", "og:image:secure_url", "twitter:image"]) {
@@ -713,12 +714,104 @@ function extractDetails(root: HTMLElement, base: URL): Details {
 }
 
 /** Merges what was found on each page: the logo, photos, and each contact detail once. */
+const MAX_ITEMS = 60;
+// "$11", "£3.50", "12,50 €" (a sign before a number belongs to that number: "Under 12 $18" is $18).
+const PRICE = /(?:[$£€]\s?\d{1,5}(?:[.,]\d{2})?|\d{1,5}(?:[.,]\d{2})?\s?(?:[$£€](?!\s?\d)|(?:EUR|USD|GBP)\b))/;
+
+const itemText = (v: unknown, max: number) => (typeof v === "string" ? cleanText(v, max) ?? "" : "");
+
+/** "12.5" with "GBP" → "£12.50"; text prices stay as they are. */
+function itemPrice(price: unknown, currency: unknown): string {
+  const p = typeof price === "number" ? String(price) : typeof price === "string" ? price.trim() : "";
+  if (!p) return "";
+  const sign = ({ USD: "$", GBP: "£", EUR: "€" } as Record<string, string>)[String(currency ?? "").toUpperCase()] ?? "";
+  return /^\d+(\.\d+)?$/.test(p) ? `${sign}${Number(p) % 1 ? Number(p).toFixed(2) : p}` : p.slice(0, 24);
+}
+
+/** Menu items, products and services from the page's schema.org data (Menu → sections → items, Product, Service). */
+function structuredItems(root: HTMLElement, base: URL): SiteItem[] {
+  const out: SiteItem[] = [];
+  const walk = (v: unknown, category: string, depth: number) => {
+    if (depth > 8 || !v || typeof v !== "object" || out.length >= MAX_ITEMS) return;
+    if (Array.isArray(v)) return v.slice(0, 100).forEach((x) => walk(x, category, depth + 1));
+    const o = v as Record<string, unknown>;
+    const types = ([] as unknown[]).concat(o["@type"] ?? []).map(String);
+    if (types.some((t) => /^(MenuItem|Product|Service|Offer)$/.test(t)) && typeof o.name === "string") {
+      const offer = ([] as unknown[]).concat(o.offers ?? [])[0] as Record<string, unknown> | undefined;
+      const img = ([] as unknown[]).concat(o.image ?? [])[0];
+      const image = absolute(typeof img === "string" ? img : ((img as { url?: string } | undefined)?.url ?? undefined), base, true);
+      const name = itemText(o.name, 60);
+      if (name)
+        out.push({
+          name,
+          description: itemText(o.description, 140),
+          price: itemPrice(offer?.price ?? o.price, offer?.priceCurrency ?? o.priceCurrency),
+          category: category.slice(0, 40),
+          ...(image ? { image } : {}),
+        });
+    }
+    const section = types.includes("MenuSection") && typeof o.name === "string" ? itemText(o.name, 40) : category;
+    for (const k of ["@graph", "hasMenu", "hasMenuSection", "hasMenuItem", "itemListElement", "item", "makesOffer", "itemOffered", "hasOfferCatalog"]) walk(o[k], section, depth + 1);
+  };
+  for (const script of root.querySelectorAll('script[type="application/ld+json"]').slice(0, 10)) {
+    try {
+      walk(JSON.parse(script.text), "", 0);
+    } catch {
+      /* ignore broken structured data */
+    }
+  }
+  return out;
+}
+
+/**
+ * Price lists written in the page: the smallest blocks (list items, rows, cards) holding one
+ * name and one price, like "Margherita — tomato, basil  $11". Their heading is the category.
+ */
+function priceListItems(root: HTMLElement, base: URL): SiteItem[] {
+  const out: SiteItem[] = [];
+  const blocks = root.querySelectorAll("li, tr, article, div, p, dd, h2, h3, h4, h5, h6").filter((el) => {
+    if (el.closest("header, nav, footer, form, script, style")) return false;
+    const t = clean(el.text);
+    if (t.length < 4 || t.length > 220 || (t.match(new RegExp(PRICE.source, "g")) ?? []).length !== 1) return false;
+    // The smallest block: none of its children is a whole item by itself.
+    return !el.childNodes.some((c) => c instanceof HTMLElement && PRICE.test(clean(c.text)) && clean(c.text).length > clean(c.text).match(PRICE)![0].length + 2);
+  });
+  for (const el of blocks.slice(0, 200)) {
+    const t = clean(el.text);
+    const price = t.match(PRICE)![0].replace(/\s+/g, "");
+    const named = el.querySelector("h3, h4, h5, h6, strong, b, dt, [class*=name], [class*=title]");
+    let name = named ? clean(named.text).replace(PRICE, "").trim() : "";
+    let rest = t.replace(PRICE, " ").replace(/\s+/g, " ").trim();
+    if (!name) [name, rest] = [rest.split(/\s[-–—|·:]\s|\.\s/)[0], rest.split(/\s[-–—|·:]\s|\.\s/).slice(1).join(" — ")];
+    else rest = rest.replace(name, "").replace(/^[\s\-–—|·:,.]+|[\s\-–—|·:,.]+$/g, "");
+    name = name.replace(/[\s\-–—|·:,.]+$/, "").slice(0, 60);
+    if (name.length < 2 || name.split(" ").length > 8 || /^(from|only|save|total|subtotal|delivery|free)\b/i.test(name)) continue;
+    // The nearest heading before it names its category ("Pizzas", "Haircuts").
+    let category = "";
+    for (let prev: HTMLElement | null = el; prev && !category; prev = prev.parentNode as HTMLElement | null) {
+      let sib = prev.previousElementSibling;
+      for (let i = 0; sib && i < 30 && !category; i++, sib = sib.previousElementSibling) {
+        const h = /^H[2-4]$/.test(sib.tagName) ? sib : sib.querySelector("h2, h3, h4");
+        // An item written as a heading ("Tiramisu — $9") isn't a category.
+        if (h && !PRICE.test(clean(h.text))) category = clean(h.text).slice(0, 40);
+      }
+    }
+    const img = el.querySelector("img");
+    const image = img ? imageUrl(img, base) : null;
+    out.push({ name, description: rest.slice(0, 140), price, category, ...(image ? { image } : {}) });
+    if (out.length >= MAX_ITEMS) break;
+  }
+  // A page with only one or two prices is probably not a price list.
+  return out.length >= 3 ? out : [];
+}
+
 function mergeDetails(all: Details[]): {
   logo?: string;
   images: string[];
   contact?: SiteContact;
   clientLogos?: { src: string; alt: string }[];
   videos?: SiteVideo[];
+  items?: SiteItem[];
 } {
   const videos = all.flatMap((d) => d.videos).filter((v, i, arr) => arr.findIndex((w) => w.kind === v.kind && w.id === v.id) === i).slice(0, MAX_VIDEOS);
   const logo = all.flatMap((d) => d.logos)[0];
@@ -740,7 +833,19 @@ function mergeDetails(all: Details[]): {
     booking: pick("booking"),
     maps: pick("maps"),
   });
-  return { ...(logo ? { logo } : {}), images, ...(contact ? { contact } : {}), ...(clientLogos.length ? { clientLogos } : {}), ...(videos.length ? { videos } : {}) };
+  const seenItems = new Set<string>();
+  const items = all
+    .flatMap((d) => d.items)
+    .filter((i) => !seenItems.has(i.name.toLowerCase()) && seenItems.add(i.name.toLowerCase()))
+    .slice(0, MAX_ITEMS);
+  return {
+    ...(logo ? { logo } : {}),
+    images,
+    ...(contact ? { contact } : {}),
+    ...(clientLogos.length ? { clientLogos } : {}),
+    ...(videos.length ? { videos } : {}),
+    ...(items.length ? { items } : {}),
+  };
 }
 
 const KEY_PAGES = /(about|menu|service|product|pricing|price|plan|feature|shop|store|collection|course|class|program|team|faq|work|portfolio|book|reserv|order)/i;

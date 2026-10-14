@@ -172,6 +172,15 @@ create table if not exists app_data_alerts (
   created_at timestamptz not null default now(),
   primary key (store_id, token)
 );
+create table if not exists app_images (
+  id text primary key,
+  user_id text not null references app_users(id) on delete cascade,
+  type text not null,
+  bytes bytea not null,
+  size integer not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists app_images_user on app_images (user_id);
 create table if not exists app_quality (
   day date not null,
   model text not null default '',

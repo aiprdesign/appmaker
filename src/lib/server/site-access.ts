@@ -97,6 +97,9 @@ const OPEN = [
   /^\/legal\//,
   /^\/owner\//,
   /^\/api\/(book|owner|live|stripe|status)(\/|$)/,
+  // What published apps load: owners' photos, and each app's own data (it checks its own keys).
+  /^\/api\/images\/[A-Za-z0-9_-]+$/,
+  /^\/api\/appdata\/[A-Za-z0-9_-]+(\/|$)/,
 ];
 
 export const openWhileLocked = (pathname: string): boolean => OPEN.some((r) => r.test(pathname));

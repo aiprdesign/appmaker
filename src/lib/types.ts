@@ -113,6 +113,17 @@ export interface SiteSummary {
   /** Logos of clients, partners, press or certifications ("trusted by"), shown as a logo strip. */
   clientLogos?: { src: string; alt: string }[];
   contact?: SiteContact;
+  /** Menu items, products or services with prices, from the site's structured data or its price lists. */
+  items?: SiteItem[];
+}
+
+/** Something the business sells, as its website lists it. */
+export interface SiteItem {
+  name: string;
+  description: string;
+  price: string;
+  category: string;
+  image?: string;
 }
 
 /** The Expo (EAS) project an app is linked to, created on its first cloud build. */

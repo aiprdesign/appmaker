@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { showAllPublishSteps } from "./helpers/publish";
+import { SITE_PORT } from "../../playwright.config";
 
 // Business features: templates with blanks, and the business's logo as the app icon.
 
@@ -141,4 +142,34 @@ test("business templates open a working app straight away, and the owner's detai
   await phone.getByRole("button", { name: /Back|Close/ }).first().click();
   await phone.getByText("Order", { exact: true }).last().click();
   await expect(phone.getByText("Ready", { exact: true }).first()).toBeVisible();
+});
+
+test("the owner fills the app in from their website, pastes a menu and adds photos", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Pizza & takeaway/ }).click();
+  const phone = page.frameLocator('iframe[title="App preview"]');
+  await expect(phone.getByText("Tony's Pizza").first()).toBeVisible({ timeout: 30_000 });
+
+  // From the website: name, phone, hours, and the menu with prices.
+  await page.getByLabel("Fill in from your website").fill(`http://localhost:${SITE_PORT}`);
+  await page.getByRole("button", { name: "Fill in", exact: true }).click();
+  await expect(page.getByText(/Filled in from Luigi's Trattoria, with \d+ items and prices/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByLabel("Business name")).toHaveValue("Luigi's Trattoria");
+  await expect(page.getByLabel("Phone", { exact: true })).toHaveValue("+17185550142");
+  await expect(page.getByLabel("Name 1")).toHaveValue("Cacio e pepe");
+  await expect(phone.getByText("Luigi's Trattoria").first()).toBeVisible({ timeout: 15_000 });
+  await expect(phone.getByText("Cacio e pepe").first()).toBeVisible();
+
+  // Pasting a list: categories, names, descriptions and prices.
+  await page.getByRole("button", { name: "Paste a list" }).click();
+  await page.getByLabel(/One per line/).fill("Desserts:\nPanna cotta - Vanilla, berries - $8\nAffogato $7");
+  await page.getByRole("button", { name: "Add to the list" }).click();
+  await expect(page.getByLabel("Name 5")).toHaveValue("Affogato");
+
+  // A photo by link (uploads need an account; links don't).
+  await page.getByRole("button", { name: "Add a photo of Cacio e pepe" }).click();
+  await page.getByLabel("Photo link").fill("https://images.luigis.example/cacio.jpg");
+  await page.getByRole("button", { name: "Use this link" }).click();
+  await expect(page.getByRole("button", { name: "Change the photo of Cacio e pepe" })).toBeVisible();
+  await expect(phone.locator('img[src="https://images.luigis.example/cacio.jpg"]').first()).toBeAttached({ timeout: 15_000 });
 });

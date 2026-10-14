@@ -1,7 +1,7 @@
 import { autoDesign, THEME_FILE, themeModule } from "./design";
 import { DATA_FILE, RULES_FILE, dataModule, type DataRules } from "./app-data";
 import { STAFF_FILE, staffModule } from "./staff";
-import type { AppDesign, FileMap, StoreListing } from "./types";
+import type { AppDesign, FileMap, SiteSummary, StoreListing } from "./types";
 
 /**
  * Ready-made business apps: picking a business template opens a working app
@@ -16,6 +16,8 @@ export interface ReadyItem {
   description: string;
   price: string;
   category: string;
+  /** A photo link (https): the owner's own upload, or one from their website. */
+  image?: string;
 }
 
 /** The details a business fills in. */
@@ -322,7 +324,13 @@ const STATUSES: Record<ReadyKind, string[]> = {
 /** The data the app keeps: the business's items (it edits them on its owner page) and the requests customers send. */
 export function readyRules(preset: ReadyPreset, info: ReadyInfo): DataRules {
   return {
-    items: { access: "public", fields: ["name", "description", "price", "category"], seed: info.items.filter((i) => i.name.trim()) as unknown as Record<string, unknown>[] },
+    items: {
+      access: "public",
+      fields: ["name", "description", "price", "category", "image"],
+      seed: info.items
+        .filter((i) => i.name.trim())
+        .map(({ image, ...i }) => ({ ...i, ...(image && /^https:\/\/[^\s"'<>]{4,500}$/.test(image) ? { image } : {}) })),
+    },
     requests: { access: "inbox", fields: requestFields(preset), statuses: STATUSES[preset.kind] },
   };
 }
@@ -455,7 +463,7 @@ export const directions = () => open('https://maps.google.com/?q=' + encodeURICo
 `;
 
 const HOME = `import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Icons from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { card, colors, gradient, heading, label, onGradient, radius } from '../theme';
@@ -521,6 +529,7 @@ export default function HomeScreen({ go, pick }) {
             accessibilityHint={words.add + ' ' + it.name}
             style={[styles.item, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}
           >
+            {!!it.image && <Image source={{ uri: it.image }} style={[styles.photo, { borderRadius: radius.md, backgroundColor: colors.primarySoft }]} accessibilityIgnoresInvertColors />}
             <View style={styles.flex}>
               <Text style={[styles.itemName, { color: colors.text }]}>{it.name}</Text>
               {!!it.description && <Text style={[styles.small, { color: colors.muted }]}>{it.description}</Text>}
@@ -550,11 +559,12 @@ const styles = StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
   itemName: { fontSize: 15, fontWeight: '600' },
   flex: { flex: 1, gap: 4 },
+  photo: { width: 48, height: 48 },
 });
 `;
 
 const ITEMS = `import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Icons from 'lucide-react-native';
 import { card, colors, heading, radius } from '../theme';
 import { words } from '../business';
@@ -597,6 +607,7 @@ export default function ItemsScreen({ pick }) {
       ) : null}
       {shown.map((it) => (
         <View key={it.id || it.name} style={[card, styles.item]}>
+          {!!it.image && <Image source={{ uri: it.image }} style={[styles.photo, { borderRadius: radius.md, backgroundColor: colors.primarySoft }]} accessibilityIgnoresInvertColors />}
           <View style={styles.flex}>
             <Text style={[styles.name, { color: colors.text }]}>{it.name}</Text>
             {!!it.description && <Text style={[styles.small, { color: colors.muted }]}>{it.description}</Text>}
@@ -631,6 +642,7 @@ const styles = StyleSheet.create({
   body: { fontSize: 15 },
   small: { fontSize: 13 },
   add: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, minHeight: 44 },
+  photo: { width: 72, height: 72 },
 });
 `;
 
@@ -964,4 +976,56 @@ export function readyProject(slug: string, template: { title: string; emoji: str
     listing: readyListing(slug, preset, info, template.emoji),
     ready: { slug, info },
   };
+}
+
+const PRICE_AT_END = /\s*(?:[-–—|·:,]\s*)?((?:[$£€]\s?\d[\d.,]*|\d[\d.,]*\s?(?:[$£€]|EUR|USD|GBP)?|free|quote|call us)(?:\s*\/\s*\w+)?)$/i;
+
+/**
+ * A menu or price list typed or pasted in, one per line:
+ *   Pizza:                              ← a line ending with ":" starts a category
+ *   Margherita - Tomato, basil - $11    ← name, description, price
+ *   Garlic bread $5                     ← name and price
+ */
+export function parseItemList(text: string): ReadyItem[] {
+  const out: ReadyItem[] = [];
+  let category = "";
+  for (const raw of text.split(/\r?\n/).slice(0, 200)) {
+    const line = raw.replace(/^[\s•*\-–—]+/, "").trim();
+    if (!line) continue;
+    if (/:$/.test(line) && line.length <= 40) {
+      category = line.slice(0, -1).trim();
+      continue;
+    }
+    const m = PRICE_AT_END.exec(line);
+    const price = m && /\d|free|quote|call/i.test(m[1]) ? m[1].trim() : "";
+    const rest = (price ? line.slice(0, m!.index) : line).trim();
+    const [name, ...desc] = rest.split(/\s+[-–—|]\s+|\s*\|\s*/);
+    if (!name || name.length > 60) continue;
+    out.push({ name: name.trim(), description: desc.join(" — ").trim().slice(0, 140), price: price.replace(/^[$£€]\s+/, (s) => s.trim()), category });
+  }
+  return out;
+}
+
+/** The owner's details filled in from their website (what it doesn't say stays as it was). */
+export function infoFromSite(site: SiteSummary, current: ReadyInfo): { info: ReadyInfo; photos: string[] } {
+  const c = site.contact;
+  const sentence = (site.description || "").split(/(?<=[.!?])\s/)[0].replace(/[.!]$/, "");
+  const items = (site.items ?? []).map((i) => ({ name: i.name, description: i.description, price: i.price, category: i.category, ...(i.image ? { image: i.image } : {}) }));
+  const info: ReadyInfo = {
+    ...current,
+    name: site.siteName || current.name,
+    tagline: sentence && sentence.length <= 80 ? sentence : current.tagline,
+    phone: c?.phones[0] ?? current.phone,
+    // The site links to WhatsApp (wa.me/447…, or …?phone=447…): the number.
+    whatsapp: (() => {
+      const n = /wa\.me\/(\d{6,15})|[?&]phone=(\d{6,15})/.exec(c?.whatsapp ?? "");
+      return n ? `+${n[1] ?? n[2]}` : current.whatsapp;
+    })(),
+    email: c?.emails[0] ?? current.email,
+    address: c?.address ?? current.address,
+    hours: c?.hours.length ? c.hours.join("\n") : current.hours,
+    color: site.colors.find((x) => /^#[0-9a-f]{6}$/i.test(x)) ?? current.color,
+    items: items.length ? items : current.items,
+  };
+  return { info, photos: [...new Set([...items.flatMap((i) => (i.image ? [i.image] : [])), ...(site.images ?? [])])].filter((u) => u.startsWith("https://")).slice(0, 24) };
 }
