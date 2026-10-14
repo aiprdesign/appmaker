@@ -105,7 +105,7 @@ export function AppDataPanel({
   };
 
   return (
-    <section aria-labelledby="appdata-title" className="space-y-3">
+    <section id="app-database" aria-labelledby="appdata-title" className="scroll-mt-4 space-y-3">
       <div className="flex items-start gap-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-500/15 text-emerald-300">
           <Database className="h-4 w-4" aria-hidden />

@@ -243,3 +243,13 @@ test("tapping a menu photo on the phone opens its photo picker next to it", asyn
   await page.getByRole("button", { name: "Use this link" }).click();
   await expect(phone.getByRole("button", { name: "Change the photo of Pepperoni" })).toBeVisible({ timeout: 15_000 });
 });
+
+test("Owner page, before the database is on, goes straight to where it's turned on", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Pizza & takeaway/ }).click();
+  await expect(page.frameLocator('iframe[title="App preview"]').getByText("Tony's Pizza").first()).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Owner page", exact: true }).click();
+  const section = page.locator("#app-database");
+  await expect(section).toBeInViewport({ timeout: 10_000 });
+  await expect(section.getByText(/Sign in|Turn on the app database/).first()).toBeVisible();
+});

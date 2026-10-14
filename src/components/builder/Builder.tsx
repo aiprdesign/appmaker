@@ -318,6 +318,12 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appDataId]);
+  // "Get your owner page" / "Owner page" before the database is on: straight to Publish → App database.
+  const [showAppData, setShowAppData] = useState(0);
+  const openAppData = () => {
+    setTab("publish");
+    setShowAppData((n) => n + 1);
+  };
   const syncedRules = useRef<string | null>(null);
   const [rulesSync, setRulesSync] = useState<"" | "saving" | "failed">("");
   const rulesKey = project?.appData ? JSON.stringify(appRules(project.files)) : "";
@@ -1406,7 +1412,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                     </a>
                   ) : (
                     <button
-                      onClick={() => setTab("publish")}
+                      onClick={openAppData}
                       title="The owner page comes with the app database: turn it on in Publish → Optional extras"
                       className="flex h-7 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-xs font-medium text-muted hover:text-foreground"
                     >
@@ -1532,7 +1538,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                       onChange={changeDetails}
                       onClose={() => setDetailsOpen(false)}
                       ownerUrl={project.appData ? ownerUrl : ""}
-                      onOpenPublish={() => setTab("publish")}
+                      onOpenPublish={openAppData}
                       photoFor={photoFor}
                       sitePhotos={project.source?.images ?? []}
                     />
@@ -1606,6 +1612,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                 send(request);
               }}
               rulesSync={rulesSync}
+              showAppData={showAppData}
               onAddAppData={() => {
                 setTab("preview");
                 send(

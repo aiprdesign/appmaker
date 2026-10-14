@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, CircleAlert, Copy, Download, ImageDown, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { PublishSteps, type PublishStep } from "./PublishSteps";
 import type { AppIconImage, BuildTarget, ExpoState, Project, StoreListing, StorePagesState } from "@/lib/types";
@@ -43,6 +43,8 @@ interface Props {
   /** "Your data": a change the AI makes, so the screens change with the data. */
   onAskData: (request: string) => void;
   rulesSync: "" | "saving" | "failed";
+  /** Goes up each time the builder asks to show the app database (e.g. "Get your owner page"). */
+  showAppData?: number;
   onAndroidPushChange: (push: Project["androidPush"]) => void;
   onAddBookingScreen: () => void;
   busy: boolean;
@@ -213,7 +215,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, buildRequest, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, onAppDataChange, onAddAppData, onRulesChange, onAskData, rulesSync, onAndroidPushChange, busy, hasPreviewError }: Props) {
+export function PublishPanel({ project, buildRequest, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, onAppDataChange, onAddAppData, onRulesChange, onAskData, rulesSync, showAppData = 0, onAndroidPushChange, busy, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -264,6 +266,19 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
   const ready = checks.filter((c) => c.ok).length;
   // Asked from Test on a device: straight to the build step.
   const [step, setStep] = useState(buildRequest ? 4 : 0);
+  // "Get your owner page": the app database is in the Build step, under Optional extras: go there.
+  const extras = useRef<HTMLDetailsElement>(null);
+  const [shownAppData, setShownAppData] = useState(0);
+  if (showAppData !== shownAppData) {
+    setShownAppData(showAppData);
+    if (showAppData) setStep(4);
+  }
+  useEffect(() => {
+    if (!showAppData) return;
+    if (extras.current) extras.current.open = true;
+    const t = setTimeout(() => document.getElementById("app-database")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    return () => clearTimeout(t);
+  }, [showAppData, step]);
   const [seenRequest, setSeenRequest] = useState(buildRequest?.n);
   if (buildRequest && buildRequest.n !== seenRequest) {
     setSeenRequest(buildRequest.n);
@@ -471,7 +486,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
                   </li>
                 </ol>
               </details>
-              <details className="group rounded-2xl border border-line bg-surface p-5">
+              <details ref={extras} className="group rounded-2xl border border-line bg-surface p-5">
                 <summary className="cursor-pointer list-none font-semibold">
                   Optional extras: app database, live updates and bookings
                   <span className="mt-1 block text-xs font-normal text-muted">Get orders and requests from customers, keep content fresh from your website, or take bookings in the app.</span>
