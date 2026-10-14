@@ -16,7 +16,7 @@ export function ReadyTemplateButton({ template, children, className }: { templat
         {
           id: uid(),
           role: "assistant",
-          content: `Your ${template.title.toLowerCase()} app is ready and works already: customers can browse, send ${ready.ready.info.items.length ? "requests" : "messages"} and follow them.\n\nReplace the example details with yours in **Your details** next to the phone. Want something different? Just ask here, e.g. "add a gallery of our work".`,
+          content: `Your ${template.title.toLowerCase()} app is ready and works already: customers can browse, send ${ready.ready.info.items.length ? "requests" : "messages"} and follow them.\n\nReplace the example details with yours in **Your details** next to the phone.\n\nYour business area is built in: **Staff mode** in the app (Info → Staff mode) to manage orders and requests, and an **owner page** on the web with alerts, once you turn on the app database in Publish.\n\nWant something different? Just ask here, e.g. "add a gallery of our work".`,
           createdAt: Date.now(),
         },
       ],

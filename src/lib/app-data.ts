@@ -170,6 +170,7 @@ export function dataModule(apiUrl: string | null, rules: DataRules): string {
   const access = Object.fromEntries(Object.entries(rules).map(([k, r]) => [k, r.access]));
   const seeds = Object.fromEntries(Object.entries(rules).filter(([, r]) => r.seed?.length).map(([k, r]) => [k, r.seed]));
   const statuses = Object.fromEntries(Object.entries(rules).filter(([, r]) => r.statuses).map(([k, r]) => [k, r.statuses]));
+  const fields = Object.fromEntries(Object.entries(rules).map(([k, r]) => [k, r.fields]));
   return `// Appmaker app data: the app's built-in database. Written by Appmaker — don't change this file.
 // Screens import useCollection from this file, then:
 //   const { items, loading, error, add, update, remove, refresh } = useCollection('orders');
@@ -182,6 +183,7 @@ const API = ${JSON.stringify(apiUrl)};
 const ACCESS = ${JSON.stringify(access)};
 const SEED = ${JSON.stringify(seeds)};
 const STATUSES = ${JSON.stringify(statuses)};
+const FIELDS = ${JSON.stringify(fields)};
 const WORDS = ${JSON.stringify(STATUS_WORDS)};
 const DONE = ${DONE_STATUS.toString()};
 const listeners = {};
@@ -453,6 +455,21 @@ export function statusInfo(collection, status) {
  * A collection as React state: the items, and add, update and remove that keep
  * every screen using it up to date. Refreshes every 30 seconds while shown.
  */
+/**
+ * Staff mode's preview, before the app database is on: the orders and requests sent from this
+ * phone, which can be moved on here to see what customers see. Off once the database is on.
+ */
+export const preview = {
+  on: !API,
+  collections: Object.keys(ACCESS).map((name) => ({ name, access: ACCESS[name], fields: FIELDS[name] || [], statuses: STATUSES[name] || [] })),
+  list: (collection) => readLocal(collection),
+  setStatus: async (collection, id, status) => {
+    if (API) throw new Error('Only in the preview.');
+    await writeLocal(collection, (await readLocal(collection)).map((x) => (x.id === id ? { ...x, status, updatedAt: Date.now() } : x)));
+    changed(collection);
+  },
+};
+
 export function useCollection(collection) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -22,6 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { ArrowRight, Bell, ChevronDown, ChevronLeft, Inbox, KeyRound, LogOut, Phone, Plus, Trash2 } from 'lucide-react-native';
 import { colors, radius, font, card } from './theme';
+import { preview } from './appdata';
 
 const API = ${JSON.stringify(apiUrl)};
 const KEY = 'appdata:staff-key';
@@ -208,6 +209,58 @@ function Order({ collection, item, busy, act, fresh }) {
   );
 }
 
+/**
+ * Before the app database is on: staff mode works on the orders sent from this phone, so the business
+ * can try it (and see the customer's screen follow). Nothing reaches a server.
+ */
+function PreviewStaff({ onClose }) {
+  const inboxes = preview.collections.filter((c) => c.access === 'inbox');
+  const [tab, setTab] = useState((inboxes[0] || {}).name || '');
+  const [items, setItems] = useState([]);
+  const current = inboxes.find((c) => c.name === tab) || inboxes[0];
+  const load = useCallback(async () => {
+    if (current) setItems(await preview.list(current.name));
+  }, [current]);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const act = async (a) => {
+    await preview.setStatus(a.collection, a.id, a.status);
+    load();
+  };
+  const active = current ? items.filter((i) => !isDone(i.status, current.statuses)).sort((a, b) => a.createdAt - b.createdAt) : [];
+  const finished = current ? items.filter((i) => isDone(i.status, current.statuses)) : [];
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <Header title="Staff" onClose={onClose} />
+      <View style={[card, styles.box]}>
+        <View style={styles.note}>
+          <View style={styles.iconTile}><KeyRound size={24} color={colors.primary} accessible={false} /></View>
+          <Text style={styles.noteText}>This is where you and your staff manage orders and requests. Try it now with orders from this phone. Once the app database is on, every customer's orders arrive here, protected by your staff PIN.</Text>
+        </View>
+      </View>
+      {inboxes.length > 1 ? (
+        <View style={styles.statuses}>
+          {inboxes.map((c) => (
+            <Pressable key={c.name} onPress={() => setTab(c.name)} accessibilityRole="tab" accessibilityState={{ selected: c.name === tab }} style={[styles.chip, c.name === tab && styles.chipOn]}>
+              <Text style={[styles.chipText, c.name === tab && styles.chipTextOn]}>{label(c.name)}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {current && active.length === 0 && finished.length === 0 ? (
+        <View style={styles.empty}>
+          <Inbox size={40} color={colors.muted} accessible={false} />
+          <Text style={styles.h2}>Nothing yet</Text>
+          <Text style={[styles.muted, { textAlign: 'center' }]}>Send a test {label(current.name).toLowerCase().replace(/s$/, '')} from the app, then come back here to move it on.</Text>
+        </View>
+      ) : null}
+      {current ? active.map((item) => <Order key={item.id} collection={current} item={item} busy={false} act={act} fresh={false} />) : null}
+      {current ? finished.map((item) => <Order key={item.id} collection={current} item={item} busy={false} act={act} fresh={false} />) : null}
+    </ScrollView>
+  );
+}
+
 /** Staff mode: orders and requests waiting on staff first (oldest first), then what the app shows. */
 export default function StaffScreen({ onClose }) {
   const [key, setKey] = useState(null);
@@ -353,17 +406,7 @@ export default function StaffScreen({ onClose }) {
     setView(null);
   };
 
-  if (!API) {
-    return (
-      <ScrollView contentContainerStyle={styles.content}>
-        <Header title="Staff" onClose={onClose} />
-        <View style={[card, styles.box]}>
-          <Text style={styles.h2}>Staff mode isn't available yet</Text>
-          <Text style={styles.muted}>Online orders and requests aren't switched on for this app yet. Once they are, staff sign in here with the staff PIN to manage them.</Text>
-        </View>
-      </ScrollView>
-    );
-  }
+  if (!API) return <PreviewStaff onClose={onClose} />;
   if (key === null) return <ActivityIndicator style={{ marginTop: 80 }} color={colors.primary} />;
   if (!key) return <SignIn onKey={setKey} onClose={onClose} />;
 

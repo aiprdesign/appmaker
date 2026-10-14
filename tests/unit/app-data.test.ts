@@ -58,7 +58,7 @@ describe("app data rules and module", () => {
     expect(SYSTEM_PROMPT).toContain("App data (Appmaker's built-in database");
     expect(SYSTEM_PROMPT).toContain("useCollection('orders')");
     expect(SYSTEM_PROMPT).toContain("import StaffScreen from '../staff'");
-    expect(staffModule(null)).toContain("Staff mode isn't available yet");
+    expect(staffModule(null)).toContain("Try it now with orders from this phone");
   });
 
   it("collects as little as possible and refuses what must never be stored", () => {
@@ -104,9 +104,11 @@ function runModule(api: string | null, fetcher?: typeof fetch) {
   const storage = { getItem: async (k: string) => store.get(k) ?? null, setItem: async (k: string, v: string) => void store.set(k, v), removeItem: async (k: string) => void store.delete(k), multiRemove: async (ks: string[]) => ks.forEach((k) => store.delete(k)) };
   const code = dataModule(api, parseRules(RULES))
     .replace(/^import .*$/gm, "")
-    .replace(/^export (async )?function (\w+)/gm, (_m, a: string | undefined, name: string) => `${a ?? ""}function ${name}`);
-  const names = [...dataModule(api, parseRules(RULES)).matchAll(/^export (?:async )?function (\w+)/gm)].map((m) => m[1]);
-  const exports: Record<string, (...args: unknown[]) => Promise<unknown>> = {};
+    .replace(/^export (async )?function (\w+)/gm, (_m, a: string | undefined, name: string) => `${a ?? ""}function ${name}`)
+    .replace(/^export const (\w+)/gm, "const $1");
+  const names = [...dataModule(api, parseRules(RULES)).matchAll(/^export (?:(?:async )?function|const) (\w+)/gm)].map((m) => m[1]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const exports: Record<string, any> = {};
   new Function("exports", "AsyncStorage", "fetch", "useState", "useEffect", "useRef", "useCallback", `${code}\n${names.map((n) => `exports.${n} = ${n};`).join("\n")}`)(exports, storage, fetcher, null, null, null, null);
   return exports;
 }
@@ -140,6 +142,16 @@ describe("the app's data module", () => {
     await m.remove("orders", order.id); // orders are cancelled (the business keeps a record), not deleted
     expect(await m.list("orders")).toEqual([expect.objectContaining({ name: "Ana B", status: "cancelled" })]);
     await expect(m.list("secrets")).rejects.toThrow(/Unknown collection/);
+  });
+
+  it("lets staff mode's preview move this phone's orders on, before the database is on", async () => {
+    const m = runModule(null);
+    expect(m.preview.on).toBe(true);
+    expect(m.preview.collections.find((c: { name: string }) => c.name === "orders")).toMatchObject({ access: "inbox", statuses: expect.arrayContaining(["new"]) });
+    const order = (await m.add("orders", { name: "Ana" })) as { id: string };
+    await m.preview.setStatus("orders", order.id, "ready");
+    expect(await m.list("orders")).toEqual([expect.objectContaining({ id: order.id, status: "ready" })]);
+    expect(runModule("https://appmaker.example/api/appdata/abc12345").preview.on).toBe(false);
   });
 
   it("lets customers cancel only while waiting, and words statuses for them", async () => {

@@ -130,4 +130,15 @@ test("business templates open a working app straight away, and the owner's detai
   await phone.getByLabel("Phone").fill("555 1234");
   await phone.getByRole("button", { name: "Send order" }).click();
   await expect(phone.getByText(/^Sent/)).toBeVisible();
+  // The business area is built in: staff mode moves the order on, and the customer sees it.
+  await phone.getByText("Info", { exact: true }).last().click();
+  await phone.getByRole("button", { name: /Staff mode/ }).click();
+  await expect(phone.getByText(/Try it now with orders from this phone/)).toBeVisible();
+  await expect(phone.getByText("Sam").first()).toBeVisible();
+  await phone.getByRole("button", { name: "Mark as preparing" }).click();
+  await phone.getByRole("button", { name: "Mark as ready" }).click();
+  await page.screenshot({ path: test.info().outputPath("staff.png") });
+  await phone.getByRole("button", { name: /Back|Close/ }).first().click();
+  await phone.getByText("Order", { exact: true }).last().click();
+  await expect(phone.getByText("Ready", { exact: true }).first()).toBeVisible();
 });

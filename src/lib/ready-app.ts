@@ -1,5 +1,6 @@
 import { autoDesign, THEME_FILE, themeModule } from "./design";
 import { DATA_FILE, RULES_FILE, dataModule, type DataRules } from "./app-data";
+import { STAFF_FILE, staffModule } from "./staff";
 import type { AppDesign, FileMap, StoreListing } from "./types";
 
 /**
@@ -772,10 +773,10 @@ export default function RequestScreen({ picked, setPicked, go }) {
                   <View style={styles.flex}>
                     <Text style={[styles.name, { color: colors.text }]}>{x.items || x.service || x.details}</Text>
                     <Text style={[styles.small, { color: s.done ? colors.muted : colors.primary, fontWeight: '600' }]}>{s.label}</Text>
-                    {!s.cancelled && s.steps > 1 && (
-                      <View style={styles.steps}>
-                        {Array.from({ length: s.steps }).map((_, i) => (
-                          <View key={i} style={[styles.step, { borderRadius: radius.pill, backgroundColor: i <= s.step ? colors.primary : colors.border }]} />
+                    {!s.cancelled && s.steps.length > 1 && (
+                      <View style={styles.steps} accessibilityLabel={'Step ' + (s.step + 1) + ' of ' + s.steps.length + ': ' + s.label}>
+                        {s.steps.map((step, i) => (
+                          <View key={step} style={[styles.step, { borderRadius: radius.pill, backgroundColor: i <= s.step ? colors.primary : colors.border }]} />
                         ))}
                       </View>
                     )}
@@ -817,12 +818,13 @@ const styles = StyleSheet.create({
 });
 `;
 
-const INFO = `import React from 'react';
+const INFO = `import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Icons from 'lucide-react-native';
 import { card, colors, heading, label } from '../theme';
 import { business } from '../business';
 import { forgetMe } from '../appdata';
+import StaffScreen from '../staff';
 import { call, directions, email, whatsapp } from '../actions';
 
 function Row({ icon: Icon, title, value, onPress }) {
@@ -839,6 +841,8 @@ function Row({ icon: Icon, title, value, onPress }) {
 }
 
 export default function InfoScreen() {
+  // Staff mode: where the business manages orders and requests (behind a staff PIN once the app database is on).
+  const [staff, setStaff] = useState(false);
   const forget = () =>
     Alert.alert('Delete my data?', 'Your name, phone and requests are removed from this app.', [
       { text: 'Keep', style: 'cancel' },
@@ -855,6 +859,7 @@ export default function InfoScreen() {
         },
       },
     ]);
+  if (staff) return <StaffScreen onClose={() => setStaff(false)} />;
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <Text style={[styles.title, heading, { color: colors.text }]}>Info</Text>
@@ -876,6 +881,10 @@ export default function InfoScreen() {
         <Row icon={Icons.Trash2} title="Your data" value="Delete my data" onPress={forget} />
       </View>
       <Text style={[styles.small, { color: colors.muted }]}>Finished orders and requests are deleted automatically after 90 days.</Text>
+      <Text style={[label, { color: colors.muted }]}>For the business</Text>
+      <View style={[card, styles.list]}>
+        <Row icon={Icons.KeyRound} title="Staff only" value="Staff mode" onPress={() => setStaff(true)} />
+      </View>
     </ScrollView>
   );
 }
@@ -904,7 +913,12 @@ export function readyDesign(info: ReadyInfo, prompt: string, current?: AppDesign
 /** The files that change when the owner edits their details (the screens stay as they are, even after AI changes). */
 export function readyDetailFiles(preset: ReadyPreset, info: ReadyInfo, apiUrl: string | null): FileMap {
   const rules = readyRules(preset, info);
-  return { "src/business.js": businessModule(preset, info), [RULES_FILE]: JSON.stringify(rules, null, 2), [DATA_FILE]: dataModule(apiUrl, rules) };
+  return {
+    "src/business.js": businessModule(preset, info),
+    [RULES_FILE]: JSON.stringify(rules, null, 2),
+    [DATA_FILE]: dataModule(apiUrl, rules),
+    [STAFF_FILE]: staffModule(apiUrl),
+  };
 }
 
 /** All the app's files, for a business's details. */

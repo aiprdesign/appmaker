@@ -215,7 +215,8 @@ export default function Home() {
             <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">An app for your business</h2>
             <p className="mt-3 max-w-2xl text-muted">
               Pick your kind of business and get a working app straight away: menu or services, orders and bookings that come to you,
-              opening hours and one-tap call and directions. Then swap in your own details. Or use URL to App above and Appmaker fills them in from your website.
+              opening hours and one-tap call and directions. A business area is built in: staff mode in the app and an owner page to manage orders and customers.
+              Then swap in your own details. Or use URL to App above and Appmaker fills them in from your website.
             </p>
           </div>
           <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">

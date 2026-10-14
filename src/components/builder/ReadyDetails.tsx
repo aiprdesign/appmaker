@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, Store, Trash2, X } from "lucide-react";
+import { KeyRound, Plus, Store, Trash2, X } from "lucide-react";
 import { READY_PRESETS, type ReadyInfo, type ReadyItem } from "@/lib/ready-app";
 
 const box = "rounded-lg border border-line bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted/70 focus:border-violet-400/60 focus:outline-none";
@@ -52,6 +52,19 @@ export function ReadyDetails({ slug, info, onChange, onClose }: { slug: string; 
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         <p className="text-xs text-muted">This app works already. Replace the example details with yours and watch the phone update. For bigger changes, ask the AI in the chat.</p>
+        <div className="rounded-xl border border-violet-400/30 bg-violet-500/10 p-3 text-xs">
+          <p className="flex items-center gap-1.5 font-semibold text-foreground">
+            <KeyRound className="h-3.5 w-3.5 text-violet-300" aria-hidden /> Your business area is built in
+          </p>
+          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-muted">
+            <li>
+              <strong className="text-foreground">Staff mode in the app</strong> (Info → Staff mode): see new orders and requests, call customers and mark them ready or done. Try it now on the phone with a test order.
+            </li>
+            <li>
+              <strong className="text-foreground">Your owner page</strong> on the web, with alerts for new orders, your {preset?.itemsTab.toLowerCase() ?? "items"}, customers&apos; requests and a staff PIN. Turn on the app database in Publish to get it.
+            </li>
+          </ul>
+        </div>
         <Text label="Business name" value={draft.name} onChange={(v) => update("name", v)} />
         <Text label="Short line about you" value={draft.tagline} onChange={(v) => update("tagline", v)} />
         <div className="grid grid-cols-2 gap-3">
