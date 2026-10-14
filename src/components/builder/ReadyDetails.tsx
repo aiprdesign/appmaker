@@ -103,7 +103,22 @@ function ItemPhoto({ name, image, photos, onChange }: { name: string; image?: st
  * "Your details" for a ready-made business app: everything the owner changes
  * to make the template theirs. The app on the phone updates as they type.
  */
-export function ReadyDetails({ slug, info, onChange, onClose }: { slug: string; info: ReadyInfo; onChange: (info: ReadyInfo) => void; onClose: () => void }) {
+export function ReadyDetails({
+  slug,
+  info,
+  onChange,
+  onClose,
+  ownerUrl = "",
+  onOpenPublish,
+}: {
+  slug: string;
+  info: ReadyInfo;
+  onChange: (info: ReadyInfo) => void;
+  onClose: () => void;
+  /** The business's owner page, once the app database is on. */
+  ownerUrl?: string;
+  onOpenPublish?: () => void;
+}) {
   const preset = READY_PRESETS[slug];
   const [draft, setDraft] = useState(info);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -199,9 +214,18 @@ export function ReadyDetails({ slug, info, onChange, onClose }: { slug: string; 
               <strong className="text-foreground">Staff mode in the app</strong> (Info → Staff mode): see new orders and requests, call customers and mark them ready or done. Try it now on the phone with a test order.
             </li>
             <li>
-              <strong className="text-foreground">Your owner page</strong> on the web, with alerts for new orders, your {preset?.itemsTab.toLowerCase() ?? "items"}, customers&apos; requests and a staff PIN. Turn on the app database in Publish to get it.
+              <strong className="text-foreground">Your owner page</strong> on the web, with alerts for new orders, your {preset?.itemsTab.toLowerCase() ?? "items"}, customers&apos; requests and a staff PIN.
             </li>
           </ul>
+          {ownerUrl ? (
+            <a href={ownerUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white px-3 text-sm font-medium text-black">
+              <KeyRound className="h-4 w-4" aria-hidden /> Open your owner page<span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          ) : (
+            <button onClick={onOpenPublish} className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-violet-400/40 px-3 text-sm hover:bg-violet-500/10">
+              <KeyRound className="h-4 w-4" aria-hidden /> Get your owner page (turn on the app database)
+            </button>
+          )}
         </div>
         <Text label="Business name" value={draft.name} onChange={(v) => update("name", v)} />
         <Text label="Short line about you" value={draft.tagline} onChange={(v) => update("tagline", v)} />

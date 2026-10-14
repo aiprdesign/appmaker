@@ -132,7 +132,7 @@ test("business templates open a working app straight away, and the owner's detai
   await expect(phone.getByText("$26").first()).toBeVisible();
   await phone.getByRole("button", { name: /^View order/ }).click();
   await phone.getByLabel("Your first name").fill("Sam");
-  await phone.getByLabel("Phone").fill("555 1234");
+  await phone.getByLabel("Phone", { exact: true }).fill("555 1234");
   await phone.getByRole("button", { name: /^Send order/ }).click();
   await expect(phone.getByText(/^Order sent/)).toBeVisible();
   // The live tracker, with the pizza place's own steps.
@@ -150,6 +150,24 @@ test("business templates open a working app straight away, and the owner's detai
   await phone.getByText("Home", { exact: true }).last().click();
   await expect(phone.getByText("Ready for pickup").first()).toBeVisible();
   await expect(phone.getByText("Hot and waiting at the counter")).toBeVisible();
+
+  // Collected: next time, the same order is one tap away, and the customer's details are remembered.
+  await phone.getByText("Info", { exact: true }).last().click();
+  await expect(phone.getByText(/Sam · 555 1234/)).toBeVisible();
+  await phone.getByRole("button", { name: /Staff mode/ }).click();
+  await phone.getByRole("button", { name: "Mark as collected" }).click();
+  await phone.getByRole("button", { name: "Back" }).first().click();
+  await phone.getByText("Home", { exact: true }).last().click();
+  await phone.getByRole("button", { name: /^Order again: 2× Pepperoni/ }).click();
+  await expect(phone.getByText("2", { exact: true }).first()).toBeVisible();
+  await expect(phone.getByLabel("Your first name")).toHaveValue("Sam");
+  await expect(phone.getByLabel("Phone", { exact: true })).toHaveValue("555 1234");
+  await expect(phone.getByText("Using your saved details")).toBeVisible();
+  await phone.getByRole("button", { name: "Clear my saved details" }).click();
+  await expect(phone.getByLabel("Your first name")).toHaveValue("");
+
+  // The owner page is one tap away in the builder (it comes with the app database).
+  await expect(page.getByRole("button", { name: "Owner page", exact: true })).toBeVisible();
 });
 
 test("the owner fills the app in from their website, pastes a menu and adds photos", async ({ page }) => {

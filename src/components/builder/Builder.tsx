@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Code2, Coins, Download, Loader2, MessageSquare, Moon, Palette, Store, Sun, RotateCw, Rocket, ShieldCheck, Smartphone, Sparkles, Wand2 } from "lucide-react";
+import { AlertTriangle, Code2, Coins, Download, KeyRound, Loader2, MessageSquare, Moon, Palette, Store, Sun, RotateCw, Rocket, ShieldCheck, Smartphone, Sparkles, Wand2 } from "lucide-react";
 import { HistoryMenu } from "./HistoryMenu";
 import { DeviceMenu } from "./DeviceMenu";
 import { SyncBadge } from "@/components/AccountButton";
@@ -170,8 +170,11 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
   const [platform, setPlatform] = useState<"ios" | "android" | "ipad">("ios");
   const [generating, setGenerating] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
-  // "Your details" for a ready-made business app: open straight away when it was just picked.
-  const [detailsOpen, setDetailsOpen] = useState(openDetails);
+  // "Your details" for a ready-made business app: always open (it's how the owner makes the template theirs);
+  // only its own close button hides it. Design opens over it and gives it back when closed.
+  // (On phone-sized screens it would cover the app, so there it starts closed.)
+  const [detailsOpen, setDetailsOpen] = useState(() => typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches);
+  void openDetails;
   const [scheme, setScheme] = useState<"light" | "dark">("light");
   // Free apps show "Made with Appmaker" in their settings (only when the site takes payments).
   const plan = usePlan();
@@ -298,6 +301,21 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
   // The app database is on: the server always has the app's current data rules, whatever changed them
   // (the AI, "Your data", "Your details" or a hand edit in the Code tab). Checked against the server once,
   // then sent a moment after each change.
+  // The business's owner page (orders, menu, staff PIN), one tap away once the app database is on.
+  const [ownerUrl, setOwnerUrl] = useState("");
+  const appDataId = project?.appData?.id;
+  useEffect(() => {
+    if (!appDataId || !project) return;
+    let live = true;
+    fetch(`/api/appdata?projectId=${project.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && setOwnerUrl(d?.store?.ownerUrl ?? ""))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appDataId]);
   const syncedRules = useRef<string | null>(null);
   const [rulesSync, setRulesSync] = useState<"" | "saving" | "failed">("");
   const rulesKey = project?.appData ? JSON.stringify(appRules(project.files)) : "";
@@ -1355,23 +1373,40 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                 {hasApp && project.ready && (
                   <button
                     onClick={() => {
-                      setDetailsOpen((o) => !o);
+                      setDetailsOpen(designOpen ? true : (o) => !o);
                       setDesignOpen(false);
                     }}
-                    aria-pressed={detailsOpen}
+                    aria-pressed={detailsOpen && !designOpen}
                     className={`flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
-                      detailsOpen ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
+                      detailsOpen && !designOpen ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
                     }`}
                   >
                     <Store className="h-3.5 w-3.5" /> Your details
                   </button>
                 )}
+                {hasApp && project.files[RULES_FILE] != null &&
+                  (project.appData && ownerUrl ? (
+                    <a
+                      href={ownerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Where the business manages orders, the menu and the staff PIN"
+                      className="flex h-7 items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-2.5 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" /> Owner page<span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => setTab("publish")}
+                      title="The owner page comes with the app database: turn it on in Publish → Optional extras"
+                      className="flex h-7 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-xs font-medium text-muted hover:text-foreground"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" /> Owner page
+                    </button>
+                  ))}
                 {hasApp && (
                   <button
-                    onClick={() => {
-                      setDesignOpen((o) => !o);
-                      setDetailsOpen(false);
-                    }}
+                    onClick={() => setDesignOpen((o) => !o)}
                     aria-pressed={designOpen}
                     className={`flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
                       designOpen ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
@@ -1474,7 +1509,14 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                 </div>
                 {detailsOpen && !designOpen && hasApp && project.ready && (
                   <div className="absolute inset-x-2 bottom-2 z-20 max-h-[60%] lg:static lg:inset-auto lg:z-auto lg:max-h-none lg:w-80 lg:shrink-0">
-                    <ReadyDetails slug={project.ready.slug} info={project.ready.info} onChange={changeDetails} onClose={() => setDetailsOpen(false)} />
+                    <ReadyDetails
+                      slug={project.ready.slug}
+                      info={project.ready.info}
+                      onChange={changeDetails}
+                      onClose={() => setDetailsOpen(false)}
+                      ownerUrl={project.appData ? ownerUrl : ""}
+                      onOpenPublish={() => setTab("publish")}
+                    />
                   </div>
                 )}
                 {designOpen && hasApp && (

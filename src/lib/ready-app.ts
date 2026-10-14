@@ -445,13 +445,15 @@ export const email = () => open('mailto:' + business.email, 'Email us at ' + bus
 export const directions = () => open('https://maps.google.com/?q=' + encodeURIComponent(business.address), business.address);
 `;
 
-const INFO = `import React, { useState } from 'react';
+const INFO = `import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Icons from 'lucide-react-native';
 import { card, colors, heading, label } from '../theme';
 import { business } from '../business';
 import { forgetMe } from '../appdata';
 import StaffScreen from '../staff';
+import { SAVED_DETAILS } from './RequestScreen';
 import { call, directions, email, whatsapp } from '../actions';
 
 function Row({ icon: Icon, title, value, onPress }) {
@@ -470,6 +472,15 @@ function Row({ icon: Icon, title, value, onPress }) {
 export default function InfoScreen() {
   // Staff mode: where the business manages orders and requests (behind a staff PIN once the app database is on).
   const [staff, setStaff] = useState(false);
+  // The details this phone remembers for orders (name, phone, address): shown here, cleared in one tap.
+  const [saved, setSaved] = useState(null);
+  useEffect(() => {
+    AsyncStorage.getItem(SAVED_DETAILS).then((v) => setSaved(v ? JSON.parse(v) : null)).catch(() => {});
+  }, []);
+  const clearSaved = () => {
+    AsyncStorage.removeItem(SAVED_DETAILS).catch(() => {});
+    setSaved(null);
+  };
   const forget = () =>
     Alert.alert('Delete my data?', 'Your name, phone and requests are removed from this app.', [
       { text: 'Keep', style: 'cancel' },
@@ -479,6 +490,8 @@ export default function InfoScreen() {
         onPress: async () => {
           try {
             await forgetMe();
+            await AsyncStorage.removeItem(SAVED_DETAILS).catch(() => {});
+            setSaved(null);
             Alert.alert('Your data was deleted.', 'Orders still being prepared stay with ' + business.name + ' until they are finished.');
           } catch (e) {
             Alert.alert("Couldn't delete it", (e && e.message) || 'Try again.');
@@ -505,6 +518,14 @@ export default function InfoScreen() {
       </View>
       <Text style={[label, { color: colors.muted }]}>Your privacy</Text>
       <View style={[card, styles.list]}>
+        {saved && (
+          <Row
+            icon={Icons.UserCheck}
+            title="Your saved details (on this phone only)"
+            value={[saved.name, saved.phone, saved.address].filter(Boolean).join(' · ') + '  ·  Clear'}
+            onPress={clearSaved}
+          />
+        )}
         <Row icon={Icons.Trash2} title="Your data" value="Delete my data" onPress={forget} />
       </View>
       <Text style={[styles.small, { color: colors.muted }]}>Finished orders and requests are deleted automatically after 90 days.</Text>

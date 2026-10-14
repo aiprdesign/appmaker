@@ -101,6 +101,30 @@ export function basket(picked) {
   return { count, total };
 }
 
+/** "2× Margherita, 1× Garlic bread ($27)" → [{ name: 'Margherita', qty: 2 }, …]: the basket an order was sent with. */
+export function parseBasket(text) {
+  return String(text || '')
+    .replace(/\\s*\\([^)]*\\)\\s*$/, '')
+    .split(/,\\s*/)
+    .map((part) => {
+      const m = /^(\\d+)×\\s*(.+)$/.exec(part.trim());
+      return m ? { name: m[2].trim(), qty: Number(m[1]) } : { name: part.trim(), qty: 1 };
+    })
+    .filter((p) => p.name);
+}
+
+/** A past order as a new basket, at today's prices; what's no longer offered is left out (and named). */
+export function again(order, menu) {
+  const list = [];
+  const missing = [];
+  for (const p of parseBasket(order.items || order.service)) {
+    const now = menu.find((m) => m.name === p.name);
+    if (now) list.push({ name: now.name, price: now.price, qty: p.qty });
+    else missing.push(p.name);
+  }
+  return { list, missing };
+}
+
 /**
  * The live tracker, like the best ordering apps: the stage in big words with its own icon,
  * every step on a track that fills as the business moves it on, the current one pulsing,
@@ -310,12 +334,18 @@ function Shell() {
     // Orders keep browsing (the bar shows the basket); bookings and requests go straight to the form.
     if (kind !== 'order') setTab('request');
   };
+  // "Order again": a past order's basket, straight into the order screen.
+  const reorder = (list) => {
+    buzz();
+    setPicked(list);
+    setTab('request');
+  };
   const setQty = (name, qty) => setPicked((now) => (qty <= 0 ? now.filter((p) => p.name !== name) : now.map((p) => (p.name === name ? { ...p, qty } : p))));
   const { count, total } = basket(picked);
   const screens = {
-    home: <HomeScreen go={setTab} pick={pick} />,
+    home: <HomeScreen go={setTab} pick={pick} reorder={reorder} />,
     items: <ItemsScreen pick={pick} picked={picked} setQty={setQty} />,
-    request: <RequestScreen picked={picked} setQty={setQty} clear={() => setPicked([])} go={setTab} />,
+    request: <RequestScreen picked={picked} setQty={setQty} clear={() => setPicked([])} go={setTab} reorder={reorder} />,
     info: <InfoScreen />,
   };
   return (
@@ -374,13 +404,18 @@ import { card, colors, gradient, heading, label, onGradient, radius } from '../t
 import { business, icons, kind, words } from '../business';
 import { useCollection } from '../appdata';
 import { call, directions, whatsapp } from '../actions';
-import { Icon, Rise, Tap, Tracker, money } from '../ui';
+import { Icon, Rise, Tap, Tracker, again, money } from '../ui';
 
-export default function HomeScreen({ go, pick }) {
+export default function HomeScreen({ go, pick, reorder }) {
   const { items } = useCollection('items');
   const requests = useCollection('requests');
   // The customer's latest order or booking still in progress, shown first (like a delivery tracker).
   const active = requests.items.find((x) => x.mine && !requests.statusInfo(x.status).done);
+  // Their last few finished orders, to order the same again in one tap (like the big food apps).
+  const recent = requests.items
+    .filter((x) => x.mine && (x.items || x.service))
+    .filter((x) => { const s = requests.statusInfo(x.status); return s.done && !s.cancelled; })
+    .slice(0, 3);
   const actions = [
     business.phone ? { label: 'Call', icon: Icons.Phone, onPress: call } : null,
     business.whatsapp ? { label: 'WhatsApp', icon: Icons.MessageCircle, onPress: whatsapp } : null,
@@ -435,6 +470,34 @@ export default function HomeScreen({ go, pick }) {
               <Text style={[styles.small, { color: colors.text, fontWeight: '600' }]}>{a.label}</Text>
             </Tap>
           ))}
+        </Rise>
+      )}
+
+      {recent.length > 0 && (
+        <Rise delay={200}>
+          <View style={styles.sectionHead}>
+            <Text style={[label, { color: colors.muted }]}>{kind === 'order' ? 'Order again' : kind === 'booking' ? 'Book again' : 'Ask again'}</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cards}>
+            {recent.map((x) => {
+              const { list } = again(x, items);
+              return (
+                <Tap
+                  key={x.id}
+                  onPress={() => (list.length ? reorder(list) : go('items'))}
+                  accessibilityRole="button"
+                  accessibilityLabel={(kind === 'order' ? 'Order again: ' : 'Again: ') + (x.items || x.service)}
+                  style={[card, styles.againCard]}
+                >
+                  <View style={[styles.actionIcon, { backgroundColor: colors.primarySoft, borderRadius: radius.pill }]}>
+                    <Icons.RotateCcw size={20} color={colors.primary} />
+                  </View>
+                  <Text numberOfLines={2} style={[styles.itemName, { color: colors.text }]}>{x.items || x.service}</Text>
+                  <Text style={[styles.small, { color: colors.muted }]}>{x.createdAt ? new Date(x.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''}</Text>
+                </Tap>
+              );
+            })}
+          </ScrollView>
         </Rise>
       )}
 
@@ -494,6 +557,7 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   cards: { gap: 12, paddingRight: 20 },
   favourite: { width: 156, padding: 12, gap: 8 },
+  againCard: { width: 220, padding: 12, gap: 8 },
   photo: { width: '100%', height: 96 },
   photoIcon: { alignItems: 'center', justifyContent: 'center' },
   itemName: { fontSize: 15, fontWeight: '600' },
@@ -611,13 +675,17 @@ const styles = StyleSheet.create({
 `;
 
 /** The order or request: the basket with steppers, a short form, the animated "sent", and live trackers. */
-export const REQUEST = `import React, { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+export const REQUEST = `import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Icons from 'lucide-react-native';
 import { card, colors, heading, label, radius } from '../theme';
 import { business, kind, onSite, stages, words } from '../business';
+
+/** The customer's own details, kept on this phone only so they don't type them again (Info → Your saved details clears them). */
+export const SAVED_DETAILS = 'customer:details';
 import { useCollection } from '../appdata';
-import { Rise, SuccessCheck, Tap, Tracker, basket, money } from '../ui';
+import { Rise, SuccessCheck, Tap, Tracker, again, basket, money } from '../ui';
 
 function Field({ title, value, onChange, hint, multiline, keyboardType, autoComplete }) {
   const [focus, setFocus] = useState(false);
@@ -641,8 +709,9 @@ function Field({ title, value, onChange, hint, multiline, keyboardType, autoComp
   );
 }
 
-export default function RequestScreen({ picked, setQty, clear, go }) {
+export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
   const { items, add, cancel, statusInfo } = useCollection('requests');
+  const menu = useCollection('items');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -658,8 +727,53 @@ export default function RequestScreen({ picked, setQty, clear, go }) {
   const ready = name.trim() && phone.trim() && (kind === 'quote' ? what || details.trim() : what) && (!onSite || address.trim());
   const mine = items.filter((x) => x.mine);
   const active = mine.filter((x) => !statusInfo(x.status).done);
-  const past = mine.filter((x) => statusInfo(x.status).done);
+  const past = mine.filter((x) => statusInfo(x.status).done).slice(0, 8);
   const title = kind === 'order' ? 'Your order' : kind === 'booking' ? 'Your booking' : 'Your request';
+  const againWord = kind === 'order' ? 'Order again' : kind === 'booking' ? 'Book again' : 'Ask again';
+
+  // Returning customers don't type their details again: kept on this phone only, with a switch and a Clear.
+  const [remember, setRemember] = useState(true);
+  const [saved, setSaved] = useState(null);
+  useEffect(() => {
+    AsyncStorage.getItem(SAVED_DETAILS)
+      .then((v) => {
+        const d = v ? JSON.parse(v) : null;
+        if (!d) return;
+        setSaved(d);
+        setName((n) => n || d.name || '');
+        setPhone((p) => p || d.phone || '');
+        if (onSite) setAddress((a) => a || d.address || '');
+      })
+      .catch(() => {});
+  }, []);
+  const keepDetails = async () => {
+    try {
+      if (remember) {
+        const d = { name: name.trim(), phone: phone.trim(), ...(onSite ? { address: address.trim() } : {}) };
+        await AsyncStorage.setItem(SAVED_DETAILS, JSON.stringify(d));
+        setSaved(d);
+      } else {
+        await AsyncStorage.removeItem(SAVED_DETAILS);
+        setSaved(null);
+      }
+    } catch (e) {}
+  };
+  const clearDetails = () => {
+    AsyncStorage.removeItem(SAVED_DETAILS).catch(() => {});
+    setSaved(null);
+    setName('');
+    setPhone('');
+    setAddress('');
+  };
+
+  const orderAgain = (x) => {
+    const { list, missing } = again(x, menu.items);
+    if (!list.length) return Alert.alert('Not available right now', "Those aren't on the " + words.items.toLowerCase() + ' at the moment. Have a look at what is.', [{ text: 'See ' + words.items.toLowerCase(), onPress: () => go('items') }]);
+    reorder(list);
+    setSent(null);
+    if (scroll.current) scroll.current.scrollTo({ y: 0, animated: true });
+    if (missing.length) Alert.alert('Almost the same', missing.join(', ') + (missing.length === 1 ? " isn't" : " aren't") + ' available right now, so we left ' + (missing.length === 1 ? 'it' : 'them') + ' out.');
+  };
 
   const send = async () => {
     setSending(true);
@@ -672,6 +786,7 @@ export default function RequestScreen({ picked, setQty, clear, go }) {
             ? { name, phone, service: what, preferredTime: when, note: details }
             : { name, phone, ...(onSite ? { address } : {}), service: what, details };
       setSent(await add(fields));
+      keepDetails();
       clear();
       setAnother(false);
       // Up to the check and the live tracker.
@@ -759,11 +874,24 @@ export default function RequestScreen({ picked, setQty, clear, go }) {
             <Text style={[styles.small, { color: colors.primary, fontWeight: '700' }]}>{picked.length ? 'Add more' : 'Choose from ' + words.items.toLowerCase()}</Text>
           </Tap>
 
+          {saved && (
+            <View style={[styles.savedRow, { backgroundColor: colors.primarySoft, borderRadius: radius.md }]}>
+              <Icons.UserCheck size={16} color={colors.primary} />
+              <Text style={[styles.small, styles.flex, { color: colors.text }]}>Using your saved details</Text>
+              <Tap onPress={clearDetails} accessibilityRole="button" accessibilityLabel="Clear my saved details" hitSlop={8}>
+                <Text style={[styles.small, { color: colors.primary, fontWeight: '700' }]}>Not you? Clear</Text>
+              </Tap>
+            </View>
+          )}
           <Field title="Your first name" value={name} onChange={setName} autoComplete="given-name" />
           <Field title="Phone" value={phone} onChange={setPhone} keyboardType="phone-pad" autoComplete="tel" hint="So we can reach you about this" />
           {onSite && <Field title="Address" value={address} onChange={setAddress} autoComplete="street-address" hint="Where the work is" />}
           {!!words.when && <Field title={words.when} value={when} onChange={setWhen} hint={words.whenHint} />}
           <Field title={words.details} value={details} onChange={setDetails} hint={words.detailsHint} multiline />
+          <View style={styles.rememberRow}>
+            <Text style={[styles.small, styles.flex, { color: colors.text }]}>Remember my details on this phone</Text>
+            <Switch value={remember} onValueChange={setRemember} accessibilityLabel="Remember my details on this phone" trackColor={{ true: colors.primary, false: colors.border }} />
+          </View>
           <View style={styles.privacy}>
             <Icons.ShieldCheck size={16} color={colors.muted} />
             <Text style={[styles.small, styles.flex, { color: colors.muted }]}>We use your name and phone only for this {kind === 'order' ? 'order' : 'request'}. Payment is in person.</Text>
@@ -791,9 +919,15 @@ export default function RequestScreen({ picked, setQty, clear, go }) {
                 <View key={x.id} style={[card, styles.past]}>
                   {s.cancelled ? <Icons.CircleX size={20} color={colors.muted} /> : <Icons.CircleCheck size={20} color={colors.success} />}
                   <View style={styles.flex}>
-                    <Text numberOfLines={1} style={[styles.body, { color: colors.text, fontWeight: '600' }]}>{x.items || x.service || x.details}</Text>
-                    <Text style={[styles.small, { color: colors.muted }]}>{s.cancelled ? 'Cancelled' : (stages.find((st) => st.status === x.status) || { label: s.label }).label}{x.ref ? ' · #' + x.ref : ''}</Text>
+                    <Text numberOfLines={2} style={[styles.body, { color: colors.text, fontWeight: '600' }]}>{x.items || x.service || x.details}</Text>
+                    <Text style={[styles.small, { color: colors.muted }]}>{s.cancelled ? 'Cancelled' : (stages.find((st) => st.status === x.status) || { label: s.label }).label}{x.ref ? ' · #' + x.ref : ''}{x.createdAt ? ' · ' + new Date(x.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''}</Text>
                   </View>
+                  {!!(x.items || x.service) && (
+                    <Tap onPress={() => orderAgain(x)} accessibilityRole="button" accessibilityLabel={againWord + ': ' + (x.items || x.service)} style={[styles.again, { backgroundColor: colors.primarySoft, borderRadius: radius.pill }]}>
+                      <Icons.RotateCcw size={16} color={colors.primary} />
+                      <Text style={[styles.small, { color: colors.primary, fontWeight: '700' }]}>{againWord}</Text>
+                    </Tap>
+                  )}
                 </View>
               );
             })}
@@ -821,11 +955,14 @@ const styles = StyleSheet.create({
   stepButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   more: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   privacy: { flexDirection: 'row', gap: 8 },
+  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
+  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
   button: { minHeight: 52, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', gap: 8 },
   buttonText: { fontSize: 17, fontWeight: '700' },
   cancel: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 16 },
   past: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
+  again: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, minHeight: 40 },
   body: { fontSize: 15 },
   small: { fontSize: 13 },
 });
