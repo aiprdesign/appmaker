@@ -65,6 +65,21 @@ export async function storeFor(userId: string, projectId: string): Promise<DataS
   return rows[0] ? toStore(rows[0]) : null;
 }
 
+/** How many records each collection holds, and per status (so the builder can warn before something with data is removed). */
+export async function dataCounts(store: DataStore): Promise<Record<string, { total: number; statuses: Record<string, number> }>> {
+  const rows = await query<{ collection: string; status: string | null; n: number }>(
+    "select collection, status, count(*)::int as n from app_data_records where store_id = $1 group by collection, status",
+    [store.id],
+  );
+  const out: Record<string, { total: number; statuses: Record<string, number> }> = {};
+  for (const r of rows) {
+    const c = (out[r.collection] ??= { total: 0, statuses: {} });
+    c.total += r.n;
+    if (r.status) c.statuses[r.status] = r.n;
+  }
+  return out;
+}
+
 /** Creates the app's store, or saves new rules; public collections that are still empty get their starting items. */
 export async function saveStore(userId: string, projectId: string, name: string, rules: DataRules): Promise<DataStore> {
   const rows = await query<StoreRow>(

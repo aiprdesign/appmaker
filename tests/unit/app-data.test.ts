@@ -224,6 +224,26 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     return res.headers.get("set-cookie")!.split(";")[0];
   }
 
+  it("tells the builder how much each kind of data holds, and keeps orders when the steps change", async () => {
+    await setFeature("appData", true);
+    const cookie = await account("counts");
+    const { store } = await (await storeRoute(req("/api/appdata", "POST", { projectId: "proj555abc", name: "Luigi's", rules: RULES }, { cookie }))).json();
+    const app = (body: unknown, device = ANA) => req(`/api/appdata/${store.id}`, "POST", body, { "x-device": device });
+    await appPost(app({ collection: "orders", data: { name: "Ana", items: "Margherita" } }), ctx(store.id));
+    await appPost(app({ collection: "orders", data: { name: "Bo", items: "Marinara" } }, BO), ctx(store.id));
+    const got = await (await getStoreRoute(req("/api/appdata?projectId=proj555abc", "GET", undefined, { cookie }))).json();
+    expect(got.store.counts.orders).toEqual({ total: 2, statuses: { new: 2 } });
+    expect(got.store.counts.menu.total).toBe(2); // the starting items
+    expect(got.store.rules.orders.statuses).toContain("new");
+
+    // A step added in "Your data": the orders already sent are all still there.
+    const steps = { ...RULES, orders: { ...RULES.orders, statuses: ["new", "preparing", "out for delivery", "ready"] } };
+    expect((await storeRoute(req("/api/appdata", "POST", { projectId: "proj555abc", name: "Luigi's", rules: steps }, { cookie }))).status).toBe(200);
+    const after = await (await getStoreRoute(req("/api/appdata?projectId=proj555abc", "GET", undefined, { cookie }))).json();
+    expect(after.store.counts.orders.total).toBe(2);
+    expect(after.store.rules.orders.statuses).toEqual(["new", "preparing", "out for delivery", "ready", "cancelled"]);
+  });
+
   it("keeps orders private to the business, shows the menu to everyone and lets people manage their own reviews", async () => {
     await setFeature("appData", true);
     const cookie = await account("pizza");

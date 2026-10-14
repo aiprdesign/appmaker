@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Database, ExternalLink, Inbox, Loader2, Lock, MessagesSquare, Power, Sparkles, Store } from "lucide-react";
+import { Check, Copy, Database, ExternalLink, Loader2, Power, Sparkles } from "lucide-react";
 import { useCloud } from "@/lib/cloud";
 import { useFeatures } from "@/lib/use-features";
-import { DATA_FILE, appRules, dataModule, type Access } from "@/lib/app-data";
+import { DATA_FILE, RULES_FILE, appRules, dataModule } from "@/lib/app-data";
 import { STAFF_FILE, staffModule } from "@/lib/staff";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { YourData, type DataCounts } from "./YourData";
 import { PaidLock } from "@/components/PaidLock";
 import { locked, usePlan } from "@/lib/use-plan";
 import type { Project } from "@/lib/types";
@@ -21,14 +22,6 @@ async function call(path: string, method: string, body?: unknown) {
   return data;
 }
 
-const KIND: Record<Access, { icon: typeof Store; text: string }> = {
-  public: { icon: Store, text: "you edit it, everyone sees it" },
-  inbox: { icon: Inbox, text: "customers send it to you" },
-  shared: { icon: MessagesSquare, text: "everyone adds and sees it" },
-  private: { icon: Lock, text: "each person's own" },
-};
-const label = (f: string) => f.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
-
 /**
  * The app's database in one tap: the data the app keeps (from src/data-rules.json),
  * a switch that moves it from the phone to Appmaker's database, and the owner
@@ -38,11 +31,17 @@ export function AppDataPanel({
   project,
   onChange,
   onAddData,
+  onRulesChange,
+  onAskData,
+  rulesSync = "",
   busy: appBusy,
 }: {
   project: Project;
   onChange: (appData: AppData | undefined, files: Project["files"]) => void;
   onAddData: () => void;
+  onRulesChange: (rules: import("@/lib/app-data").DataRules) => void;
+  onAskData: (request: string) => void;
+  rulesSync?: "" | "saving" | "failed";
   busy: boolean;
 }) {
   const cloud = useCloud();
@@ -53,6 +52,7 @@ export function AppDataPanel({
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [confirmOff, setConfirmOff] = useState(false);
+  const [counts, setCounts] = useState<DataCounts | null>(null);
   const signedIn = !!cloud.user;
   const rules = appRules(project.files);
   const on = !!project.appData;
@@ -61,7 +61,11 @@ export function AppDataPanel({
     if (!signedIn || !on) return;
     let live = true;
     call(`/api/appdata?projectId=${project.id}`, "GET")
-      .then((d) => live && setOwnerUrl(d.store?.ownerUrl ?? ""))
+      .then((d) => {
+        if (!live) return;
+        setOwnerUrl(d.store?.ownerUrl ?? "");
+        setCounts(d.store?.counts ?? null);
+      })
       .catch(() => undefined);
     return () => {
       live = false;
@@ -116,7 +120,14 @@ export function AppDataPanel({
         </div>
       </div>
 
-      {!rules ? (
+      {!rules && project.files[RULES_FILE] ? (
+        <div role="alert" className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm">
+          <p>The app&apos;s data rules (src/data-rules.json) have a mistake, so nothing new is saved to the database until they&apos;re fixed.</p>
+          <button onClick={() => onAskData("Fix src/data-rules.json so it follows the app data rules exactly, keeping every collection, field and status it means to have. Keep everything else the same.")} disabled={appBusy} className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white px-3 text-sm font-medium text-black disabled:opacity-50">
+            <Sparkles className="h-4 w-4" aria-hidden /> Fix it with AI
+          </button>
+        </div>
+      ) : !rules ? (
         <div className="rounded-xl border border-line bg-background/50 p-3 text-sm">
           <p className="text-muted">This app keeps its data on each phone. Want customers to send you orders or requests, or a menu you can change without a new version?</p>
           <button
@@ -129,18 +140,12 @@ export function AppDataPanel({
         </div>
       ) : (
         <>
-          <ul className="space-y-1.5 text-sm">
-            {Object.entries(rules).map(([name, r]) => {
-              const Icon = KIND[r.access].icon;
-              return (
-                <li key={name} className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 shrink-0 text-muted" aria-hidden />
-                  <span className="font-medium">{label(name)}</span>
-                  <span className="text-muted">· {KIND[r.access].text}</span>
-                </li>
-              );
-            })}
-          </ul>
+          <YourData rules={rules} files={project.files} counts={counts} on={on} busy={appBusy} onRulesChange={onRulesChange} onAskData={onAskData} />
+          {on && rulesSync && (
+            <p role={rulesSync === "failed" ? "alert" : "status"} className={`text-xs ${rulesSync === "failed" ? "text-amber-200" : "text-muted"}`}>
+              {rulesSync === "saving" ? "Saving the change to your database…" : "Couldn't save the change to your database. Check your connection; it's tried again after your next change."}
+            </p>
+          )}
           {!on ? (
             signedIn && locked(plan) ? (
               <PaidLock feature="App databases" />

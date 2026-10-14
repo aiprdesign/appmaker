@@ -75,6 +75,16 @@ const DEFAULT_STAGES: Record<ReadyKind, Stage[]> = {
   ],
 };
 
+/**
+ * The steps the customer's tracker shows: the business's statuses, in their order (they may have
+ * added or removed some in "Your data"), with this business's own words and icons where it has them.
+ */
+export function trackerStages(preset: ReadyPreset, rules?: DataRules | null) {
+  const own = new Map(stagesOf(preset).map(([status, label, icon, note]) => [status, { status, label, icon, note }]));
+  const statuses = (rules?.requests?.statuses ?? stagesOf(preset).map((st) => st[0])).filter((st) => !/^(cancel|declin|reject)/i.test(st));
+  return statuses.map((status) => own.get(status) ?? { status, label: status.charAt(0).toUpperCase() + status.slice(1), icon: "CircleDot", note: "" });
+}
+
 /** The tracker's steps for a business: its own, or the usual ones for orders, bookings or quotes. */
 export const stagesOf = (preset: ReadyPreset): Stage[] => preset.stages ?? DEFAULT_STAGES[preset.kind];
 
@@ -390,7 +400,7 @@ const WORDS: Record<ReadyKind, { cta: string; tab: string; tabIcon: string; send
 };
 
 /** src/business.js: everything the owner fills in. The only file that changes when they edit their details. */
-export function businessModule(preset: ReadyPreset, info: ReadyInfo): string {
+export function businessModule(preset: ReadyPreset, info: ReadyInfo, rules?: DataRules | null): string {
   const words = WORDS[preset.kind];
   const business = {
     name: info.name.trim() || "My business",
@@ -414,7 +424,7 @@ export const icons = ${JSON.stringify({ items: preset.itemsIcon, hero: preset.he
 export const onSite = ${preset.onSite ? "true" : "false"};
 
 // The steps customers follow live, in order: status (what staff set), label, icon and a short line.
-export const stages = ${JSON.stringify(stagesOf(preset).map(([status, label, icon, note]) => ({ status, label, icon, note })), null, 2)};
+export const stages = ${JSON.stringify(trackerStages(preset, rules), null, 2)};
 `;
 }
 
@@ -531,7 +541,7 @@ export function readyDesign(info: ReadyInfo, prompt: string, current?: AppDesign
 export function readyDetailFiles(preset: ReadyPreset, info: ReadyInfo, apiUrl: string | null, current?: DataRules | null): FileMap {
   const rules = mergeReadyRules(preset, info, current);
   return {
-    "src/business.js": businessModule(preset, info),
+    "src/business.js": businessModule(preset, info, rules),
     [RULES_FILE]: JSON.stringify(rules, null, 2),
     [DATA_FILE]: dataModule(apiUrl, rules),
     [STAFF_FILE]: staffModule(apiUrl),

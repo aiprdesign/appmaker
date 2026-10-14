@@ -11,13 +11,13 @@ import { LIVE_FILE, liveModule } from "@/lib/live";
 import { hasEntry } from "@/lib/validate";
 import { autoDesign, defaultDesign, THEME_FILE, themeModule } from "@/lib/design";
 import { BOOKING_FILE, bookingModule } from "@/lib/booking";
-import { DATA_FILE, appRules, dataModule } from "@/lib/app-data";
+import { DATA_FILE, RULES_FILE, appRules, dataModule, type DataRules } from "@/lib/app-data";
 import { STAFF_FILE, staffModule } from "@/lib/staff";
 import { BRAND_FILE, brandModule } from "@/lib/branding";
 import { locked, PLAN_CHANGED, usePlan } from "@/lib/use-plan";
 import { DesignPanel } from "./DesignPanel";
 import { ReadyDetails } from "./ReadyDetails";
-import { READY_PRESETS, readyDesign, readyDetailFiles, type ReadyInfo } from "@/lib/ready-app";
+import { READY_PRESETS, businessModule, readyDesign, readyDetailFiles, type ReadyInfo } from "@/lib/ready-app";
 import { AppSidebar } from "./AppSidebar";
 import { SitePreview } from "./SitePreview";
 import { ConceptPicker, SiteColorsPanel } from "./ConceptPicker";
@@ -295,6 +295,38 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
     setTapIssues([]);
   }, [previewFiles, reloadKey]);
 
+  // The app database is on: the server always has the app's current data rules, whatever changed them
+  // (the AI, "Your data", "Your details" or a hand edit in the Code tab). Checked against the server once,
+  // then sent a moment after each change.
+  const syncedRules = useRef<string | null>(null);
+  const [rulesSync, setRulesSync] = useState<"" | "saving" | "failed">("");
+  const rulesKey = project?.appData ? JSON.stringify(appRules(project.files)) : "";
+  useEffect(() => {
+    if (!project?.appData || generating || rulesKey === "null") return;
+    const projectId = project.id;
+    const send = async () => {
+      if (syncedRules.current === null) {
+        const res = await fetch(`/api/appdata?projectId=${projectId}`).catch(() => null);
+        const body = res?.ok ? await res.json().catch(() => null) : null;
+        syncedRules.current = body?.store ? JSON.stringify(body.store.rules) : "";
+      }
+      if (syncedRules.current === rulesKey) return;
+      setRulesSync("saving");
+      const res = await fetch("/api/appdata", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projectId, name: project.listing.name || project.name, rules: JSON.parse(rulesKey) }),
+      }).catch(() => null);
+      if (res?.ok) {
+        syncedRules.current = rulesKey;
+        setRulesSync("");
+      } else setRulesSync("failed");
+    };
+    const t = setTimeout(() => void send(), 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rulesKey, generating, project?.appData?.id]);
+
   // Debounce hand edits in the code tab into the preview.
   useEffect(() => {
     if (!project || generating) return;
@@ -476,14 +508,9 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
       if (rules) {
         files[DATA_FILE] = dataModule(base.appData?.apiUrl ?? null, rules);
         files[STAFF_FILE] = staffModule(base.appData?.apiUrl ?? null);
-        // The database is on: the server learns about new collections and fields too.
-        if (base.appData && JSON.stringify(appRules(base.files)) !== JSON.stringify(rules)) {
-          void fetch("/api/appdata", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ projectId: base.id, name: base.listing.name || base.name, rules }),
-          }).catch(() => undefined);
-        }
+        // A ready-made app's tracker follows its steps, even when the AI changed them.
+        const preset = base.ready && READY_PRESETS[base.ready.slug];
+        if (preset) files["src/business.js"] = businessModule(preset, base.ready!.info, rules);
       }
       if (isApp) files[BRAND_FILE] = brandModule(brandedRef.current);
 
@@ -996,6 +1023,21 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
     });
     setPreviewFiles(files);
   };
+  // "Your data": a step added or removed. The app's data module, staff mode and (in ready-made apps) the tracker follow at once.
+  const applyRules = (rules: DataRules) => {
+    const current = projectRef.current ?? project;
+    const apiUrl = current.appData?.apiUrl ?? null;
+    const preset = current.ready && READY_PRESETS[current.ready.slug];
+    const files = {
+      ...current.files,
+      [RULES_FILE]: JSON.stringify(rules, null, 2),
+      [DATA_FILE]: dataModule(apiUrl, rules),
+      [STAFF_FILE]: staffModule(apiUrl),
+      ...(preset ? { "src/business.js": businessModule(preset, current.ready!.info, rules) } : {}),
+    };
+    commit({ ...current, files });
+    setPreviewFiles(files);
+  };
   const shownFiles = generating && live ? { ...project.files, ...live.files } : project.files;
 
   const tabs: { key: Tab; label: string; icon: typeof Smartphone }[] = [
@@ -1490,9 +1532,17 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
               }}
               onAndroidPushChange={(androidPush) => commit({ ...(projectRef.current ?? project), androidPush })}
               onAppDataChange={(appData, files) => {
+                // Turning it on or off sends the rules itself.
+                syncedRules.current = appData ? JSON.stringify(appRules(files)) : null;
                 commit({ ...(projectRef.current ?? project), appData, files });
                 setPreviewFiles(files);
               }}
+              onRulesChange={applyRules}
+              onAskData={(request) => {
+                setTab("preview");
+                send(request);
+              }}
+              rulesSync={rulesSync}
               onAddAppData={() => {
                 setTab("preview");
                 send(

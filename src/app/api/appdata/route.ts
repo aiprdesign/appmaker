@@ -1,7 +1,7 @@
 import { DataInputError, parseRules } from "@/lib/app-data";
 import { requirePaidPlan } from "@/lib/server/credits";
 import { AuthError, assertSameOrigin } from "@/lib/server/auth";
-import { deleteStore, saveStore, storeFor, type DataStore } from "@/lib/server/app-data";
+import { dataCounts, deleteStore, saveStore, storeFor, type DataStore } from "@/lib/server/app-data";
 import { checkProjectId } from "@/lib/server/cloud-projects";
 import { requireFeature } from "@/lib/server/features";
 import { accountError, publicOrigin, readBody, requireUser } from "@/lib/server/respond";
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     const user = await requireUser(req);
     const projectId = checkProjectId(new URL(req.url).searchParams.get("projectId") ?? "");
     const store = await storeFor(user.id, projectId);
-    return Response.json({ store: store ? describe(req, store) : null });
+    return Response.json({ store: store ? { ...describe(req, store), rules: store.rules, counts: await dataCounts(store) } : null });
   } catch (e) {
     return accountError(e);
   }

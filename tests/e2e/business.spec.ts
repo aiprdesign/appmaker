@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { showAllPublishSteps } from "./helpers/publish";
+import { openPublishExtras, showAllPublishSteps } from "./helpers/publish";
 import { SITE_PORT } from "../../playwright.config";
 
 // Business features: templates with blanks, and the business's logo as the app icon.
@@ -180,4 +180,31 @@ test("the owner fills the app in from their website, pastes a menu and adds phot
   await page.getByRole("button", { name: "Use this link" }).click();
   await expect(page.getByRole("button", { name: "Change the photo of Cacio e pepe" })).toBeVisible();
   await expect(phone.locator('[src*="cacio.jpg"], [style*="cacio.jpg"]').first()).toBeAttached({ timeout: 15_000 });
+});
+
+test("Your data: the business changes its steps safely, and the app's tracker follows", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Pizza & takeaway/ }).click();
+  const phone = page.frameLocator('iframe[title="App preview"]');
+  await expect(phone.getByText("Tony's Pizza").first()).toBeVisible({ timeout: 30_000 });
+  await openPublishExtras(page);
+  const data = page.locator("section", { has: page.getByRole("heading", { name: /App database/ }) });
+  await expect(data.getByText("Your data")).toBeVisible();
+  await expect(data.getByText("Used by: Home screen, Items screen")).toBeVisible();
+  await expect(data.getByText(/Can't be removed while the app's screens use it/).first()).toBeVisible();
+  // The first and last steps can't be removed; a new one goes before the last.
+  await expect(data.getByRole("button", { name: "Remove the step Order received" })).toHaveCount(0);
+  await data.getByRole("button", { name: "Add a step" }).click();
+  await data.getByLabel("Add a step").fill("Out for delivery");
+  await data.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(data.getByText("Out for delivery")).toBeVisible();
+  // Never collected: card numbers.
+  await data.getByRole("button", { name: "Add a field" }).last().click();
+  await data.getByLabel("Add a field").fill("Card number");
+  await data.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(data.getByRole("alert")).toContainText("never stored");
+  // The customer's app shows the new step at once.
+  await page.getByRole("button", { name: "Preview" }).first().click();
+  await phone.getByText("Order", { exact: true }).last().click();
+  await expect(phone.getByText(/Ready for pickup → Out for delivery → Collected/)).toBeVisible({ timeout: 15_000 });
 });

@@ -38,6 +38,11 @@ interface Props {
   onBookingChange: (booking: Project["booking"], files: Project["files"]) => void;
   onAppDataChange: (appData: Project["appData"], files: Project["files"]) => void;
   onAddAppData: () => void;
+  /** "Your data": a step changed (applied at once). */
+  onRulesChange: (rules: import("@/lib/app-data").DataRules) => void;
+  /** "Your data": a change the AI makes, so the screens change with the data. */
+  onAskData: (request: string) => void;
+  rulesSync: "" | "saving" | "failed";
   onAndroidPushChange: (push: Project["androidPush"]) => void;
   onAddBookingScreen: () => void;
   busy: boolean;
@@ -208,7 +213,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
   );
 }
 
-export function PublishPanel({ project, buildRequest, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, onAppDataChange, onAddAppData, onAndroidPushChange, busy, hasPreviewError }: Props) {
+export function PublishPanel({ project, buildRequest, onChange, onExpoChange, onIconChange, onStorePagesChange, onLiveChange, onBookingChange, onAddBookingScreen, onAppDataChange, onAddAppData, onRulesChange, onAskData, rulesSync, onAndroidPushChange, busy, hasPreviewError }: Props) {
   const l = project.listing;
   const [exporting, setExporting] = useState(false);
   const set = <K extends keyof StoreListing>(key: K, value: StoreListing[K]) => onChange({ ...l, [key]: value });
@@ -472,7 +477,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
                   <span className="mt-1 block text-xs font-normal text-muted">Get orders and requests from customers, keep content fresh from your website, or take bookings in the app.</span>
                 </summary>
                 <div className="mt-4 space-y-6">
-                  <AppDataPanel project={project} onChange={onAppDataChange} onAddData={onAddAppData} busy={busy} />
+                  <AppDataPanel project={project} onChange={onAppDataChange} onAddData={onAddAppData} onRulesChange={onRulesChange} onAskData={onAskData} rulesSync={rulesSync} busy={busy} />
                   {usesNotifications(project.files) && <AndroidPush project={project} onChange={onAndroidPushChange} />}
                   <LiveUpdates project={project} onChange={onLiveChange} />
                   <Bookings project={project} onChange={onBookingChange} onAddScreen={onAddBookingScreen} busy={busy} />
