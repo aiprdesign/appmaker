@@ -980,7 +980,11 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
     if (!preset) return;
     const colorChanged = info.color !== current.ready!.info.color;
     const design = colorChanged ? readyDesign(info, current.prompt, current.design) : current.design;
-    const files = { ...current.files, ...readyDetailFiles(preset, info, current.appData?.apiUrl ?? null), ...(colorChanged && design ? { [THEME_FILE]: themeModule(design) } : {}) };
+    const files = {
+      ...current.files,
+      ...readyDetailFiles(preset, info, current.appData?.apiUrl ?? null, appRules(current.files)),
+      ...(colorChanged && design ? { [THEME_FILE]: themeModule(design) } : {}),
+    };
     const name = info.name.trim() || current.name;
     commit({
       ...current,

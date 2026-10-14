@@ -357,6 +357,18 @@ function requestFields(preset: ReadyPreset): string[] {
 }
 
 
+/**
+ * The owner's details change only the menu or services (their starting items). Everything else
+ * in the app's data stays as it is: collections, fields and statuses the AI added or changed
+ * later are kept, so editing the details never drops data.
+ */
+export function mergeReadyRules(preset: ReadyPreset, info: ReadyInfo, current?: DataRules | null): DataRules {
+  const fresh = readyRules(preset, info);
+  if (!current) return fresh;
+  const items = current.items ? { ...current.items, seed: fresh.items.seed } : fresh.items;
+  return { ...fresh, ...current, items, ...(current.requests ? {} : { requests: fresh.requests }) };
+}
+
 /** The data the app keeps: the business's items (it edits them on its owner page) and the requests customers send. */
 export function readyRules(preset: ReadyPreset, info: ReadyInfo): DataRules {
   return {
@@ -516,8 +528,8 @@ export function readyDesign(info: ReadyInfo, prompt: string, current?: AppDesign
 }
 
 /** The files that change when the owner edits their details (the screens stay as they are, even after AI changes). */
-export function readyDetailFiles(preset: ReadyPreset, info: ReadyInfo, apiUrl: string | null): FileMap {
-  const rules = readyRules(preset, info);
+export function readyDetailFiles(preset: ReadyPreset, info: ReadyInfo, apiUrl: string | null, current?: DataRules | null): FileMap {
+  const rules = mergeReadyRules(preset, info, current);
   return {
     "src/business.js": businessModule(preset, info),
     [RULES_FILE]: JSON.stringify(rules, null, 2),

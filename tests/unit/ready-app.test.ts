@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUSINESS_TEMPLATES, templateSlug } from "@/lib/templates";
-import { READY_PRESETS, stagesOf, infoFromSite, parseItemList, readyAppFiles, readyDesign, readyListing, readyRules } from "@/lib/ready-app";
+import { READY_PRESETS, mergeReadyRules, stagesOf, infoFromSite, parseItemList, readyAppFiles, readyDesign, readyListing, readyRules } from "@/lib/ready-app";
 import { validateApp, isLucideIcon } from "@/lib/validate";
 import { designIssues } from "@/lib/app-design";
 import { parseRules } from "@/lib/app-data";
@@ -71,5 +71,21 @@ describe("adding items quickly", () => {
     const p = READY_PRESETS.bakery;
     const rules = readyRules(p, { ...p.sample, items: [{ ...p.sample.items[0], image: "javascript:alert(1)" }, { ...p.sample.items[1], image: "https://x.example/a.jpg" }] });
     expect(rules.items.seed!.map((i) => i.image)).toEqual([undefined, "https://x.example/a.jpg"]);
+  });
+});
+
+describe("the owner's details and the app's data", () => {
+  it("only change the menu: collections, fields and statuses added later are kept", () => {
+    const p = READY_PRESETS["pizza-takeaway"];
+    const later = {
+      ...readyRules(p, p.sample),
+      reviews: { access: "shared" as const, fields: ["name", "rating", "text"] },
+      requests: { access: "inbox" as const, fields: ["name", "phone", "items", "table"], statuses: ["new", "ready", "cancelled"] },
+    };
+    const merged = mergeReadyRules(p, { ...p.sample, items: [{ name: "Calzone", description: "", price: "12", category: "Pizza" }] }, later);
+    expect(merged.reviews).toEqual(later.reviews);
+    expect(merged.requests).toEqual(later.requests);
+    expect(merged.items.seed).toEqual([{ name: "Calzone", description: "", price: "12", category: "Pizza" }]);
+    expect(mergeReadyRules(p, p.sample, null)).toEqual(readyRules(p, p.sample));
   });
 });
