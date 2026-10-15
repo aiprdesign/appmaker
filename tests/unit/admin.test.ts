@@ -122,6 +122,37 @@ describe.skipIf(!DB)("admin dashboard (PostgreSQL)", () => {
     const calm = all.apps.find((a: { name: string }) => a.name === "Calm Breaths");
     expect(calm).toMatchObject({ owner: "cy@admin-test.example", iconEmoji: "🧘", primaryColor: "#123456", prompt: "a breathing app", files: 2 });
     expect((await (await adminApps(req("/api/admin/apps?q=recipe", { cookie: admin }))).json()).apps.map((a: { name: string }) => a.name)).toContain("Recipe Box");
+    // How each app was made, its database and its quality score; and the filters.
+    expect(calm).toMatchObject({ origin: "prompt", template: null, isWebsite: false, database: false, orders: 0, score: null });
+    await putProject(
+      req("/api/projects/deeapp002", {
+        method: "PUT",
+        body: {
+          project: {
+            id: "deeapp002",
+            name: "Tony's Pizza",
+            prompt: "pizza",
+            files: { "App.js": "x" },
+            listing: { name: "Tony's Pizza" },
+            ready: { slug: "pizza-takeaway", info: {} },
+            messages: [
+              { id: "m1", role: "assistant", kind: "review", content: "", review: { agent: "critic", score: 72 }, createdAt: 1 },
+              { id: "m2", role: "assistant", kind: "review", content: "", review: { agent: "critic", score: 90 }, createdAt: 2 },
+            ],
+            createdAt: 1,
+            updatedAt: Date.now(),
+          },
+        },
+        cookie: dee,
+      }),
+      { params: Promise.resolve({ id: "deeapp002" }) },
+    );
+    const pizza = (await (await adminApps(req("/api/admin/apps?q=admin-test&filter=template", { cookie: admin }))).json()).apps;
+    expect(pizza).toEqual([expect.objectContaining({ name: "Tony's Pizza", origin: "template", template: "pizza-takeaway", score: 90 })]);
+    expect((await (await adminApps(req("/api/admin/apps?q=admin-test&filter=prompt", { cookie: admin }))).json()).apps.map((a: { name: string }) => a.name).sort()).toEqual(["Calm Breaths", "Recipe Box"]);
+    expect((await (await adminApps(req("/api/admin/apps?q=admin-test&filter=database", { cookie: admin }))).json()).total).toBe(0);
+    await adminDeleteApp(req(`/api/admin/apps/${pizza[0].userId}/deeapp002`, { method: "DELETE", cookie: admin }), { params: Promise.resolve({ userId: pizza[0].userId, id: "deeapp002" }) });
+
     const onlyCy = await (await adminApps(req(`/api/admin/apps?user=${calm.userId}`, { cookie: admin }))).json();
     expect(onlyCy.apps.map((a: { name: string }) => a.name)).toEqual(["Calm Breaths"]);
     expect((await adminApps(req("/api/admin/apps"))).status).toBe(401);

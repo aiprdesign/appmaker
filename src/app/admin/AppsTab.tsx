@@ -21,7 +21,24 @@ interface AppSummary {
   files: number;
   createdAt: number | null;
   updatedAt: number;
+  origin: "template" | "website" | "prompt";
+  template: string | null;
+  isWebsite: boolean;
+  database: boolean;
+  orders: number;
+  score: number | null;
 }
+
+const FILTERS = [
+  ["", "All"],
+  ["template", "From a template"],
+  ["website", "From a website"],
+  ["prompt", "From an idea"],
+  ["database", "App database on"],
+  ["sites", "Websites"],
+] as const;
+const ORIGIN: Record<AppSummary["origin"], string> = { template: "Template", website: "From website", prompt: "AI from idea" };
+const badge = "rounded-full border px-2 py-0.5 text-[11px]";
 
 const input = "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-violet-500/60";
 
@@ -47,16 +64,17 @@ export function AppsTab({ member, clearMember }: { member: { id: string; email: 
   const [total, setTotal] = useState(0);
   const [viewing, setViewing] = useState<AppSummary | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
 
   const load = useCallback(
     async (search: string, offset = 0) => {
-      const params = new URLSearchParams({ q: search, offset: String(offset), ...(member ? { user: member.id } : {}) });
+      const params = new URLSearchParams({ q: search, offset: String(offset), ...(member ? { user: member.id } : {}), ...(filter ? { filter } : {}) });
       const { status, data } = await get<{ apps: AppSummary[]; total: number }>(`/api/admin/apps?${params}`);
       if (status !== 200) return;
       setTotal(data.total);
       setList((prev) => (offset && prev ? [...prev, ...data.apps] : data.apps));
     },
-    [member],
+    [member, filter],
   );
   useEffect(() => {
     const t = setTimeout(() => void load(query), 250);
@@ -100,6 +118,18 @@ export function AppsTab({ member, clearMember }: { member: { id: string; email: 
           {total.toLocaleString()} app{total === 1 ? "" : "s"}
         </span>
       </div>
+      <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Show">
+        {FILTERS.map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            aria-pressed={filter === key}
+            className={`min-h-8 rounded-full border px-3 text-xs ${filter === key ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line text-muted hover:text-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {note && (
         <p role="status" className="mt-3 text-sm text-emerald-300">
           {note}
@@ -120,7 +150,23 @@ export function AppsTab({ member, clearMember }: { member: { id: string; email: 
                   <div className="truncate text-xs text-muted">{a.owner}</div>
                 </div>
               </div>
-              {a.prompt && <p className="mt-3 line-clamp-2 text-xs text-muted">“{a.prompt}”</p>}
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <span className={`${badge} border-line text-muted`}>
+                  {a.isWebsite ? "Website" : ORIGIN[a.origin]}
+                  {a.template ? ` · ${a.template.replace(/-/g, " ")}` : ""}
+                </span>
+                {a.database && (
+                  <span className={`${badge} border-emerald-400/30 text-emerald-300`}>
+                    Database · {a.orders} order{a.orders === 1 ? "" : "s"}
+                  </span>
+                )}
+                {a.score != null && (
+                  <span className={`${badge} ${a.score >= 80 ? "border-emerald-400/30 text-emerald-300" : a.score >= 60 ? "border-amber-300/30 text-amber-200" : "border-red-400/30 text-red-300"}`} title="The quality critic's latest score">
+                    Quality {a.score}/100
+                  </span>
+                )}
+              </div>
+              {a.prompt && <p className="mt-2 line-clamp-2 text-xs text-muted">“{a.prompt}”</p>}
               <div className="mt-3 flex items-center justify-between gap-2 pt-1 text-[11px] text-muted">
                 <span>
                   {a.files} file{a.files === 1 ? "" : "s"} · edited {when(a.updatedAt)}

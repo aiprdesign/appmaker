@@ -134,10 +134,25 @@ export interface AppSummary {
   files: number;
   createdAt: number | null;
   updatedAt: number;
+  /** How it started: a ready-made template, a business website, or an idea for the AI. */
+  origin: "template" | "website" | "prompt";
+  /** The template's slug (ready-made apps). */
+  template: string | null;
+  /** A website (redesign) rather than an app. */
+  isWebsite: boolean;
+  /** The app database is on, and how many orders or requests it holds. */
+  database: boolean;
+  orders: number;
+  /** The quality critic's latest score out of 100, if it ran. */
+  score: number | null;
 }
 
+/** Filters for the Apps tab. */
+export const APP_FILTERS = ["template", "website", "prompt", "database", "sites"] as const;
+export type AppFilter = (typeof APP_FILTERS)[number];
+
 /** Apps saved in accounts (not deleted), newest edit first. */
-export async function apps(search: string, userId: string | null, offset: number, limit = 50): Promise<{ apps: AppSummary[]; total: number }> {
+export async function apps(search: string, userId: string | null, offset: number, limit = 50, filter: AppFilter | null = null): Promise<{ apps: AppSummary[]; total: number }> {
   const like = `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const rows = await query<{
     id: string;
@@ -151,20 +166,38 @@ export async function apps(search: string, userId: string | null, offset: number
     created: string | null;
     updated_at: string;
     total: string;
+    kind: string | null;
+    template: string | null;
+    source: string | null;
+    store: string | null;
+    orders: string;
+    score: string | null;
   }>(
     `select a.id, a.user_id, u.email, a.name,
             a.data->'listing'->>'iconEmoji' icon, a.data->'listing'->>'primaryColor' color,
             left(a.data->>'prompt', 300) prompt,
             (select count(*) from jsonb_object_keys(coalesce(a.data->'files', '{}'::jsonb))) files,
             a.data->>'createdAt' created, a.updated_at,
+            a.data->>'kind' kind, a.data->'ready'->>'slug' template, a.data->'source'->>'url' source,
+            s.id store,
+            (select count(*) from app_data_records r where r.store_id = s.id and r.status <> '') orders,
+            (select (m.v->'review'->>'score') from jsonb_array_elements(coalesce(a.data->'messages', '[]'::jsonb)) with ordinality m(v, n)
+              where m.v->'review'->>'agent' = 'critic' order by m.n desc limit 1) score,
             count(*) over () total
        from app_projects a join app_users u on u.id = a.user_id
+       left join app_data_stores s on s.user_id = a.user_id and s.project_id = a.id
       where a.deleted_at is null
         and ($3::text is null or a.user_id = $3)
         and (a.name ilike $1 or u.email ilike $1 or a.data->>'prompt' ilike $1)
+        and ($5::text is null
+          or ($5 = 'template' and a.data->'ready' is not null and a.data->'source' is null)
+          or ($5 = 'website' and a.data->'source' is not null and coalesce(a.data->>'kind', 'app') <> 'website')
+          or ($5 = 'prompt' and a.data->'ready' is null and a.data->'source' is null)
+          or ($5 = 'database' and s.id is not null)
+          or ($5 = 'sites' and a.data->>'kind' = 'website'))
       order by a.updated_at desc
       limit $2 offset $4`,
-    [like, limit, userId, offset],
+    [like, limit, userId, offset, filter],
   );
   return {
     total: Number(rows[0]?.total ?? 0),
@@ -179,6 +212,12 @@ export async function apps(search: string, userId: string | null, offset: number
       files: Number(r.files),
       createdAt: r.created ? Number(r.created) : null,
       updatedAt: Number(r.updated_at),
+      origin: r.template && !r.source ? "template" : r.source ? "website" : "prompt",
+      template: r.template,
+      isWebsite: r.kind === "website",
+      database: !!r.store,
+      orders: Number(r.orders),
+      score: r.score != null && Number.isFinite(Number(r.score)) ? Number(r.score) : null,
     })),
   };
 }

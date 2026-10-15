@@ -1,4 +1,4 @@
-import { apps } from "@/lib/server/admin-data";
+import { APP_FILTERS, apps, type AppFilter } from "@/lib/server/admin-data";
 import { requireAdmin } from "@/lib/server/admin-guard";
 import { accountError } from "@/lib/server/respond";
 
@@ -13,7 +13,10 @@ export async function GET(req: Request) {
     const search = (url.searchParams.get("q") ?? "").slice(0, 200);
     const user = url.searchParams.get("user");
     const offset = Math.max(0, Math.min(1_000_000, Number(url.searchParams.get("offset")) || 0));
-    return Response.json(await apps(search, user && /^[A-Za-z0-9_-]{8,40}$/.test(user) ? user : null, offset));
+    const filter = url.searchParams.get("filter");
+    return Response.json(
+      await apps(search, user && /^[A-Za-z0-9_-]{8,40}$/.test(user) ? user : null, offset, 50, (APP_FILTERS as readonly string[]).includes(filter ?? "") ? (filter as AppFilter) : null),
+    );
   } catch (e) {
     return accountError(e);
   }
