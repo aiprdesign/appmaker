@@ -3,8 +3,8 @@
 import { buildProgress, friendlyFile, latestThoughts, progressNote, type LiveGeneration } from "@/lib/progress";
 import { Feedback } from "./Feedback";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, CheckCircle2, Circle, FileCode2, Loader2, Palette, RotateCcw, RotateCw, Route, Square, Wrench, X } from "lucide-react";
-import { AGENT_NAMES, reviewFixRequest, type Review } from "@/lib/review";
+import { ArrowUp, CheckCircle2, Circle, FileCode2, Gauge, Loader2, Palette, RotateCcw, RotateCw, Route, Square, Wrench, X } from "lucide-react";
+import { AGENT_NAMES, PASS_SCORE, reviewFixRequest, type Review } from "@/lib/review";
 import type { ChatMessage, PendingRequest, SiteSummary } from "@/lib/types";
 import { ModelButton } from "@/components/AiSettings";
 import { WordingControl } from "@/components/WordingControl";
@@ -323,7 +323,7 @@ const SEVERITY: Record<string, string> = {
 
 /** What the UX or UI agent found, with a way to fix it when it wasn't fixed automatically. */
 function ReviewCard({ review, fixing, canFix, onFix }: { review: Review; fixing: boolean; canFix: boolean; onFix: () => void }) {
-  const Icon = review.agent === "ux" ? Route : Palette;
+  const Icon = review.agent === "ux" ? Route : review.agent === "critic" ? Gauge : Palette;
   const toFix = review.issues.length;
   return (
     <section aria-label={`${AGENT_NAMES[review.agent]} review`} className="rounded-2xl border border-line bg-surface p-3 text-sm">
@@ -332,10 +332,38 @@ function ReviewCard({ review, fixing, canFix, onFix }: { review: Review; fixing:
           <Icon className="h-3.5 w-3.5" />
         </span>
         {AGENT_NAMES[review.agent]}
+        {review.agent === "critic" && review.round ? <span className="text-xs font-normal text-muted">· round {review.round}</span> : null}
         <span className="ml-auto text-xs font-normal text-muted">
-          {review.issues.length ? `${review.issues.length} thing${review.issues.length === 1 ? "" : "s"} to improve` : "Looks good"}
+          {review.agent === "critic" && review.score != null ? (
+            <span className="font-semibold text-foreground">
+              {review.previous != null && <span className="font-normal text-muted">{review.previous} → </span>}
+              {review.score}/100
+            </span>
+          ) : review.issues.length ? (
+            `${review.issues.length} thing${review.issues.length === 1 ? "" : "s"} to improve`
+          ) : (
+            "Looks good"
+          )}
         </span>
       </div>
+      {review.checks && (
+        <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1" aria-label="The 10 quality checks">
+          {review.checks.map((c) => (
+            <li key={c.name} className="text-[11px]" title={c.note || undefined}>
+              <div className="flex justify-between gap-1">
+                <span className="truncate text-muted">{c.name}</span>
+                <span className={c.score >= PASS_SCORE ? "text-emerald-300" : c.score >= 6 ? "text-amber-200" : "text-red-300"}>{c.score}</span>
+              </div>
+              <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-white/10" aria-hidden>
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ${c.score >= PASS_SCORE ? "bg-emerald-400" : c.score >= 6 ? "bg-amber-300" : "bg-red-400"}`}
+                  style={{ width: `${c.score * 10}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
       {review.summary && <p className="mt-2 text-xs text-muted">{review.summary}</p>}
       {review.issues.length > 0 && (
         <ul className="mt-2 space-y-1.5">
@@ -350,7 +378,8 @@ function ReviewCard({ review, fixing, canFix, onFix }: { review: Review; fixing:
       )}
       {fixing ? (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-300">
-          <Wrench className="h-3.5 w-3.5" /> The important ones are being fixed automatically.
+          <Wrench className="h-3.5 w-3.5" />{" "}
+          {review.agent === "critic" ? `Fixing the checks under ${PASS_SCORE}, then scoring the app again.` : "The important ones are being fixed automatically."}
         </p>
       ) : (
         toFix > 0 &&

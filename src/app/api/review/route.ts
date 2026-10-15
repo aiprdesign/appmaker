@@ -1,5 +1,5 @@
 import { AiConfigError, canSeeImages, resolveAi, streamGeneration } from "@/lib/ai/server";
-import { parseReview, type ReviewAgent } from "@/lib/review";
+import { PASS_SCORE, QUALITY_CHECKS, parseCritique, parseReview, type ReviewAgent } from "@/lib/review";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { APP_MAX_BYTES, APP_MAX_FILES, isAllowedPath } from "@/lib/validate";
 
@@ -10,7 +10,7 @@ const FORMAT = `Reply with only JSON: {"summary": "one short sentence on how the
 - Only real problems you can point to in this app, each with a concrete fix the developer can make in this code. Don't invent features the app doesn't need, and don't repeat the same point.
 - If the app is good, reply with "issues": [].`;
 
-const SYSTEM: Record<ReviewAgent, string> = {
+const SYSTEM: Record<"ux" | "ui", string> = {
   ux: `You are a senior UX designer reviewing a React Native (Expo) app's code before it ships to the App Store and Google Play. Judge how it works for a first-time user, not how the code is written. Check:
 - Flows: can people do the app's main jobs from start to finish? Is anything a dead end, missing a way back, or hidden?
 - Forms: clear labels, sensible defaults, the right keyboard, validation messages next to the field, nothing lost when they make a mistake.
@@ -30,11 +30,16 @@ ${FORMAT}`,
 ${FORMAT}`,
 };
 
+const CRITIC = `You are a strict quality critic for a React Native (Expo) app about to ship to the App Store and Google Play, judging it against the best apps in its category. When a screenshot is attached it's the screen currently shown; use the code for everything else. Score each of these 10 checks from 1 to 10 (10 = as good as a top-chart app, ${PASS_SCORE} = ready to ship, 5 = clearly lacking):
+${QUALITY_CHECKS.map(([name, what], i) => `${i + 1}. ${name}: ${what}`).join("\n")}
+Be honest and specific: a high score needs evidence in this app; a low one needs the exact problem and a concrete fix the developer can make in this code (name the screen and what to change). Don't ask for features the app doesn't need.
+Reply with only JSON: {"summary": "one short sentence on the app's quality", "checks": [{"name": "Core flow", "score": 8, "where": "screen or part", "problem": "what keeps it from 10, in plain words", "fix": "exactly what to change"}, … all 10 checks, in this order]}`;
+
 /** Runs the UX or UI review agent on the app (free, rate limited). */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
-  const agent: ReviewAgent | null = body?.agent === "ux" || body?.agent === "ui" ? body.agent : null;
-  if (!agent) return Response.json({ error: "agent must be ux or ui" }, { status: 400 });
+  const agent: ReviewAgent | null = body?.agent === "ux" || body?.agent === "ui" || body?.agent === "critic" ? body.agent : null;
+  if (!agent) return Response.json({ error: "agent must be ux, ui or critic" }, { status: 400 });
   const files = body?.files && typeof body.files === "object" && !Array.isArray(body.files) ? (body.files as Record<string, unknown>) : null;
   if (!files) return Response.json({ error: "files are required" }, { status: 400 });
   const entries = Object.entries(files).filter(([path, code]) => typeof code === "string" && isAllowedPath(path)) as [string, string][];
@@ -66,7 +71,7 @@ export async function POST(req: Request) {
   try {
     await streamGeneration({
       ai,
-      system: SYSTEM[agent],
+      system: agent === "critic" ? CRITIC : SYSTEM[agent as "ux" | "ui"],
       messages: [{ role: "user", content: user }],
       signal: AbortSignal.any([req.signal, AbortSignal.timeout(100_000)]),
       write: (t) => {
@@ -74,12 +79,12 @@ export async function POST(req: Request) {
       },
       quick: true,
       maxTokens: 8000,
-      ...(agent === "ui" && image && canSeeImages(ai) ? { images: [image] } : {}),
+      ...(agent !== "ux" && image && canSeeImages(ai) ? { images: [image] } : {}),
     });
   } catch {
     return Response.json({ error: `The ${agent.toUpperCase()} review couldn't run this time.` }, { status: 502 });
   }
-  const review = parseReview(agent, text);
+  const review = agent === "critic" ? parseCritique(text) : parseReview(agent, text);
   if (!review) return Response.json({ error: `The ${agent.toUpperCase()} review didn't come back in a usable form.` }, { status: 502 });
   return Response.json({ review });
 }

@@ -39,7 +39,7 @@ import { qualityFixRequest, reportQuality, type QualityEvent } from "@/lib/quali
 import { polishPrompt, toJpeg } from "@/lib/polish";
 import { Orb } from "@/components/fx/Orb";
 import { PhoneBuilding, PhoneEditing } from "./PhoneProgress";
-import { fixable, reviewFixRequest, reviewMessage, type Review, type ReviewAgent } from "@/lib/review";
+import { EDIT_CRITIQUE_ROUNDS, MAX_CRITIQUE_ROUNDS, critiqueAgain, fixable, reviewFixRequest, reviewMessage, type Review, type ReviewAgent } from "@/lib/review";
 import { earlyPreview, takeSignals, withoutOpenThought, type LiveGeneration } from "@/lib/progress";
 import { captureFrame } from "@/lib/store-shots";
 import { TapTest, type TapTestResult } from "./TapTest";
@@ -211,6 +211,9 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
   const started = useRef(false);
   const fixBudget = useRef(AUTO_FIX_BUDGET);
   // The UX and UI agents review once per request, after the first version that passes the checks.
+  const critiqueRound = useRef(0);
+  const critiqueScore = useRef<number | null>(null);
+  const critiqueRounds = useRef(MAX_CRITIQUE_ROUNDS);
   const reviewPending = useRef(false);
   const [reviewing, setReviewing] = useState(false);
   const continueBudget = useRef(CONTINUE_BUDGET);
@@ -402,6 +405,10 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
         keepContent.current = !!opts.keepContent;
         contentBudget.current = CONTENT_FIX_BUDGET;
         reviewPending.current = true;
+        critiqueRound.current = 0;
+        critiqueScore.current = null;
+        // A new app gets the full self-critique; a change to one a shorter one, so edits stay fast.
+        critiqueRounds.current = hasEntry(current.files) ? EDIT_CRITIQUE_ROUNDS : MAX_CRITIQUE_ROUNDS;
         fixBudget.current = AUTO_FIX_BUDGET;
         designBudget.current = 1;
         continueBudget.current = CONTINUE_BUDGET;
@@ -619,6 +626,9 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
       // 3. health, medical and financial claims (always).
       // Problems go back to the AI; the app appears once it's clean.
       const wroteFiles = Object.keys(complete).length > 0;
+      // A conversation (an answer, a question back, no change to the app) gets no checks, tap test,
+      // review agents or self-critique: those are only for software being handed to the person.
+      if (!wroteFiles) reviewPending.current = false;
       if (!wroteFiles || error || demoRef.current) return reveal();
       if (!opts.autoFix) reportQuality([Object.keys(current.files).length ? "build:edit" : "build:new"]);
       if (continuing) {
@@ -967,37 +977,52 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
     }
   }, []);
 
-  // The UX agent reads the code; the UI agent also sees a screenshot of the screen.
-  // Their important findings go back to the AI once; the rest are shown in the chat.
+  // The UX agent reads the code; the UI agent also sees a screenshot of the screen; the quality critic
+  // scores 10 checks. Their important findings go back to the AI; then the critic scores the fixed app
+  // again (a self-critique loop) until every check passes, a round stops helping, or MAX_CRITIQUE_ROUNDS.
   const runReviews = useCallback(async () => {
     const p = projectRef.current;
     if (!p || !hasEntry(p.files)) return;
+    const round = critiqueRound.current + 1;
+    critiqueRound.current = round;
     setReviewing(true);
     let image: string | null = null;
     try {
       const frame = phoneRef.current?.querySelector<HTMLIFrameElement>('iframe[title="App preview"]');
       if (frame) image = await toJpeg((await captureFrame(frame, 1.5)).dataUrl);
     } catch {
-      // The UI agent reviews the code alone.
+      // The agents review the code alone.
     }
     const ask = async (agent: ReviewAgent): Promise<Review | null> => {
       try {
         const res = await fetch("/api/review", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ agent, files: p.files, listing: p.listing, ai: aiChoiceFor(getAiSettings()), ...(agent === "ui" && image ? { image } : {}) }),
+          body: JSON.stringify({ agent, files: p.files, listing: p.listing, ai: aiChoiceFor(getAiSettings()), ...(agent !== "ux" && image ? { image } : {}) }),
         });
         return res.ok ? ((await res.json()).review as Review | null) : null;
       } catch {
         return null;
       }
     };
-    const reviews = (await Promise.all([ask("ux"), ask("ui")])).filter((r): r is Review => !!r);
+    // The first round: all three agents. Later rounds: the critic checks the fixes.
+    const agents: ReviewAgent[] = round === 1 ? ["ux", "ui", "critic"] : ["critic"];
+    const reviews = (await Promise.all(agents.map(ask))).filter((r): r is Review => !!r);
     setReviewing(false);
     const current = projectRef.current;
     if (!reviews.length || !current || current.id !== p.id) return;
-    // Fix automatically only if nothing else started meanwhile.
-    const fix = reviews.some((r) => fixable(r).length) && !abortRef.current;
+    const critic = reviews.find((r) => r.agent === "critic");
+    const previous = critiqueScore.current;
+    if (critic) {
+      critic.round = round;
+      if (previous !== null) critic.previous = previous;
+      critiqueScore.current = critic.score ?? null;
+    }
+    // Fix automatically only if nothing else started meanwhile. The critic's points are fixed while
+    // rounds help; the UX and UI agents' once.
+    const again = critiqueAgain(critic, round, previous, critiqueRounds.current);
+    const toFix = reviews.filter((r) => fixable(r).length && (r.agent !== "critic" || again));
+    const fix = toFix.length > 0 && !abortRef.current;
     const notes: ChatMessage[] = reviews.map((r) => ({
       id: uid(),
       role: "assistant",
@@ -1005,10 +1030,14 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
       content: reviewMessage(r),
       review: r,
       createdAt: Date.now(),
-      ...(fix && fixable(r).length ? { fixing: true } : {}),
+      ...(fix && toFix.includes(r) ? { fixing: true } : {}),
     }));
     commit({ ...current, messages: [...current.messages, ...notes] });
-    if (fix) sendRef.current(reviewFixRequest(reviews), { autoFix: true });
+    if (fix) {
+      // After this fix passes the checks and the tap test, the critic looks again.
+      if (again) reviewPending.current = true;
+      sendRef.current(reviewFixRequest(toFix), { autoFix: true });
+    }
   }, [commit]);
   const reviewRef = useRef(runReviews);
   useEffect(() => {
