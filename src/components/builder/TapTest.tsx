@@ -9,6 +9,8 @@ export interface TapTestResult {
   errors: { message: string; after: string }[];
   /** The Save/Add-style button whose typed text never showed up, if any. */
   deadSave: string;
+  /** The app never reported back in time (counts as done, so nothing waits on it). */
+  timedOut?: boolean;
 }
 
 /**
@@ -17,6 +19,8 @@ export interface TapTestResult {
  * runs off screen with its own memory, so the visible preview isn't touched,
  * and it can't send anything to servers.
  */
+export const TAP_TEST_TIMEOUT_MS = 45_000;
+
 export function TapTest({ files, platform, onResult }: { files: FileMap; platform: "ios" | "android" | "ipad"; onResult: (r: TapTestResult) => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [origin, setOrigin] = useState("");
@@ -48,7 +52,13 @@ export function TapTest({ files, platform, onResult }: { files: FileMap; platfor
       });
     };
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    // An app that never reports (it froze, or the test couldn't run) doesn't hold everything up:
+    // after TAP_TEST_TIMEOUT_MS the test counts as done, and the reviews go ahead.
+    const t = setTimeout(() => done.current({ taps: 0, errors: [], deadSave: "", timedOut: true }), TAP_TEST_TIMEOUT_MS);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      clearTimeout(t);
+    };
   }, []);
   if (!html) return null;
   return (

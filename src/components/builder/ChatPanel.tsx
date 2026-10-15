@@ -166,7 +166,7 @@ export function ChatPanel(props: Props) {
         {source && <SiteCard site={source} />}
         {messages.map((m) =>
           m.kind === "review" && m.review ? (
-            <ReviewCard key={m.id} review={m.review} fixing={!!m.fixing} canFix={!generating && !demoMode} onFix={() => onSend(reviewFixRequest([m.review!], { all: true }))} />
+            <ReviewCard key={m.id} review={m.review} fixing={m.fixing ? (generating || reviewing ? "now" : "sent") : null} canFix={!generating && !demoMode} onFix={() => onSend(reviewFixRequest([m.review!], { all: true }))} />
           ) : m.kind === "auto-fix" ? (
             <details key={m.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200/90">
               <summary className="flex cursor-pointer list-none items-center gap-2">
@@ -243,9 +243,14 @@ export function ChatPanel(props: Props) {
 
         {generating && <Progress live={live} startedAt={startedAt} />}
         {reviewing && !generating && (
-          <p role="status" className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs text-muted">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> The UX and UI agents are reviewing your app…
-          </p>
+          <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs text-muted">
+            <p role="status" className="flex flex-1 items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> The review agents and quality critic are checking your app…
+            </p>
+            <button onClick={onStop} className="min-h-8 shrink-0 rounded-lg px-2 text-foreground underline underline-offset-2 hover:text-white">
+              Skip
+            </button>
+          </div>
         )}
         <div aria-live="polite" className="sr-only">
           {generating ? "Building your app…" : lastMessage?.role === "assistant" ? "Your app is ready." : ""}
@@ -322,7 +327,7 @@ const SEVERITY: Record<string, string> = {
 };
 
 /** What the UX or UI agent found, with a way to fix it when it wasn't fixed automatically. */
-function ReviewCard({ review, fixing, canFix, onFix }: { review: Review; fixing: boolean; canFix: boolean; onFix: () => void }) {
+function ReviewCard({ review, fixing, canFix, onFix }: { review: Review; fixing: "now" | "sent" | null; canFix: boolean; onFix: () => void }) {
   const Icon = review.agent === "ux" ? Route : review.agent === "critic" ? Gauge : Palette;
   const toFix = review.issues.length;
   return (
@@ -376,7 +381,11 @@ function ReviewCard({ review, fixing, canFix, onFix }: { review: Review; fixing:
           ))}
         </ul>
       )}
-      {fixing ? (
+      {fixing === "sent" ? (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
+          <Wrench className="h-3.5 w-3.5" /> Sent to the AI to fix.
+        </p>
+      ) : fixing ? (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-300">
           <Wrench className="h-3.5 w-3.5" />{" "}
           {review.agent === "critic" ? `Fixing the checks under ${PASS_SCORE}, then scoring the app again.` : "The important ones are being fixed automatically."}

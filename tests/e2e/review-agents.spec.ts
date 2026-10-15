@@ -74,7 +74,7 @@ test("after a build the UX and UI agents review the app and their important find
   const ui = page.getByRole("region", { name: "UI agent review" });
   await expect(ux).toContainText("Saving a plant gives no feedback.", { timeout: 30_000 });
   await expect(ui).toContainText("The title could be larger.");
-  await expect(ux).toContainText("being fixed automatically");
+  await expect(ux).toContainText(/being fixed automatically|Sent to the AI to fix/);
   // Both agents ran; the UI agent was shown a picture of the screen.
   expect(reviews.map((r) => r.agent).sort()).toEqual(["critic", "ui", "ux"]);
   expect(reviews.find((r) => r.agent === "ui")?.image).toMatch(/^data:image\/(jpeg|png);base64,/);
@@ -145,7 +145,7 @@ test("the quality critic scores 10 checks, the AI fixes what's under par, and th
   const first = page.getByRole("region", { name: "Quality critic review" }).first();
   await expect(first).toContainText("72/100", { timeout: 30_000 });
   await expect(first.getByRole("list", { name: "The 10 quality checks" }).getByRole("listitem")).toHaveCount(10);
-  await expect(first).toContainText("Fixing the checks under 8");
+  await expect(first).toContainText(/Fixing the checks under 8|Sent to the AI to fix/);
   // What's under par went to the AI, worst first; then the critic scored the fixed app.
   await expect.poll(() => prompts.length, { timeout: 30_000 }).toBe(2);
   expect(prompts[1]).toMatch(/^Automatic self-critique/);
@@ -186,4 +186,63 @@ test("a conversation about the app (no change to it) gets no reviews or self-cri
   await page.waitForTimeout(4000);
   expect(reviews).toHaveLength(3);
   expect(prompts).toHaveLength(2);
+});
+
+test("the self-critique loop can't run away: it stops after 3 critiques even if every round helps a little", async ({ page }) => {
+  const prompts: string[] = [];
+  await page.route("**/api/generate", async (route) => {
+    prompts.push(route.request().postDataJSON().prompt);
+    await route.fulfill({ status: 200, contentType: "text/plain", headers: { "X-Appmaker-Mode": "ai" }, body: reply(`Garden v${prompts.length}`) });
+  });
+  let critiques = 0;
+  await page.route("**/api/review", async (route) => {
+    const { agent } = route.request().postDataJSON();
+    if (agent !== "critic") return route.fulfill({ json: { review: { agent, summary: "Fine.", issues: [] } } });
+    critiques += 1;
+    // Always something under par, and always a bit better than before.
+    await route.fulfill({ json: { review: critique([5 + critiques, 9, 9, 9, 9, 9, 9, 9, 9, 9]) } });
+  });
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("a garden planner");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("region", { name: "Quality critic review" })).toHaveCount(3, { timeout: 60_000 });
+  await page.waitForTimeout(5000);
+  expect(critiques).toBe(3);
+  expect(prompts).toHaveLength(3); // the build, then a fix after the 1st and 2nd critiques; the 3rd only scores
+  await expect(page.getByText(/reviewing|checking your app/)).toHaveCount(0);
+});
+
+test("Skip, or a new message while the reviewers work, drops their findings: no surprise fix afterwards", async ({ page }) => {
+  const prompts: string[] = [];
+  await page.route("**/api/generate", async (route) => {
+    prompts.push(route.request().postDataJSON().prompt);
+    const body = prompts.length === 1 ? reply("Garden") : "<plan>Answering.</plan>\n<summary>Plants are saved on the phone.</summary>";
+    await route.fulfill({ status: 200, contentType: "text/plain", headers: { "X-Appmaker-Mode": "ai" }, body });
+  });
+  let reviewCalls = 0;
+  await page.route("**/api/review", async (route) => {
+    const { agent } = route.request().postDataJSON();
+    reviewCalls += 1;
+    await new Promise((r) => setTimeout(r, 3000)); // slow reviewers
+    await route.fulfill({ json: { review: agent === "critic" ? critique([5, 5, 5, 5, 5, 5, 5, 5, 5, 5]) : { agent, summary: "Needs work.", issues: [{ severity: "high", where: "Home", problem: "Broken.", fix: "Fix it." }] } } }).catch(() => {});
+  });
+  await page.goto("/");
+  await page.getByLabel("Describe your app").fill("a garden planner");
+  await page.keyboard.press("Enter");
+
+  // Skip while they work: nothing comes of it.
+  await expect(page.getByText(/checking your app/)).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Skip" }).click();
+  await expect(page.getByText(/checking your app/)).toHaveCount(0);
+  await page.waitForTimeout(4500);
+  expect(prompts).toHaveLength(1);
+  await expect(page.getByRole("region", { name: /review$/ })).toHaveCount(0);
+
+  // A new build, and a question asked while its reviewers work: their findings are dropped too.
+  await page.getByPlaceholder(/Ask for a change/).fill("Where are my plants saved?");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Plants are saved on the phone.")).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(4500);
+  expect(prompts).toHaveLength(2);
+  expect(reviewCalls).toBe(3);
 });

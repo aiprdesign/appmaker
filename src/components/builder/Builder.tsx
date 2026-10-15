@@ -214,6 +214,9 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
   const critiqueRound = useRef(0);
   const critiqueScore = useRef<number | null>(null);
   const critiqueRounds = useRef(MAX_CRITIQUE_ROUNDS);
+  // Goes up when the person sends something new or presses Stop: reviews still on their way then belong
+  // to an old request, so they're dropped instead of starting a fix or mixing up the next loop's scores.
+  const loopEpoch = useRef(0);
   const reviewPending = useRef(false);
   const [reviewing, setReviewing] = useState(false);
   const continueBudget = useRef(CONTINUE_BUDGET);
@@ -405,6 +408,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
         keepContent.current = !!opts.keepContent;
         contentBudget.current = CONTENT_FIX_BUDGET;
         reviewPending.current = true;
+        loopEpoch.current += 1;
         critiqueRound.current = 0;
         critiqueScore.current = null;
         // A new app gets the full self-critique; a change to one a shorter one, so edits stay fast.
@@ -983,6 +987,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
   const runReviews = useCallback(async () => {
     const p = projectRef.current;
     if (!p || !hasEntry(p.files)) return;
+    const epoch = loopEpoch.current;
     const round = critiqueRound.current + 1;
     critiqueRound.current = round;
     setReviewing(true);
@@ -999,6 +1004,8 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ agent, files: p.files, listing: p.listing, ai: aiChoiceFor(getAiSettings()), ...(agent !== "ux" && image ? { image } : {}) }),
+          // Never wait forever (the server gives up at 2 minutes too).
+          signal: AbortSignal.timeout(130_000),
         });
         return res.ok ? ((await res.json()).review as Review | null) : null;
       } catch {
@@ -1008,6 +1015,8 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
     // The first round: all three agents. Later rounds: the critic checks the fixes.
     const agents: ReviewAgent[] = round === 1 ? ["ux", "ui", "critic"] : ["critic"];
     const reviews = (await Promise.all(agents.map(ask))).filter((r): r is Review => !!r);
+    // Stopped, or something new was asked meanwhile: these reviews are for an old request.
+    if (epoch !== loopEpoch.current) return;
     setReviewing(false);
     const current = projectRef.current;
     if (!reviews.length || !current || current.id !== p.id) return;
@@ -1343,7 +1352,13 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
             reviewing={reviewing}
             live={live}
             onSend={send}
-            onStop={() => abortRef.current?.abort()}
+            onStop={() => {
+              // Stop means the whole thing: the reply being written, and any reviews or self-critique still to come.
+              loopEpoch.current += 1;
+              reviewPending.current = false;
+              setReviewing(false);
+              abortRef.current?.abort();
+            }}
             hasApp={hasApp}
             website={isSite}
             startedAt={startedAt}
