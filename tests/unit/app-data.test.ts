@@ -224,6 +224,33 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     return res.headers.get("set-cookie")!.split(";")[0];
   }
 
+  it("encrypts customers' details at rest: the database copy can't be read, the app and the business see them as usual", async () => {
+    process.env.DATA_ENCRYPTION_KEY = "test-key-only-for-this-test-0123456789";
+    try {
+      await setFeature("appData", true);
+      const cookie = await account("secret");
+      const { store } = await (await storeRoute(req("/api/appdata", "POST", { projectId: "projsecret1", name: "Luigi's", rules: RULES }, { cookie }))).json();
+      const app = (method: string, body?: unknown, q = "") => req(`/api/appdata/${store.id}${q}`, method, body, { "x-device": ANA });
+      const { item } = await (await appPost(app("POST", { collection: "orders", data: { name: "Ana Secret", phone: "5550199", items: "2 Margherita" } }), ctx(store.id))).json();
+      // Still changeable by the customer while it's waiting (merged in code, re-encrypted).
+      expect((await appPatch(app("PATCH", { collection: "orders", id: item.id, data: { note: "no basil" } }), ctx(store.id))).status).toBe(200);
+      const [raw] = await query<{ data: Record<string, unknown> }>("select data from app_data_records where id = $1", [item.id]);
+      expect(JSON.stringify(raw.data)).not.toContain("Ana Secret");
+      expect(JSON.stringify(raw.data)).not.toContain("5550199");
+      expect(typeof raw.data.$e).toBe("string");
+      const mine = (await (await appGet(app("GET", undefined, "?collection=orders"), ctx(store.id))).json()).items[0];
+      expect(mine).toMatchObject({ name: "Ana Secret", phone: "5550199", note: "no basil" });
+      const key = store.ownerUrl.split("#k=")[1];
+      const view = await (await ownerGet(req(`/api/appdata/${store.id}/owner`, "GET", undefined, { "x-owner-key": key }), ctx(store.id))).json();
+      expect(view.collections.find((c: { name: string }) => c.name === "orders").items[0]).toMatchObject({ name: "Ana Secret" });
+      // The public menu isn't personal: stored as is.
+      const [menu] = await query<{ data: Record<string, unknown> }>("select data from app_data_records where store_id = $1 and collection = 'menu' limit 1", [store.id]);
+      expect(menu.data.$e).toBeUndefined();
+    } finally {
+      delete process.env.DATA_ENCRYPTION_KEY;
+    }
+  });
+
   it("tells the builder how much each kind of data holds, and keeps orders when the steps change", async () => {
     await setFeature("appData", true);
     const cookie = await account("counts");
@@ -374,7 +401,7 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
       );
       const { item } = await res.json();
       expect(item.ref).toMatch(/^[0-9A-F]{4}$/);
-      await vi.waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ to: "ExponentPushToken[staffPhone123456]", title: `You have a new order (#${item.ref})`, body: "Ana · 555 · 2 Margherita" })));
+      await vi.waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ to: "ExponentPushToken[staffPhone123456]", title: `You have a new order (#${item.ref})`, body: expect.not.stringContaining("Ana") })));
       await ownerPost(owner({ action: "status", collection: "orders", id: item.id, status: "ready" }), ctx(store.id));
       await vi.waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ to: "ExponentPushToken[customerAna12345]", body: `Your order #${item.ref} is now ready.` })));
     } finally {

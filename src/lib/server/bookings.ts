@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { BookingInputError, parseSettings, toMinutes, type BookingSettings } from "../booking";
 import { currentUser } from "./auth";
 import { query } from "./db";
+import { sealText, unsealText } from "./data-crypto";
 
 /**
  * Simple booking. Free times are worked out from the owner's opening hours,
@@ -232,10 +233,10 @@ export async function createBooking(setup: BookingSetup, input: Record<string, u
       setup.id,
       new Date(start).toISOString(),
       new Date(start + setup.settings.slotMinutes * 60000).toISOString(),
-      name,
-      phone,
+      sealText(name),
+      sealText(phone),
       service,
-      note,
+      sealText(note),
     ]);
   } catch (e) {
     if ((e as { code?: string }).code === "23505") throw new BookingConflict("Sorry, that time was just taken. Please choose another.");
@@ -267,7 +268,7 @@ export async function ownerView(setup: BookingSetup, now = Date.now()) {
     query<{ id: string; starts_at: Date; ends_at: Date; name: string; phone: string; service: string; note: string; created_at: Date }>(
       "select id, starts_at, ends_at, name, phone, service, note, created_at from app_bookings where setup_id = $1 and status = 'booked' and starts_at >= $2 order by starts_at limit 500",
       [setup.id, from],
-    ),
+    ).then(openBookings),
     query<{ id: string; starts_at: Date; ends_at: Date; note: string }>(
       "select id, starts_at, ends_at, note from app_booking_blocks where setup_id = $1 and ends_at > now() order by starts_at limit 200",
       [setup.id],
@@ -369,11 +370,16 @@ const icsTime = (ms: number) =>
     .replace(/\.\d{3}/, "");
 
 /** An iCalendar feed of upcoming bookings, for the owner's phone calendar. */
+/** Bookings as saved (customers' name, phone and note are encrypted at rest). */
+function openBookings<T extends { name: string; phone: string; note: string }>(rows: T[]): T[] {
+  return rows.map((b) => ({ ...b, name: unsealText(b.name), phone: unsealText(b.phone), note: unsealText(b.note) }));
+}
+
 export async function calendarFeed(setup: BookingSetup, now = Date.now()): Promise<string> {
   const rows = await query<{ id: string; starts_at: Date; ends_at: Date; name: string; phone: string; service: string; note: string }>(
     "select id, starts_at, ends_at, name, phone, service, note from app_bookings where setup_id = $1 and status = 'booked' and starts_at >= $2 order by starts_at limit 1000",
     [setup.id, new Date(now - 7 * DAY_MS).toISOString()],
-  );
+  ).then(openBookings);
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",

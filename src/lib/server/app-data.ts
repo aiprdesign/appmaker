@@ -3,6 +3,7 @@ import { COLLECTION_NAME, DataInputError, MAX_RECORD_BYTES, doneStatuses, isDone
 import { currentUser } from "./auth";
 import { query } from "./db";
 import { alertOwner, isPushToken, notifyCustomer, shortRef } from "./app-alerts";
+import { seal, unseal } from "./data-crypto";
 import { isPaid, paymentsConfig } from "./credits";
 import { bump } from "./data-versions";
 
@@ -45,7 +46,7 @@ const toStore = (r: StoreRow): DataStore => ({ id: r.id, userId: r.user_id, proj
 
 function toItem(r: RecordRow, device: string | null, access: Access): DataItem {
   return {
-    ...r.data,
+    ...unseal(r.data),
     id: r.id,
     createdAt: r.created_at.getTime(),
     updatedAt: r.updated_at.getTime(),
@@ -246,13 +247,6 @@ export async function listItems(store: DataStore, collection: string, device: st
   return rows.map((r) => toItem(r, device, access));
 }
 
-/** A short line about an item, for alerts: its first fields ("Ana · 2 Margherita"). */
-export function summary(store: DataStore, collection: string, data: Record<string, unknown>): string {
-  const fields = store.rules[collection]?.fields ?? Object.keys(data);
-  const parts = fields.map((f) => data[f]).filter((v) => typeof v === "string" || typeof v === "number").map(String);
-  return parts.slice(0, 3).join(" · ").slice(0, 140);
-}
-
 const singular = (name: string) => name.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/ies$/, "y").replace(/s$/, "").toLowerCase();
 
 /** New items customers can add to one app each month (orders, posts, saved items); APPMAKER_DATA_MONTHLY_LIMIT changes it. */
@@ -291,13 +285,13 @@ export async function addItem(store: DataStore, collection: string, device: stri
   if (Number(mine) >= MAX_PER_DEVICE[access]) throw new DataInputError("You've sent a lot from this phone. Please contact the business, or delete some first.");
   const rows = await query<RecordRow>(
     "insert into app_data_records (id, store_id, collection, device, data, status, push_token) values ($1, $2, $3, $4, $5, $6, $7) returning *",
-    [randomBytes(9).toString("base64url"), store.id, collection, device, JSON.stringify(data), access === "inbox" ? (statuses?.[0] ?? "new") : "", isPushToken(pushToken) ? pushToken : ""],
+    [randomBytes(9).toString("base64url"), store.id, collection, device, JSON.stringify(seal(data)), access === "inbox" ? (statuses?.[0] ?? "new") : "", isPushToken(pushToken) ? pushToken : ""],
   );
   const item = toItem(rows[0], device, access);
   bump(store.id, collection);
   // The business hears about every new order, request or sign-up straight away.
   if (access === "inbox") {
-    void alertOwner(store.id, `You have a new ${singular(collection)} (#${item.ref})`, summary(store, collection, data) || `${store.name || "Your app"}: open the owner page to see it.`, `/owner/data/${store.id}`).catch(() => undefined);
+    void alertOwner(store.id, `You have a new ${singular(collection)} (#${item.ref})`, `${store.name || "Your app"}: open the owner page to see it.`, `/owner/data/${store.id}`).catch(() => undefined);
   }
   return item;
 }
@@ -310,17 +304,17 @@ export async function updateItem(store: DataStore, collection: string, device: s
   if (access === "public") throw new DataForbidden("Only the business can change this.");
   if (!RECORD_ID.test(id)) throw new DataInputError("Unknown item.");
   const data = cleanRecord(fields);
+  const [current] = await query<RecordRow>("select * from app_data_records where store_id = $1 and collection = $2 and id = $3 and device = $4", [store.id, collection, id, device]);
+  if (!current) throw new DataForbidden("You can only change your own items.");
+  if (access === "inbox" && current.status !== (statuses?.[0] ?? "new")) throw new DataForbidden(STARTED);
+  const merged = { ...unseal(current.data), ...data };
+  if (JSON.stringify(merged).length > MAX_RECORD_BYTES * 2) throw new DataInputError("That's too much to save in one item.");
+  // Only if nothing changed in between (the business may have just started on it).
   const rows = await query<RecordRow>(
-    `update app_data_records set data = data || $5::jsonb, updated_at = now()
-     where store_id = $1 and collection = $2 and id = $3 and device = $4 and octet_length((data || $5::jsonb)::text) <= ${MAX_RECORD_BYTES * 2}
-       ${access === "inbox" ? "and status = $6" : ""} returning *`,
-    access === "inbox" ? [store.id, collection, id, device, JSON.stringify(data), statuses?.[0] ?? "new"] : [store.id, collection, id, device, JSON.stringify(data)],
+    "update app_data_records set data = $3::jsonb, updated_at = now() where id = $1 and store_id = $2 and status = $4 and data = $5::jsonb returning *",
+    [id, store.id, JSON.stringify(seal(merged)), current.status, JSON.stringify(current.data)],
   );
-  if (!rows[0]) {
-    if (!(await own(store, collection, id, device))) throw new DataForbidden("You can only change your own items.");
-    const [{ big }] = await query<{ big: boolean }>("select octet_length((data || $2::jsonb)::text) > $3 as big from app_data_records where id = $1", [id, JSON.stringify(data), MAX_RECORD_BYTES * 2]);
-    throw big ? new DataInputError("That's too much to save in one item.") : new DataForbidden(STARTED);
-  }
+  if (!rows[0]) throw new DataForbidden(STARTED);
   bump(store.id, collection);
   return toItem(rows[0], device, access);
 }
@@ -341,7 +335,7 @@ export async function cancelItem(store: DataStore, collection: string, device: s
   if (!rows[0]) throw new DataForbidden((await own(store, collection, id, device)) ? STARTED : "You can only cancel your own.");
   const item = toItem(rows[0], device, access);
   bump(store.id, collection);
-  void alertOwner(store.id, `Cancelled: ${singular(collection)} #${item.ref}`, summary(store, collection, rows[0].data), `/owner/data/${store.id}`).catch(() => undefined);
+  void alertOwner(store.id, `Cancelled: ${singular(collection)} #${item.ref}`, `${store.name || "Your app"}: open the owner page for details.`, `/owner/data/${store.id}`).catch(() => undefined);
   return item;
 }
 
@@ -398,7 +392,7 @@ export async function ownerData(store: DataStore): Promise<{ name: string; hasSt
     const rows = r.access === "private" ? [] : all.filter((row) => row.collection === name);
     // Fields: the rules' fields, then any others the app saved.
     const seen = new Set(r.fields);
-    for (const row of rows) for (const k of Object.keys(row.data)) seen.add(k);
+    for (const row of rows) for (const k of Object.keys(unseal(row.data))) seen.add(k);
     // Statuses: the rules', plus any an item still has (e.g. from before the rules changed), so it can always be shown.
     const statuses = r.statuses ? [...new Set([...r.statuses, ...rows.map((row) => row.status).filter(Boolean)])] : undefined;
     collections.push({ name, access: r.access, fields: [...seen].slice(0, 20), ...(statuses ? { statuses } : {}), count: Number(n), items: rows.map((row) => toItem(row, null, r.access)) });
@@ -422,13 +416,13 @@ export async function ownerAction(store: DataStore, body: Record<string, unknown
         randomBytes(9).toString("base64url"),
         store.id,
         collection,
-        JSON.stringify(cleanRecord(body.data)),
+        JSON.stringify(r.access === "public" ? cleanRecord(body.data) : seal(cleanRecord(body.data))),
         r.access === "inbox" ? (r.statuses?.[0] ?? "new") : "",
       ]);
       bump(store.id, collection);
       return;
     case "update":
-      await query("update app_data_records set data = $4::jsonb, updated_at = now() where store_id = $1 and collection = $2 and id = $3", [store.id, collection, id, JSON.stringify(cleanRecord(body.data))]);
+      await query("update app_data_records set data = $4::jsonb, updated_at = now() where store_id = $1 and collection = $2 and id = $3", [store.id, collection, id, JSON.stringify(r.access === "public" ? cleanRecord(body.data) : seal(cleanRecord(body.data)))]);
       bump(store.id, collection);
       return;
     case "status": {
