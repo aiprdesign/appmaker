@@ -155,6 +155,9 @@ test("business templates open a working app straight away, and the owner's detai
   await expect(phone.getByRole("button", { name: /^Pay now · \$26/ })).toBeVisible();
   await phone.getByRole("button", { name: /^Pay now · \$26/ }).click();
   await expect(phone.getByText(/Opens paypal\.me/)).toBeVisible();
+  // No second "Pay now" while the business confirms it.
+  await expect(phone.getByText(/Paid\? Luigi's will confirm it here/)).toBeVisible();
+  await expect(phone.getByRole("button", { name: /^Pay now/ })).toHaveCount(0);
   // The live tracker, with the pizza place's own steps.
   await expect(phone.getByText("Order received").first()).toBeVisible();
   await expect(phone.getByText("In the oven").first()).toBeVisible();
@@ -163,6 +166,8 @@ test("business templates open a working app straight away, and the owner's detai
   await phone.getByRole("button", { name: /Staff mode/ }).click();
   await expect(phone.getByText(/Try it now with orders from this phone/)).toBeVisible();
   await expect(phone.getByText("Sam").first()).toBeVisible();
+  await phone.getByRole("switch", { name: /Mark as paid/ }).click();
+  await expect(phone.getByRole("switch", { name: /✓ Paid/ })).toBeVisible();
   await phone.getByRole("button", { name: "Mark as in the oven" }).click();
   await phone.getByRole("button", { name: "Mark as ready" }).click();
   await page.screenshot({ path: test.info().outputPath("staff.png") });

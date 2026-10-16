@@ -1040,8 +1040,19 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
     }
   };
 
+  // Orders this phone already opened the payment page for: no second "Pay now" while the business confirms it.
+  const [payOpened, setPayOpened] = useState([]);
+  useEffect(() => {
+    AsyncStorage.getItem('pay:opened').then((v) => v && setPayOpened(JSON.parse(v))).catch(() => {});
+  }, []);
+  const startPay = (x) => {
+    const next = [...payOpened.filter((id) => id !== x.id), x.id].slice(-20);
+    setPayOpened(next);
+    AsyncStorage.setItem('pay:opened', JSON.stringify(next)).catch(() => {});
+    pay(x.total, refresh);
+  };
   const confirmCancel = (id) =>
-    Alert.alert('Cancel this?', 'To change it instead, call ' + business.name + '.', [
+    Alert.alert('Cancel this?', 'To change it instead, call ' + business.name + '.' + (canPay && payOpened.includes(id) ? ' If you already paid, contact ' + business.name + ' about a refund.' : ''), [
       { text: 'Keep it', style: 'cancel' },
       { text: 'Cancel it', style: 'destructive', onPress: () => cancel(id).catch((e) => Alert.alert("Couldn't cancel", e.message)) },
     ]);
@@ -1069,13 +1080,23 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
                   <Icons.CircleCheck size={18} color={colors.success} />
                   <Text style={[styles.body, { color: colors.success, fontWeight: '600' }]}>Paid</Text>
                 </View>
+              ) : payOpened.includes(x.id) ? (
+                <View style={styles.paidRow}>
+                  <Icons.Clock size={18} color={colors.muted} />
+                  <Text style={[styles.body, { color: colors.muted }]}>Paid? {business.name} will confirm it here.</Text>
+                </View>
               ) : (
-                <Tap onPress={() => pay(x.total, refresh)} accessibilityRole="button" accessibilityHint="Opens the payment page" style={[styles.button, styles.payButton, { backgroundColor: colors.primary, borderRadius: radius.md }]}>
+                <Tap onPress={() => startPay(x)} accessibilityRole="button" accessibilityHint="Opens the payment page" style={[styles.button, styles.payButton, { backgroundColor: colors.primary, borderRadius: radius.md }]}>
                   <Icons.CreditCard size={20} color={colors.onPrimary} />
                   <Text style={[styles.buttonText, { color: colors.onPrimary }]}>{'Pay now' + (x.total ? ' · ' + x.total : '')}</Text>
                 </Tap>
               ))}
-              {canPay && !s.cancelled && !x.paid && <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>Or pay when you collect. Add #{x.ref} to the payment note.</Text>}
+              {canPay && !s.cancelled && !x.paid && !payOpened.includes(x.id) && <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>Or pay when you collect. Add #{x.ref} to the payment note.</Text>}
+              {canPay && !s.cancelled && !x.paid && payOpened.includes(x.id) && (
+                <Tap onPress={() => pay(x.total, refresh)} accessibilityRole="button" hitSlop={8} style={styles.cancel}>
+                  <Text style={[styles.small, { color: colors.primary, fontWeight: '600' }]}>Open the payment page again</Text>
+                </Tap>
+              )}
               {s.canCancel && (
                 <Tap onPress={() => confirmCancel(x.id)} accessibilityRole="button" style={styles.cancel}>
                   <Text style={[styles.small, { color: colors.danger, fontWeight: '600' }]}>Cancel {kind === 'order' ? 'order' : 'request'}</Text>

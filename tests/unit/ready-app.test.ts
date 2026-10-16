@@ -129,6 +129,7 @@ describe("online payment link", () => {
     expect(safePayLink("https://evil.example/pay")).toBe("");
     expect(safePayLink("javascript:alert(1)")).toBe("");
     expect(safePayLink("")).toBe("");
+    expect(safePayLink("paypal.me")).toBe("");
   });
   it("puts the link in the app's business details", () => {
     const preset = READY_PRESETS["pizza-takeaway"];

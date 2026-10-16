@@ -202,6 +202,11 @@ function Order({ collection, item, busy, act, fresh }) {
           <ArrowRight size={18} color={colors.onPrimary} accessible={false} />
         </Pressable>
       ) : null}
+      {statuses.length > 0 && (
+        <Pressable disabled={busy} onPress={() => act({ action: 'paid', collection: collection.name, id: item.id, paid: item.paid !== 'yes' })} accessibilityRole="switch" accessibilityState={{ checked: item.paid === 'yes' }} style={({ pressed }) => [styles.moreToggle, pressed && styles.pressed]}>
+          <Text style={[styles.moreText, item.paid === 'yes' && { color: colors.success }]}>{item.paid === 'yes' ? '✓ Paid' : 'Mark as paid'}{item.total ? ' · ' + item.total : ''}</Text>
+        </Pressable>
+      )}
       <Pressable onPress={() => setMore(!more)} accessibilityRole="button" accessibilityState={{ expanded: more }} style={({ pressed }) => [styles.moreToggle, pressed && styles.pressed]}>
         <Text style={styles.moreText}>Other status</Text>
         <ChevronDown size={16} color={colors.muted} style={more ? { transform: [{ rotate: '180deg' }] } : null} accessible={false} />
@@ -235,7 +240,8 @@ function PreviewStaff({ onClose }) {
     load();
   }, [load]);
   const act = async (a) => {
-    await preview.setStatus(a.collection, a.id, a.status);
+    if (a.action === 'paid') await preview.setPaid(a.collection, a.id, a.paid);
+    else await preview.setStatus(a.collection, a.id, a.status);
     load();
   };
   const active = current ? items.filter((i) => !isDone(i.status, current.statuses)).sort((a, b) => a.createdAt - b.createdAt) : [];

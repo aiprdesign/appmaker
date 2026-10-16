@@ -564,6 +564,7 @@ export function DataOwnerPage({ id }: { id: string }) {
                 Paid{item.total ? ` (${String(item.total)})` : ""}
               </span>
             </label>
+            {item.paid === "yes" && /^cancel/i.test(item.status ?? "") && <p className="text-xs text-amber-200">Cancelled after paying: refund it in PayPal (or your payment app).</p>}
             <label className="flex items-center gap-2 text-xs text-muted">
               <span>Status</span>
               <select

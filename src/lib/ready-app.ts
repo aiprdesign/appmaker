@@ -449,7 +449,10 @@ export function safePayLink(v: unknown): string {
   if (!t) return "";
   try {
     const u = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`);
-    return u.protocol === "https:" || u.protocol === "http:" ? (PAY_HOSTS.test(u.hostname) ? `https://${u.hostname}${u.pathname.replace(/\/+$/, "")}` : "") : "";
+    const path = u.pathname.replace(/\/+$/, "");
+    // A payment service's home page isn't a payment link: it needs the shop's own page (paypal.me/yourshop).
+    if (!path || path === "/") return "";
+    return u.protocol === "https:" || u.protocol === "http:" ? (PAY_HOSTS.test(u.hostname) ? `https://${u.hostname}${path}` : "") : "";
   } catch {
     return "";
   }
@@ -504,7 +507,9 @@ export const directions = () => open('https://maps.google.com/?q=' + encodeURICo
 /** Pay online through the business's own link (PayPal.me gets the amount filled in). The app never sees card details. */
 export const canPay = !!business.payLink;
 export const pay = async (total, onBack) => {
-  const amount = String(total || '').replace(/[^0-9.]/g, '');
+  // "$26.50", "26,50 €" and "1,234.50" all become 26.50 / 1234.50.
+  let amount = String(total || '').replace(/[^0-9.,]/g, '');
+  amount = /,\\d{2}$/.test(amount) ? amount.replace(/\\./g, '').replace(',', '.') : amount.replace(/,/g, '');
   const url = /paypal\\.me\\//i.test(business.payLink) && amount ? business.payLink + '/' + amount : business.payLink;
   try {
     // A sheet over the app (Safari / Chrome): the customer pays, taps Done and is back on their order.

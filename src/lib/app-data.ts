@@ -46,6 +46,8 @@ export function firstNameOnly(data: Record<string, unknown>): Record<string, unk
   const out = { ...data };
   for (const k of ["name", "customerName", "fullName", "customer"]) if (typeof out[k] === "string") out[k] = firstName(out[k] as string);
   for (const k of ["lastName", "surname", "familyName"]) delete out[k];
+  // Only the business marks an order paid (on the owner page or in staff mode), never the customer's app.
+  delete out.paid;
   return out;
 }
 export const DEFAULT_STATUSES = ["new", "accepted", "ready", "done", "cancelled"];
@@ -478,6 +480,9 @@ export const preview = {
   on: !API,
   collections: Object.keys(ACCESS).map((name) => ({ name, access: ACCESS[name], fields: FIELDS[name] || [], statuses: STATUSES[name] || [] })),
   list: (collection) => readLocal(collection),
+  setPaid: async (collection, id, paid) => {
+    await writeLocal(collection, (await readLocal(collection)).map((x) => (x.id === id ? { ...x, paid: paid ? 'yes' : undefined, updatedAt: Date.now() } : x)));
+  },
   setStatus: async (collection, id, status) => {
     if (API) throw new Error('Only in the preview.');
     await writeLocal(collection, (await readLocal(collection)).map((x) => (x.id === id ? { ...x, status, updatedAt: Date.now() } : x)));

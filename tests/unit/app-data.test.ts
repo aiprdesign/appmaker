@@ -328,6 +328,9 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     const forgot = await (await appDelete(app("DELETE", undefined, BO, "?all=1"), ctx(store.id))).json();
     expect(forgot.removed).toBe(2);
     expect((await (await appGet(app("GET", undefined, ANA, "?collection=reviews"), ctx(store.id))).json()).items).toEqual([]);
+    // A customer's app can't mark its own order paid.
+    const sneaky = await (await appPost(app("POST", { collection: "orders", data: { name: "Eve", items: "1 Margherita", paid: "yes" } }, BO), ctx(store.id))).json();
+    expect((sneaky.item ?? sneaky).paid).toBeUndefined();
     // The business ticks an order as paid; the customer's app sees it.
     await ownerPost(owner("POST", { action: "paid", collection: "orders", id: order.id, paid: true }), ctx(store.id));
     expect((await (await appGet(app("GET", undefined, ANA, "?collection=orders"), ctx(store.id))).json()).items.find((o: { id: string }) => o.id === order.id).paid).toBe("yes");
