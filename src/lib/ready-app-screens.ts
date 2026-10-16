@@ -9,7 +9,7 @@
 
 /** src/ui.js: shared pieces: press feedback, entrance animations, skeletons, the live tracker and the success check. */
 export const UI = `import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Icons from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,6 +32,40 @@ export function buzz(type) {
 
 const PressableBox = Animated.createAnimatedComponent(Pressable);
 
+// The phone's "Reduce motion" setting: bounces, shakes and slide-ins stay still when it's on.
+let reduced = false;
+try {
+  AccessibilityInfo.isReduceMotionEnabled().then((v) => (reduced = !!v)).catch(() => {});
+  AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => (reduced = !!v));
+} catch (e) {}
+
+/** A quick bounce whenever its value changes: counts, quantities and totals. */
+export function Pop({ value, style, children }) {
+  const s = useRef(new Animated.Value(1)).current;
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (reduced) return;
+    s.setValue(1.3);
+    Animated.spring(s, { toValue: 1, friction: 4, tension: 180, useNativeDriver: true }).start();
+  }, [value]);
+  return <Animated.View style={[style, { transform: [{ scale: s }] }]}>{children}</Animated.View>;
+}
+
+/** A short side-to-side shake for "this needs fixing": [style, shake]. */
+export function useShake() {
+  const x = useRef(new Animated.Value(0)).current;
+  const shake = () => {
+    if (reduced) return;
+    x.setValue(0);
+    Animated.sequence([10, -10, 6, -6, 0].map((v) => Animated.timing(x, { toValue: v, duration: 45, useNativeDriver: true }))).start();
+  };
+  return [{ transform: [{ translateX: x }] }, shake];
+}
+
 /** A button or card that gives a little when pressed. */
 export function Tap({ style, onPress, children, ...rest }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -47,6 +81,7 @@ export function Tap({ style, onPress, children, ...rest }) {
 export function Rise({ delay = 0, style, children }) {
   const t = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (reduced) return t.setValue(1);
     Animated.timing(t, { toValue: 1, duration: 420, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, []);
   const translateY = t.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
@@ -385,7 +420,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import * as Icons from 'lucide-react-native';
 import { colors, mode, radius } from './src/theme';
 import { icons, kind, words } from './src/business';
-import { basket, buzz, Icon, Tap } from './src/ui';
+import { basket, buzz, Icon, Pop, Tap } from './src/ui';
 import HomeScreen from './src/screens/HomeScreen';
 import ItemsScreen from './src/screens/ItemsScreen';
 import RequestScreen from './src/screens/RequestScreen';
@@ -410,9 +445,9 @@ function TabIcon({ name, on, badge }) {
     <Animated.View style={[styles.tabIcon, { borderRadius: radius.pill, backgroundColor: on ? colors.primarySoft : 'transparent', transform: [{ scale: hop }] }]}>
       <Icon name={name} size={24} color={on ? colors.primary : colors.muted} strokeWidth={on ? 2.4 : 2} />
       {badge > 0 && (
-        <View style={[styles.badge, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
+        <Pop value={badge} style={[styles.badge, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
           <Text style={[styles.badgeText, { color: colors.onPrimary }]}>{badge}</Text>
-        </View>
+        </Pop>
       )}
     </Animated.View>
   );
@@ -427,11 +462,13 @@ function BasketBar({ count, total, onPress }) {
   return (
     <Animated.View pointerEvents={count > 0 ? 'auto' : 'none'} style={[styles.barWrap, { transform: [{ translateY: y }] }]}>
       <Tap onPress={onPress} accessibilityRole="button" accessibilityLabel={(kind === 'order' ? 'View order, ' : 'Continue, ') + count + ' picked'} style={[styles.bar, { backgroundColor: colors.primary, borderRadius: radius.lg }]}>
-        <View style={[styles.count, { backgroundColor: colors.onPrimary, borderRadius: radius.pill }]}>
+        <Pop value={count} style={[styles.count, { backgroundColor: colors.onPrimary, borderRadius: radius.pill }]}>
           <Text style={[styles.countText, { color: colors.primary }]}>{count}</Text>
-        </View>
+        </Pop>
         <Text style={[styles.barText, { color: colors.onPrimary }]}>{kind === 'order' ? 'View order' : words.cta}</Text>
-        <Text style={[styles.barText, { color: colors.onPrimary }]}>{total || ''}</Text>
+        <Pop value={total}>
+          <Text style={[styles.barText, { color: colors.onPrimary }]}>{total || ''}</Text>
+        </Pop>
         <Icons.ChevronRight size={20} color={colors.onPrimary} />
       </Tap>
     </Animated.View>
@@ -685,7 +722,7 @@ import * as Icons from 'lucide-react-native';
 import { card, colors, heading, radius } from '../theme';
 import { icons, kind, words } from '../business';
 import { useCollection } from '../appdata';
-import { Icon, PhotoSlot, Rise, Skeleton, Tap, money } from '../ui';
+import { Icon, PhotoSlot, Pop, Rise, Skeleton, Tap, money } from '../ui';
 
 export default function ItemsScreen({ pick, picked, setQty }) {
   const { items, loading, error, refresh } = useCollection('items');
@@ -737,7 +774,9 @@ export default function ItemsScreen({ pick, picked, setQty }) {
                   <Tap onPress={() => setQty(it.name, n - 1)} accessibilityRole="button" accessibilityLabel={'One less ' + it.name} style={styles.stepButton}>
                     {n === 1 ? <Icons.Trash2 size={16} color={colors.onPrimary} /> : <Icons.Minus size={16} color={colors.onPrimary} strokeWidth={3} />}
                   </Tap>
-                  <Text style={[styles.qty, { color: colors.onPrimary }]} accessibilityLabel={n + ' in your order'}>{n}</Text>
+                  <Pop value={n}>
+                    <Text style={[styles.qty, { color: colors.onPrimary }]} accessibilityLabel={n + ' in your order'}>{n}</Text>
+                  </Pop>
                   <Tap onPress={() => pick(it)} accessibilityRole="button" accessibilityLabel={'One more ' + it.name} style={styles.stepButton}>
                     <Icons.Plus size={16} color={colors.onPrimary} strokeWidth={3} />
                   </Tap>
@@ -783,7 +822,7 @@ const styles = StyleSheet.create({
 
 /** The order or request: the basket with steppers, a short form, the animated "sent", and live trackers. */
 export const REQUEST = `import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Icons from 'lucide-react-native';
 import { card, colors, heading, label, radius } from '../theme';
@@ -792,7 +831,7 @@ import { business, kind, onSite, stages, words } from '../business';
 /** The customer's own details, kept on this phone only so they don't type them again (Info → Your saved details clears them). */
 export const SAVED_DETAILS = 'customer:details';
 import { useCollection } from '../appdata';
-import { Rise, SuccessCheck, Tap, Tracker, again, basket, money } from '../ui';
+import { Pop, Rise, SuccessCheck, Tap, Tracker, again, basket, money, useShake } from '../ui';
 
 function Field({ title, value, onChange, hint, multiline, keyboardType, autoComplete }) {
   const [focus, setFocus] = useState(false);
@@ -827,6 +866,10 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(null);
   const [problem, setProblem] = useState('');
+  const [shakeStyle, shake] = useShake();
+  useEffect(() => {
+    if (problem) shake();
+  }, [problem]);
   const [another, setAnother] = useState(false);
   const scroll = useRef(null);
   const what = picked.map((p) => (kind === 'order' ? p.qty + '× ' : '') + p.name).join(', ');
@@ -973,7 +1016,9 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
           {total && (
             <View style={[styles.line, styles.totalLine, { borderTopColor: colors.border }]}>
               <Text style={[styles.body, styles.flex, { color: colors.text, fontWeight: '700' }]}>Total</Text>
-              <Text style={[styles.totalText, { color: colors.text }]}>{total}</Text>
+              <Pop value={total}>
+                <Text style={[styles.totalText, { color: colors.text }]}>{total}</Text>
+              </Pop>
             </View>
           )}
           <Tap onPress={() => go('items')} accessibilityRole="button" style={styles.more}>
@@ -1003,7 +1048,11 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
             <Icons.ShieldCheck size={16} color={colors.muted} />
             <Text style={[styles.small, styles.flex, { color: colors.muted }]}>We use your name and phone only for this {kind === 'order' ? 'order' : 'request'}. Payment is in person.</Text>
           </View>
-          {!!problem && <Text style={[styles.small, { color: colors.danger }]}>{problem}</Text>}
+          {!!problem && (
+            <Animated.View style={shakeStyle}>
+              <Text style={[styles.small, { color: colors.danger }]}>{problem}</Text>
+            </Animated.View>
+          )}
           <Tap
             onPress={send}
             disabled={!ready || sending}
