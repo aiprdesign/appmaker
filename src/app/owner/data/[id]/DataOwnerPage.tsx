@@ -118,6 +118,9 @@ const last4 = (v: unknown) => {
   const d = String(v ?? "").replace(/\D/g, "");
   return d.length >= 4 ? d.slice(-4) : "";
 };
+/** An order the customer could pay for in the app (it has a total) that isn't marked paid yet. */
+const unpaid = (c: { statuses?: string[] }, item: { total?: unknown; paid?: unknown; status?: string }) =>
+  !!item.total && item.paid !== "yes" && !!c.statuses && !/^cancel/i.test(item.status ?? "");
 const ref4 = (c: { fields: string[] }, item: Record<string, unknown>) => {
   const f = c.fields.find(isPhone);
   return f ? last4(item[f]) : "";
@@ -483,6 +486,7 @@ export function DataOwnerPage({ id }: { id: string }) {
   const current = view.collections.find((c) => c.name === tab) ?? view.collections[0];
   const inbox = current?.access === "inbox" ? current : null;
   const active = inbox ? inbox.items.filter((i) => !isDone(i.status, inbox.statuses)).sort((a, b) => a.createdAt - b.createdAt) : [];
+  const unpaidCount = inbox ? active.filter((i) => unpaid(inbox, i)).length : 0;
   const done = inbox ? inbox.items.filter((i) => isDone(i.status, inbox.statuses)) : [];
   const seenNew = () => {
     setFresh(0);
@@ -512,6 +516,7 @@ export function DataOwnerPage({ id }: { id: string }) {
                     </span>
                   )}
                   {isNew && <span className="rounded-full bg-emerald-400 px-2 text-xs font-semibold text-black">New</span>}
+                  {unpaid(c, item) && <span className="rounded-full border border-amber-300/40 px-2 text-xs font-medium text-amber-200">Unpaid</span>}
                 </div>
               ) : isPhone(f) ? (
                 // The number isn't on screen (owner pages often sit on a counter tablet): Call uses it, Show reveals it.
@@ -560,10 +565,9 @@ export function DataOwnerPage({ id }: { id: string }) {
                 onChange={(e) => void act({ action: "paid", collection: c.name, id: item.id, paid: e.target.checked }, item.id)}
                 className="h-5 w-5 accent-emerald-400"
               />
-              <span className={item.paid === "yes" ? "font-medium text-emerald-300" : "text-muted"}>
-                Paid{item.total ? ` (${String(item.total)})` : ""}
-              </span>
+              <span className={item.paid === "yes" ? "font-medium text-emerald-300" : "text-muted"}>Paid</span>
             </label>
+            {!!item.total && item.paid !== "yes" && <p className="text-xs text-muted">Order total {String(item.total)}: check the amount in PayPal before ticking Paid.</p>}
             {item.paid === "yes" && /^cancel/i.test(item.status ?? "") && <p className="text-xs text-amber-200">Cancelled after paying: refund it in PayPal (or your payment app).</p>}
             <label className="flex items-center gap-2 text-xs text-muted">
               <span>Status</span>
@@ -708,6 +712,7 @@ export function DataOwnerPage({ id }: { id: string }) {
             <p className="mt-4 text-sm text-muted">{current.count} saved by people using the app.</p>
           ) : inbox ? (
             <>
+              {unpaidCount > 0 && <p className="mt-3 text-sm text-amber-200">{unpaidCount} unpaid: tick Paid when the money arrives or at the counter.</p>}
               {active.length === 0 ? (
                 <p className="mt-6 text-center text-sm text-muted">
                   All caught up. New {label(current.name).toLowerCase()} appear here{alerts === "on" ? ", and this device alerts you" : ""}.

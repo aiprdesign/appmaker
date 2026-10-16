@@ -33,7 +33,7 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   // A customer orders from the app: the open page hears it straight away.
   await page.waitForTimeout(1500); // the page opens its live connection
   const device = "deviceE2EE2EE2EE2EE2EE2EE2E1234";
-  await page.request.post(store.apiUrl, { data: { collection: "orders", data: { name: "Ana Lopez", phone: "+1 555 0199", items: "2 Margherita" } }, headers: { "x-device": device } });
+  await page.request.post(store.apiUrl, { data: { collection: "orders", data: { name: "Ana Lopez", phone: "+1 555 0199", items: "2 Margherita", total: "$24" } }, headers: { "x-device": device } });
   // No Refresh: the live connection brings it (the backup check is 30 seconds away).
   await expect(page.getByRole("status").filter({ hasText: "1 new since you last looked" })).toBeVisible({ timeout: 10_000 });
   await expect(page).toHaveTitle(/^\(1\) New · Luigi's: app data/);
@@ -44,6 +44,13 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   await expect(page.getByRole("link", { name: "Call" })).toHaveAttribute("href", "tel:+15550199");
   await page.getByRole("button", { name: "Show phone number" }).click();
   await expect(page.getByText("+1 555 0199")).toBeVisible();
+  // Unpaid orders stand out; the total is the customer's, so it's checked before ticking Paid.
+  await expect(page.getByText("1 unpaid")).toBeVisible();
+  await expect(page.getByText("Unpaid", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Order total \$24: check the amount/)).toBeVisible();
+  await page.getByLabel("Paid").click();
+  await expect(page.getByText("Unpaid", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Paid")).toBeChecked();
   await expect.poll(() => page.evaluate(() => (window as unknown as { spoken: string[] }).spoken)).toContain("You have a new order");
 
   // Staff move it on from another device: this page reads it out.

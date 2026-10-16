@@ -157,6 +157,7 @@ test("business templates open a working app straight away, and the owner's detai
   await expect(phone.getByText(/Opens paypal\.me/)).toBeVisible();
   // No second "Pay now" while the business confirms it.
   await expect(phone.getByText(/Paid\? Luigi's will confirm it here/)).toBeVisible();
+  await expect(phone.getByText(/Payment note: #\w+/)).toBeVisible();
   await expect(phone.getByRole("button", { name: /^Pay now/ })).toHaveCount(0);
   // The live tracker, with the pizza place's own steps.
   await expect(phone.getByText("Order received").first()).toBeVisible();

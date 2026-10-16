@@ -285,6 +285,7 @@ export function ReadyDetails({
               <a href="https://www.paypal.com/paypalme/" target="_blank" rel="noreferrer" className="text-violet-300 underline underline-offset-2">
                 Don&apos;t have one? Get a free PayPal.me link →
               </a>
+              <span className="mt-1 block">Already published? Customers see a new link after you publish an update.</span>
             </p>
           )}
         </div>

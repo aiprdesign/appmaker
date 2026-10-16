@@ -1075,15 +1075,21 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
           return (
             <Rise key={x.id}>
               <Tracker item={x} info={s} title={title} />
-              {canPay && !s.cancelled && (x.paid ? (
+              {canPay && !s.cancelled && !x.total && !x.paid && (
+                <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>{business.name} will tell you the price; pay when you collect.</Text>
+              )}
+              {canPay && !s.cancelled && !!(x.total || x.paid) && (x.paid ? (
                 <View style={styles.paidRow}>
                   <Icons.CircleCheck size={18} color={colors.success} />
                   <Text style={[styles.body, { color: colors.success, fontWeight: '600' }]}>Paid</Text>
                 </View>
               ) : payOpened.includes(x.id) ? (
-                <View style={styles.paidRow}>
-                  <Icons.Clock size={18} color={colors.muted} />
-                  <Text style={[styles.body, { color: colors.muted }]}>Paid? {business.name} will confirm it here.</Text>
+                <View style={styles.waitPay}>
+                  <View style={styles.paidRow}>
+                    <Icons.Clock size={18} color={colors.muted} />
+                    <Text style={[styles.body, { color: colors.muted }]}>Paid? {business.name} will confirm it here.</Text>
+                  </View>
+                  <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>Payment note: #{x.ref}. {business.name} checks payments while open; if it's not confirmed by pickup, show #{x.ref} at the counter.</Text>
                 </View>
               ) : (
                 <Tap onPress={() => startPay(x)} accessibilityRole="button" accessibilityHint="Opens the payment page" style={[styles.button, styles.payButton, { backgroundColor: colors.primary, borderRadius: radius.md }]}>
@@ -1091,8 +1097,8 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
                   <Text style={[styles.buttonText, { color: colors.onPrimary }]}>{'Pay now' + (x.total ? ' · ' + x.total : '')}</Text>
                 </Tap>
               ))}
-              {canPay && !s.cancelled && !x.paid && !payOpened.includes(x.id) && <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>Or pay when you collect. Add #{x.ref} to the payment note.</Text>}
-              {canPay && !s.cancelled && !x.paid && payOpened.includes(x.id) && (
+              {canPay && !s.cancelled && !!x.total && !x.paid && !payOpened.includes(x.id) && <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>Or pay when you collect. Add #{x.ref} to the payment note.</Text>}
+              {canPay && !s.cancelled && !!x.total && !x.paid && payOpened.includes(x.id) && (
                 <Tap onPress={() => pay(x.total, refresh, x.ref)} accessibilityRole="button" hitSlop={8} style={styles.cancel}>
                   <Text style={[styles.small, { color: colors.primary, fontWeight: '600' }]}>Open the payment page again</Text>
                 </Tap>
@@ -1244,6 +1250,7 @@ const styles = StyleSheet.create({
   button: { minHeight: 52, alignItems: 'center', justifyContent: 'center' },
   payButton: { flexDirection: 'row', gap: 8, marginTop: 12 },
   payNote: { textAlign: 'center', marginTop: 6 },
+  waitPay: { marginTop: 12, gap: 2 },
   paidRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12 },
   row: { flexDirection: 'row', gap: 8 },
   buttonText: { fontSize: 17, fontWeight: '700' },
