@@ -16,6 +16,11 @@ self.addEventListener("push", (e) => {
       body: data.body || "",
       tag: "appmaker-owner",
       renotify: true,
+      // Sound and buzz like a message, and stay until seen (where the phone supports it).
+      silent: false,
+      requireInteraction: true,
+      vibrate: [200, 100, 200, 100, 400],
+      icon: data.icon || undefined,
       data: { url: data.url || "/" },
     }),
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Bell, BellRing, ChevronDown, Database, Download, Inbox, KeyRound, Loader2, Lock, MessagesSquare, Pencil, Phone, Plus, RefreshCw, Store, Trash2 } from "lucide-react";
+import { ArrowRight, Bell, BellRing, ChevronDown, Database, Download, Inbox, KeyRound, Loader2, Lock, MessagesSquare, Pencil, Phone, Plus, RefreshCw, Smartphone, Store, Trash2, Volume2 } from "lucide-react";
 import { fieldLabel, isDone } from "@/lib/app-data";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
@@ -121,6 +121,10 @@ export function DataOwnerPage({ id }: { id: string }) {
   const [freshIds, setFreshIds] = useState<string[]>([]);
   const [showDone, setShowDone] = useState(false);
   const [ios, setIos] = useState(false);
+  const [standalone, setStandalone] = useState(false);
+  const [install, setInstall] = useState<{ prompt: () => Promise<void> } | null>(null);
+  const [needLink, setNeedLink] = useState(false);
+  const [link, setLink] = useState("");
 
   const call = useCallback(
     async (method: "GET" | "POST", body?: unknown) => {
@@ -170,7 +174,12 @@ export function DataOwnerPage({ id }: { id: string }) {
 
   useEffect(() => {
     key.current = readKey(id);
-    if (window.location.hash) history.replaceState(null, "", window.location.pathname);
+    const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const installed = window.matchMedia?.("(display-mode: standalone)").matches || !!(navigator as unknown as { standalone?: boolean }).standalone;
+    // On iPhone, Add to Home Screen keeps the address as it is, and the Home Screen app has its own storage:
+    // the key stays in the # (never sent to the server) so the installed app opens signed in.
+    if (window.location.hash && !(isIos && !installed)) history.replaceState(null, "", window.location.pathname);
+    if (!key.current) setTimeout(() => setNeedLink(true), 0);
     // Checking only when needed: at once when an alert arrives (the alert service tells the open page),
     // when the page comes back into view, or after a change here; otherwise from every 30 seconds
     // (5 minutes when alerts are on, since they bring the news), slowing down each time nothing changed,
@@ -254,7 +263,9 @@ export function DataOwnerPage({ id }: { id: string }) {
   useEffect(() => {
     const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
     const t = setTimeout(() => {
-      setIos(/iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator as unknown as { standalone?: boolean }).standalone);
+      const installed = window.matchMedia?.("(display-mode: standalone)").matches || !!(navigator as unknown as { standalone?: boolean }).standalone;
+      setStandalone(installed);
+      setIos(/iPhone|iPad|iPod/.test(navigator.userAgent) && !installed);
       if (!supported) setAlerts("unsupported");
       else if (Notification.permission === "denied") setAlerts("blocked");
       else
@@ -262,8 +273,36 @@ export function DataOwnerPage({ id }: { id: string }) {
           if (r && (await r.pushManager.getSubscription())) setAlerts("on");
         });
     }, 0);
-    return () => clearTimeout(t);
+    // Android and desktop Chrome/Edge: offer their own "Install app" prompt from a button.
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstall(e as unknown as { prompt: () => Promise<void> });
+    };
+    const onInstalled = () => setInstall(null);
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
   }, []);
+
+  /** Opened from the Home Screen without the key (some phones start installed apps with their own storage): paste the owner link once. */
+  const openWithLink = () => {
+    const k = new URLSearchParams(link.split("#")[1] ?? "").get("k");
+    if (!k || !link.includes(`/owner/data/${id}`)) {
+      setError("Paste the owner link for this app (it ends with #k=…).");
+      return;
+    }
+    try {
+      localStorage.setItem(KEY(id), k);
+    } catch {}
+    key.current = k;
+    setNeedLink(false);
+    setError("");
+    void load();
+  };
 
   /** Alerts on this device, even when the page is closed (web push). */
   const turnOnAlerts = async () => {
@@ -320,6 +359,28 @@ export function DataOwnerPage({ id }: { id: string }) {
     }
   };
 
+  if (!view && needLink) {
+    return (
+      <main id="main" className="mx-auto grid min-h-dvh max-w-md place-items-center p-6">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            openWithLink();
+          }}
+          className="w-full space-y-3"
+        >
+          <h1 className="text-xl font-semibold">Open your owner page</h1>
+          <p className="text-sm text-muted">Paste the owner link once (from Appmaker&apos;s Publish panel). It stays on this phone only.</p>
+          <label className="block text-sm">
+            Owner link
+            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…/owner/data/…#k=…" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-transparent px-3" />
+          </label>
+          {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
+          <button className="min-h-11 w-full rounded-lg bg-emerald-400 font-medium text-black">Open</button>
+        </form>
+      </main>
+    );
+  }
   if (!view) {
     return (
       <main id="main" className="mx-auto grid min-h-dvh max-w-3xl place-items-center p-6 text-center">
@@ -443,6 +504,27 @@ export function DataOwnerPage({ id }: { id: string }) {
         </button>
       </header>
       {error && <p role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{error}</p>}
+      {!standalone && (install || ios) && (
+        <section aria-label="Install the owner app" className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-400/30 bg-violet-500/10 p-3 text-sm">
+          <Smartphone className="h-5 w-5 shrink-0 text-violet-200" aria-hidden />
+          <p className="min-w-0 flex-1">
+            <span className="font-medium">Put this on your Home Screen</span>
+            <span className="block text-muted">
+              {install
+                ? "It opens like an app, full screen, and rings with a chime and an alert for every new order."
+                : "Tap Share (the square with an arrow), then Add to Home Screen. Open it from there and turn on Alerts to hear every new order."}
+            </span>
+          </p>
+          {install && (
+            <button
+              onClick={() => void install.prompt().finally(() => setInstall(null))}
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-violet-400 px-3 font-medium text-black"
+            >
+              <Download className="h-4 w-4" aria-hidden /> Install app
+            </button>
+          )}
+        </section>
+      )}
       {fresh > 0 && (
         <div role="status" className="flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/15 p-3 text-sm font-medium text-emerald-200">
           <BellRing className="h-4 w-4" aria-hidden /> {fresh} new since you last looked
@@ -600,7 +682,12 @@ export function DataOwnerPage({ id }: { id: string }) {
             <Bell className="h-4 w-4" aria-hidden /> Alerts on this device
           </h2>
           {alerts === "on" ? (
-            <p className="text-emerald-300">On: you&apos;ll get an alert for every new order or request, even with this page closed.</p>
+            <>
+              <p className="text-emerald-300">On: you&apos;ll get an alert for every new order or request, even with this page closed.</p>
+              <button onClick={() => chime()} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3">
+                <Volume2 className="h-4 w-4" aria-hidden /> Play test sound
+              </button>
+            </>
           ) : alerts === "blocked" ? (
             <p className="text-amber-200">Alerts are blocked for this page. Allow notifications for this site in your browser settings, then reload. While the page is open, a chime still plays.</p>
           ) : alerts === "unsupported" ? (

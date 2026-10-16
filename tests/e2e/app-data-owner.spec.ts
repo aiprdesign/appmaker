@@ -77,3 +77,19 @@ test("while developing, an app that needs a database gets one by itself; one tha
   await expect(page.getByRole("button", { name: "Owner page", exact: true })).toHaveCount(0);
   await ctx.close();
 });
+
+test("the owner page installs as a Home Screen app, and asks for the owner link when opened without it", async ({ page }) => {
+  const res = await page.request.get("/owner/data/abc123/app.webmanifest");
+  expect(res.ok()).toBe(true);
+  const manifest = await res.json();
+  expect(manifest).toMatchObject({ start_url: "/owner/data/abc123", display: "standalone" });
+  const icon = await page.request.get(manifest.icons[0].src);
+  expect(icon.headers()["content-type"]).toContain("image/png");
+
+  await page.goto("/owner/data/abc123");
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/owner/data/abc123/app.webmanifest");
+  await expect(page.getByRole("heading", { name: "Open your owner page" })).toBeVisible();
+  await page.getByLabel("Owner link").fill("https://example.com/somewhere-else");
+  await page.getByRole("button", { name: "Open" }).click();
+  await expect(page.getByText("Paste the owner link for this app")).toBeVisible();
+});
