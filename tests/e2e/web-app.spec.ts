@@ -39,7 +39,8 @@ test("an app published to the web opens full screen, installs, and keeps what it
   await expect(poster.getByRole("heading", { name: "Get the Luigi's app" })).toBeVisible();
   await expect(poster.getByRole("img", { name: "QR code to open the Luigi's app" })).toHaveAttribute("data-qr-value", new RegExp(`/a/${id}$`));
   await expect(poster.getByText("Tap “Add to Home Screen”")).toBeVisible();
-  await expect(poster.getByText("Menu ⋮ → “Install app”")).toBeVisible();
+  await expect(poster.getByText("No button? Use the menu")).toBeVisible();
+  await expect(poster.getByRole("heading", { name: /Never miss/ })).toBeVisible();
   await poster.close();
 
   // A customer (not signed in) opens it: the app runs, and what it saves is there next time.
@@ -80,7 +81,11 @@ export default function App() {
   await c2.goto(`/a/${askId}`);
   const askApp = c2.frameLocator('iframe[title="Asker"]');
   await askApp.getByText("Ask for updates").click({ timeout: 30_000 });
-  await expect(c2.getByRole("dialog", { name: "Get updates on your order?" })).toBeVisible();
+  await expect(c2.getByRole("dialog", { name: "Get a ping when it's ready?" })).toBeVisible();
+  await expect(c2.getByRole("button", { name: "Turn on updates" })).toBeFocused();
+  await c2.keyboard.press("Escape");
+  await expect(askApp.getByText("Answer: no")).toBeVisible();
+  await askApp.getByText("Ask for updates").click();
   await expect(c2.getByRole("button", { name: "Turn on updates" })).toBeVisible();
   await c2.getByRole("button", { name: "Not now" }).click();
   await expect(askApp.getByText("Answer: no")).toBeVisible();

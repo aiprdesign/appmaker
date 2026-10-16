@@ -34,7 +34,7 @@ export const isPushToken = (t: unknown): t is string => isExpoToken(t) || !!pars
 /** Tells one customer that their order or request moved on. */
 export async function notifyCustomer(token: string, title: string, body: string, data: Record<string, unknown>): Promise<void> {
   const web = parseWebToken(token);
-  if (web) await sendWeb(web.sub, { title, body, url: web.url });
+  if (web) await sendWeb(web.sub, { title, body, url: web.url, icon: web.url === "/" ? undefined : `${web.url}/icon` });
   else await sendExpo([token], title, body, data);
 }
 

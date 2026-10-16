@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     if (!entries.some(([p]) => p === "App.js")) throw new AuthError("The app needs its App.js to publish.", 400);
     if (entries.length > APP_MAX_FILES || entries.reduce((n, [, c]) => n + c.length, 0) > APP_MAX_BYTES) throw new AuthError("The app is too large to publish.", 400);
     const icon = typeof body.icon === "string" && body.icon.length <= ICON_MAX && ICON_DATA_URL.test(body.icon) ? body.icon : null;
-    const color = typeof body.color === "string" && /^#[0-9a-fA-F]{6}$/.test(body.color) ? body.color : "#ffffff";
+    const color = typeof body.color === "string" && /^#[0-9a-fA-F]{6}$/.test(body.color) ? body.color : "#111111";
     const name = (typeof body.name === "string" ? body.name.trim() : "").slice(0, 40) || "App";
     if (!(await webAppFor(user.id, projectId)) && (await webAppCount(user.id)) >= MAX_WEB_APPS) {
       throw new AuthError(`You can have up to ${MAX_WEB_APPS} web apps. Take one down in an app you no longer use.`, 409);

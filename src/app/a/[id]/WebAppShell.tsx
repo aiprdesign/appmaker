@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildPreviewHtml } from "@/lib/preview";
+import { UpdatesSheet } from "./UpdatesSheet";
 import type { FileMap } from "@/lib/types";
 
 const PREFIX = (id: string) => `webapp:${id}:`;
@@ -37,7 +38,7 @@ async function currentSubscription(): Promise<PushSubscription | null> {
   return (await reg?.pushManager.getSubscription()) ?? null;
 }
 
-export function WebAppShell({ id, name, files, vapidKey }: { id: string; name: string; files: FileMap; vapidKey: string }) {
+export function WebAppShell({ id, name, files, vapidKey, hasIcon, color }: { id: string; name: string; files: FileMap; vapidKey: string; hasIcon: boolean; color: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [html, setHtml] = useState("");
   const [install, setInstall] = useState<{ prompt: () => Promise<void> } | null>(null);
@@ -45,6 +46,8 @@ export function WebAppShell({ id, name, files, vapidKey }: { id: string; name: s
   // The app asked to send order updates: the customer answers here (a tap on this page is what lets the browser ask).
   const [asking, setAsking] = useState<null | { reply: (ok: boolean) => void; needsInstall: boolean }>(null);
   const [askError, setAskError] = useState("");
+  const [askBusy, setAskBusy] = useState(false);
+  const [toast, setToast] = useState("");
 
   const platform = useMemo(() => (typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent) ? "android" : "ios"), []);
 
@@ -102,16 +105,27 @@ export function WebAppShell({ id, name, files, vapidKey }: { id: string; name: s
 
   const turnOn = async () => {
     if (!asking) return;
+    setAskBusy(true);
     try {
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") throw new Error("Notifications are off for this app. You can turn them on later in your phone's settings.");
+      if (permission !== "granted") {
+        throw new Error(
+          /iPhone|iPad|iPod/.test(navigator.userAgent)
+            ? `Notifications are blocked for ${name}. To turn them on: Settings → Notifications → ${name}.`
+            : "Notifications are blocked for this app. Tap the icon left of the address bar → Permissions → Notifications → Allow.",
+        );
+      }
       const reg = await navigator.serviceWorker.register("/owner-sw.js");
       await navigator.serviceWorker.ready;
       if (!(await reg.pushManager.getSubscription())) await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlKey(vapidKey) });
       asking.reply(true);
       setAsking(null);
+      setToast("Updates are on. We'll ping you when it's ready.");
+      setTimeout(() => setToast(""), 3500);
     } catch (e) {
       setAskError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAskBusy(false);
     }
   };
   const notNow = () => {
@@ -150,34 +164,11 @@ export function WebAppShell({ id, name, files, vapidKey }: { id: string; name: s
         </div>
       )}
       {asking && (
-        <div role="dialog" aria-modal="true" aria-labelledby="updates-title" className="fixed inset-0 z-10 flex items-end justify-center bg-black/40 p-3">
-          <div className="w-full max-w-md rounded-3xl bg-white p-5 text-black shadow-xl" style={{ marginBottom: "env(safe-area-inset-bottom)" }}>
-            <h2 id="updates-title" className="text-lg font-semibold">
-              Get updates on your order?
-            </h2>
-            {asking.needsInstall ? (
-              <p className="mt-1 text-sm text-black/70">
-                On iPhone, add {name} to your Home Screen first (Share → <strong>Add to Home Screen</strong>), open it from there, and you&apos;ll be asked again. Your order still shows here live.
-              </p>
-            ) : (
-              <p className="mt-1 text-sm text-black/70">We&apos;ll tell you when it&apos;s being made and when it&apos;s ready, even when the app is closed.</p>
-            )}
-            {askError && (
-              <p role="alert" className="mt-2 text-sm text-red-700">
-                {askError}
-              </p>
-            )}
-            <div className="mt-4 flex gap-2">
-              <button onClick={notNow} className="min-h-11 flex-1 rounded-full border border-black/15 font-medium">
-                Not now
-              </button>
-              {!asking.needsInstall && (
-                <button onClick={() => void turnOn()} className="min-h-11 flex-1 rounded-full bg-black font-medium text-white">
-                  Turn on updates
-                </button>
-              )}
-            </div>
-          </div>
+        <UpdatesSheet id={id} name={name} hasIcon={hasIcon} color={color} needsInstall={asking.needsInstall} busy={askBusy} error={askError} onTurnOn={() => void turnOn()} onClose={notNow} />
+      )}
+      {toast && (
+        <div role="status" className="toast-in fixed inset-x-0 top-0 z-20 flex justify-center p-3" style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}>
+          <span className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white shadow-lg">{toast}</span>
         </div>
       )}
       {html && <iframe ref={frame} title={name} srcDoc={html} sandbox="allow-scripts allow-modals allow-forms allow-popups" className="w-full flex-1 border-0" />}

@@ -21,8 +21,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const app = await load(id);
   if (!app) notFound();
   return (
-    <main className="min-h-dvh bg-white p-6 text-black print:p-0">
-      <InstallGuide id={id} name={app.name} hasIcon={!!app.icon} poster />
+    <main className="min-h-dvh bg-neutral-100 px-3 py-6 text-black print:bg-white print:p-0">
+      <InstallGuide id={id} name={app.name} hasIcon={!!app.icon} color={app.color} poster />
     </main>
   );
 }

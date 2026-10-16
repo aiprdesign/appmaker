@@ -34,5 +34,5 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const vapidKey = await vapidKeys()
     .then((k) => k.publicKey)
     .catch(() => "");
-  return <WebAppShell id={id} name={app.name} files={app.files} vapidKey={vapidKey} />;
+  return <WebAppShell id={id} name={app.name} files={app.files} vapidKey={vapidKey} hasIcon={!!app.icon} color={app.color} />;
 }
