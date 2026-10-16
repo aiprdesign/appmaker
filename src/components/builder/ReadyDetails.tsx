@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CircleAlert, ClipboardList, Globe, ImagePlus, KeyRound, Link2, Loader2, Plus, Store, Trash2, Upload, X } from "lucide-react";
-import { READY_PRESETS, infoFromSite, parseItemList, type ReadyInfo, type ReadyItem } from "@/lib/ready-app";
+import { READY_PRESETS, infoFromSite, parseItemList, safePayLink, type ReadyInfo, type ReadyItem } from "@/lib/ready-app";
 import { uploadPhoto } from "@/lib/images";
 import { DEFAULT_WORDING, type Wording } from "@/lib/claims";
 import { claimsInText } from "@/lib/edit-claims";
@@ -275,6 +275,17 @@ export function ReadyDetails({
         <Text label="Email" type="email" value={draft.email} onChange={(v) => update("email", v)} />
         <Text label="Address" value={draft.address} onChange={(v) => update("address", v)} />
         <Text label="Opening hours (one line each)" value={draft.hours} onChange={(v) => update("hours", v)} rows={3} />
+        <div>
+          <Text label="Online payment link (optional)" value={draft.payLink ?? ""} onChange={(v) => update("payLink", v)} hint="paypal.me/yourshop" />
+          {draft.payLink?.trim() && !safePayLink(draft.payLink) ? (
+            <p role="status" className="mt-1 text-xs text-amber-200">Use a PayPal.me, Stripe, Square, Venmo, Revolut or Cash App link.</p>
+          ) : (
+            <p className="mt-1 text-xs text-muted">
+              Customers get a <strong>Pay now</strong> button after ordering. Easiest: a free PayPal Business account, then your paypal.me link (the total fills in by itself). Card
+              details never touch your app.
+            </p>
+          )}
+        </div>
         <label className="flex items-center gap-3 text-xs font-medium text-muted">
           Brand color
           <input type="color" value={/^#[0-9a-f]{6}$/i.test(draft.color) ? draft.color : "#6D5DFB"} onChange={(e) => set({ ...draft, color: e.target.value })} className="h-8 w-12 cursor-pointer rounded border border-line bg-transparent" />

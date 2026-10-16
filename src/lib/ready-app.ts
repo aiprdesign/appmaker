@@ -33,6 +33,8 @@ export interface ReadyInfo {
   hours: string;
   color: string;
   items: ReadyItem[];
+  /** Where customers can pay online (PayPal.me, a Stripe or Square payment link…); empty: pay in person. */
+  payLink?: string;
 }
 
 /** How customers reach the business: an order to collect, a booking, or a quote request. */
@@ -440,6 +442,19 @@ const WORDS: Record<ReadyKind, { cta: string; tab: string; tabIcon: string; send
 };
 
 /** src/business.js: everything the owner fills in. The only file that changes when they edit their details. */
+/** A payment link customers can open: https only, on a known payment service. */
+export const PAY_HOSTS = /^(www\.)?(paypal\.me|paypal\.com|buy\.stripe\.com|checkout\.square\.site|square\.link|venmo\.com|revolut\.me|monzo\.me|cash\.app|ko-fi\.com)$/i;
+export function safePayLink(v: unknown): string {
+  const t = typeof v === "string" ? v.trim() : "";
+  if (!t) return "";
+  try {
+    const u = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`);
+    return u.protocol === "https:" || u.protocol === "http:" ? (PAY_HOSTS.test(u.hostname) ? `https://${u.hostname}${u.pathname.replace(/\/+$/, "")}` : "") : "";
+  } catch {
+    return "";
+  }
+}
+
 export function businessModule(preset: ReadyPreset, info: ReadyInfo, rules?: DataRules | null): string {
   const words = WORDS[preset.kind];
   const business = {
@@ -449,6 +464,7 @@ export function businessModule(preset: ReadyPreset, info: ReadyInfo, rules?: Dat
     whatsapp: info.whatsapp.trim(),
     email: info.email.trim(),
     address: info.address.trim(),
+    payLink: safePayLink(info.payLink),
     hours: info.hours
       .split("\n")
       .map((l) => l.trim())
@@ -483,6 +499,14 @@ export const call = () => open('tel:' + business.phone.replace(/[^+\\d]/g, ''), 
 export const whatsapp = () => open('https://wa.me/' + business.whatsapp.replace(/\\D/g, ''), 'Message us on WhatsApp: ' + business.whatsapp);
 export const email = () => open('mailto:' + business.email, 'Email us at ' + business.email);
 export const directions = () => open('https://maps.google.com/?q=' + encodeURIComponent(business.address), business.address);
+
+/** Pay online through the business's own link (PayPal.me gets the amount filled in). The app never sees card details. */
+export const canPay = !!business.payLink;
+export const pay = (total) => {
+  const amount = String(total || '').replace(/[^0-9.]/g, '');
+  const url = /paypal\.me\//i.test(business.payLink) && amount ? business.payLink + '/' + amount : business.payLink;
+  return open(url, 'Pay at ' + business.payLink);
+};
 `;
 
 const INFO = `import React, { useEffect, useState } from 'react';

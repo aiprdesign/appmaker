@@ -916,6 +916,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Icons from 'lucide-react-native';
 import { card, colors, heading, label, radius } from '../theme';
 import { business, kind, onSite, stages, words } from '../business';
+import { canPay, pay } from '../actions';
 
 /** The customer's own details, kept on this phone only so they don't type them again (Info → Your saved details clears them). */
 export const SAVED_DETAILS = 'customer:details';
@@ -1020,7 +1021,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
     try {
       const fields =
         kind === 'order'
-          ? { name, phone, items: what + (total ? ' (' + total + ')' : ''), pickupTime: when, note: details }
+          ? { name, phone, items: what + (total ? ' (' + total + ')' : ''), ...(total ? { total } : {}), pickupTime: when, note: details }
           : kind === 'booking'
             ? { name, phone, service: what, preferredTime: when, note: details }
             : { name, phone, ...(onSite ? { address } : {}), service: what, details };
@@ -1063,6 +1064,18 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
           return (
             <Rise key={x.id}>
               <Tracker item={x} info={s} title={title} />
+              {canPay && !s.cancelled && (x.paid ? (
+                <View style={styles.paidRow}>
+                  <Icons.CircleCheck size={18} color={colors.success} />
+                  <Text style={[styles.body, { color: colors.success, fontWeight: '600' }]}>Paid</Text>
+                </View>
+              ) : (
+                <Tap onPress={() => pay(x.total)} accessibilityRole="button" accessibilityHint="Opens the payment page" style={[styles.button, styles.payButton, { backgroundColor: colors.primary, borderRadius: radius.md }]}>
+                  <Icons.CreditCard size={20} color={colors.onPrimary} />
+                  <Text style={[styles.buttonText, { color: colors.onPrimary }]}>{'Pay now' + (x.total ? ' · ' + x.total : '')}</Text>
+                </Tap>
+              ))}
+              {canPay && !s.cancelled && !x.paid && <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>Or pay when you collect. Add #{x.ref} to the payment note.</Text>}
               {s.canCancel && (
                 <Tap onPress={() => confirmCancel(x.id)} accessibilityRole="button" style={styles.cancel}>
                   <Text style={[styles.small, { color: colors.danger, fontWeight: '600' }]}>Cancel {kind === 'order' ? 'order' : 'request'}</Text>
@@ -1135,7 +1148,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
           </View>
           <View style={styles.privacy}>
             <Icons.ShieldCheck size={16} color={colors.muted} />
-            <Text style={[styles.small, styles.flex, { color: colors.muted }]}>We use your first name and phone only for this {kind === 'order' ? 'order' : 'request'}. Payment is in person.</Text>
+            <Text style={[styles.small, styles.flex, { color: colors.muted }]}>We use your first name and phone only for this {kind === 'order' ? 'order' : 'request'}. {canPay ? 'Pay in the app after ordering, or in person.' : 'Payment is in person.'}</Text>
           </View>
           {!!problem && (
             <Animated.View style={shakeStyle}>
@@ -1208,6 +1221,9 @@ const styles = StyleSheet.create({
   savedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
   button: { minHeight: 52, alignItems: 'center', justifyContent: 'center' },
+  payButton: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  payNote: { textAlign: 'center', marginTop: 6 },
+  paidRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12 },
   row: { flexDirection: 'row', gap: 8 },
   buttonText: { fontSize: 17, fontWeight: '700' },
   cancel: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 16 },

@@ -328,6 +328,10 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     const forgot = await (await appDelete(app("DELETE", undefined, BO, "?all=1"), ctx(store.id))).json();
     expect(forgot.removed).toBe(2);
     expect((await (await appGet(app("GET", undefined, ANA, "?collection=reviews"), ctx(store.id))).json()).items).toEqual([]);
+    // The business ticks an order as paid; the customer's app sees it.
+    await ownerPost(owner("POST", { action: "paid", collection: "orders", id: order.id, paid: true }), ctx(store.id));
+    expect((await (await appGet(app("GET", undefined, ANA, "?collection=orders"), ctx(store.id))).json()).items.find((o: { id: string }) => o.id === order.id).paid).toBe("yes");
+    expect((await ownerPost(owner("POST", { action: "paid", collection: "menu", id: order.id, paid: true }), ctx(store.id))).status).toBe(400);
     // Finished orders older than 90 days are deleted automatically.
     await query("update app_data_records set updated_at = now() - interval '91 days' where id = $1", [order.id]);
     const { purge, getStore } = await import("@/lib/server/app-data");

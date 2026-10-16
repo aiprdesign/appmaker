@@ -552,6 +552,18 @@ export function DataOwnerPage({ id }: { id: string }) {
                 Mark as {label(next).toLowerCase()} <ArrowRight className="h-4 w-4" aria-hidden />
               </button>
             )}
+            <label className="flex min-h-9 items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={item.paid === "yes"}
+                disabled={!!busy}
+                onChange={(e) => void act({ action: "paid", collection: c.name, id: item.id, paid: e.target.checked }, item.id)}
+                className="h-5 w-5 accent-emerald-400"
+              />
+              <span className={item.paid === "yes" ? "font-medium text-emerald-300" : "text-muted"}>
+                Paid{item.total ? ` (${String(item.total)})` : ""}
+              </span>
+            </label>
             <label className="flex items-center gap-2 text-xs text-muted">
               <span>Status</span>
               <select

@@ -440,6 +440,18 @@ export async function ownerAction(store: DataStore, body: Record<string, unknown
       }
       return;
     }
+    case "paid": {
+      // The business ticks an order as paid (online or at the counter); the customer's app then shows "Paid".
+      if (r.access !== "inbox") throw new DataInputError("Only orders and requests can be marked paid.");
+      const [row] = await query<RecordRow>("select * from app_data_records where store_id = $1 and collection = $2 and id = $3", [store.id, collection, id]);
+      if (!row) throw new DataInputError("Unknown item.");
+      const data = { ...unseal(row.data) };
+      if (body.paid) data.paid = "yes";
+      else delete data.paid;
+      await query("update app_data_records set data = $4::jsonb, updated_at = now() where store_id = $1 and collection = $2 and id = $3", [store.id, collection, id, JSON.stringify(seal(data))]);
+      bump(store.id, collection);
+      return;
+    }
     case "delete":
       await query("delete from app_data_records where store_id = $1 and collection = $2 and id = $3", [store.id, collection, id]);
       bump(store.id, collection);

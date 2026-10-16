@@ -119,3 +119,19 @@ describe("URL to App picks the ready-made app that fits", () => {
     expect(p.files["src/business.js"]).not.toContain("12 High Street");
   });
 });
+
+import { safePayLink, businessModule } from "@/lib/ready-app";
+
+describe("online payment link", () => {
+  it("accepts payment services only, over https", () => {
+    expect(safePayLink("paypal.me/tonyspizza")).toBe("https://paypal.me/tonyspizza");
+    expect(safePayLink("https://buy.stripe.com/abc123/")).toBe("https://buy.stripe.com/abc123");
+    expect(safePayLink("https://evil.example/pay")).toBe("");
+    expect(safePayLink("javascript:alert(1)")).toBe("");
+    expect(safePayLink("")).toBe("");
+  });
+  it("puts the link in the app's business details", () => {
+    const preset = READY_PRESETS["pizza-takeaway"];
+    expect(businessModule(preset, { ...preset.sample, payLink: "paypal.me/tonys" })).toContain('"payLink": "https://paypal.me/tonys"');
+  });
+});

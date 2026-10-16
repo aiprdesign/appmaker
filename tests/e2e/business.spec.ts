@@ -134,6 +134,8 @@ test("business templates open a working app straight away, and the owner's detai
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await page.getByLabel("Short line about you").fill("Stone-baked pizza");
+  // Online payment: the business adds its PayPal.me link.
+  await page.getByLabel("Online payment link (optional)").fill("paypal.me/luigis");
   await expect(page.getByRole("status").filter({ hasText: "“best”" })).toHaveCount(0);
   await expect(phone.getByText("Stone-baked pizza").first()).toBeVisible({ timeout: 15_000 });
   await expect(phone.getByText("Luigi's").first()).toBeVisible({ timeout: 15_000 });
@@ -149,6 +151,8 @@ test("business templates open a working app straight away, and the owner's detai
   await phone.getByLabel("Phone", { exact: true }).fill("555 1234");
   await phone.getByRole("button", { name: /^Send order/ }).click();
   await expect(phone.getByText(/^Order sent/)).toBeVisible();
+  // Pay now opens the business's PayPal with the total filled in.
+  await expect(phone.getByRole("button", { name: /^Pay now · \$26/ })).toBeVisible();
   // The live tracker, with the pizza place's own steps.
   await expect(phone.getByText("Order received").first()).toBeVisible();
   await expect(phone.getByText("In the oven").first()).toBeVisible();
