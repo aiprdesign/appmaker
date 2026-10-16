@@ -15,6 +15,7 @@ import { usesNotifications } from "@/lib/android-push";
 import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
+import { WebApp } from "./WebApp";
 import { checkClaims, DEFAULT_WORDING, RESPONSIBILITY } from "@/lib/claims";
 import { checkRegulatedClaims } from "@/lib/regulated";
 
@@ -335,6 +336,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
       <div className="mx-auto grid max-w-5xl gap-6 p-5 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           <PublishSteps step={step} steps={steps} onStep={setStep} all={all} onAll={showAll} />
+          <WebApp project={project} />
 
           {(all || step === 0) && (
             <>

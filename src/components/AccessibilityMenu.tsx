@@ -45,7 +45,7 @@ export function AccessibilityMenu({ inline = false }: { inline?: boolean }) {
     return () => document.removeEventListener("keydown", esc);
   }, [open]);
   // The builder has its own button in the header.
-  if (!inline && pathname?.startsWith("/build/")) return null;
+  if (!inline && (pathname?.startsWith("/build/") || pathname?.startsWith("/a/"))) return null;
 
   const update = (patch: Partial<Settings>) => {
     const next = { ...s, ...patch };

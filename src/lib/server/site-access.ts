@@ -96,6 +96,8 @@ const OPEN = [
   /^\/(privacy|terms|accessibility)(\/|$)/,
   /^\/legal\//,
   /^\/owner\//,
+  // Apps published to the web, for customers.
+  /^\/a\//,
   /^\/api\/(book|owner|live|stripe|status)(\/|$)/,
   // What published apps load: owners' photos, and each app's own data (it checks its own keys).
   /^\/api\/images\/[A-Za-z0-9_-]+$/,

@@ -75,6 +75,17 @@ create table if not exists app_projects (
   deleted_at bigint,
   primary key (user_id, id)
 );
+create table if not exists app_web_apps (
+  id text primary key,
+  user_id text not null references app_users(id) on delete cascade,
+  project_id text not null,
+  name text not null default '',
+  color text not null default '',
+  icon text,
+  files jsonb not null,
+  updated_at timestamptz not null default now(),
+  unique (user_id, project_id)
+);
 create table if not exists app_store_pages (
   id text primary key,
   user_id text not null references app_users(id) on delete cascade,

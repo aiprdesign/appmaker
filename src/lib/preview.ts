@@ -6,9 +6,9 @@ import type { FileMap } from "./types";
  * wired together with a tiny CommonJS loader; `react-native` resolves to
  * React Native Web from the self-hosted runtime in /public/preview.
  */
-export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android" | "ipad", scheme?: "light" | "dark", opts: { test?: boolean; edit?: boolean } = {}): string {
+export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios" | "android" | "ipad", scheme?: "light" | "dark", opts: { test?: boolean; edit?: boolean; storage?: Record<string, string> } = {}): string {
   // An iPad runs iOS; the runtime gets "ipad" for its safe areas and Platform.isPad.
-  const payload = JSON.stringify({ files, platform: platform === "ipad" ? "ios" : platform, device: platform, scheme: scheme ?? null, test: !!opts.test, edit: !!opts.edit && !opts.test }).replace(/</g, "\\u003c");
+  const payload = JSON.stringify({ files, platform: platform === "ipad" ? "ios" : platform, device: platform, scheme: scheme ?? null, test: !!opts.test, edit: !!opts.edit && !opts.test, storage: opts.storage ?? null }).replace(/</g, "\\u003c");
   return `<!doctype html>
 <html>
 <head>
@@ -25,6 +25,27 @@ export function buildPreviewHtml(files: FileMap, origin: string, platform: "ios"
   // React Native's animation code expects "global" (as on a phone): stopping an animation calls global.cancelAnimationFrame.
   window.global = window;
 </script>
+${
+  opts.storage
+    ? `<script>
+  // A web app runs sandboxed (no storage of its own): the page around it keeps what it saves, so a customer's
+  // details and past orders are still there next time.
+  (function () {
+    var data = ${JSON.stringify(opts.storage).replace(/</g, "\\u003c")};
+    var send = function (key, value) { parent.postMessage({ source: "appmaker-preview", type: "storage", key: key, value: value }, "*"); };
+    var store = {
+      getItem: function (k) { k = String(k); return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function (k, v) { k = String(k); v = String(v); data[k] = v; send(k, v); },
+      removeItem: function (k) { k = String(k); delete data[k]; send(k, null); },
+      clear: function () { Object.keys(data).forEach(function (k) { send(k, null); }); data = {}; },
+      key: function (i) { return Object.keys(data)[i] || null; },
+      get length() { return Object.keys(data).length; },
+    };
+    try { Object.defineProperty(window, "localStorage", { value: store, configurable: true }); } catch (e) {}
+  })();
+</script>`
+    : ""
+}
 <script src="${origin}/preview/runtime.js"></script>
 <script src="${origin}/preview/babel.min.js"></script>
 </head>
