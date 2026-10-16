@@ -56,6 +56,36 @@ test("an app published to the web opens full screen, installs, and keeps what it
   await expect(customer.frameLocator('iframe[title="Luigi\'s"]').getByText("Taps: 2")).toBeVisible({ timeout: 30_000 });
   await customer.close();
 
+  // Order updates: the app asks, and the customer answers on the page around it.
+  const ASK = `import React, { useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import * as Notifications from 'expo-notifications';
+export default function App() {
+  const [answer, setAnswer] = useState('');
+  const ask = async () => setAnswer((await Notifications.requestPermissionsAsync()).granted ? 'yes' : 'no');
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <Pressable accessibilityRole="button" onPress={ask}><Text>Ask for updates</Text></Pressable>
+      <Text>Answer: {answer}</Text>
+    </View>
+  );
+}
+`;
+  const asked = await page.request.post("/api/webapp", { data: { projectId: "webproj0002", name: "Asker", files: { "App.js": ASK } } });
+  const askId = (await asked.json()).id;
+  const c2ctx = await browser.newContext({ permissions: ["notifications"] });
+  // Headless Chromium always reports notifications as blocked: act like a phone that hasn't been asked yet.
+  await c2ctx.addInitScript(() => Object.defineProperty(Notification, "permission", { get: () => "default" }));
+  const c2 = await c2ctx.newPage();
+  await c2.goto(`/a/${askId}`);
+  const askApp = c2.frameLocator('iframe[title="Asker"]');
+  await askApp.getByText("Ask for updates").click({ timeout: 30_000 });
+  await expect(c2.getByRole("dialog", { name: "Get updates on your order?" })).toBeVisible();
+  await expect(c2.getByRole("button", { name: "Turn on updates" })).toBeVisible();
+  await c2.getByRole("button", { name: "Not now" }).click();
+  await expect(askApp.getByText("Answer: no")).toBeVisible();
+  await c2ctx.close();
+
   // Taken down: the link stops working.
   expect((await page.request.delete("/api/webapp?projectId=webproj0001", { headers: { "content-type": "application/json" } })).ok()).toBe(true);
   expect((await page.request.get(`/a/${id}`)).status()).toBe(404);

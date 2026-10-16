@@ -72,7 +72,7 @@ export function WebApp({ project }: { project: Project }) {
   const name = project.listing.name || "our";
   /** Ready to paste into WhatsApp, SMS, email or social posts. */
   const message = url
-    ? `Get the ${name} app on your phone (free, no app store needed):\n${url}\n\niPhone: open it in Safari, tap Share, then "Add to Home Screen".\nAndroid: open it in Chrome and tap Install.`
+    ? `Get the ${name} app on your phone (free, no app store needed):\n${url}\n\niPhone: open it in Safari, tap Share, then "Add to Home Screen".\nAndroid: open it in Chrome and tap Install.\n\nAfter you order, tap "Turn on updates" to hear when it's ready.`
     : "";
   const copy = async (what: "link" | "message") => {
     if (!url) return;
@@ -139,6 +139,10 @@ export function WebApp({ project }: { project: Project }) {
                 </ol>
               </div>
             </div>
+            <p className="mt-3 text-muted">
+              <strong className="text-foreground">Order updates:</strong> right after their first order, the app asks “Get updates on your order?”. On iPhone this works once the app is on the Home
+              Screen (iOS 16.4 or later); on Android in Chrome straight away.
+            </p>
             <p className="mt-3 text-xs text-muted">Tips: put the poster by the till, add the link to your website and Google profile, and send the message to regular customers. The app also shows these steps the first time someone opens it.</p>
           </details>
           <div className="flex flex-wrap gap-2">

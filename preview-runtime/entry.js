@@ -134,12 +134,29 @@ function deliver(id) {
 const PREVIEW_WINDOW_MS = 60 * 60 * 1000;
 const granted = { status: "granted", granted: true, canAskAgain: true, expires: "never", ios: { status: 2 } };
 
+// In a web app (installed from the browser) the app runs sandboxed: the page around it asks the customer,
+// subscribes to web push and hands back where to send updates.
+let askId = 0;
+function askParent(type, timeout) {
+  return new Promise((resolve) => {
+    const id = ++askId;
+    const done = (v) => { window.removeEventListener("message", on); clearTimeout(timer); resolve(v); };
+    const on = (e) => { if (e.source === window.parent && e.data && e.data.source === "appmaker-host" && e.data.id === id) done(e.data.value); };
+    const timer = setTimeout(() => done(null), timeout);
+    window.addEventListener("message", on);
+    window.parent.postMessage({ source: "appmaker-preview", type, id }, "*");
+  });
+}
+const denied = { status: "denied", granted: false, canAskAgain: false, expires: "never", ios: { status: 1 } };
+const webPermission = async (type) => ((await askParent(type, type === "push-ask" ? 300000 : 3000)) ? granted : denied);
+
 const Notifications = {
   SchedulableTriggerInputTypes: TRIGGER,
   AndroidImportance: { MIN: 1, LOW: 2, DEFAULT: 3, HIGH: 4, MAX: 5 },
   IosAuthorizationStatus: { NOT_DETERMINED: 0, DENIED: 1, AUTHORIZED: 2, PROVISIONAL: 3, EPHEMERAL: 4 },
-  requestPermissionsAsync: async () => granted,
-  getPermissionsAsync: async () => granted,
+  requestPermissionsAsync: async () => (window.__APPMAKER_WEBAPP__ ? webPermission("push-ask") : granted),
+  getPermissionsAsync: async () => (window.__APPMAKER_WEBAPP__ ? webPermission("push-state") : granted),
+  getExpoPushTokenAsync: async () => ({ type: "expo", data: window.__APPMAKER_WEBAPP__ ? (await askParent("push-token", 5000)) || "" : "" }),
   setNotificationHandler: () => {},
   setNotificationChannelAsync: async () => null,
   setBadgeCountAsync: async () => true,

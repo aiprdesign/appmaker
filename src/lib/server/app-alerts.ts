@@ -12,6 +12,32 @@ import { query } from "./db";
 const EXPO_TOKEN = /^Expo(nent)?PushToken\[[A-Za-z0-9_-]{10,80}\]$/;
 export const isExpoToken = (t: unknown): t is string => typeof t === "string" && EXPO_TOKEN.test(t);
 
+/**
+ * A customer using the web app (installed from the browser) gets updates by web push: their "token" is
+ * "web:" + JSON { s: the push subscription, u: the web app's path to open, e.g. "/a/AbC123" }.
+ */
+export function parseWebToken(t: unknown): { sub: WebSubscription; url: string } | null {
+  if (typeof t !== "string" || !t.startsWith("web:") || t.length > 2500) return null;
+  try {
+    const v = JSON.parse(t.slice(4)) as { s?: unknown; u?: unknown };
+    const sub = parseWebSubscription(v.s);
+    const url = typeof v.u === "string" && /^\/a\/[A-Za-z0-9_-]{6,20}$/.test(v.u) ? v.u : "/";
+    return sub ? { sub, url } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Where a customer hears about their order: the store app (Expo push) or the web app (web push). */
+export const isPushToken = (t: unknown): t is string => isExpoToken(t) || !!parseWebToken(t);
+
+/** Tells one customer that their order or request moved on. */
+export async function notifyCustomer(token: string, title: string, body: string, data: Record<string, unknown>): Promise<void> {
+  const web = parseWebToken(token);
+  if (web) await sendWeb(web.sub, { title, body, url: web.url });
+  else await sendExpo([token], title, body, data);
+}
+
 // ---------- web push keys (made once, kept in app_settings) ----------
 
 let vapid: { publicKey: string; privateKey: string } | null = null;

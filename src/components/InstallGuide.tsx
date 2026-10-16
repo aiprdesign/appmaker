@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Compass, Download, Globe, MoreVertical, Plus, Printer, Share, SquarePlus } from "lucide-react";
+import { Bell, BellRing, Compass, Download, Globe, ShoppingBag, Smartphone, MoreVertical, Plus, Printer, Share, SquarePlus } from "lucide-react";
 import { QrCode } from "@/components/QrCode";
 
 /** One step: a number, a picture of the button to look for, and a few words. */
@@ -75,6 +75,18 @@ export function InstallGuide({ id, name, hasIcon, poster = false }: { id: string
           </ol>
         </section>
       </div>
+
+      <section className="rounded-2xl border border-black/10 p-5" aria-labelledby="updates-steps">
+        <h2 id="updates-steps" className="mb-1 flex items-center gap-2 text-lg font-semibold">
+          <Bell className="h-5 w-5" aria-hidden /> Get updates on your order
+        </h2>
+        <p className="mb-4 text-sm text-black/70">Know when it&apos;s being made and when it&apos;s ready, even with the app closed.</p>
+        <ol className="grid gap-4 sm:grid-cols-3">
+          <Step n={1} icon={<Smartphone className="h-5 w-5" />} title="Open it from your Home Screen" text="On iPhone, updates only work in the app you added, not in Safari." />
+          <Step n={2} icon={<ShoppingBag className="h-5 w-5" />} title="Place your order" text="Right after, the app asks: “Get updates on your order?”" />
+          <Step n={3} icon={<BellRing className="h-5 w-5" />} title="Tap “Turn on updates”, then Allow" text="Changed your mind? Settings → Notifications on your phone." />
+        </ol>
+      </section>
 
       {poster && (
         <div className="flex justify-center print:hidden">

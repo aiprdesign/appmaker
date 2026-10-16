@@ -42,6 +42,7 @@ ${
       get length() { return Object.keys(data).length; },
     };
     try { Object.defineProperty(window, "localStorage", { value: store, configurable: true }); } catch (e) {}
+    window.__APPMAKER_WEBAPP__ = true;
   })();
 </script>`
     : ""

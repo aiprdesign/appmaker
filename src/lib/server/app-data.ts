@@ -2,7 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { COLLECTION_NAME, DataInputError, MAX_RECORD_BYTES, doneStatuses, isDone, cleanRecord, parseRules, type Access, type DataRules } from "../app-data";
 import { currentUser } from "./auth";
 import { query } from "./db";
-import { alertOwner, isExpoToken, sendExpo, shortRef } from "./app-alerts";
+import { alertOwner, isPushToken, notifyCustomer, shortRef } from "./app-alerts";
 import { isPaid, paymentsConfig } from "./credits";
 import { bump } from "./data-versions";
 
@@ -271,7 +271,7 @@ export async function addItem(store: DataStore, collection: string, device: stri
   if (Number(mine) >= MAX_PER_DEVICE[access]) throw new DataInputError("You've sent a lot from this phone. Please contact the business, or delete some first.");
   const rows = await query<RecordRow>(
     "insert into app_data_records (id, store_id, collection, device, data, status, push_token) values ($1, $2, $3, $4, $5, $6, $7) returning *",
-    [randomBytes(9).toString("base64url"), store.id, collection, device, JSON.stringify(data), access === "inbox" ? (statuses?.[0] ?? "new") : "", isExpoToken(pushToken) ? pushToken : ""],
+    [randomBytes(9).toString("base64url"), store.id, collection, device, JSON.stringify(data), access === "inbox" ? (statuses?.[0] ?? "new") : "", isPushToken(pushToken) ? pushToken : ""],
   );
   const item = toItem(rows[0], device, access);
   bump(store.id, collection);
@@ -327,7 +327,7 @@ export async function cancelItem(store: DataStore, collection: string, device: s
 
 /** Remembers where to tell the customer about status changes (sent after the order, so it never waits on the question). */
 export async function setPushToken(store: DataStore, collection: string, device: string, id: string, token: unknown): Promise<void> {
-  if (!isExpoToken(token)) throw new DataInputError("Invalid notification token.");
+  if (!isPushToken(token)) throw new DataInputError("Invalid notification token.");
   await query("update app_data_records set push_token = $5 where store_id = $1 and collection = $2 and id = $3 and device = $4", [store.id, collection, id, device, token]);
 }
 
@@ -420,7 +420,7 @@ export async function ownerAction(store: DataStore, body: Record<string, unknown
       bump(store.id, collection);
       if (row?.push_token) {
         const name = singular(collection);
-        void sendExpo([row.push_token], `${store.name || "Update"}`, `Your ${name} #${shortRef(row.id)} is now ${status}.`, { appmaker: "status", collection, id }).catch(() => undefined);
+        void notifyCustomer(row.push_token, `${store.name || "Update"}`, `Your ${name} #${shortRef(row.id)} is now ${status}.`, { appmaker: "status", collection, id }).catch(() => undefined);
         // Finished: no more updates to send, so the phone's notification token isn't kept.
         if (isDone(status, r.statuses)) await query("update app_data_records set push_token = '' where id = $1", [row.id]);
       }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { databaseConfigured } from "@/lib/server/db";
 import { getWebApp } from "@/lib/server/web-apps";
+import { vapidKeys } from "@/lib/server/app-alerts";
 import { WebAppShell } from "./WebAppShell";
 
 export const dynamic = "force-dynamic";
@@ -30,5 +31,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   const app = await load(id);
   if (!app) notFound();
-  return <WebAppShell id={id} name={app.name} files={app.files} />;
+  const vapidKey = await vapidKeys()
+    .then((k) => k.publicKey)
+    .catch(() => "");
+  return <WebAppShell id={id} name={app.name} files={app.files} vapidKey={vapidKey} />;
 }
