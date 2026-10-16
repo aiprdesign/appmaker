@@ -109,3 +109,17 @@ export function safeNext(next: unknown): string {
   const s = typeof next === "string" ? next : "";
   return s.startsWith("/") && !s.startsWith("//") && !s.startsWith("/\\") && !s.startsWith("/access") ? s : "/";
 }
+
+/** API paths that other sites and published apps may call: they don't rely on the visitor's cookies. */
+const CROSS_SITE_OK = [/^\/api\/(book|live|stripe|status)(\/|$)/, /^\/api\/images\/[A-Za-z0-9_-]+$/, /^\/api\/appdata\/[A-Za-z0-9_-]+(\/|$)/, /^\/api\/auth\/google(\/|$)/];
+
+/** A change (POST, DELETE…) to the API sent from another website: refused, so other sites can't act as a signed-in visitor or spend the site's AI. */
+export function crossSiteWrite(method: string, pathname: string, origin: string | null, host: string | null): boolean {
+  if (["GET", "HEAD", "OPTIONS"].includes(method) || !pathname.startsWith("/api/") || !origin || !host) return false;
+  if (CROSS_SITE_OK.some((r) => r.test(pathname))) return false;
+  try {
+    return new URL(origin).host !== host;
+  } catch {
+    return true;
+  }
+}

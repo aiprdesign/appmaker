@@ -1,12 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isAdmin } from "@/lib/server/admin";
-import { ACCESS_COOKIE, ipAllowed, openWhileLocked, siteLocked, trustedIp, validAccessToken } from "@/lib/server/site-access";
+import { ACCESS_COOKIE, crossSiteWrite, ipAllowed, openWhileLocked, siteLocked, trustedIp, validAccessToken } from "@/lib/server/site-access";
 
 /**
  * The site lock: with SITE_PIN set, visitors enter the PIN before using the
  * site. Allowlisted addresses (SITE_ALLOWED_IPS) and a signed-in admin skip it.
  */
 export function proxy(request: NextRequest) {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  if (crossSiteWrite(request.method, request.nextUrl.pathname, request.headers.get("origin"), host)) {
+    return NextResponse.json({ error: "Cross-site request refused." }, { status: 403 });
+  }
   if (!siteLocked()) return NextResponse.next();
   const { pathname, search } = request.nextUrl;
   if (openWhileLocked(pathname) || validAccessToken(request.cookies.get(ACCESS_COOKIE)?.value) || ipAllowed(trustedIp(request)) || isAdmin(request)) {

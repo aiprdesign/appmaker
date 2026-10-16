@@ -6,7 +6,12 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+  { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
 ];
+
+/** Pages: no plugins, no <base> tricks, and only this site may frame them. */
+const pageCsp = { key: "Content-Security-Policy", value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'" };
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -19,6 +24,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+      // API responses set their own policy where they need one (e.g. uploaded photos).
+      { source: "/((?!api/).*)", headers: [pageCsp] },
       {
         // The preview runtime is loaded by sandboxed (opaque-origin) iframes.
         source: "/preview/:file*",

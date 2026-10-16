@@ -80,6 +80,12 @@ export async function dataCounts(store: DataStore): Promise<Record<string, { tot
   return out;
 }
 
+/** How many app databases the user has. */
+export async function storeCount(userId: string): Promise<number> {
+  const rows = await query<{ n: number }>("select count(*)::int as n from app_data_stores where user_id = $1", [userId]);
+  return rows[0]?.n ?? 0;
+}
+
 /** Creates the app's store, or saves new rules; public collections that are still empty get their starting items. */
 export async function saveStore(userId: string, projectId: string, name: string, rules: DataRules): Promise<DataStore> {
   const rows = await query<StoreRow>(
