@@ -66,20 +66,20 @@ export function UpdatesSheet({
           </span>
         </div>
         <h2 id="updates-title" className="mt-3 text-center text-xl font-bold">
-          {needsInstall ? "One step for live updates" : "Get a ping when it's ready?"}
+          {needsInstall ? "Add to Home Screen first" : "Get a ping when it's ready?"}
         </h2>
 
         {needsInstall ? (
           <>
             <p id="updates-text" className="mt-1 text-center text-sm text-black/65">
-              iPhone sends updates from the Home Screen app. Your order still updates live right here.
+              iPhone only sends updates to Home Screen apps.
             </p>
             <ol className="mt-4 space-y-2 text-sm">
               <li className="flex items-center gap-3 rounded-2xl bg-black/[0.04] p-3">
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold" style={{ background: brand, color: ink }}>
                   1
                 </span>
-                Tap <Share className="h-4 w-4 text-[#0a84ff]" aria-label="Share" /> at the bottom of Safari
+                Tap <Share className="h-4 w-4 text-[#0a84ff]" aria-label="Share" />
               </li>
               <li className="flex items-center gap-3 rounded-2xl bg-black/[0.04] p-3">
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold" style={{ background: brand, color: ink }}>
@@ -93,14 +93,14 @@ export function UpdatesSheet({
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold" style={{ background: brand, color: ink }}>
                   3
                 </span>
-                Open {name} from there: we&apos;ll ask again
+                Open it from there
               </li>
             </ol>
           </>
         ) : (
           <>
             <p id="updates-text" className="mt-1 text-center text-sm text-black/65">
-              We&apos;ll let you know when it&apos;s being made and when it&apos;s ready, even with the app closed. Nothing else.
+              Only about your order. Nothing else.
             </p>
             {/* What they'll get: a lock-screen notification. */}
             <div aria-hidden className="notif-in mt-4 rounded-2xl bg-neutral-100 p-3 shadow-sm ring-1 ring-black/5">
@@ -110,8 +110,7 @@ export function UpdatesSheet({
                 <span className="ml-auto normal-case tracking-normal">now</span>
               </div>
               <p className="mt-1 text-sm font-semibold">Your order is ready</p>
-              <p className="text-sm text-black/70">Come and collect it whenever suits you.</p>
-            </div>
+                          </div>
           </>
         )}
 

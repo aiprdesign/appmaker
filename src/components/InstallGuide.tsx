@@ -66,7 +66,7 @@ export function InstallGuide({ id, name, hasIcon, color = "#111111", poster = fa
       <header className="relative px-6 pb-16 pt-8 text-center" style={{ background: `linear-gradient(135deg, ${brand}, color-mix(in srgb, ${brand} 70%, black))`, color: ink }}>
         <p className="text-sm font-semibold uppercase tracking-[0.18em] opacity-80">Free · no app store needed</p>
         <h1 className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">Get the {name} app</h1>
-        <p className="mx-auto mt-2 max-w-md opacity-90">Order, book or ask in a tap, and get a ping the moment it&apos;s ready.</p>
+        <p className="mx-auto mt-2 max-w-md opacity-90">Order in a tap. Get a ping when it&apos;s ready.</p>
       </header>
 
       <div className="relative z-10 -mt-12 flex flex-col items-center gap-3 px-6">
@@ -77,7 +77,7 @@ export function InstallGuide({ id, name, hasIcon, color = "#111111", poster = fa
           </span>
           {url ? <QrCode value={url} size={poster ? 200 : 160} label={`QR code to open the ${name} app`} /> : <div style={{ width: poster ? 200 : 160, height: poster ? 200 : 160 }} />}
         </div>
-        <p className="text-sm font-medium">Point your phone&apos;s camera at the code</p>
+        <p className="text-sm font-medium">Scan with your camera</p>
         {url && <p className="break-all text-xs text-black/50">{url}</p>}
       </div>
 
@@ -87,12 +87,12 @@ export function InstallGuide({ id, name, hasIcon, color = "#111111", poster = fa
             <Compass className="h-5 w-5 text-[#0a84ff]" aria-hidden /> iPhone (Safari)
           </h2>
           <ol className="space-y-4">
-            <Step n={1} color={brand} title="Scan the code" text="It opens in Safari." picture={null} />
+            <Step n={1} color={brand} title="Scan the code" text="" picture={null} />
             <Step
               n={2}
               color={brand}
-              title="Tap Share"
-              text="At the bottom of the screen."
+              title="Tap"
+              text=""
               picture={
                 <Looks>
                   <Share className="h-4 w-4" /> Share
@@ -102,15 +102,15 @@ export function InstallGuide({ id, name, hasIcon, color = "#111111", poster = fa
             <Step
               n={3}
               color={brand}
-              title="Tap “Add to Home Screen”"
-              text="Scroll down a little if you don't see it."
+              title="Then"
+              text=""
               picture={
                 <Looks>
                   <SquarePlus className="h-4 w-4" /> Add to Home Screen
                 </Looks>
               }
             />
-            <Step n={4} color={brand} title="Tap Add. Done!" text={`${name} is on your Home Screen.`} picture={null} />
+            <Step n={4} color={brand} title="Tap Add. Done!" text="" picture={null} />
           </ol>
         </section>
         <section className="rounded-2xl bg-black/[0.03] p-5" aria-labelledby="android-steps">
@@ -118,12 +118,12 @@ export function InstallGuide({ id, name, hasIcon, color = "#111111", poster = fa
             <Globe className="h-5 w-5 text-[#34a853]" aria-hidden /> Android (Chrome)
           </h2>
           <ol className="space-y-4">
-            <Step n={1} color={brand} title="Scan the code" text="It opens in Chrome." picture={null} />
+            <Step n={1} color={brand} title="Scan the code" text="" picture={null} />
             <Step
               n={2}
               color={brand}
-              title="Tap Install"
-              text="At the top of the app."
+              title="Tap"
+              text=""
               picture={
                 <Looks tone="android">
                   <Download className="h-4 w-4" /> Install
@@ -133,15 +133,15 @@ export function InstallGuide({ id, name, hasIcon, color = "#111111", poster = fa
             <Step
               n={3}
               color={brand}
-              title="No button? Use the menu"
-              text="Top right of Chrome."
+              title="No button? Menu"
+              text=""
               picture={
                 <Looks tone="android">
                   <MoreVertical className="h-4 w-4" /> Install app
                 </Looks>
               }
             />
-            <Step n={4} color={brand} title="Open it from your apps. Done!" text="It opens full screen, like any app." picture={null} />
+            <Step n={4} color={brand} title="Done!" text="" picture={null} />
           </ol>
         </section>
       </div>
@@ -149,23 +149,23 @@ export function InstallGuide({ id, name, hasIcon, color = "#111111", poster = fa
       <section className="mx-6 mb-6 grid items-center gap-5 rounded-2xl p-5 sm:grid-cols-[1fr_1.1fr]" style={{ background: `color-mix(in srgb, ${brand} 9%, white)` }} aria-labelledby="updates-steps">
         <div>
           <h2 id="updates-steps" className="flex items-center gap-2 text-lg font-bold">
-            <BellRing className="h-5 w-5" style={{ color: brand }} aria-hidden /> Never miss “it&apos;s ready”
+            <BellRing className="h-5 w-5" style={{ color: brand }} aria-hidden /> Get a ping when it&apos;s ready
           </h2>
           <ol className="mt-3 space-y-3 text-sm">
             <li className="flex gap-2">
-              <Smartphone className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> Open {name} from your Home Screen
+              <Smartphone className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> Open it from your Home Screen
             </li>
             <li className="flex gap-2">
-              <ShoppingBag className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> Place your order or booking
+              <ShoppingBag className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> Order
             </li>
             <li className="flex gap-2">
               <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <span>
-                Tap <strong>Turn on updates</strong>, then <strong>Allow</strong>
+                Tap <strong>Turn on updates</strong>
               </span>
             </li>
           </ol>
-          <p className="mt-3 text-xs text-black/55">On iPhone, updates work in the app on your Home Screen (iOS 16.4 or later).</p>
+          <p className="mt-3 text-xs text-black/55">iPhone: iOS 16.4 or later.</p>
         </div>
         {/* What it looks like: a lock-screen notification. */}
         <div aria-hidden className="rounded-2xl bg-white/80 p-3 shadow-md ring-1 ring-black/5 backdrop-blur">
@@ -175,8 +175,7 @@ export function InstallGuide({ id, name, hasIcon, color = "#111111", poster = fa
             <span className="ml-auto normal-case tracking-normal">now</span>
           </div>
           <p className="mt-1.5 text-sm font-semibold">Your order is ready</p>
-          <p className="text-sm text-black/70">Come and collect it whenever you&apos;re ready.</p>
-        </div>
+                  </div>
       </section>
 
       {poster && (

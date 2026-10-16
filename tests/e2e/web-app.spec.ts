@@ -38,9 +38,9 @@ test("an app published to the web opens full screen, installs, and keeps what it
   await poster.goto(`/a/${id}/install`);
   await expect(poster.getByRole("heading", { name: "Get the Luigi's app" })).toBeVisible();
   await expect(poster.getByRole("img", { name: "QR code to open the Luigi's app" })).toHaveAttribute("data-qr-value", new RegExp(`/a/${id}$`));
-  await expect(poster.getByText("Tap “Add to Home Screen”")).toBeVisible();
-  await expect(poster.getByText("No button? Use the menu")).toBeVisible();
-  await expect(poster.getByRole("heading", { name: /Never miss/ })).toBeVisible();
+  await expect(poster.getByText("Add to Home Screen")).toBeVisible();
+  await expect(poster.getByText("No button? Menu")).toBeVisible();
+  await expect(poster.getByRole("heading", { name: /Get a ping/ })).toBeVisible();
   await poster.close();
 
   // A customer (not signed in) opens it: the app runs, and what it saves is there next time.
