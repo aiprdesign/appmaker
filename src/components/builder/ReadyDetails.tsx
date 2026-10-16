@@ -1,14 +1,31 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ClipboardList, Globe, ImagePlus, KeyRound, Link2, Loader2, Plus, Store, Trash2, Upload, X } from "lucide-react";
+import { CircleAlert, ClipboardList, Globe, ImagePlus, KeyRound, Link2, Loader2, Plus, Store, Trash2, Upload, X } from "lucide-react";
 import { READY_PRESETS, infoFromSite, parseItemList, type ReadyInfo, type ReadyItem } from "@/lib/ready-app";
 import { uploadPhoto } from "@/lib/images";
+import { DEFAULT_WORDING, type Wording } from "@/lib/claims";
+import { claimsInText } from "@/lib/edit-claims";
 
 const box = "rounded-lg border border-line bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted/70 focus:border-violet-400/60 focus:outline-none";
 const input = `mt-1 w-full ${box}`;
 
-function Text({ label, value, onChange, hint, type = "text", rows }: { label: string; value: string; onChange: (v: string) => void; hint?: string; type?: string; rows?: number }) {
+/** A note under a field when its words make a claim (same checks as the AI's work). */
+function ClaimNote({ text, wording }: { text: string; wording: Wording }) {
+  const hits = claimsInText(text, wording);
+  if (!hits.length) return null;
+  const regulated = hits.some((h) => h.regulated);
+  return (
+    <p role="status" className={`mt-1 flex gap-1.5 text-xs ${regulated ? "text-red-300" : "text-amber-200"}`}>
+      <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span>
+        {hits.map((h) => `“${h.phrase}”`).join(", ")}: {regulated ? "a health or money claim. Remove it: app stores reject these." : "a claim customers can't check. Describe it plainly instead."}
+      </span>
+    </p>
+  );
+}
+
+function Text({ label, value, onChange, hint, type = "text", rows, wording }: { label: string; value: string; onChange: (v: string) => void; hint?: string; type?: string; rows?: number; wording?: Wording }) {
   return (
     <label className="block text-xs font-medium text-muted">
       {label}
@@ -17,6 +34,7 @@ function Text({ label, value, onChange, hint, type = "text", rows }: { label: st
       ) : (
         <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={hint} className={input} />
       )}
+      {wording && <ClaimNote text={value} wording={wording} />}
     </label>
   );
 }
@@ -122,6 +140,7 @@ export function ReadyDetails({
   onOpenPublish,
   photoFor,
   sitePhotos = [],
+  wording = DEFAULT_WORDING,
 }: {
   slug: string;
   info: ReadyInfo;
@@ -134,6 +153,8 @@ export function ReadyDetails({
   photoFor?: { item: string; n: number } | null;
   /** Photos from the website the app was made from (URL to App), ready to pick. */
   sitePhotos?: string[];
+  /** Claim-safe wording: owner-typed text gets the same claim checks as the AI's. */
+  wording?: Wording;
 }) {
   const preset = READY_PRESETS[slug];
   const [draft, setDraft] = useState(info);
@@ -245,8 +266,8 @@ export function ReadyDetails({
             </button>
           )}
         </div>
-        <Text label="Business name" value={draft.name} onChange={(v) => update("name", v)} />
-        <Text label="Short line about you" value={draft.tagline} onChange={(v) => update("tagline", v)} />
+        <Text label="Business name" value={draft.name} onChange={(v) => update("name", v)} wording={wording} />
+        <Text label="Short line about you" value={draft.tagline} onChange={(v) => update("tagline", v)} wording={wording} />
         <div className="grid grid-cols-2 gap-3">
           <Text label="Phone" type="tel" value={draft.phone} onChange={(v) => update("phone", v)} />
           <Text label="WhatsApp (optional)" type="tel" value={draft.whatsapp} onChange={(v) => update("whatsapp", v)} hint="Same as phone?" />
@@ -306,6 +327,7 @@ export function ReadyDetails({
                   </button>
                 </div>
                 <input aria-label={`Description ${i + 1}`} value={it.description} onChange={(e) => setItem(i, { description: e.target.value })} placeholder="Short description" className={`${box} w-full`} />
+                <ClaimNote text={`${it.name}. ${it.description}`} wording={wording} />
                 <input aria-label={`Category ${i + 1}`} value={it.category} onChange={(e) => setItem(i, { category: e.target.value })} placeholder="Category" className={`${box} w-full`} />
                 </div>
               </li>

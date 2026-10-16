@@ -1619,6 +1619,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                       onOpenPublish={openAppData}
                       photoFor={photoFor}
                       sitePhotos={project.source?.images ?? []}
+                      wording={project.wording ?? DEFAULT_WORDING}
                     />
                   </div>
                 )}

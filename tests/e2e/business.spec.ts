@@ -122,6 +122,11 @@ test("business templates open a working app straight away, and the owner's detai
   await expect(phone.getByText("Tony's Pizza").first()).toBeVisible({ timeout: 30_000 });
   await page.getByLabel("Business name").fill("Luigi's");
   await page.getByLabel("Name 1").fill("Quattro formaggi");
+  // Hand edits get the same claim check as the AI's: a warning right under the field.
+  await page.getByLabel("Short line about you").fill("The best pizza in town");
+  await expect(page.getByRole("status").filter({ hasText: "“best”" })).toBeVisible();
+  await page.getByLabel("Short line about you").fill("Stone-baked pizza");
+  await expect(page.getByRole("status").filter({ hasText: "“best”" })).toHaveCount(0);
   await expect(phone.getByText("Luigi's").first()).toBeVisible({ timeout: 15_000 });
   await expect(phone.getByText("Quattro formaggi").first()).toBeVisible();
   // A customer can order from the menu without anything else set up.
