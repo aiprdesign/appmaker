@@ -1,6 +1,6 @@
 import { AiConfigError, canSeeImages, resolveAi, streamGeneration } from "@/lib/ai/server";
 import { PASS_SCORE, QUALITY_CHECKS, parseCritique, parseReview, type ReviewAgent } from "@/lib/review";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { helperAllowed } from "@/lib/server/ai-limit";
 import { APP_MAX_BYTES, APP_MAX_FILES, isAllowedPath } from "@/lib/validate";
 
 export const maxDuration = 120;
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     throw e;
   }
   if (!ai) return Response.json({ review: null });
-  if (!rateLimit(`review:${clientIp(req)}`, 60, 60 * 60 * 1000).ok) return Response.json({ error: "Too many reviews. Try again later." }, { status: 429 });
+  if (!(await helperAllowed(req, "review", 60, ai.usingServerKey))) return Response.json({ error: "Too many reviews. Try again later." }, { status: 429 });
 
   const name = typeof body.listing?.name === "string" ? body.listing.name.slice(0, 60) : "";
   const user = [

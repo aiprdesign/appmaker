@@ -1,6 +1,6 @@
 import { AiConfigError, resolveAi, streamGeneration } from "@/lib/ai/server";
 import { parseAiBrief } from "@/lib/brief";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { helperAllowed } from "@/lib/server/ai-limit";
 
 export const maxDuration = 60;
 
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   }
   // Demo mode: no AI to ask, so the page uses its own questions.
   if (!ai) return Response.json({ brief: null });
-  if (!rateLimit(`brief:${clientIp(req)}`, 30, 60 * 60 * 1000).ok) return Response.json({ brief: null });
+  if (!(await helperAllowed(req, "brief", 30, ai.usingServerKey))) return Response.json({ brief: null });
 
   let text = "";
   try {
