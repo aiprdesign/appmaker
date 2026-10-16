@@ -1,4 +1,5 @@
-import { assertSameOrigin, AuthError } from "@/lib/server/auth";
+import { assertSameOrigin, AuthError, currentUser } from "@/lib/server/auth";
+import { databaseConfigured } from "@/lib/server/db";
 import { checkProjectId } from "@/lib/server/cloud-projects";
 import { accountError, readBody, requireUser } from "@/lib/server/respond";
 import { deleteWebApp, saveWebApp, webAppCount, webAppFor } from "@/lib/server/web-apps";
@@ -57,7 +58,10 @@ export async function DELETE(req: Request) {
 /** The app's web link, if it's published. */
 export async function GET(req: Request) {
   try {
-    const user = await requireUser(req);
+    // Not signed in (or no database): nothing published yet, and no error in the builder.
+    if (!databaseConfigured()) return Response.json({ url: null });
+    const user = await currentUser(req);
+    if (!user) return Response.json({ url: null });
     const projectId = checkProjectId(new URL(req.url).searchParams.get("projectId") ?? "");
     const id = await webAppFor(user.id, projectId);
     return Response.json({ url: id ? linkFor(req, id) : null });
