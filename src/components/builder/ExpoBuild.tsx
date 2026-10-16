@@ -38,6 +38,8 @@ import {
 
 interface Props {
   project: Project;
+  /** The export claim check: runs the build, or first shows the claims found. */
+  gate?: (what: string, run: () => void | Promise<void>) => void;
   onExpoChange: (expo: ExpoState) => void;
   /** Downloads the Expo project zip (used for the one-time Apple setup). */
   onDownload: (project: Project) => Promise<void>;
@@ -142,7 +144,7 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
   );
 }
 
-export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, request, onBundleIdChange }: Props) {
+export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, request, onBundleIdChange, gate = (_what, run) => void run() }: Props) {
   const settings = useExpoSettings();
   const expo = project.expo ?? NO_EXPO;
   const [server, setServer] = useState<EasServerInfo | null>(null);
@@ -251,7 +253,8 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, 
     return link;
   };
 
-  const build = async () => {
+  const build = () => gate("Build", buildNow);
+  const buildNow = async () => {
     if (!canUseExpo) return;
     setBuildError(null);
     try {

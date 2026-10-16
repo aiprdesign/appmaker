@@ -16,6 +16,7 @@ import { IconError, isIconImage, LOGO_SCALE, prepareLogo } from "@/lib/icon";
 import { downloadBlob, exportProjectZip, renderIcon, shade, slugify } from "@/lib/export";
 import { ExpoBuild } from "./ExpoBuild";
 import { WebApp } from "./WebApp";
+import { useExportClaimCheck } from "./ExportClaimCheck";
 import { checkClaims, DEFAULT_WORDING, RESPONSIBILITY } from "@/lib/claims";
 import { checkRegulatedClaims } from "@/lib/regulated";
 
@@ -322,7 +323,9 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
     "App review — Apple and Google usually take 1–3 days",
   ];
 
-  const download = async (p: Project = project) => {
+  const exportCheck = useExportClaimCheck(project);
+  const download = (p: Project = project) => exportCheck.gate("Download", () => downloadNow(p));
+  const downloadNow = async (p: Project) => {
     setExporting(true);
     try {
       downloadBlob(await exportProjectZip(p), `${slugify(p.listing.name)}-expo.zip`);
@@ -336,7 +339,8 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
       <div className="mx-auto grid max-w-5xl gap-6 p-5 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           <PublishSteps step={step} steps={steps} onStep={setStep} all={all} onAll={showAll} />
-          <WebApp project={project} />
+          <WebApp project={project} gate={exportCheck.gate} />
+          {exportCheck.dialog}
 
           {(all || step === 0) && (
             <>
@@ -462,7 +466,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
           )}
           {(all || step === 4) && (
             <>
-              <ExpoBuild project={project} onExpoChange={onExpoChange} onDownload={download} hasPreviewError={hasPreviewError} request={buildRequest} onBundleIdChange={(id) => set("bundleId", id)} />
+              <ExpoBuild project={project} gate={exportCheck.gate} onExpoChange={onExpoChange} onDownload={downloadNow} hasPreviewError={hasPreviewError} request={buildRequest} onBundleIdChange={(id) => set("bundleId", id)} />
 
               <details className="group rounded-2xl border border-line bg-surface p-5">
                 <summary className="cursor-pointer list-none font-semibold">

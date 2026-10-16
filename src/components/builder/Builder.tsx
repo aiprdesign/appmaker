@@ -51,6 +51,7 @@ import { describeDesign, designIssues } from "@/lib/app-design";
 import { checkClaims, DEFAULT_WORDING, describeClaims } from "@/lib/claims";
 import { cleanFiles } from "@/lib/parse";
 import { checkRegulatedClaims, describeRegulated } from "@/lib/regulated";
+import { exportClaims, useExportClaimCheck } from "./ExportClaimCheck";
 import type { AppDesign, ChatMessage, FileMap, Project, BuildTarget } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
 import { CodePanel } from "./CodePanel";
@@ -816,6 +817,19 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
   );
 
   const sendRef = useRef(send);
+  // Third claim check, as the app leaves Appmaker: "Fix the wording with AI" asks for a claim-safe rewrite.
+  const exportCheck = useExportClaimCheck(project, () => {
+    if (!project) return;
+    const { regulated, marketing } = exportClaims(project);
+    sendRef.current?.(
+      [
+        marketing.length && `Make the wording claim-safe. Rewrite these phrases as neutral, descriptive text, in the app and in the listing:\n${describeClaims(marketing)}`,
+        regulated.length && `Remove or rewrite these health, medical or financial claims:\n${describeRegulated(regulated)}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    );
+  });
   useEffect(() => {
     sendRef.current = send;
   }, [send]);
@@ -1231,12 +1245,13 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
         ) : (
         <>
         <button
-          onClick={async () => downloadBlob(await exportProjectZip(project), `${slugify(project.listing.name)}-expo.zip`)}
+          onClick={() => exportCheck.gate("Download", async () => downloadBlob(await exportProjectZip(project), `${slugify(project.listing.name)}-expo.zip`))}
           disabled={!hasApp}
           className="hidden items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-white/20 disabled:opacity-40 lg:flex"
         >
           <Download className="h-3.5 w-3.5" /> Export
         </button>
+        {exportCheck.dialog}
         {/* Hidden while Publish is open: one Publish button on screen at a time. */}
         {tab !== "publish" && (
         <button

@@ -18,7 +18,7 @@ const toDataUrl = (blob: Blob) =>
  * The second way to install the app: a web link customers open and add to their Home Screen
  * (iPhone and Android), ready today while the store versions are being reviewed.
  */
-export function WebApp({ project }: { project: Project }) {
+export function WebApp({ project, gate = (_what, run) => void run() }: { project: Project; gate?: (what: string, run: () => void | Promise<void>) => void }) {
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "publish" | "remove">("");
   const [error, setError] = useState("");
@@ -35,7 +35,8 @@ export function WebApp({ project }: { project: Project }) {
     };
   }, [project.id]);
 
-  const publish = async () => {
+  const publish = () => gate("Publish", publishNow);
+  const publishNow = async () => {
     setBusy("publish");
     setError("");
     try {
