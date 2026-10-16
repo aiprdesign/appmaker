@@ -250,6 +250,7 @@ function StepDot({ s, i, done, now, pulse }) {
   const on = done || now;
   return (
     <View style={styles.dotWrap}>
+      {now && <View style={[styles.halo, { backgroundColor: colors.primarySoft }]} />}
       {now && (
         <Animated.View
           style={[
@@ -258,7 +259,7 @@ function StepDot({ s, i, done, now, pulse }) {
           ]}
         />
       )}
-      <Animated.View style={[styles.dot, { backgroundColor: on ? colors.primary : colors.surface, borderColor: on ? colors.primary : colors.border, transform: [{ scale: t }] }, now && styles.dotGlow, now && { shadowColor: colors.primary }]}>
+      <Animated.View style={[styles.dot, { backgroundColor: on ? colors.primary : colors.surface, borderColor: on ? colors.primary : colors.border, transform: [{ scale: t }] }]}>
         {done ? <Icons.Check size={16} color={colors.onPrimary} strokeWidth={3} /> : <Icon name={s.icon} size={16} color={now ? colors.onPrimary : colors.muted} />}
       </Animated.View>
     </View>
@@ -452,7 +453,7 @@ const styles = StyleSheet.create({
   comet: { position: 'absolute', left: 32 - 9, top: 13 + 4 - 9, width: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
   cometGlow: { position: 'absolute', width: 18, height: 18, borderRadius: 999, opacity: 0.3 },
   cometCore: { width: 10, height: 10, borderRadius: 999, borderWidth: 2 },
-  dotGlow: { shadowOpacity: 0.45, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
+  halo: { position: 'absolute', width: 44, height: 44, borderRadius: 999 },
   stage: { fontSize: 22 },
   note: { fontSize: 13, marginTop: 4 },
   steps: { flexDirection: 'row', justifyContent: 'space-between' },
