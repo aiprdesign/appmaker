@@ -133,5 +133,7 @@ describe("online payment link", () => {
   it("puts the link in the app's business details", () => {
     const preset = READY_PRESETS["pizza-takeaway"];
     expect(businessModule(preset, { ...preset.sample, payLink: "paypal.me/tonys" })).toContain('"payLink": "https://paypal.me/tonys"');
+    // The app's PayPal check survives being written into the app's code (escaped correctly).
+    expect(readyAppFiles(preset, { ...preset.sample, payLink: "paypal.me/tonys" }, readyDesign(preset.sample, "x"))["src/actions.js"]).toContain("/paypal\\.me\\//i");
   });
 });

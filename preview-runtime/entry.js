@@ -434,9 +434,18 @@ function linkNote(url) {
   for (const old of document.querySelectorAll("[data-link-note]")) old.remove();
   banner(describeLink(url), "Links work in the real app, not in this preview. Test it on your phone: Test on a device → Your phone (Expo Go).", "link");
 }
+// In a published web app links really open (calls, maps, payment pages); in the builder's preview they explain themselves.
+function openForReal(url) {
+  if (/^(tel|mailto|sms):/i.test(url)) {
+    window.open(url, "_top") || window.open(url, "_blank");
+    return true;
+  }
+  return !!window.open(url, "_blank", "noopener");
+}
 const LinkingShim = {
   ...RNW.Linking,
   openURL: async (url) => {
+    if (window.__APPMAKER_WEBAPP__ && openForReal(String(url))) return true;
     linkNote(url);
     return true;
   },
@@ -455,6 +464,24 @@ document.addEventListener(
   },
   false,
 );
+
+// expo-web-browser: on a phone, a page opens in a sheet over the app (Safari / Chrome) and Done brings
+// the customer straight back. In a web app it opens in a new tab; in the preview it explains itself.
+const WebBrowser = {
+  WebBrowserPresentationStyle: { FULL_SCREEN: "fullScreen", PAGE_SHEET: "pageSheet", FORM_SHEET: "formSheet", AUTOMATIC: "automatic", OVER_FULL_SCREEN: "overFullScreen" },
+  openBrowserAsync: async (url) => {
+    if (!(window.__APPMAKER_WEBAPP__ && openForReal(String(url)))) linkNote(url);
+    return { type: "opened" };
+  },
+  dismissBrowser: () => {},
+  openAuthSessionAsync: async (url) => {
+    if (!(window.__APPMAKER_WEBAPP__ && openForReal(String(url)))) linkNote(url);
+    return { type: "cancel" };
+  },
+  maybeCompleteAuthSession: () => ({ type: "failed", message: "Not supported in the preview" }),
+  warmUpAsync: async () => ({}),
+  coolDownAsync: async () => ({}),
+};
 
 // Device features. Inside the preview the browser can't reach GPS, motion
 // sensors, a live camera or Face ID, so these stand in with sample data and
@@ -830,6 +857,7 @@ window.__APPMAKER_RUNTIME__ = {
     "expo-status-bar": { __esModule: true, StatusBar },
     "react-native-safe-area-context": { __esModule: true, ...safeArea },
     "expo-haptics": withDefault(Haptics, Haptics),
+    "expo-web-browser": withDefault(WebBrowser, WebBrowser),
     "expo-linear-gradient": withDefault({ LinearGradient }, LinearGradient),
     "expo-blur": withDefault({ BlurView }, BlurView),
     "expo-notifications": withDefault(Notifications, Notifications),

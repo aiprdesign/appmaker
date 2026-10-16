@@ -17,6 +17,7 @@ export const ALLOWED_PACKAGES = [
   "expo-status-bar",
   "react-native-safe-area-context",
   "expo-haptics",
+  "expo-web-browser",
   "expo-notifications",
   "expo-image-picker",
   "expo-linear-gradient",

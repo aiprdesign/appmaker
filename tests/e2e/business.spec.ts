@@ -153,6 +153,8 @@ test("business templates open a working app straight away, and the owner's detai
   await expect(phone.getByText(/^Order sent/)).toBeVisible();
   // Pay now opens the business's PayPal with the total filled in.
   await expect(phone.getByRole("button", { name: /^Pay now · \$26/ })).toBeVisible();
+  await phone.getByRole("button", { name: /^Pay now · \$26/ }).click();
+  await expect(phone.getByText(/Opens paypal\.me/)).toBeVisible();
   // The live tracker, with the pizza place's own steps.
   await expect(phone.getByText("Order received").first()).toBeVisible();
   await expect(phone.getByText("In the oven").first()).toBeVisible();

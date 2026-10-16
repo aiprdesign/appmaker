@@ -946,7 +946,7 @@ function Field({ title, value, onChange, hint, multiline, keyboardType, autoComp
 }
 
 export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
-  const { items, add, cancel, statusInfo } = useCollection('requests');
+  const { items, add, cancel, statusInfo, refresh } = useCollection('requests');
   const menu = useCollection('items');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -1070,7 +1070,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
                   <Text style={[styles.body, { color: colors.success, fontWeight: '600' }]}>Paid</Text>
                 </View>
               ) : (
-                <Tap onPress={() => pay(x.total)} accessibilityRole="button" accessibilityHint="Opens the payment page" style={[styles.button, styles.payButton, { backgroundColor: colors.primary, borderRadius: radius.md }]}>
+                <Tap onPress={() => pay(x.total, refresh)} accessibilityRole="button" accessibilityHint="Opens the payment page" style={[styles.button, styles.payButton, { backgroundColor: colors.primary, borderRadius: radius.md }]}>
                   <Icons.CreditCard size={20} color={colors.onPrimary} />
                   <Text style={[styles.buttonText, { color: colors.onPrimary }]}>{'Pay now' + (x.total ? ' · ' + x.total : '')}</Text>
                 </Tap>

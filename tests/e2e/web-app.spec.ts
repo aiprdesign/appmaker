@@ -91,6 +91,22 @@ export default function App() {
   await expect(askApp.getByText("Answer: no")).toBeVisible();
   await c2ctx.close();
 
+  // In a published web app, links really open (here a payment page in a new tab).
+  const LINK = `import React from 'react';
+import { Pressable, Text } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+export default function App() {
+  return <Pressable accessibilityRole="button" onPress={() => WebBrowser.openBrowserAsync('https://paypal.me/luigis/26')}><Text>Pay now</Text></Pressable>;
+}
+`;
+  const linkId = (await (await page.request.post("/api/webapp", { data: { projectId: "webproj0003", name: "Payer", files: { "App.js": LINK } } })).json()).id;
+  const c3 = await browser.newPage();
+  await c3.context().route("https://paypal.me/**", (r) => r.fulfill({ status: 200, contentType: "text/html", body: "<title>PayPal</title>" }));
+  await c3.goto(`/a/${linkId}`);
+  const [popup] = await Promise.all([c3.waitForEvent("popup"), c3.frameLocator('iframe[title="Payer"]').getByText("Pay now").click({ timeout: 30_000 })]);
+  await popup.waitForURL(/paypal\.me\/luigis\/26/);
+  await c3.close();
+
   // Taken down: the link stops working.
   expect((await page.request.delete("/api/webapp?projectId=webproj0001", { headers: { "content-type": "application/json" } })).ok()).toBe(true);
   expect((await page.request.get(`/a/${id}`)).status()).toBe(404);

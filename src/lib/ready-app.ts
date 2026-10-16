@@ -485,6 +485,7 @@ export const stages = ${JSON.stringify(trackerStages(preset, rules), null, 2)};
 }
 
 const ACTIONS = `import { Alert, Linking } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { business } from './business';
 
 const open = async (url, fallback) => {
@@ -502,10 +503,16 @@ export const directions = () => open('https://maps.google.com/?q=' + encodeURICo
 
 /** Pay online through the business's own link (PayPal.me gets the amount filled in). The app never sees card details. */
 export const canPay = !!business.payLink;
-export const pay = (total) => {
+export const pay = async (total, onBack) => {
   const amount = String(total || '').replace(/[^0-9.]/g, '');
-  const url = /paypal\.me\//i.test(business.payLink) && amount ? business.payLink + '/' + amount : business.payLink;
-  return open(url, 'Pay at ' + business.payLink);
+  const url = /paypal\\.me\\//i.test(business.payLink) && amount ? business.payLink + '/' + amount : business.payLink;
+  try {
+    // A sheet over the app (Safari / Chrome): the customer pays, taps Done and is back on their order.
+    await WebBrowser.openBrowserAsync(url, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET, dismissButtonStyle: 'done' });
+  } catch (e) {
+    await open(url, 'Pay at ' + business.payLink);
+  }
+  if (onBack) onBack();
 };
 `;
 

@@ -31,6 +31,8 @@ export const EXPO_DEPS: Record<string, string> = {
   "expo-local-authentication": "~57.0.3",
   "expo-clipboard": "~57.0.2",
   "expo-speech": "~57.0.3",
+  // Pages over the app (payment links), with Done to come back.
+  "expo-web-browser": "~57.0.3",
   // Not imported by apps: installed on the server so previews can be
   // published with EAS Update for Expo Go.
   "expo-updates": "~57.0.24",
