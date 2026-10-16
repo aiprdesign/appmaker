@@ -78,7 +78,7 @@ test("bookings: off until admin turns it on, then book in the app and manage it 
     .getByText(/^\d{1,2}:\d{2} (AM|PM)$/)
     .first()
     .click();
-  await app.getByPlaceholder("Your name").fill("Ana Test");
+  await app.getByPlaceholder("Your first name").fill("Ana Test");
   await app.getByPlaceholder("Phone number").fill("+1 555 0142");
   await app.getByText(/^Book \d/).click();
   await expect(app.getByText(/^Booked for /)).toBeVisible();
@@ -86,12 +86,17 @@ test("bookings: off until admin turns it on, then book in the app and manage it 
   // The owner page shows it, and cancelling frees the time.
   await openPublishExtras(maker);
   const [owner] = await Promise.all([maker.waitForEvent("popup"), panel.getByRole("link", { name: "Open bookings page" }).click()]);
-  await expect(owner.getByText("Ana Test")).toBeVisible();
+  // First name only, told apart by the phone's last 4 digits; the number shows only when asked.
+  await expect(owner.getByText(/^Ana/).first()).toBeVisible();
+  await expect(owner.getByText("Ana Test")).toHaveCount(0);
+  await expect(owner.getByText("·0142")).toBeVisible();
+  await expect(owner.getByText("+1 555 0142")).toHaveCount(0);
+  await owner.getByRole("button", { name: "Show Ana's phone number" }).click();
   await expect(owner.getByText("Colour · +1 555 0142")).toBeVisible();
   expect(owner.url()).not.toContain("#k=");
   const axe = await new AxeBuilder({ page: owner }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(axe.violations.map((v) => v.id)).toEqual([]);
-  await owner.getByRole("button", { name: "Cancel Ana Test's booking" }).click();
+  await owner.getByRole("button", { name: "Cancel Ana's booking" }).click();
   await owner.getByRole("button", { name: "Cancel booking" }).click();
   await expect(owner.getByText(/No bookings yet/)).toBeVisible();
 

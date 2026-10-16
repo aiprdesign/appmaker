@@ -113,6 +113,15 @@ function readKey(id: string): string {
 /** "orderTotal" → "Order total". */
 const label = fieldLabel;
 const isPhone = (f: string) => /phone|tel|mobile|whatsapp/i.test(f);
+/** Customers are told apart by first name and the last 4 digits of their phone ("Ana ·0199"). */
+const last4 = (v: unknown) => {
+  const d = String(v ?? "").replace(/\D/g, "");
+  return d.length >= 4 ? d.slice(-4) : "";
+};
+const ref4 = (c: { fields: string[] }, item: Record<string, unknown>) => {
+  const f = c.fields.find(isPhone);
+  return f ? last4(item[f]) : "";
+};
 const ORDER = { inbox: 0, shared: 1, public: 2, private: 3 } as const;
 const show = (v: unknown) => (v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 const when = (ms: number) => new Date(ms).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -156,6 +165,7 @@ export function DataOwnerPage({ id }: { id: string }) {
   const seen = useRef<Set<string> | null>(null);
   const [freshIds, setFreshIds] = useState<string[]>([]);
   const [showDone, setShowDone] = useState(false);
+  const [shown, setShown] = useState<string[]>([]);
   const [ios, setIos] = useState(false);
   const [standalone, setStandalone] = useState(false);
   const [install, setInstall] = useState<{ prompt: () => Promise<void> } | null>(null);
@@ -496,12 +506,27 @@ export function DataOwnerPage({ id }: { id: string }) {
               i === 0 ? (
                 <div key={f} className="flex items-center gap-2 font-medium">
                   <span className="break-words">{show(item[f])}</span>
+                  {ref4(c, item) && (
+                    <span className="text-sm font-normal text-muted" title="Last 4 digits of their phone">
+                      ·{ref4(c, item)}
+                    </span>
+                  )}
                   {isNew && <span className="rounded-full bg-emerald-400 px-2 text-xs font-semibold text-black">New</span>}
                 </div>
               ) : isPhone(f) ? (
-                <a key={f} href={`tel:${show(item[f]).replace(/[^\d+]/g, "")}`} className="inline-flex min-h-8 items-center gap-1.5 text-violet-200 underline underline-offset-2">
-                  <Phone className="h-3.5 w-3.5" aria-hidden /> {show(item[f])}
-                </a>
+                // The number isn't on screen (owner pages often sit on a counter tablet): Call uses it, Show reveals it.
+                <div key={f} className="flex flex-wrap items-center gap-2">
+                  <a href={`tel:${show(item[f]).replace(/[^\d+]/g, "")}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-violet-200">
+                    <Phone className="h-3.5 w-3.5" aria-hidden /> Call
+                  </a>
+                  {shown.includes(item.id + f) ? (
+                    <span className="tabular-nums">{show(item[f])}</span>
+                  ) : (
+                    <button onClick={() => setShown((x) => [...x, item.id + f])} className="min-h-9 text-xs text-muted underline underline-offset-2" aria-label={`Show ${label(f).toLowerCase()} number`}>
+                      ••• {last4(item[f])} · Show number
+                    </button>
+                  )}
+                </div>
               ) : (
                 <div key={f}>
                   <span className="text-muted">{label(f)}: </span>

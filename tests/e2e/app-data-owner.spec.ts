@@ -6,7 +6,7 @@ test.skip(!process.env.TEST_DATABASE_URL, "needs TEST_DATABASE_URL");
 
 const RULES = {
   menu: { access: "public", fields: ["name", "price"], seed: [{ name: "Margherita", price: "12" }] },
-  orders: { access: "inbox", fields: ["name", "items"], statuses: ["new", "preparing", "ready"] },
+  orders: { access: "inbox", fields: ["name", "phone", "items"], statuses: ["new", "preparing", "ready"] },
 };
 
 test("the owner page chimes and counts new orders, moves them on and sets the staff PIN", async ({ browser }) => {
@@ -33,10 +33,17 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   // A customer orders from the app: the open page hears it straight away.
   await page.waitForTimeout(1500); // the page opens its live connection
   const device = "deviceE2EE2EE2EE2EE2EE2EE2E1234";
-  await page.request.post(store.apiUrl, { data: { collection: "orders", data: { name: "Ana", items: "2 Margherita" } }, headers: { "x-device": device } });
+  await page.request.post(store.apiUrl, { data: { collection: "orders", data: { name: "Ana Lopez", phone: "+1 555 0199", items: "2 Margherita" } }, headers: { "x-device": device } });
   // No Refresh: the live connection brings it (the backup check is 30 seconds away).
   await expect(page.getByRole("status").filter({ hasText: "1 new since you last looked" })).toBeVisible({ timeout: 10_000 });
   await expect(page).toHaveTitle(/^\(1\) New · Luigi's: app data/);
+  // First name only, told apart by the last 4 digits; the number is called, not shown, until asked.
+  await expect(page.getByText("Ana", { exact: true })).toBeVisible();
+  await expect(page.getByText("·0199")).toBeVisible();
+  await expect(page.getByText("+1 555 0199")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Call" })).toHaveAttribute("href", "tel:+15550199");
+  await page.getByRole("button", { name: "Show phone number" }).click();
+  await expect(page.getByText("+1 555 0199")).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { spoken: string[] }).spoken)).toContain("You have a new order");
 
   // Staff move it on from another device: this page reads it out.

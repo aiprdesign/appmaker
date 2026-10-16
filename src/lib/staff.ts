@@ -166,20 +166,30 @@ function Order({ collection, item, busy, act, fresh }) {
   const finished = isDone(item.status, statuses);
   const next = finished ? null : statuses.slice(at + 1).find((x) => !/^(cancel|declin|reject)/i.test(x));
   const [more, setMore] = useState(false);
+  const [reveal, setReveal] = useState(false);
   const fields = collection.fields.filter((f) => show(item[f]));
+  // Told apart by first name and the last 4 digits of their phone; the number itself isn't on screen.
+  const phoneField = fields.find(isPhone);
+  const digits = phoneField ? show(item[phoneField]).replace(/[^0-9]/g, '') : '';
+  const last4 = digits.length >= 4 ? digits.slice(-4) : '';
   return (
     <View style={[card, styles.box, item.status === statuses[0] && styles.boxNew, finished && styles.boxDone]}>
       <View style={styles.row}>
-        <Text style={[styles.itemTitle, { flex: 1 }]}>{fields.length ? show(item[fields[0]]) : label(collection.name)}</Text>
+        <Text style={[styles.itemTitle, { flex: 1 }]}>{fields.length ? show(item[fields[0]]) : label(collection.name)}{last4 ? <Text style={styles.small}>  ·{last4}</Text> : null}</Text>
         {item.status === statuses[0] ? <Text style={styles.badge}>{fresh ? 'NEW' : 'Waiting'}</Text> : <Text style={styles.small}>{label(item.status)}</Text>}
       </View>
       <View style={{ gap: 2 }}>
       {fields.slice(1).map((f) =>
         isPhone(f) ? (
-          <Pressable key={f} hitSlop={8} onPress={() => Linking.openURL('tel:' + show(item[f]).replace(/[^0-9+]/g, '')).catch(() => {})} accessibilityRole="link" accessibilityLabel={'Call ' + show(item[f])} style={({ pressed }) => [styles.phone, pressed && styles.pressed]}>
-            <Phone size={16} color={colors.primary} accessible={false} />
-            <Text style={styles.phoneText}>{show(item[f])}</Text>
-          </Pressable>
+          <View key={f} style={styles.row}>
+            <Pressable hitSlop={8} onPress={() => Linking.openURL('tel:' + show(item[f]).replace(/[^0-9+]/g, '')).catch(() => {})} accessibilityRole="link" accessibilityLabel="Call" style={({ pressed }) => [styles.phone, pressed && styles.pressed]}>
+              <Phone size={16} color={colors.primary} accessible={false} />
+              <Text style={styles.phoneText}>Call</Text>
+            </Pressable>
+            <Pressable hitSlop={8} onPress={() => setReveal(true)} disabled={reveal} accessibilityRole="button" accessibilityLabel={reveal ? show(item[f]) : 'Show number'}>
+              <Text style={styles.small}>{reveal ? show(item[f]) : '••• ' + last4 + ' · Show number'}</Text>
+            </Pressable>
+          </View>
         ) : (
           <Text key={f} style={styles.detail}><Text style={styles.detailLabel}>{label(f)}: </Text>{show(item[f])}</Text>
         ),

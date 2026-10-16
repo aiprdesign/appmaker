@@ -57,6 +57,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 export function OwnerPage({ id }: { id: string }) {
   const [view, setView] = useState<View | null>(null);
   const [error, setError] = useState("");
+  const [shownPhones, setShownPhones] = useState<string[]>([]);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [cancelling, setCancelling] = useState<Booking | null>(null);
@@ -186,9 +187,21 @@ export function OwnerPage({ id }: { id: string }) {
                       <div className="min-w-0 flex-1 basis-40">
                         <p className="truncate font-medium">
                           {b.name}
+                          {b.phone.replace(/\D/g, "").length >= 4 && (
+                            <span className="ml-1 text-sm font-normal text-muted" title="Last 4 digits of their phone">
+                              ·{b.phone.replace(/\D/g, "").slice(-4)}
+                            </span>
+                          )}
                           {b.isNew && <span className="ml-2 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">New</span>}
                         </p>
-                        <p className="truncate text-xs text-muted">{[b.service, b.phone, b.note].filter(Boolean).join(" · ")}</p>
+                        <p className="truncate text-xs text-muted">
+                          {[b.service, shownPhones.includes(b.id) ? b.phone : "", b.note].filter(Boolean).join(" · ")}
+                          {!shownPhones.includes(b.id) && (
+                            <button onClick={() => setShownPhones((x) => [...x, b.id])} className="ml-1 underline underline-offset-2" aria-label={`Show ${b.name}'s phone number`}>
+                              Show number
+                            </button>
+                          )}
+                        </p>
                       </div>
                       <div className="ml-auto flex gap-1">
                         <a
