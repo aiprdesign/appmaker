@@ -135,7 +135,7 @@ test("business templates open a working app straight away, and the owner's detai
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await page.getByLabel("Short line about you").fill("Stone-baked pizza");
   // Online payment: the business adds its PayPal.me link.
-  await page.getByLabel("Online payment link (optional)").fill("paypal.me/luigis");
+  await page.getByLabel("PayPal.me link (optional)").fill("paypal.me/luigis");
   await expect(page.getByRole("status").filter({ hasText: "“best”" })).toHaveCount(0);
   await expect(phone.getByText("Stone-baked pizza").first()).toBeVisible({ timeout: 15_000 });
   await expect(phone.getByText("Luigi's").first()).toBeVisible({ timeout: 15_000 });

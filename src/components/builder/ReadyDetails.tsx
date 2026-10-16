@@ -276,13 +276,15 @@ export function ReadyDetails({
         <Text label="Address" value={draft.address} onChange={(v) => update("address", v)} />
         <Text label="Opening hours (one line each)" value={draft.hours} onChange={(v) => update("hours", v)} rows={3} />
         <div>
-          <Text label="Online payment link (optional)" value={draft.payLink ?? ""} onChange={(v) => update("payLink", v)} hint="paypal.me/yourshop" />
+          <Text label="PayPal.me link (optional)" value={draft.payLink ?? ""} onChange={(v) => update("payLink", v)} hint="paypal.me/yourshop" />
           {draft.payLink?.trim() && !safePayLink(draft.payLink) ? (
-            <p role="status" className="mt-1 text-xs text-amber-200">Use a PayPal.me, Stripe, Square, Venmo, Revolut or Cash App link.</p>
+            <p role="status" className="mt-1 text-xs text-amber-200">Paste your PayPal.me link, like paypal.me/yourshop.</p>
           ) : (
             <p className="mt-1 text-xs text-muted">
-              Customers get a <strong>Pay now</strong> button after ordering. Easiest: a free PayPal Business account, then your paypal.me link (the total fills in by itself). Card
-              details never touch your app.
+              Customers get a <strong>Pay now</strong> button with the total filled in, or pay when they collect.{" "}
+              <a href="https://www.paypal.com/paypalme/" target="_blank" rel="noreferrer" className="text-violet-300 underline underline-offset-2">
+                Don&apos;t have one? Get a free PayPal.me link →
+              </a>
             </p>
           )}
         </div>
