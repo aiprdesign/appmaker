@@ -48,11 +48,35 @@ export function Pop({ value, style, children }) {
       first.current = false;
       return;
     }
-    if (reduced) return;
+    if (reduced || !value) return;
     s.setValue(1.3);
     Animated.spring(s, { toValue: 1, friction: 4, tension: 180, useNativeDriver: true }).start();
   }, [value]);
   return <Animated.View style={[style, { transform: [{ scale: s }] }]}>{children}</Animated.View>;
+}
+
+/** Springs in from small when it first appears (a stepper replacing "Add", a new badge). */
+export function Appear({ style, children }) {
+  const t = useRef(new Animated.Value(reduced ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.spring(t, { toValue: 1, friction: 6, tension: 160, useNativeDriver: true }).start();
+  }, []);
+  return <Animated.View style={[style, { opacity: t, transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }]}>{children}</Animated.View>;
+}
+
+/** A photo that fades in once it has loaded, over its soft placeholder. */
+function FadeImage({ uri, style }) {
+  const t = useRef(new Animated.Value(reduced ? 1 : 0)).current;
+  return (
+    <View style={[style, { overflow: 'hidden' }]}>
+      <Animated.Image
+        source={{ uri }}
+        onLoad={() => Animated.timing(t, { toValue: 1, duration: 300, useNativeDriver: true }).start()}
+        style={[StyleSheet.absoluteFill, { opacity: t }]}
+        accessibilityIgnoresInvertColors
+      />
+    </View>
+  );
 }
 
 /** A short side-to-side shake for "this needs fixing": [style, shake]. */
@@ -78,13 +102,13 @@ export function Tap({ style, onPress, children, ...rest }) {
 }
 
 /** Fades and slides in when it first appears; several with growing delays arrive one after another. */
-export function Rise({ delay = 0, style, children }) {
+export function Rise({ delay = 0, duration = 420, distance = 16, style, children }) {
   const t = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (reduced) return t.setValue(1);
-    Animated.timing(t, { toValue: 1, duration: 420, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(t, { toValue: 1, duration, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, []);
-  const translateY = t.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  const translateY = t.interpolate({ inputRange: [0, 1], outputRange: [distance, 0] });
   return <Animated.View style={[style, { opacity: t, transform: [{ translateY }] }]}>{children}</Animated.View>;
 }
 
@@ -96,7 +120,7 @@ const EDIT = typeof global !== 'undefined' ? global.__APPMAKER_EDIT__ : null;
 export function PhotoSlot({ item, style, iconName, iconSize = 24 }) {
   const box = [style, { borderRadius: radius.md, backgroundColor: colors.primarySoft }];
   const photo = item.image ? (
-    <Image source={{ uri: item.image }} style={box} accessibilityIgnoresInvertColors />
+    <FadeImage uri={item.image} style={box} />
   ) : (
     <View style={[box, { alignItems: 'center', justifyContent: 'center' }]}>
       <Icon name={iconName} size={iconSize} color={colors.primary} />
@@ -482,7 +506,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import * as Icons from 'lucide-react-native';
 import { colors, mode, radius } from './src/theme';
 import { icons, kind, words } from './src/business';
-import { basket, buzz, Icon, Pop, Tap } from './src/ui';
+import { basket, buzz, Icon, Pop, Rise, Tap } from './src/ui';
 import HomeScreen from './src/screens/HomeScreen';
 import ItemsScreen from './src/screens/ItemsScreen';
 import RequestScreen from './src/screens/RequestScreen';
@@ -570,7 +594,9 @@ function Shell() {
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <View style={styles.body}>
-        {screens[tab]}
+        <Rise key={tab} duration={240} distance={8} style={styles.body}>
+          {screens[tab]}
+        </Rise>
         {kind === 'order' && tab !== 'request' && <BasketBar count={count} total={total} onPress={() => setTab('request')} />}
       </View>
       <View style={[styles.tabs, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
@@ -784,7 +810,7 @@ import * as Icons from 'lucide-react-native';
 import { card, colors, heading, radius } from '../theme';
 import { icons, kind, words } from '../business';
 import { useCollection } from '../appdata';
-import { Icon, PhotoSlot, Pop, Rise, Skeleton, Tap, money } from '../ui';
+import { Appear, Icon, PhotoSlot, Pop, Rise, Skeleton, Tap, money } from '../ui';
 
 export default function ItemsScreen({ pick, picked, setQty }) {
   const { items, loading, error, refresh } = useCollection('items');
@@ -800,8 +826,8 @@ export default function ItemsScreen({ pick, picked, setQty }) {
           {categories.map((c) => {
             const on = c === category;
             return (
+              <Pop key={c} value={on}>
               <Tap
-                key={c}
                 onPress={() => setCategory(c)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
@@ -809,6 +835,7 @@ export default function ItemsScreen({ pick, picked, setQty }) {
               >
                 <Text style={[styles.small, { color: on ? colors.onPrimary : colors.text, fontWeight: '600' }]}>{c}</Text>
               </Tap>
+              </Pop>
             );
           })}
         </ScrollView>
@@ -823,7 +850,7 @@ export default function ItemsScreen({ pick, picked, setQty }) {
       {shown.map((it, i) => {
         const n = qty(it.name);
         return (
-          <Rise key={it.id || it.name} delay={Math.min(i, 8) * 50}>
+          <Rise key={category + ':' + (it.id || it.name)} delay={Math.min(i, 8) * 50}>
             <View style={[card, styles.item]}>
               <PhotoSlot item={it} style={styles.photo} iconName={icons.items} />
               <View style={styles.flex}>
@@ -832,7 +859,7 @@ export default function ItemsScreen({ pick, picked, setQty }) {
                 {!!it.price && <Text style={[styles.price, { color: colors.text }]}>{money(it.price)}</Text>}
               </View>
               {kind === 'order' && n > 0 ? (
-                <View style={[styles.stepper, { backgroundColor: colors.primary, borderRadius: radius.pill }]}>
+                <Appear style={[styles.stepper, { backgroundColor: colors.primary, borderRadius: radius.pill }]}>
                   <Tap onPress={() => setQty(it.name, n - 1)} accessibilityRole="button" accessibilityLabel={'One less ' + it.name} style={styles.stepButton}>
                     {n === 1 ? <Icons.Trash2 size={16} color={colors.onPrimary} /> : <Icons.Minus size={16} color={colors.onPrimary} strokeWidth={3} />}
                   </Tap>
@@ -842,7 +869,7 @@ export default function ItemsScreen({ pick, picked, setQty }) {
                   <Tap onPress={() => pick(it)} accessibilityRole="button" accessibilityLabel={'One more ' + it.name} style={styles.stepButton}>
                     <Icons.Plus size={16} color={colors.onPrimary} strokeWidth={3} />
                   </Tap>
-                </View>
+                </Appear>
               ) : (
                 <Tap
                   onPress={() => pick(it)}
