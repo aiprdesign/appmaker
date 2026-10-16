@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, Globe, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Copy, Globe, Loader2, MessageSquare, Printer, RefreshCw, Trash2 } from "lucide-react";
 import { QrCode } from "@/components/QrCode";
 import { renderIcon } from "@/lib/export";
 import type { Project } from "@/lib/types";
@@ -22,7 +22,7 @@ export function WebApp({ project }: { project: Project }) {
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "publish" | "remove">("");
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"" | "link" | "message">("");
 
   useEffect(() => {
     let live = true;
@@ -69,11 +69,16 @@ export function WebApp({ project }: { project: Project }) {
     }
   };
 
-  const copy = async () => {
+  const name = project.listing.name || "our";
+  /** Ready to paste into WhatsApp, SMS, email or social posts. */
+  const message = url
+    ? `Get the ${name} app on your phone (free, no app store needed):\n${url}\n\niPhone: open it in Safari, tap Share, then "Add to Home Screen".\nAndroid: open it in Chrome and tap Install.`
+    : "";
+  const copy = async (what: "link" | "message") => {
     if (!url) return;
-    await navigator.clipboard?.writeText(url).catch(() => undefined);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    await navigator.clipboard?.writeText(what === "link" ? url : message).catch(() => undefined);
+    setCopied(what);
+    setTimeout(() => setCopied(""), 1500);
   };
 
   return (
@@ -92,12 +97,50 @@ export function WebApp({ project }: { project: Project }) {
               <a href={url} target="_blank" rel="noreferrer" className="block break-all text-sm font-medium text-violet-300 underline underline-offset-2">
                 {url}
               </a>
-              <button onClick={() => void copy()} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3 text-sm">
-                {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />} {copied ? "Copied" : "Copy link"}
-              </button>
-              <p className="text-xs text-muted">Put the QR code on your counter, menu or website. On iPhone: Share → Add to Home Screen; on Android: Install.</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => void copy("link")} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3 text-sm">
+                  {copied === "link" ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />} {copied === "link" ? "Copied" : "Copy link"}
+                </button>
+                <button onClick={() => void copy("message")} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3 text-sm">
+                  {copied === "message" ? <Check className="h-4 w-4" aria-hidden /> : <MessageSquare className="h-4 w-4" aria-hidden />}{" "}
+                  {copied === "message" ? "Copied" : "Copy message for customers"}
+                </button>
+                <a href={`${url}/install`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3 text-sm">
+                  <Printer className="h-4 w-4" aria-hidden /> Poster for your counter
+                </a>
+              </div>
             </div>
           </div>
+          <details className="rounded-xl border border-line bg-surface-2/40 p-3 text-sm">
+            <summary className="cursor-pointer font-medium">How your customers install it</summary>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div>
+                <h3 className="mb-2 font-semibold">iPhone & iPad (Safari)</h3>
+                <ol className="list-decimal space-y-1 pl-5 text-muted">
+                  <li>Scan the QR code or tap your link.</li>
+                  <li>
+                    Tap <strong className="text-foreground">Share</strong> (the square with an arrow).
+                  </li>
+                  <li>
+                    Tap <strong className="text-foreground">Add to Home Screen</strong>, then <strong className="text-foreground">Add</strong>.
+                  </li>
+                </ol>
+              </div>
+              <div>
+                <h3 className="mb-2 font-semibold">Android (Chrome)</h3>
+                <ol className="list-decimal space-y-1 pl-5 text-muted">
+                  <li>Scan the QR code or tap your link.</li>
+                  <li>
+                    Tap <strong className="text-foreground">Install</strong> at the top of the app.
+                  </li>
+                  <li>
+                    No button? Menu <strong className="text-foreground">⋮</strong> → <strong className="text-foreground">Install app</strong>.
+                  </li>
+                </ol>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-muted">Tips: put the poster by the till, add the link to your website and Google profile, and send the message to regular customers. The app also shows these steps the first time someone opens it.</p>
+          </details>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => void publish()} disabled={!!busy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-violet-500 px-3 text-sm font-medium text-white disabled:opacity-50">
               {busy === "publish" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />} Update with the latest version

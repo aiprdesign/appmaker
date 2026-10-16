@@ -33,6 +33,15 @@ test("an app published to the web opens full screen, installs, and keeps what it
   const manifest = await (await page.request.get(`/a/${id}/app.webmanifest`)).json();
   expect(manifest).toMatchObject({ name: "Luigi's", start_url: `/a/${id}`, display: "standalone" });
 
+  // The poster for the counter: QR code and steps for iPhone and Android.
+  const poster = await browser.newPage();
+  await poster.goto(`/a/${id}/install`);
+  await expect(poster.getByRole("heading", { name: "Get the Luigi's app" })).toBeVisible();
+  await expect(poster.getByRole("img", { name: "QR code to open the Luigi's app" })).toHaveAttribute("data-qr-value", new RegExp(`/a/${id}$`));
+  await expect(poster.getByText("Tap “Add to Home Screen”")).toBeVisible();
+  await expect(poster.getByText("Menu ⋮ → “Install app”")).toBeVisible();
+  await poster.close();
+
   // A customer (not signed in) opens it: the app runs, and what it saves is there next time.
   const customer = await browser.newPage();
   await customer.goto(`/a/${id}`);
