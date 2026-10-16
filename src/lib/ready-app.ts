@@ -443,7 +443,7 @@ const WORDS: Record<ReadyKind, { cta: string; tab: string; tabIcon: string; send
 
 /** src/business.js: everything the owner fills in. The only file that changes when they edit their details. */
 /** A payment link customers can open: https only, on a known payment service. */
-export const PAY_HOSTS = /^(www\.)?(paypal\.me|paypal\.com|buy\.stripe\.com|checkout\.square\.site|square\.link|venmo\.com|revolut\.me|monzo\.me|cash\.app|ko-fi\.com)$/i;
+export const PAY_HOSTS = /^(www\.|account\.)?(paypal\.me|paypal\.com|buy\.stripe\.com|checkout\.square\.site|square\.link|venmo\.com|revolut\.me|monzo\.me|cash\.app|ko-fi\.com)$/i;
 export function safePayLink(v: unknown): string {
   const t = typeof v === "string" ? v.trim() : "";
   if (!t) return "";
@@ -487,6 +487,24 @@ export const stages = ${JSON.stringify(trackerStages(preset, rules), null, 2)};
 `;
 }
 
+/**
+ * The payment page for an order, with the amount filled in where the service allows it:
+ * PayPal.me and Cash App take it in the link; Venmo also takes the order number as the note.
+ * Plain JavaScript (it goes into the app as is, and tests run the same text).
+ */
+export const PAY_URL_JS = String.raw`function payUrl(link, total, ref) {
+  // "$26.50", "26,50 €" and "1,234.50" all become 26.50 / 1234.50.
+  let amount = String(total || '').replace(/[^0-9.,]/g, '');
+  amount = /,\d{2}$/.test(amount) ? amount.replace(/\./g, '').replace(',', '.') : amount.replace(/,/g, '');
+  if (!amount || !(Number(amount) > 0)) return link;
+  const note = ref ? 'Order #' + ref : '';
+  if (/^https:\/\/(www\.)?paypal\.me\/[^/]+/i.test(link)) return link + '/' + amount;
+  if (/^https:\/\/(www\.)?cash\.app\/\$[^/]+$/i.test(link)) return link + '/' + amount;
+  const venmo = /^https:\/\/(www\.|account\.)?venmo\.com\/(?:u\/)?([A-Za-z0-9_-]+)$/i.exec(link);
+  if (venmo) return 'https://venmo.com/?txn=pay&recipients=' + encodeURIComponent(venmo[2]) + '&amount=' + amount + (note ? '&note=' + encodeURIComponent(note) : '');
+  return link;
+}`;
+
 const ACTIONS = `import { Alert, Linking } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { business } from './business';
@@ -504,13 +522,12 @@ export const whatsapp = () => open('https://wa.me/' + business.whatsapp.replace(
 export const email = () => open('mailto:' + business.email, 'Email us at ' + business.email);
 export const directions = () => open('https://maps.google.com/?q=' + encodeURIComponent(business.address), business.address);
 
+${PAY_URL_JS}
+
 /** Pay online through the business's own link (PayPal.me gets the amount filled in). The app never sees card details. */
 export const canPay = !!business.payLink;
-export const pay = async (total, onBack) => {
-  // "$26.50", "26,50 €" and "1,234.50" all become 26.50 / 1234.50.
-  let amount = String(total || '').replace(/[^0-9.,]/g, '');
-  amount = /,\\d{2}$/.test(amount) ? amount.replace(/\\./g, '').replace(',', '.') : amount.replace(/,/g, '');
-  const url = /paypal\\.me\\//i.test(business.payLink) && amount ? business.payLink + '/' + amount : business.payLink;
+export const pay = async (total, onBack, ref) => {
+  const url = payUrl(business.payLink, total, ref);
   try {
     // A sheet over the app (Safari / Chrome): the customer pays, taps Done and is back on their order.
     await WebBrowser.openBrowserAsync(url, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET, dismissButtonStyle: 'done' });

@@ -120,7 +120,7 @@ describe("URL to App picks the ready-made app that fits", () => {
   });
 });
 
-import { safePayLink, businessModule } from "@/lib/ready-app";
+import { safePayLink, businessModule, PAY_URL_JS } from "@/lib/ready-app";
 
 describe("online payment link", () => {
   it("accepts payment services only, over https", () => {
@@ -130,11 +130,27 @@ describe("online payment link", () => {
     expect(safePayLink("javascript:alert(1)")).toBe("");
     expect(safePayLink("")).toBe("");
     expect(safePayLink("paypal.me")).toBe("");
+    expect(safePayLink("https://account.venmo.com/u/tonys")).toBe("https://account.venmo.com/u/tonys");
+    expect(safePayLink("cash.app/$tonys")).toBe("https://cash.app/$tonys");
   });
   it("puts the link in the app's business details", () => {
     const preset = READY_PRESETS["pizza-takeaway"];
     expect(businessModule(preset, { ...preset.sample, payLink: "paypal.me/tonys" })).toContain('"payLink": "https://paypal.me/tonys"');
-    // The app's PayPal check survives being written into the app's code (escaped correctly).
-    expect(readyAppFiles(preset, { ...preset.sample, payLink: "paypal.me/tonys" }, readyDesign(preset.sample, "x"))["src/actions.js"]).toContain("/paypal\\.me\\//i");
+    // The app's payment code is written into the app exactly as tested here.
+    expect(readyAppFiles(preset, { ...preset.sample, payLink: "paypal.me/tonys" }, readyDesign(preset.sample, "x"))["src/actions.js"]).toContain(PAY_URL_JS);
+  });
+});
+
+describe("payment page for an order", () => {
+  const payUrl = new Function(`${PAY_URL_JS}; return payUrl;`)() as (link: string, total?: string, ref?: string) => string;
+  it("fills in the amount where the service allows it", () => {
+    expect(payUrl("https://paypal.me/tonys", "$26.50", "A12")).toBe("https://paypal.me/tonys/26.50");
+    expect(payUrl("https://cash.app/$tonys", "$26", "A12")).toBe("https://cash.app/$tonys/26");
+    expect(payUrl("https://venmo.com/u/tonys", "$26", "A12")).toBe("https://venmo.com/?txn=pay&recipients=tonys&amount=26&note=Order%20%23A12");
+    expect(payUrl("https://paypal.me/tonys", "26,50 €")).toBe("https://paypal.me/tonys/26.50");
+  });
+  it("opens the plain link otherwise", () => {
+    expect(payUrl("https://buy.stripe.com/abc", "$26")).toBe("https://buy.stripe.com/abc");
+    expect(payUrl("https://paypal.me/tonys", "")).toBe("https://paypal.me/tonys");
   });
 });

@@ -1049,7 +1049,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
     const next = [...payOpened.filter((id) => id !== x.id), x.id].slice(-20);
     setPayOpened(next);
     AsyncStorage.setItem('pay:opened', JSON.stringify(next)).catch(() => {});
-    pay(x.total, refresh);
+    pay(x.total, refresh, x.ref);
   };
   const confirmCancel = (id) =>
     Alert.alert('Cancel this?', 'To change it instead, call ' + business.name + '.' + (canPay && payOpened.includes(id) ? ' If you already paid, contact ' + business.name + ' about a refund.' : ''), [
@@ -1093,7 +1093,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
               ))}
               {canPay && !s.cancelled && !x.paid && !payOpened.includes(x.id) && <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>Or pay when you collect. Add #{x.ref} to the payment note.</Text>}
               {canPay && !s.cancelled && !x.paid && payOpened.includes(x.id) && (
-                <Tap onPress={() => pay(x.total, refresh)} accessibilityRole="button" hitSlop={8} style={styles.cancel}>
+                <Tap onPress={() => pay(x.total, refresh, x.ref)} accessibilityRole="button" hitSlop={8} style={styles.cancel}>
                   <Text style={[styles.small, { color: colors.primary, fontWeight: '600' }]}>Open the payment page again</Text>
                 </Tap>
               )}
