@@ -34,8 +34,11 @@ function StatusBar() { return null; }
 
 // Safe areas like a real phone: the iPhone notch and home indicator, or the
 // Android status bar. SafeAreaView pads only the edges it's asked for.
+// A web app has no fake phone frame: the page around it keeps clear of the real notch and home bar.
 const insets = () =>
-  window.__APPMAKER_DEVICE__ === "ipad"
+  window.__APPMAKER_WEBAPP__
+    ? { top: 0, bottom: 0, left: 0, right: 0 }
+    : window.__APPMAKER_DEVICE__ === "ipad"
     ? { top: 24, bottom: 20, left: 0, right: 0 }
     : RNW.Platform.OS === "android"
       ? { top: 24, bottom: 0, left: 0, right: 0 }

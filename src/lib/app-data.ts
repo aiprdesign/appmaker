@@ -28,6 +28,8 @@ export interface CollectionRule {
   statuses?: string[];
   /** Starting items for a public collection, used until the business adds its own. */
   seed?: Record<string, unknown>[];
+  /** What the business calls it ("Orders", "Menu"); the name is used otherwise. */
+  title?: string;
 }
 export type DataRules = Record<string, CollectionRule>;
 
@@ -106,6 +108,7 @@ export function parseRules(v: unknown): DataRules {
       .filter((f): f is string => typeof f === "string" && FIELD_NAME.test(f) && !FORBIDDEN_FIELD.test(f) && !FORBIDDEN_LOOSE.test(f))
       .slice(0, 20);
     const rule: CollectionRule = { access, fields };
+    if (typeof r.title === "string" && r.title.trim()) rule.title = r.title.replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 30);
     if (access === "inbox") {
       const st = (Array.isArray(r.statuses) ? r.statuses : []).filter((s): s is string => typeof s === "string" && s.length > 0 && s.length <= 24).slice(0, 8);
       rule.statuses = st.length ? st : DEFAULT_STATUSES;

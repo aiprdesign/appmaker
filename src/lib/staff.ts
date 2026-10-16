@@ -140,7 +140,7 @@ function Editor({ collection, item, onDone }) {
   const [data, setData] = useState(() => Object.fromEntries(collection.fields.map((f) => [f, item ? show(item[f]) : ''])));
   return (
     <View style={[card, styles.box]}>
-      <Text style={styles.h2}>{item ? 'Edit' : 'Add to'} {label(collection.name)}</Text>
+      <Text style={styles.h2}>{item ? 'Edit' : 'Add to'} {collection.title || label(collection.name)}</Text>
       {collection.fields.map((f) => (
         <View key={f} style={{ gap: 4 }}>
           <Text style={styles.fieldLabel}>{label(f)}</Text>
@@ -270,7 +270,7 @@ function PreviewStaff({ onClose }) {
         <View style={styles.statuses}>
           {inboxes.map((c) => (
             <Pressable key={c.name} onPress={() => setTab(c.name)} accessibilityRole="tab" accessibilityState={{ selected: c.name === tab }} style={[styles.chip, c.name === tab && styles.chipOn]}>
-              <Text style={[styles.chipText, c.name === tab && styles.chipTextOn]}>{label(c.name)}</Text>
+              <Text style={[styles.chipText, c.name === tab && styles.chipTextOn]}>{c.title || label(c.name)}</Text>
             </Pressable>
           ))}
         </View>
@@ -279,7 +279,7 @@ function PreviewStaff({ onClose }) {
         <View style={styles.empty}>
           <Inbox size={40} color={colors.muted} accessible={false} />
           <Text style={styles.h2}>Nothing yet</Text>
-          <Text style={[styles.muted, { textAlign: 'center' }]}>Send a test {label(current.name).toLowerCase().replace(/s$/, '')} from the app, then come back here to move it on.</Text>
+          <Text style={[styles.muted, { textAlign: 'center' }]}>Send a test {(current.title || label(current.name)).toLowerCase().replace(/s$/, '')} from the app, then come back here to move it on.</Text>
         </View>
       ) : null}
       {current ? active.map((item) => <Order key={item.id} collection={current} item={item} busy={false} act={act} fresh={false} />) : null}
@@ -478,7 +478,7 @@ export default function StaffScreen({ onClose }) {
               const waiting = c.statuses ? c.items.filter((i) => i.status === c.statuses[0]).length : 0;
               return (
                 <Pressable key={c.name} onPress={() => setTab(c.name)} accessibilityRole="tab" accessibilityState={{ selected }} style={({ pressed }) => [styles.chip, selected && styles.chipOn, pressed && styles.pressed]}>
-                  <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label(c.name)}{waiting ? ' · ' + waiting + ' waiting' : ''}</Text>
+                  <Text style={[styles.chipText, selected && styles.chipTextOn]}>{c.title || label(c.name)}{waiting ? ' · ' + waiting + ' waiting' : ''}</Text>
                 </Pressable>
               );
             })}
@@ -499,7 +499,7 @@ export default function StaffScreen({ onClose }) {
                 <View style={styles.empty}>
                   <View style={styles.iconTile}><Inbox size={24} color={colors.primary} accessible={false} /></View>
                   <Text style={styles.h2}>All caught up</Text>
-                  <Text style={styles.muted}>New {label(current.name).toLowerCase()} appear here{alerts === 'on' ? ', and this phone buzzes' : ''}.</Text>
+                  <Text style={styles.muted}>New {(current.title || label(current.name)).toLowerCase()} appear here{alerts === 'on' ? ', and this phone buzzes' : ''}.</Text>
                 </View>
               ) : (
                 active.map((item) => <Order key={item.id} collection={current} item={item} busy={busy} act={act} fresh={fresh[item.id]} />)
@@ -517,7 +517,7 @@ export default function StaffScreen({ onClose }) {
               {current.access === 'public' ? (
                 <Pressable onPress={() => setEditing({ collection: current, item: null })} accessibilityRole="button" style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
                   <Plus size={18} color={colors.text} accessible={false} />
-                  <Text style={styles.secondaryText}>Add to {label(current.name).toLowerCase()}</Text>
+                  <Text style={styles.secondaryText}>Add to {(current.title || label(current.name)).toLowerCase()}</Text>
                 </Pressable>
               ) : null}
               {current.items.length === 0 ? <Text style={styles.muted}>Nothing here yet.</Text> : null}

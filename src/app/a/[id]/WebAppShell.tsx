@@ -141,7 +141,7 @@ export function WebAppShell({ id, name, files, vapidKey, hasIcon, color }: { id:
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-white text-black">
+    <div className="fixed inset-0 flex flex-col bg-white text-black" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
       {hint && (
         <div role="region" aria-label={`Install ${name}`} className="flex items-center gap-3 border-b border-black/10 bg-white px-4 py-2 text-sm" style={{ paddingTop: "max(8px, env(safe-area-inset-top))" }}>
           <p className="min-w-0 flex-1">

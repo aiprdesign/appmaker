@@ -428,12 +428,13 @@ export function readyRules(preset: ReadyPreset, info: ReadyInfo): DataRules {
   return {
     items: {
       access: "public",
+      title: preset.itemsTab,
       fields: ["name", "description", "price", "category", "image"],
       seed: info.items
         .filter((i) => i.name.trim())
         .map(({ image, ...i }) => ({ ...i, ...(image && /^https:\/\/[^\s"'<>]{4,500}$/.test(image) ? { image } : {}) })),
     },
-    requests: { access: "inbox", fields: requestFields(preset), statuses: [...stagesOf(preset).map((st) => st[0]), "cancelled"] },
+    requests: { access: "inbox", title: preset.kind === "order" ? "Orders" : preset.kind === "booking" ? "Bookings" : "Requests", fields: requestFields(preset), statuses: [...stagesOf(preset).map((st) => st[0]), "cancelled"] },
   };
 }
 
@@ -552,15 +553,21 @@ import StaffScreen from '../staff';
 import { SAVED_DETAILS } from './RequestScreen';
 import { call, directions, email, whatsapp } from '../actions';
 
-function Row({ icon: Icon, title, value, onPress }) {
+function Row({ icon: Icon, title, value, onPress, action }) {
   return (
-    <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : 'text'} style={styles.row}>
+    <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : 'text'} accessibilityLabel={action ? action + ' ' + title.toLowerCase() : undefined} style={styles.row}>
       <Icon size={24} color={colors.primary} />
       <View style={styles.flex}>
         <Text style={[styles.small, { color: colors.muted }]}>{title}</Text>
         <Text style={[styles.body, { color: colors.text }]}>{value}</Text>
       </View>
-      {onPress && <Icons.ChevronRight size={16} color={colors.muted} />}
+      {action ? (
+        <View style={[styles.action, { borderColor: colors.border }]}>
+          <Text style={[styles.small, { color: colors.text, fontWeight: '600' }]}>{action}</Text>
+        </View>
+      ) : (
+        onPress && <Icons.ChevronRight size={16} color={colors.muted} />
+      )}
     </Pressable>
   );
 }
@@ -618,8 +625,9 @@ export default function InfoScreen() {
           <Row
             icon={Icons.UserCheck}
             title="Your saved details (on this phone only)"
-            value={[saved.name, saved.phone, saved.address].filter(Boolean).join(' · ') + '  ·  Clear'}
+            value={[saved.name, saved.phone, saved.address].filter(Boolean).join(' · ')}
             onPress={clearSaved}
+            action="Clear"
           />
         )}
         <Row icon={Icons.Trash2} title="Your data" value="Delete my data" onPress={forget} />
@@ -642,6 +650,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, gap: 4 },
   body: { fontSize: 15 },
   small: { fontSize: 13 },
+  action: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, minHeight: 36, justifyContent: 'center' },
 });
 `;
 

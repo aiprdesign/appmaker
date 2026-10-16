@@ -117,7 +117,9 @@ export function Rise({ delay = 0, duration = 420, distance = 16, style, children
  * it carries a small camera badge: tapping it opens this item's photo picker next to the phone.
  */
 const EDIT = typeof global !== 'undefined' ? global.__APPMAKER_EDIT__ : null;
-export function PhotoSlot({ item, style, iconName, iconSize = 24 }) {
+export function PhotoSlot({ item, style, iconName: given, iconSize = 24 }) {
+  // Until there's a photo: a drink looks like a drink, not like the shop's main item.
+  const iconName = /drink|beverage|cola|soda|juice|water|coffee|tea|beer|wine/i.test((item.category || '') + ' ' + (item.name || '')) ? 'CupSoda' : given;
   const box = [style, { borderRadius: radius.md, backgroundColor: colors.primarySoft }];
   const photo = item.image ? (
     <FadeImage uri={item.image} style={box} />
@@ -473,7 +475,7 @@ const styles = StyleSheet.create({
   dotPiece: { position: 'absolute', width: 8, height: 8, borderRadius: 999 },
   sweep: { position: 'absolute', top: 0, bottom: 0, width: 64 },
   spinner: { position: 'absolute', left: -6, top: -6, width: 68, height: 68, borderRadius: 999, borderWidth: 2.5, borderColor: 'transparent' },
-  blob: { position: 'absolute', right: -60, top: -80, width: 240, height: 240 },
+  blob: { position: 'absolute', right: -150, top: -150, width: 240, height: 240 },
   comet: { position: 'absolute', left: 32 - 9, top: 13 + 4 - 9, width: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
   cometGlow: { position: 'absolute', width: 18, height: 18, borderRadius: 999, opacity: 0.3 },
   cometCore: { width: 10, height: 10, borderRadius: 999, borderWidth: 2 },
@@ -1026,6 +1028,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
             ? { name, phone, service: what, preferredTime: when, note: details }
             : { name, phone, ...(onSite ? { address } : {}), service: what, details };
       setSent(await add(fields));
+      setTimeout(() => setSent(null), 2800);
       keepDetails();
       clear();
       setAnother(false);
@@ -1108,7 +1111,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
               )}
               {s.canCancel && (
                 <Tap onPress={() => confirmCancel(x.id)} accessibilityRole="button" style={styles.cancel}>
-                  <Text style={[styles.small, { color: colors.danger, fontWeight: '600' }]}>Cancel {kind === 'order' ? 'order' : 'request'}</Text>
+                  <Text style={[styles.small, { color: colors.muted, fontWeight: '600', textDecorationLine: 'underline' }]}>Cancel {kind === 'order' ? 'order' : 'request'}</Text>
                 </Tap>
               )}
             </Rise>
@@ -1170,7 +1173,24 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
           <Field title="Your first name" value={name} onChange={setName} autoComplete="given-name" />
           <Field title="Phone" value={phone} onChange={setPhone} keyboardType="phone-pad" autoComplete="tel" hint="So we can reach you about this" />
           {onSite && <Field title="Address" value={address} onChange={setAddress} autoComplete="street-address" hint="Where the work is" />}
-          {!!words.when && <Field title={words.when} value={when} onChange={setWhen} hint={words.whenHint} />}
+          {!!words.when && (
+            <View style={styles.field}>
+              <Field title={words.when} value={when} onChange={setWhen} hint={words.whenHint} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+                {(kind === 'order' ? ['As soon as possible', 'In 30 min', 'In 1 hour'] : ['Today', 'Tomorrow', 'This weekend', 'Next week']).map((c) => (
+                  <Tap
+                    key={c}
+                    onPress={() => setWhen(c)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: when === c }}
+                    style={[styles.chip, { borderRadius: radius.pill, backgroundColor: when === c ? colors.primary : colors.surface, borderColor: when === c ? colors.primary : colors.border }]}
+                  >
+                    <Text style={[styles.small, { color: when === c ? colors.onPrimary : colors.text, fontWeight: '600' }]}>{c}</Text>
+                  </Tap>
+                ))}
+              </ScrollView>
+            </View>
+          )}
           <Field title={words.details} value={details} onChange={setDetails} hint={words.detailsHint} multiline />
           <View style={styles.rememberRow}>
             <Text style={[styles.small, styles.flex, { color: colors.text }]}>Remember my details on this phone</Text>
@@ -1251,13 +1271,15 @@ const styles = StyleSheet.create({
   savedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
   button: { minHeight: 52, alignItems: 'center', justifyContent: 'center' },
+  chips: { gap: 8, paddingVertical: 2 },
+  chip: { paddingHorizontal: 14, minHeight: 40, justifyContent: 'center', borderWidth: 1 },
   payButton: { flexDirection: 'row', gap: 8, marginTop: 12 },
   payNote: { textAlign: 'center', marginTop: 6 },
   waitPay: { marginTop: 12, gap: 2 },
   paidRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12 },
   row: { flexDirection: 'row', gap: 8 },
   buttonText: { fontSize: 17, fontWeight: '700' },
-  cancel: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 16 },
+  cancel: { alignSelf: 'center', minHeight: 44, marginTop: 8, justifyContent: 'center', paddingHorizontal: 16 },
   past: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   again: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, minHeight: 40 },
   body: { fontSize: 15 },

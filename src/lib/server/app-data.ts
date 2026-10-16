@@ -362,6 +362,7 @@ export async function removeItem(store: DataStore, collection: string, device: s
 // ---------- the owner's side ----------
 
 export interface OwnerCollection {
+  title?: string;
   name: string;
   access: Access;
   fields: string[];
@@ -395,7 +396,7 @@ export async function ownerData(store: DataStore): Promise<{ name: string; hasSt
     for (const row of rows) for (const k of Object.keys(unseal(row.data))) seen.add(k);
     // Statuses: the rules', plus any an item still has (e.g. from before the rules changed), so it can always be shown.
     const statuses = r.statuses ? [...new Set([...r.statuses, ...rows.map((row) => row.status).filter(Boolean)])] : undefined;
-    collections.push({ name, access: r.access, fields: [...seen].slice(0, 20), ...(statuses ? { statuses } : {}), count: Number(n), items: rows.map((row) => toItem(row, null, r.access)) });
+    collections.push({ name, ...(r.title ? { title: r.title } : {}), access: r.access, fields: [...seen].slice(0, 20), ...(statuses ? { statuses } : {}), count: Number(n), items: rows.map((row) => toItem(row, null, r.access)) });
   }
   const [{ month }] = await query<{ month: string }>(
     "select count(*) as month from app_data_records where store_id = $1 and device <> '' and created_at >= date_trunc('month', now())",

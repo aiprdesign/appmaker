@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Bell, BellRing, ChevronDown, Database, Download, Inbox, KeyRound, Loader2, Lock, MessagesSquare, Pencil, Phone, Plus, RefreshCw, Smartphone, Store, Trash2, Volume2 } from "lucide-react";
 import { fieldLabel, isDone } from "@/lib/app-data";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { AccessibilityMenu } from "@/components/AccessibilityMenu";
 
 interface Item {
   id: string;
@@ -13,6 +14,7 @@ interface Item {
 }
 interface Collection {
   name: string;
+  title?: string;
   access: "public" | "inbox" | "shared" | "private";
   fields: string[];
   statuses?: string[];
@@ -112,6 +114,8 @@ function readKey(id: string): string {
 
 /** "orderTotal" → "Order total". */
 const label = fieldLabel;
+/** "Orders" or "Menu" when the app says so; otherwise the collection name made readable. */
+const nameOf = (c: { name: string; title?: string }) => c.title || label(c.name);
 const isPhone = (f: string) => /phone|tel|mobile|whatsapp/i.test(f);
 /** Customers are told apart by first name and the last 4 digits of their phone ("Ana ·0199"). */
 const last4 = (v: unknown) => {
@@ -515,11 +519,15 @@ export function DataOwnerPage({ id }: { id: string }) {
     const next = c.statuses && !isDone(item.status, statuses) ? statuses.slice(at + 1).find((x) => !/^(cancel|declin|reject)/i.test(x)) : undefined;
     const isNew = freshIds.includes(item.id);
     const waiting = c.statuses && item.status === statuses[0];
+    // The pickup or appointment time leads the card (a kitchen works by it); the total isn't repeated.
+    const timeField = c.statuses ? c.fields.find((f) => /time|when|date/i.test(f) && show(item[f])) : undefined;
+    const itemsText = c.fields.filter((f) => f !== "total").map((f) => show(item[f])).join(" ");
+    const hidden = (f: string) => f === timeField || (f === "total" && itemsText.includes(show(item[f])));
     return (
       <li key={item.id} id={`item-${item.id}`} className={`flex flex-wrap items-start gap-3 py-3 ${waiting ? "border-l-4 border-violet-400 pl-3" : ""} ${isNew ? "rounded-lg ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-transparent" : ""}`}>
         <div className="min-w-0 flex-1 space-y-0.5 text-sm">
           {c.fields
-            .filter((f) => show(item[f]))
+            .filter((f) => show(item[f]) && !hidden(f))
             .map((f, i) =>
               i === 0 ? (
                 <div key={f} className="flex items-center gap-2 font-medium">
@@ -531,6 +539,7 @@ export function DataOwnerPage({ id }: { id: string }) {
                   )}
                   {isNew && <span className="rounded-full bg-emerald-400 px-2 text-xs font-semibold text-black">New</span>}
                   {unpaid(c, item) && <span className="rounded-full border border-amber-300/40 px-2 text-xs font-medium text-amber-200">Unpaid</span>}
+                  {timeField && <span className="ml-auto shrink-0 rounded-md bg-white/10 px-2 py-0.5 text-base font-semibold tabular-nums" title={label(timeField)}>{show(item[timeField])}</span>}
                 </div>
               ) : isPhone(f) ? (
                 // The number isn't on screen (owner pages often sit on a counter tablet): Call uses it, Show reveals it.
@@ -571,18 +580,17 @@ export function DataOwnerPage({ id }: { id: string }) {
                 Mark as {label(next).toLowerCase()} <ArrowRight className="h-4 w-4" aria-hidden />
               </button>
             )}
-            <label className="flex min-h-9 items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={item.paid === "yes"}
-                disabled={!!busy}
-                onChange={(e) => void act({ action: "paid", collection: c.name, id: item.id, paid: e.target.checked }, item.id)}
-                className="h-5 w-5 accent-emerald-400"
-              />
-              <span className={item.paid === "yes" ? "font-medium text-emerald-300" : "text-muted"}>Paid</span>
-            </label>
-            {!!item.total && item.paid !== "yes" && <p className="text-xs text-muted">Order total {String(item.total)}: check the amount in PayPal before ticking Paid.</p>}
+            <button
+              aria-pressed={item.paid === "yes"}
+              disabled={!!busy}
+              onClick={() => void act({ action: "paid", collection: c.name, id: item.id, paid: item.paid !== "yes" }, item.id)}
+              className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium disabled:opacity-50 ${item.paid === "yes" ? "bg-emerald-500/15 text-emerald-300" : "border border-line"}`}
+            >
+              {item.paid === "yes" ? "Paid ✓" : `Mark paid${item.total ? ` · ${String(item.total)}` : ""}`}
+            </button>
             {item.paid === "yes" && /^cancel/i.test(item.status ?? "") && <p className="text-xs text-amber-200">Cancelled after paying: refund it in PayPal (or your payment app).</p>}
+            <details className="text-xs text-muted">
+              <summary className="min-h-9 cursor-pointer leading-9">Other status</summary>
             <label className="flex items-center gap-2 text-xs text-muted">
               <span>Status</span>
               <select
@@ -598,6 +606,7 @@ export function DataOwnerPage({ id }: { id: string }) {
                 ))}
               </select>
             </label>
+            </details>
           </div>
         ) : null}
         {/* Orders and requests are kept while active; finished ones can be cleared from the Done list. */}
@@ -632,16 +641,26 @@ export function DataOwnerPage({ id }: { id: string }) {
           <Database className="h-5 w-5" aria-hidden />
         </span>
         <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">{view.name || "Your app"}</h1>
-        {alerts === "off" && (
-          <button onClick={() => void turnOnAlerts()} disabled={!!busy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-emerald-400 px-3 text-sm font-medium text-black disabled:opacity-50">
-            {busy === "alerts" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <BellRing className="h-4 w-4" aria-hidden />} Alerts
-          </button>
-        )}
+        <AccessibilityMenu inline />
         <button onClick={() => void load()} aria-label="Refresh" className="grid h-10 w-10 place-items-center rounded-lg border border-line hover:border-white/20">
           <RefreshCw className="h-4 w-4" aria-hidden />
         </button>
       </header>
       {error && <p role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{error}</p>}
+      {(alerts === "off" || alerts === "blocked") && view.collections.some((c) => c.access === "inbox") && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm">
+          <BellRing className="h-5 w-5 shrink-0 text-emerald-300" aria-hidden />
+          <p className="min-w-0 flex-1">
+            <span className="font-medium">Never miss an order.</span>{" "}
+            <span className="text-muted">{alerts === "blocked" ? "Alerts are blocked: allow notifications for this site in your browser settings." : "Get an alert on this device for every new order, even with this page closed."}</span>
+          </p>
+          {alerts === "off" && (
+            <button onClick={() => void turnOnAlerts()} disabled={!!busy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-emerald-400 px-3 font-medium text-black disabled:opacity-50">
+              <BellRing className="h-4 w-4" aria-hidden /> Turn on alerts
+            </button>
+          )}
+        </div>
+      )}
       {!standalone && (install || ios) && (
         <section aria-label="Install the owner app" className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-400/30 bg-violet-500/10 p-3 text-sm">
           <Smartphone className="h-5 w-5 shrink-0 text-violet-200" aria-hidden />
@@ -683,7 +702,7 @@ export function DataOwnerPage({ id }: { id: string }) {
               onClick={() => setTab(c.name)}
               className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm ${c.name === current?.name ? "border-violet-400 bg-violet-500/15 font-medium" : "border-line hover:border-white/20"}`}
             >
-              {label(c.name)}
+              {nameOf(c)}
               <span className={`rounded-full px-2 text-xs ${waiting ? "bg-violet-400 font-semibold text-black" : "bg-white/10"}`}>{waiting ? `${waiting} waiting` : c.count}</span>
             </button>
           );
@@ -694,7 +713,7 @@ export function DataOwnerPage({ id }: { id: string }) {
         <section aria-labelledby="collection-title" className={box}>
           <div className="flex flex-wrap items-center gap-2">
             <h2 id="collection-title" className="mr-auto text-lg font-semibold">
-              {label(current.name)}
+              {nameOf(current)}
             </h2>
             {current.access !== "private" && current.items.length > 0 && (
               <a
@@ -710,7 +729,7 @@ export function DataOwnerPage({ id }: { id: string }) {
                 onClick={() => setEditing({ collection: current.name, item: null, data: Object.fromEntries(current.fields.map((f) => [f, ""])) })}
                 className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:border-white/20"
               >
-                <Plus className="h-4 w-4" aria-hidden /> {current.access === "inbox" ? `Add a phone ${label(current.name).toLowerCase().replace(/s$/, "")}` : "Add"}
+                <Plus className="h-4 w-4" aria-hidden /> {current.access === "inbox" ? `Add a phone ${nameOf(current).toLowerCase().replace(/s$/, "")}` : "Add"}
               </button>
             )}
           </div>
@@ -745,10 +764,15 @@ export function DataOwnerPage({ id }: { id: string }) {
                   )}
                 </p>
               )}
-              {unpaidCount > 0 && <p className="mt-3 text-sm text-amber-200">{unpaidCount} unpaid: tick Paid when the money arrives or at the counter.</p>}
+              {unpaidCount > 0 && (
+                <p className="mt-3 text-sm text-amber-200">
+                  {unpaidCount} unpaid: mark them paid when the money arrives or at the counter.{" "}
+                  <span className="text-muted">Totals are what the app showed the customer, so check the amount in PayPal first.</span>
+                </p>
+              )}
               {active.length === 0 ? (
                 <p className="mt-6 text-center text-sm text-muted">
-                  All caught up. New {label(current.name).toLowerCase()} appear here{alerts === "on" ? ", and this device alerts you" : ""}.
+                  All caught up. New {nameOf(current).toLowerCase()} appear here{alerts === "on" ? ", and this device alerts you" : ""}.
                 </p>
               ) : (
                 <ul aria-label={`Waiting and in progress (${active.length}), oldest first`} className="mt-4 divide-y divide-line">

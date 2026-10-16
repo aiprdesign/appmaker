@@ -48,10 +48,10 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   await expect(page.getByText("1 unpaid")).toBeVisible();
   await expect(page.getByText(/To collect \$24/)).toBeVisible();
   await expect(page.getByText("Unpaid", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Order total \$24: check the amount/)).toBeVisible();
-  await page.getByLabel("Paid").click();
+  await expect(page.getByText(/check the amount in PayPal first/)).toBeVisible();
+  await page.getByRole("button", { name: "Mark paid · $24" }).click();
   await expect(page.getByText("Unpaid", { exact: true })).toHaveCount(0);
-  await expect(page.getByLabel("Paid")).toBeChecked();
+  await expect(page.getByRole("button", { name: "Paid ✓" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText(/Paid \$24/)).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { spoken: string[] }).spoken)).toContain("You have a new order");
 
@@ -66,6 +66,7 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
 
   // Move it on: the customer sees the status.
   await expect(page.getByText("Just now")).toBeVisible();
+  await page.getByText("Other status").first().click();
   await page.getByLabel("Status").selectOption("ready");
   await expect
     .poll(async () => (await (await page.request.get(`${store.apiUrl}?collection=orders`, { headers: { "x-device": device } })).json()).items[0].status)
