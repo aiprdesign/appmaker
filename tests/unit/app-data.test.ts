@@ -368,7 +368,7 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
       );
       const { item } = await res.json();
       expect(item.ref).toMatch(/^[0-9A-F]{4}$/);
-      await vi.waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ to: "ExponentPushToken[staffPhone123456]", title: `New order #${item.ref}`, body: "Ana · 555 · 2 Margherita" })));
+      await vi.waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ to: "ExponentPushToken[staffPhone123456]", title: `You have a new order (#${item.ref})`, body: "Ana · 555 · 2 Margherita" })));
       await ownerPost(owner({ action: "status", collection: "orders", id: item.id, status: "ready" }), ctx(store.id));
       await vi.waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ to: "ExponentPushToken[customerAna12345]", body: `Your order #${item.ref} is now ready.` })));
     } finally {

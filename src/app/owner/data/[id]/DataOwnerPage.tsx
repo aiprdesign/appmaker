@@ -27,25 +27,47 @@ interface View {
   collections: Collection[];
 }
 
-/** A short two-note chime (no sound file needed). */
-function chime() {
+/** A bell: two strikes of a bell-like tone (no sound file needed). */
+function bell() {
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctx();
-    [880, 1320].forEach((f, i) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.18);
-      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + i * 0.18 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.35);
-      o.connect(g).connect(ctx.destination);
-      o.start(ctx.currentTime + i * 0.18);
-      o.stop(ctx.currentTime + i * 0.18 + 0.4);
+    // A bell's overtones aren't whole multiples of its note: that's what makes it ring rather than beep.
+    const partials: [number, number][] = [[1, 0.5], [2, 0.25], [2.76, 0.18], [5.4, 0.08], [8.93, 0.04]];
+    [0, 0.55].forEach((at) => {
+      for (const [ratio, level] of partials) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = 660 * ratio;
+        const t = ctx.currentTime + at;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(level, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6 / Math.sqrt(ratio));
+        o.connect(g).connect(ctx.destination);
+        o.start(t);
+        o.stop(t + 1.7);
+      }
     });
-    setTimeout(() => void ctx.close(), 1200);
+    setTimeout(() => void ctx.close(), 2600);
   } catch {
     // No sound on this browser: the banner and title still show.
+  }
+}
+
+/** Says it out loud after the bell: "You have a new order" (or "3 new orders"). */
+function announce(count: number, noun: string) {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    const text = count === 1 ? `You have a new ${noun}` : `You have ${count} new ${noun}s`;
+    setTimeout(() => {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.95;
+      window.speechSynthesis.speak(u);
+    }, 1300);
+  } catch {
+    // No voice on this browser: the bell still rings.
   }
 }
 
@@ -150,14 +172,16 @@ export function DataOwnerPage({ id }: { id: string }) {
       const sig = v.collections.map((c) => c.items.map((i) => `${i.id}:${i.status ?? ""}:${String(i.updatedAt ?? "")}`).join(",")).join("|");
       const changed = sig !== lastSig.current;
       lastSig.current = sig;
-      // New orders and requests since the last look: chime, banner and a count in the tab title.
+      // New orders and requests since the last look: bell, spoken alert, banner and a count in the tab title.
       const inbox = v.collections.filter((c) => c.access === "inbox").flatMap((c) => c.items.map((i) => i.id));
       if (seen.current) {
         const added = inbox.filter((i) => !seen.current!.has(i));
         if (added.length) {
           setFresh((n) => n + added.length);
           setFreshIds((f) => [...f, ...added]);
-          chime();
+          bell();
+          const inboxName = v.collections.find((c) => c.access === "inbox" && c.items.some((i) => added.includes(i.id)))?.name ?? "orders";
+          announce(added.length, inboxName.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/ies$/, "y").replace(/s$/, "").toLowerCase());
         }
       }
       seen.current = new Set(inbox);
@@ -308,7 +332,11 @@ export function DataOwnerPage({ id }: { id: string }) {
   const turnOnAlerts = async () => {
     setBusy("alerts");
     try {
-      chime(); // also lets the browser play the chime later
+      bell(); // also lets the browser play the bell later
+      // Phones only let a page speak after a tap: a silent word now unlocks "You have a new order" later.
+      try {
+        window.speechSynthesis?.speak(Object.assign(new SpeechSynthesisUtterance(" "), { volume: 0 }));
+      } catch {}
       if (alerts === "unsupported" || !view?.vapidKey) throw new Error("This browser can't show alerts. On iPhone, add this page to your Home Screen first (Share → Add to Home Screen), then open it from there.");
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
@@ -511,7 +539,7 @@ export function DataOwnerPage({ id }: { id: string }) {
             <span className="font-medium">Put this on your Home Screen</span>
             <span className="block text-muted">
               {install
-                ? "It opens like an app, full screen, and rings with a chime and an alert for every new order."
+                ? "It opens like an app, full screen, and rings a bell and says “You have a new order” for every new order."
                 : "Tap Share (the square with an arrow), then Add to Home Screen. Open it from there and turn on Alerts to hear every new order."}
             </span>
           </p>
@@ -684,19 +712,24 @@ export function DataOwnerPage({ id }: { id: string }) {
           {alerts === "on" ? (
             <>
               <p className="text-emerald-300">On: you&apos;ll get an alert for every new order or request, even with this page closed.</p>
-              <button onClick={() => chime()} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3">
+              <button
+                onClick={() => {
+                  bell();
+                  announce(1, "order");
+                }}
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3">
                 <Volume2 className="h-4 w-4" aria-hidden /> Play test sound
               </button>
             </>
           ) : alerts === "blocked" ? (
-            <p className="text-amber-200">Alerts are blocked for this page. Allow notifications for this site in your browser settings, then reload. While the page is open, a chime still plays.</p>
+            <p className="text-amber-200">Alerts are blocked for this page. Allow notifications for this site in your browser settings, then reload. While the page is open, the bell still rings.</p>
           ) : alerts === "unsupported" ? (
             <p className="text-muted">
-              {ios ? "On iPhone and iPad, add this page to your Home Screen (Share → Add to Home Screen) and open it from there to get alerts." : "This browser can't show alerts. While the page is open, a chime plays for new orders."}
+              {ios ? "On iPhone and iPad, add this page to your Home Screen (Share → Add to Home Screen) and open it from there to get alerts." : "This browser can't show alerts. While the page is open, a bell rings and it says “You have a new order”."}
             </p>
           ) : (
             <>
-              <p className="text-muted">Get an alert for every new order or request, even when this page is closed. While it&apos;s open, a chime plays.</p>
+              <p className="text-muted">Get an alert for every new order or request, even when this page is closed. While it&apos;s open, a bell rings and it says “You have a new order”.</p>
               {ios && <p className="text-muted">On iPhone and iPad, add this page to your Home Screen first (Share → Add to Home Screen).</p>}
               <button onClick={() => void turnOnAlerts()} disabled={!!busy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-emerald-400 px-3 font-medium text-black disabled:opacity-50">
                 {busy === "alerts" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <BellRing className="h-4 w-4" aria-hidden />} Turn on alerts

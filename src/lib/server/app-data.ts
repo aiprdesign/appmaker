@@ -277,7 +277,7 @@ export async function addItem(store: DataStore, collection: string, device: stri
   bump(store.id, collection);
   // The business hears about every new order, request or sign-up straight away.
   if (access === "inbox") {
-    void alertOwner(store.id, `New ${singular(collection)} #${item.ref}`, summary(store, collection, data) || `${store.name || "Your app"}: open the owner page to see it.`, `/owner/data/${store.id}`).catch(() => undefined);
+    void alertOwner(store.id, `You have a new ${singular(collection)} (#${item.ref})`, summary(store, collection, data) || `${store.name || "Your app"}: open the owner page to see it.`, `/owner/data/${store.id}`).catch(() => undefined);
   }
   return item;
 }
