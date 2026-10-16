@@ -55,21 +55,35 @@ function bell() {
   }
 }
 
-/** Says it out loud after the bell: "You have a new order" (or "3 new orders"). */
-function announce(count: number, noun: string) {
+/** Says something out loud (queued after anything already being said). */
+function say(text: string, delay = 0) {
   try {
     if (!("speechSynthesis" in window)) return;
-    const text = count === 1 ? `You have a new ${noun}` : `You have ${count} new ${noun}s`;
     setTimeout(() => {
-      window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.rate = 0.95;
       window.speechSynthesis.speak(u);
-    }, 1300);
+    }, delay);
   } catch {
-    // No voice on this browser: the bell still rings.
+    // No voice on this browser: the bell and banner still show.
   }
 }
+
+/** "You have a new order" (or "3 new orders"), after the bell has rung. */
+function announce(count: number, noun: string, delay = 1300) {
+  say(count === 1 ? `You have a new ${noun}` : `You have ${count} new ${noun}s`, delay);
+}
+
+const singular = (name: string) => name.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/ies$/, "y").replace(/s$/, "").toLowerCase();
+
+/** What this device plays: the bell, the spoken new-order alert, and spoken status changes (each can be turned off). */
+type Sounds = { bell: boolean; newVoice: boolean; statusVoice: boolean };
+const SOUNDS: Sounds = { bell: true, newVoice: true, statusVoice: true };
+const SOUNDS_KEY = "appmaker:owner-sounds";
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const statusMap = (v: { collections: { access: string; items: Item[] }[] }) =>
+  new Map(v.collections.filter((c) => c.access === "inbox").flatMap((c) => c.items.filter((i) => i.status).map((i) => [i.id, String(i.status)] as [string, string])));
 
 const urlKey = (b64: string) => {
   const s = atob(b64.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (b64.length % 4)) % 4));
@@ -164,6 +178,10 @@ export function DataOwnerPage({ id }: { id: string }) {
   );
 
   const lastSig = useRef("");
+  const [sounds, setSounds] = useState<Sounds>(SOUNDS);
+  const soundsRef = useRef<Sounds>(SOUNDS);
+  // Each order's last known status: a change made elsewhere (staff, the customer cancelling) is read out.
+  const statuses = useRef<Map<string, string> | null>(null);
   const alertsRef = useRef(false);
   /** Loads everything; says whether anything changed since the last look. */
   const load = useCallback(async (): Promise<boolean> => {
@@ -179,11 +197,21 @@ export function DataOwnerPage({ id }: { id: string }) {
         if (added.length) {
           setFresh((n) => n + added.length);
           setFreshIds((f) => [...f, ...added]);
-          bell();
+          const on = soundsRef.current;
+          if (on.bell) bell();
           const inboxName = v.collections.find((c) => c.access === "inbox" && c.items.some((i) => added.includes(i.id)))?.name ?? "orders";
-          announce(added.length, inboxName.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/ies$/, "y").replace(/s$/, "").toLowerCase());
+          if (on.newVoice) announce(added.length, singular(inboxName), on.bell ? 1300 : 0);
         }
       }
+      if (statuses.current && soundsRef.current.statusVoice) {
+        for (const c of v.collections.filter((c) => c.access === "inbox")) {
+          for (const i of c.items) {
+            const was = statuses.current.get(i.id);
+            if (was && i.status && was !== i.status) say(`${cap(singular(c.name))}${i.ref ? " " + String(i.ref) : ""} is now ${String(i.status).replace(/[-_]/g, " ")}`, 1500);
+          }
+        }
+      }
+      statuses.current = statusMap(v);
       seen.current = new Set(inbox);
       v.collections.sort((a, b) => ORDER[a.access] - ORDER[b.access]);
       setView(v);
@@ -278,6 +306,30 @@ export function DataOwnerPage({ id }: { id: string }) {
   useEffect(() => {
     alertsRef.current = alerts === "on";
   }, [alerts]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        const saved = { ...SOUNDS, ...JSON.parse(localStorage.getItem(SOUNDS_KEY) ?? "{}") };
+        soundsRef.current = saved;
+        setSounds(saved);
+      } catch {}
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  const setSound = (name: keyof Sounds, on: boolean) => {
+    const next = { ...soundsRef.current, [name]: on };
+    soundsRef.current = next;
+    setSounds(next);
+    try {
+      localStorage.setItem(SOUNDS_KEY, JSON.stringify(next));
+    } catch {}
+    if (on) {
+      if (name === "bell") bell();
+      else say(name === "newVoice" ? "You have a new order" : "Order 12 is now ready");
+    }
+  };
 
   useEffect(() => {
     const base = view?.name ? `${view.name}: app data` : "App data";
@@ -375,6 +427,8 @@ export function DataOwnerPage({ id }: { id: string }) {
     setBusy(what);
     try {
       const v = await call("POST", body);
+      // Changes made here aren't read back out.
+      statuses.current = statusMap(v);
       v.collections.sort((a, b) => ORDER[a.access] - ORDER[b.access]);
       setView(v);
       setError("");
@@ -736,6 +790,23 @@ export function DataOwnerPage({ id }: { id: string }) {
               </button>
             </>
           )}
+          <fieldset className="space-y-1 pt-2">
+            <legend className="flex items-center gap-1.5 font-semibold">
+              <Volume2 className="h-4 w-4" aria-hidden /> Sounds while this page is open
+            </legend>
+            {(
+              [
+                ["bell", "Bell for new orders"],
+                ["newVoice", "Say “You have a new order”"],
+                ["statusVoice", "Say when an order moves on (e.g. “Order 12 is now ready”)"],
+              ] as [keyof Sounds, string][]
+            ).map(([name, text]) => (
+              <label key={name} className="flex min-h-10 items-center gap-3">
+                <input type="checkbox" checked={sounds[name]} onChange={(e) => setSound(name, e.target.checked)} className="h-5 w-5 accent-emerald-400" />
+                {text}
+              </label>
+            ))}
+          </fieldset>
         </div>
         <form
           className="space-y-2 text-sm"

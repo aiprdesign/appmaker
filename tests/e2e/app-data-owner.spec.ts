@@ -11,6 +11,12 @@ const RULES = {
 
 test("the owner page chimes and counts new orders, moves them on and sets the staff PIN", async ({ browser }) => {
   const ctx = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": "10.67.0.1" } });
+  // Records what the page says out loud.
+  await ctx.addInitScript(() => {
+    const w = window as unknown as { spoken: string[] };
+    w.spoken = [];
+    window.speechSynthesis.speak = (u: SpeechSynthesisUtterance) => void w.spoken.push(u.text);
+  });
   const page = await ctx.newPage();
   await page.goto("/");
   const email = `owner-${Date.now()}@appdata.example.com`;
@@ -31,10 +37,19 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   // No Refresh: the live connection brings it (the backup check is 30 seconds away).
   await expect(page.getByRole("status").filter({ hasText: "1 new since you last looked" })).toBeVisible({ timeout: 10_000 });
   await expect(page).toHaveTitle(/^\(1\) New · Luigi's: app data/);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { spoken: string[] }).spoken)).toContain("You have a new order");
+
+  // Staff move it on from another device: this page reads it out.
+  const other = await ctx.newPage();
+  await other.goto(store.ownerUrl);
+  await other.getByRole("button", { name: "Mark as preparing" }).click();
+  await expect(other.getByLabel("Status")).toHaveValue("preparing");
+  await other.close();
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { spoken: string[] }).spoken.join("|"))).toMatch(/Order \S+ is now preparing/);
 
   // Move it on: the customer sees the status.
   await expect(page.getByText("Just now")).toBeVisible();
-  await page.getByRole("button", { name: "Mark as preparing" }).click();
   await page.getByLabel("Status").selectOption("ready");
   await expect
     .poll(async () => (await (await page.request.get(`${store.apiUrl}?collection=orders`, { headers: { "x-device": device } })).json()).items[0].status)
