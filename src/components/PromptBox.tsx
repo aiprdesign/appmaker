@@ -281,12 +281,13 @@ export function PromptBox() {
           );
         })}
       </div>
+      <div className="hero-halo">
       <form
         onSubmit={(e) => {
           e.preventDefault();
           start();
         }}
-        className="gradient-border gradient-border-live rounded-2xl p-3 shadow-2xl shadow-violet-900/30 focus-within:ring-2 focus-within:ring-violet-400/70"
+        className="gradient-border gradient-border-live hero-glow rounded-2xl p-3 shadow-2xl shadow-violet-900/30 focus-within:ring-2 focus-within:ring-violet-400/70"
       >
         {site && (
           <div className="mb-2">
@@ -441,13 +442,15 @@ export function PromptBox() {
           <button
             type="submit"
             disabled={(!value.trim() && !site) || busy || importing || tooLong}
-            className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-pink-500 text-white transition disabled:opacity-40"
+            data-ready={(!!value.trim() || !!site) && !busy && !importing && !tooLong}
+            className="send-live grid h-9 w-9 place-items-center rounded-xl text-white disabled:opacity-40"
             aria-label="Build app"
           >
             <ArrowUp className="h-4 w-4" />
           </button>
         </div>
       </form>
+      </div>
       {brief && <AppBrief prompt={value.trim()} onBuild={(answers) => build(value.trim(), answers)} onCancel={() => setBrief(false)} />}
       {aiReady === false && (
         <p className="mt-3 text-center text-xs text-amber-200/90">
