@@ -236,6 +236,48 @@ function Confetti({ fire }) {
   );
 }
 
+/** One step on the tracker: its check springs in (one after another) the moment the step is done. */
+function StepDot({ s, i, done, now, pulse }) {
+  const t = useRef(new Animated.Value(done || now ? 1 : 0)).current;
+  const was = useRef(done);
+  useEffect(() => {
+    if (done === was.current) return;
+    was.current = done;
+    if (reduced) return t.setValue(1);
+    t.setValue(0.3);
+    Animated.spring(t, { toValue: 1, friction: 4, tension: 140, delay: 250 + i * 90, useNativeDriver: true }).start();
+  }, [done]);
+  const on = done || now;
+  return (
+    <View style={styles.dotWrap}>
+      {now && (
+        <Animated.View
+          style={[
+            styles.ring,
+            { borderColor: colors.primary, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.1] }) }] },
+          ]}
+        />
+      )}
+      <Animated.View style={[styles.dot, { backgroundColor: on ? colors.primary : colors.surface, borderColor: on ? colors.primary : colors.border, transform: [{ scale: t }] }, now && styles.dotGlow, now && { shadowColor: colors.primary }]}>
+        {done ? <Icons.Check size={16} color={colors.onPrimary} strokeWidth={3} /> : <Icon name={s.icon} size={16} color={now ? colors.onPrimary : colors.muted} />}
+      </Animated.View>
+    </View>
+  );
+}
+
+/** A soft glow in the app's colors that drifts slowly behind the tracker while the order is under way. */
+function Aurora({ drift }) {
+  const x = drift.interpolate({ inputRange: [0, 1], outputRange: [-40, 60] });
+  const y = drift.interpolate({ inputRange: [0, 1], outputRange: [-20, 10] });
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius.lg, overflow: 'hidden' }]}>
+      <Animated.View style={[styles.blob, { opacity: 0.14, transform: [{ translateX: x }, { translateY: y }] }]}>
+        <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { borderRadius: 999 }]} />
+      </Animated.View>
+    </View>
+  );
+}
+
 /**
  * The live tracker, like the best ordering apps: the stage in big words with its own icon,
  * every step on a track that fills (with a light sweeping along it) as the business moves it on,
@@ -251,6 +293,8 @@ export function Tracker({ item, info, title }) {
   const pop = useRef(new Animated.Value(1)).current;
   const bob = useRef(new Animated.Value(0)).current;
   const sweep = useRef(new Animated.Value(0)).current;
+  const spin = useRef(new Animated.Value(0)).current;
+  const drift = useRef(new Animated.Value(0)).current;
   const [track, setTrack] = useState(0);
   const [fire, setFire] = useState(0);
   const first = useRef(true);
@@ -270,8 +314,15 @@ export function Tracker({ item, info, title }) {
     first.current = false;
   }, [at]);
   useEffect(() => {
-    if (info.done) return undefined;
+    if (info.done || reduced) return undefined;
     const loops = [
+      Animated.loop(Animated.timing(spin, { toValue: 1, duration: 1400, easing: Easing.linear, useNativeDriver: true })),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(drift, { toValue: 1, duration: 4000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(drift, { toValue: 0, duration: 4000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]),
+      ),
       Animated.loop(Animated.timing(pulse, { toValue: 1, duration: 1300, easing: Easing.out(Easing.quad), useNativeDriver: true })),
       Animated.loop(
         Animated.sequence([
@@ -297,12 +348,22 @@ export function Tracker({ item, info, title }) {
   }
   return (
     <View style={[card, styles.tracker]} accessibilityLabel={title + ': ' + stage.label + '. Step ' + (at + 1) + ' of ' + stages.length + '.'}>
+      {!info.done && <Aurora drift={drift} />}
       <View style={styles.row}>
         <Text style={[label, styles.flex, { color: colors.muted }]}>{title}{item.ref ? ' · #' + item.ref : ''}</Text>
         {!info.done && <LiveDot />}
       </View>
       <View style={styles.row}>
         <View>
+          {!info.done && (
+            <Animated.View
+              style={[
+                styles.spinner,
+                { borderTopColor: colors.primary, borderRightColor: colors.primarySoft, transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] },
+              ]}
+            />
+          )}
+          {info.done && <View style={[styles.spinner, { borderColor: colors.success, opacity: 0.5 }]} />}
           <Animated.View
             style={[
               styles.bigIcon,
@@ -331,24 +392,18 @@ export function Tracker({ item, info, title }) {
             )}
           </Animated.View>
         </View>
+        {!info.done && track > 0 && at < last && (
+          <Animated.View pointerEvents="none" style={[styles.comet, { transform: [{ translateX: fill.interpolate({ inputRange: [0, 1], outputRange: [0, track] }) }] }]}>
+            <Animated.View style={[styles.cometGlow, { backgroundColor: colors.primary, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }] }]} />
+            <View style={[styles.cometCore, { backgroundColor: colors.onPrimary, borderColor: colors.primary }]} />
+          </Animated.View>
+        )}
         {stages.map((s, i) => {
           const done = i < at || (info.done && i === at);
           const now = i === at && !info.done;
           return (
             <View key={s.status} style={styles.step}>
-              <View style={styles.dotWrap}>
-                {now && (
-                  <Animated.View
-                    style={[
-                      styles.ring,
-                      { borderColor: colors.primary, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.1] }) }] },
-                    ]}
-                  />
-                )}
-                <View style={[styles.dot, { backgroundColor: done || now ? colors.primary : colors.surface, borderColor: done || now ? colors.primary : colors.border }]}>
-                  {done ? <Icons.Check size={16} color={colors.onPrimary} strokeWidth={3} /> : <Icon name={s.icon} size={16} color={now ? colors.onPrimary : colors.muted} />}
-                </View>
-              </View>
+              <StepDot s={s} i={i} done={done} now={now} pulse={pulse} />
               <Text numberOfLines={2} style={[styles.stepText, { color: i <= at ? colors.text : colors.muted, fontWeight: now ? '700' : '500' }]}>{s.label}</Text>
             </View>
           );
@@ -392,6 +447,12 @@ const styles = StyleSheet.create({
   piece: { position: 'absolute', width: 6, height: 12, borderRadius: 2 },
   dotPiece: { position: 'absolute', width: 8, height: 8, borderRadius: 999 },
   sweep: { position: 'absolute', top: 0, bottom: 0, width: 64 },
+  spinner: { position: 'absolute', left: -6, top: -6, width: 68, height: 68, borderRadius: 999, borderWidth: 2.5, borderColor: 'transparent' },
+  blob: { position: 'absolute', right: -60, top: -80, width: 240, height: 240 },
+  comet: { position: 'absolute', left: 32 - 9, top: 13 + 4 - 9, width: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
+  cometGlow: { position: 'absolute', width: 18, height: 18, borderRadius: 999, opacity: 0.3 },
+  cometCore: { width: 10, height: 10, borderRadius: 999, borderWidth: 2 },
+  dotGlow: { shadowOpacity: 0.45, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
   stage: { fontSize: 22 },
   note: { fontSize: 13, marginTop: 4 },
   steps: { flexDirection: 'row', justifyContent: 'space-between' },
