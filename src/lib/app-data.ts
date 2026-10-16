@@ -195,7 +195,11 @@ function device() {
       if (id) return id;
       let next = '';
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      for (let i = 0; i < 32; i++) next += chars[Math.floor(Math.random() * chars.length)];
+      // This id is the only key to the customer's own orders: use the phone's secure random numbers where it has them.
+      const bytes = new Uint8Array(32);
+      if (global.crypto && global.crypto.getRandomValues) global.crypto.getRandomValues(bytes);
+      else for (let i = 0; i < 32; i++) bytes[i] = Math.floor(Math.random() * 256);
+      for (let i = 0; i < 32; i++) next += chars[bytes[i] % chars.length];
       await AsyncStorage.setItem('appdata:device', next);
       return next;
     });

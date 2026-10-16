@@ -306,6 +306,12 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     const { purge, getStore } = await import("@/lib/server/app-data");
     await purge((await getStore(store.id))!, true);
     expect((await (await appGet(app("GET", undefined, ANA, "?collection=orders"), ctx(store.id))).json()).items.map((o: { id: string }) => o.id)).not.toContain(order.id);
+    // Apps nobody opens are cleaned up too: the hourly sweep finds old finished orders in any app.
+    const stale = await (await appPost(app("POST", { collection: "orders", data: { name: "Cy", items: "1 Margherita" } }, ANA), ctx(store.id))).json();
+    await query("update app_data_records set status = 'ready', updated_at = now() - interval '91 days' where id = $1", [stale.item?.id ?? stale.id]);
+    const { purgeAll } = await import("@/lib/server/app-data");
+    await purgeAll(true);
+    expect((await query("select id from app_data_records where id = $1", [stale.item?.id ?? stale.id])).length).toBe(0);
 
     // Public data needs no device and can be cached; unchanged data gets a tiny 304.
     const first = await appGet(req(`/api/appdata/${store.id}?collection=menu`, "GET"), ctx(store.id));

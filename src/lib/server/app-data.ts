@@ -56,6 +56,7 @@ function toItem(r: RecordRow, device: string | null, access: Access): DataItem {
 
 export async function getStore(id: string): Promise<DataStore | null> {
   if (!STORE_ID.test(id)) return null;
+  void purgeAll().catch(() => undefined);
   const rows = await query<StoreRow>("select * from app_data_stores where id = $1", [id]);
   return rows[0] ? toStore(rows[0]) : null;
 }
@@ -186,6 +187,25 @@ export async function purge(store: DataStore, force = false): Promise<void> {
       [store.id, collection, done, KEEP_DONE_DAYS, KEEP_ANY_DAYS],
     );
     if (gone.length) bump(store.id, collection);
+  }
+}
+
+let lastPurgeAll = 0;
+/**
+ * Apps nobody opens any more are cleaned up too: about once an hour, every app with orders or requests
+ * past their keeping time is purged, so customers' details never sit around forgotten.
+ */
+export async function purgeAll(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - lastPurgeAll < 60 * 60 * 1000) return;
+  lastPurgeAll = now;
+  const rows = await query<{ store_id: string }>(
+    "select distinct store_id from app_data_records where status <> '' and updated_at < now() - make_interval(days => $1) limit 500",
+    [KEEP_DONE_DAYS],
+  );
+  for (const { store_id } of rows) {
+    const store = await getStore(store_id);
+    if (store) await purge(store, true);
   }
 }
 
