@@ -46,11 +46,13 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   await expect(page.getByText("+1 555 0199")).toBeVisible();
   // Unpaid orders stand out; the total is the customer's, so it's checked before ticking Paid.
   await expect(page.getByText("1 unpaid")).toBeVisible();
+  await expect(page.getByText(/To collect \$24/)).toBeVisible();
   await expect(page.getByText("Unpaid", { exact: true })).toBeVisible();
   await expect(page.getByText(/Order total \$24: check the amount/)).toBeVisible();
   await page.getByLabel("Paid").click();
   await expect(page.getByText("Unpaid", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Paid")).toBeChecked();
+  await expect(page.getByText(/Paid \$24/)).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { spoken: string[] }).spoken)).toContain("You have a new order");
 
   // Staff move it on from another device: this page reads it out.

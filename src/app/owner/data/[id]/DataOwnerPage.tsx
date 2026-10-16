@@ -118,6 +118,14 @@ const last4 = (v: unknown) => {
   const d = String(v ?? "").replace(/\D/g, "");
   return d.length >= 4 ? d.slice(-4) : "";
 };
+/** "$26.50", "26,50 €" → 26.5 (0 when there's no plain amount). */
+const money = (v: unknown) => {
+  let t = String(v ?? "").replace(/[^0-9.,]/g, "");
+  t = /,\d{2}$/.test(t) ? t.replace(/\./g, "").replace(",", ".") : t.replace(/,/g, "");
+  const n = Number(t);
+  return Number.isFinite(n) ? n : 0;
+};
+
 /** An order the customer could pay for in the app (it has a total) that isn't marked paid yet. */
 const unpaid = (c: { statuses?: string[] }, item: { total?: unknown; paid?: unknown; status?: string }) =>
   !!item.total && item.paid !== "yes" && !!c.statuses && !/^cancel/i.test(item.status ?? "");
@@ -487,6 +495,12 @@ export function DataOwnerPage({ id }: { id: string }) {
   const inbox = current?.access === "inbox" ? current : null;
   const active = inbox ? inbox.items.filter((i) => !isDone(i.status, inbox.statuses)).sort((a, b) => a.createdAt - b.createdAt) : [];
   const unpaidCount = inbox ? active.filter((i) => unpaid(inbox, i)).length : 0;
+  // Today at a glance, like a till: orders, what's been paid, what's still to collect.
+  const today = inbox ? inbox.items.filter((i) => new Date(i.createdAt).toDateString() === new Date().toDateString() && !/^cancel/i.test(i.status ?? "")) : [];
+  const sign = String(today.find((i) => i.total)?.total ?? "").replace(/[\d.,\s]/g, "") || "$";
+  const sum = (list: Item[]) => list.reduce((n, i) => n + money(i.total), 0);
+  const paidToday = sum(today.filter((i) => i.paid === "yes"));
+  const dueToday = sum(today.filter((i) => i.paid !== "yes"));
   const done = inbox ? inbox.items.filter((i) => isDone(i.status, inbox.statuses)) : [];
   const seenNew = () => {
     setFresh(0);
@@ -712,6 +726,25 @@ export function DataOwnerPage({ id }: { id: string }) {
             <p className="mt-4 text-sm text-muted">{current.count} saved by people using the app.</p>
           ) : inbox ? (
             <>
+              {today.length > 0 && (
+                <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-line bg-surface-2/40 px-3 py-2 text-sm">
+                  <span>
+                    Today: <strong>{today.length}</strong> {today.length === 1 ? "order" : "orders"}
+                  </span>
+                  {paidToday > 0 && (
+                    <span className="text-emerald-300">
+                      Paid {sign}
+                      {paidToday.toFixed(2).replace(/\.00$/, "")}
+                    </span>
+                  )}
+                  {dueToday > 0 && (
+                    <span className="text-amber-200">
+                      To collect {sign}
+                      {dueToday.toFixed(2).replace(/\.00$/, "")}
+                    </span>
+                  )}
+                </p>
+              )}
               {unpaidCount > 0 && <p className="mt-3 text-sm text-amber-200">{unpaidCount} unpaid: tick Paid when the money arrives or at the counter.</p>}
               {active.length === 0 ? (
                 <p className="mt-6 text-center text-sm text-muted">

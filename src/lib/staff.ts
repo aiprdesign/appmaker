@@ -17,7 +17,7 @@ export function staffModule(apiUrl: string | null): string {
   return `// Staff mode: written by Appmaker — don't change this file.
 // Screens show it with: <StaffScreen onClose={() => …} />
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, Vibration, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, Vibration, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { ArrowRight, Bell, ChevronDown, ChevronLeft, Inbox, KeyRound, LogOut, Phone, Plus, Trash2 } from 'lucide-react-native';
@@ -203,10 +203,21 @@ function Order({ collection, item, busy, act, fresh }) {
         </Pressable>
       ) : null}
       {statuses.length > 0 && (
-        <Pressable disabled={busy} onPress={() => act({ action: 'paid', collection: collection.name, id: item.id, paid: item.paid !== 'yes' })} accessibilityRole="switch" accessibilityState={{ checked: item.paid === 'yes' }} style={({ pressed }) => [styles.moreToggle, pressed && styles.pressed]}>
-          <Text style={[styles.moreText, item.paid === 'yes' && { color: colors.success }]}>{item.paid === 'yes' ? '✓ Paid' : 'Mark as paid'}{item.total ? ' · ' + item.total : ''}</Text>
-        </Pressable>
+        <View style={styles.paidRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.itemTitle, { fontSize: 16 }, item.paid === 'yes' && { color: colors.success }]}>{item.paid === 'yes' ? 'Paid' : 'Not paid yet'}</Text>
+            {!!item.total && item.paid !== 'yes' && <Text style={styles.small}>Order total {item.total}: check it in PayPal first</Text>}
+          </View>
+          <Switch
+            value={item.paid === 'yes'}
+            disabled={busy}
+            onValueChange={(on) => act({ action: 'paid', collection: collection.name, id: item.id, paid: on })}
+            accessibilityLabel="Paid"
+            trackColor={{ true: colors.success, false: colors.border }}
+          />
+        </View>
       )}
+      {item.paid === 'yes' && /^cancel/i.test(item.status || '') && <Text style={[styles.small, { color: colors.danger }]}>Cancelled after paying: refund it in PayPal (or your payment app).</Text>}
       <Pressable onPress={() => setMore(!more)} accessibilityRole="button" accessibilityState={{ expanded: more }} style={({ pressed }) => [styles.moreToggle, pressed && styles.pressed]}>
         <Text style={styles.moreText}>Other status</Text>
         <ChevronDown size={16} color={colors.muted} style={more ? { transform: [{ rotate: '180deg' }] } : null} accessible={false} />
@@ -580,6 +591,7 @@ const styles = StyleSheet.create({
   phoneText: { fontSize: 15, fontWeight: '600', color: colors.primary, textDecorationLine: 'underline' },
   nextButton: { flexDirection: 'row', gap: 8 },
   moreToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, alignSelf: 'flex-start' },
+  paidRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 4 },
   moreText: { fontSize: 15, color: colors.muted, fontWeight: '600' },
   alertButton: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   alertText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },

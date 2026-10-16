@@ -136,6 +136,8 @@ describe("online payment link", () => {
   it("puts the link in the app's business details", () => {
     const preset = READY_PRESETS["pizza-takeaway"];
     expect(businessModule(preset, { ...preset.sample, payLink: "paypal.me/tonys" })).toContain('"payLink": "https://paypal.me/tonys"');
+    expect(businessModule(preset, { ...preset.sample, payLink: "paypal.me/tonys" })).toContain('"payWhen": "now"');
+    expect(businessModule(preset, { ...preset.sample, payLink: "paypal.me/tonys", payWhen: "accepted" })).toContain('"payWhen": "accepted"');
     // The app's payment code is written into the app exactly as tested here.
     expect(readyAppFiles(preset, { ...preset.sample, payLink: "paypal.me/tonys" }, readyDesign(preset.sample, "x"))["src/actions.js"]).toContain(PAY_URL_JS);
   });

@@ -35,6 +35,8 @@ export interface ReadyInfo {
   items: ReadyItem[];
   /** Where customers can pay online (PayPal.me, a Stripe or Square payment link…); empty: pay in person. */
   payLink?: string;
+  /** "now": customers can pay as soon as they order; "accepted": once the business accepts it (fewer refunds). */
+  payWhen?: "now" | "accepted";
 }
 
 /** How customers reach the business: an order to collect, a booking, or a quote request. */
@@ -468,6 +470,7 @@ export function businessModule(preset: ReadyPreset, info: ReadyInfo, rules?: Dat
     email: info.email.trim(),
     address: info.address.trim(),
     payLink: safePayLink(info.payLink),
+    payWhen: info.payWhen === "accepted" ? "accepted" : "now",
     hours: info.hours
       .split("\n")
       .map((l) => l.trim())

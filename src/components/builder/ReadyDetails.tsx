@@ -288,6 +288,29 @@ export function ReadyDetails({
               <span className="mt-1 block">Already published? Customers see a new link after you publish an update.</span>
             </p>
           )}
+          {safePayLink(draft.payLink) && (
+            <div className="mt-2 space-y-2">
+              <a
+                href={safePayLink(draft.payLink)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-xs font-medium hover:border-white/20"
+              >
+                Test your link
+              </a>
+              <label className="block text-xs font-medium text-muted">
+                When can customers pay in the app?
+                <select
+                  value={draft.payWhen ?? "now"}
+                  onChange={(e) => set({ ...draft, payWhen: e.target.value === "accepted" ? "accepted" : "now" })}
+                  className={input}
+                >
+                  <option value="now">Right after ordering</option>
+                  <option value="accepted">Once I accept the order (fewer refunds)</option>
+                </select>
+              </label>
+            </div>
+          )}
         </div>
         <label className="flex items-center gap-3 text-xs font-medium text-muted">
           Brand color

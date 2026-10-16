@@ -1075,10 +1075,13 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
           return (
             <Rise key={x.id}>
               <Tracker item={x} info={s} title={title} />
-              {canPay && !s.cancelled && !x.total && !x.paid && (
+              {canPay && !s.cancelled && !x.paid && business.payWhen === 'accepted' && x.status === stages[0].status && (
+                <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>You can pay here once {business.name} accepts your {kind === 'order' ? 'order' : 'request'}, or when you collect.</Text>
+              )}
+              {canPay && !s.cancelled && !x.total && !x.paid && !(business.payWhen === 'accepted' && x.status === stages[0].status) && (
                 <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>{business.name} will tell you the price; pay when you collect.</Text>
               )}
-              {canPay && !s.cancelled && !!(x.total || x.paid) && (x.paid ? (
+              {canPay && !s.cancelled && !!(x.total || x.paid) && (x.paid || !(business.payWhen === 'accepted' && x.status === stages[0].status)) && (x.paid ? (
                 <View style={styles.paidRow}>
                   <Icons.CircleCheck size={18} color={colors.success} />
                   <Text style={[styles.body, { color: colors.success, fontWeight: '600' }]}>Paid</Text>
@@ -1097,7 +1100,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
                   <Text style={[styles.buttonText, { color: colors.onPrimary }]}>{'Pay now' + (x.total ? ' · ' + x.total : '')}</Text>
                 </Tap>
               ))}
-              {canPay && !s.cancelled && !!x.total && !x.paid && !payOpened.includes(x.id) && <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>Or pay when you collect. Add #{x.ref} to the payment note.</Text>}
+              {canPay && !s.cancelled && !!x.total && !x.paid && !payOpened.includes(x.id) && !(business.payWhen === 'accepted' && x.status === stages[0].status) && <Text style={[styles.small, styles.payNote, { color: colors.muted }]}>Or pay when you collect. Add #{x.ref} to the payment note.</Text>}
               {canPay && !s.cancelled && !!x.total && !x.paid && payOpened.includes(x.id) && (
                 <Tap onPress={() => pay(x.total, refresh, x.ref)} accessibilityRole="button" hitSlop={8} style={styles.cancel}>
                   <Text style={[styles.small, { color: colors.primary, fontWeight: '600' }]}>Open the payment page again</Text>
@@ -1210,7 +1213,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
                   {s.cancelled ? <Icons.CircleX size={20} color={colors.muted} /> : <Icons.CircleCheck size={20} color={colors.success} />}
                   <View style={styles.flex}>
                     <Text numberOfLines={2} style={[styles.body, { color: colors.text, fontWeight: '600' }]}>{x.items || x.service || x.details}</Text>
-                    <Text style={[styles.small, { color: colors.muted }]}>{s.cancelled ? 'Cancelled' : (stages.find((st) => st.status === x.status) || { label: s.label }).label}{x.ref ? ' · #' + x.ref : ''}{x.createdAt ? ' · ' + new Date(x.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''}</Text>
+                    <Text style={[styles.small, { color: colors.muted }]}>{s.cancelled ? 'Cancelled' : (stages.find((st) => st.status === x.status) || { label: s.label }).label}{x.ref ? ' · #' + x.ref : ''}{x.paid ? ' · Paid' : ''}{x.createdAt ? ' · ' + new Date(x.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''}</Text>
                   </View>
                   {!!(x.items || x.service) && (
                     <Tap onPress={() => orderAgain(x)} accessibilityRole="button" accessibilityLabel={againWord + ': ' + (x.items || x.service)} style={[styles.again, { backgroundColor: colors.primarySoft, borderRadius: radius.pill }]}>

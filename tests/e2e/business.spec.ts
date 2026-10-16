@@ -167,8 +167,9 @@ test("business templates open a working app straight away, and the owner's detai
   await phone.getByRole("button", { name: /Staff mode/ }).click();
   await expect(phone.getByText(/Try it now with orders from this phone/)).toBeVisible();
   await expect(phone.getByText("Sam").first()).toBeVisible();
-  await phone.getByRole("switch", { name: /Mark as paid/ }).click();
-  await expect(phone.getByRole("switch", { name: /✓ Paid/ })).toBeVisible();
+  await expect(phone.getByText("Not paid yet").first()).toBeVisible();
+  await phone.getByRole("switch", { name: "Paid" }).first().click();
+  await expect(phone.getByText("Paid", { exact: true }).first()).toBeVisible();
   await phone.getByRole("button", { name: "Mark as in the oven" }).click();
   await phone.getByRole("button", { name: "Mark as ready" }).click();
   await page.screenshot({ path: test.info().outputPath("staff.png") });
