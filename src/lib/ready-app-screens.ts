@@ -599,7 +599,7 @@ function Shell() {
         </Rise>
         {kind === 'order' && tab !== 'request' && <BasketBar count={count} total={total} onPress={() => setTab('request')} />}
       </View>
-      <View style={[styles.tabs, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
+      <View accessibilityRole="tablist" style={[styles.tabs, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
         {TABS.map((t) => {
           const on = tab === t.key;
           return (
@@ -696,8 +696,8 @@ export default function HomeScreen({ go, pick, reorder }) {
                 {kind === 'order' ? 'Order ahead and watch it get made, step by step.' : kind === 'booking' ? 'Pick a time that suits you; we confirm it here.' : 'Tell us what you need and get a price, fast.'}
               </Text>
               <View style={[styles.heroButton, { backgroundColor: onGradient, borderRadius: radius.md }]}>
-                <Text style={[styles.buttonText, { color: colors.primary }]}>{kind === 'order' ? 'Start your order' : words.cta}</Text>
-                <Icons.ArrowRight size={20} color={colors.primary} />
+                <Text style={[styles.buttonText, { color: gradient[0] }]}>{kind === 'order' ? 'Start your order' : words.cta}</Text>
+                <Icons.ArrowRight size={20} color={gradient[0]} />
               </View>
             </LinearGradient>
           </Tap>
@@ -1151,6 +1151,11 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
           >
             {sending ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={[styles.buttonText, { color: colors.onPrimary }]}>{words.send}{kind === 'order' && total ? ' · ' + total : ''}</Text>}
           </Tap>
+          {!ready && !sending && (
+            <Text accessibilityLiveRegion="polite" style={[styles.small, { color: colors.text, fontWeight: '600' }]}>
+              {!what && kind !== 'quote' ? 'First, choose from ' + words.items.toLowerCase() + ' above.' : !name.trim() || !phone.trim() ? 'Add your first name and phone to send.' : onSite && !address.trim() ? 'Add the address to send.' : 'Tell us what you need to send.'}
+            </Text>
+          )}
           <Text style={[styles.small, { color: colors.muted }]}>Then follow it live: {stages.map((s) => s.label).join(' → ')}.</Text>
         </View>
         )}
