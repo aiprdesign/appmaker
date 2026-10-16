@@ -58,7 +58,7 @@ export function PlanCards({ info: given }: { info?: Info }) {
       name: "Try it",
       price: "Free",
       note: "no account needed",
-      blurb: "See your idea as a real app in a minute.",
+      blurb: "See your idea as a real app.",
       items: [
         info.guestBuilds === 1 ? "1 free AI build a day" : `${info.guestBuilds} AI builds a day`,
         "Live iPhone & Android preview",

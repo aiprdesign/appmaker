@@ -65,7 +65,7 @@ function templatePage(t: Template): SeoPage | null {
   const action = preset.kind === "order" ? "order ahead" : preset.kind === "booking" ? "book" : "ask for a quote";
   return {
     path: `/apps/${slug}`,
-    title: `${cap(name)} ${noun} maker: your own app in minutes`,
+    title: `${cap(name)} ${noun} maker for iPhone & Android`,
     h1: `${cap(name)} ${noun}`,
     description: `A ready-made ${name} app for iPhone and Android: ${things}, ${preset.kind === "order" ? "orders" : "requests"} with live tracking, and a staff area. Add your details and publish.`,
     benefits: [
@@ -89,7 +89,7 @@ export const SEO_PAGES: SeoPage[] = [
     title: "No-code app builder for iPhone & Android | Appmaker",
     h1: "No-code app builder",
     description: "Describe your app in plain words and get a real iPhone and Android app you can preview at once and publish to the App Store and Google Play.",
-    benefits: ["Describe it, see it on a phone in about a minute.", "Change anything by chatting with the AI.", "Publish to the App Store and Google Play."],
+    benefits: ["Describe it, then see it on a phone.", "Change anything by chatting with the AI.", "Publish to the App Store and Google Play."],
     faq: [
       { q: "Is it a real native app?", a: "Yes: a React Native (Expo) app for iPhone and Android, not a web page in a wrapper." },
       { q: "Can I export the code?", a: "Yes. Download the whole project any time; it's yours." },
@@ -100,7 +100,7 @@ export const SEO_PAGES: SeoPage[] = [
     title: "Turn your website into an app | Appmaker",
     h1: "Turn your website into an app",
     description: "Paste your website address and get a mobile app with your content, photos, colors, menu and contact details, ready for the App Store and Google Play.",
-    benefits: ["Your content, photos and colors, read from your site.", "Ordering, booking and a staff area built in.", "Ready in seconds for most local businesses."],
+    benefits: ["Your content, photos and colors, read from your site.", "Ordering, booking and a staff area built in.", "Test it on your phone before you publish."],
     faq: [
       { q: "Does it copy my whole website?", a: "It takes what customers need on a phone: your name, menu or services, prices, hours, photos and contact." },
       { q: "What if my site changes?", a: "Turn on live updates and the app follows your website, or edit the app any time." },

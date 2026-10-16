@@ -12,7 +12,7 @@ const OPTIONS = [
     title: "Prompt to App",
     lead: "Describe any idea in plain words.",
     example: "“A habit tracker with streaks, reminders and weekly stats”",
-    points: ["Screens, features and design from one sentence", "Refine it by chatting: “add a dark mode”", "Best for new ideas, tools and personal apps"],
+    points: ["Screens and design from one sentence", "Change it by chatting", "For new ideas and personal apps"],
     cta: "Try Prompt to App",
   },
   {
@@ -22,9 +22,9 @@ const OPTIONS = [
     lead: "Paste a business website. Appmaker reads it for you.",
     example: "yourbusiness.com → your business in the App Store",
     points: [
-      "Uses the site's name, brand colors, logo and photos",
-      "Menu, services, prices and opening hours from its pages",
-      "One-tap call, directions, WhatsApp and booking buttons",
+      "Your name, colors, logo and photos",
+      "Your menu, prices and hours",
+      "Call, directions and booking buttons",
     ],
     cta: "Try URL to App",
   },
@@ -42,7 +42,7 @@ export function StartOptions() {
           {options.length > 1 ? "Two ways to make your app" : "Make your app from a prompt"}
         </h2>
         {options.length > 1 && (
-          <p className="mt-3 text-muted">Start from an idea or from a website. Try both: each one gives you a real app you can test on your phone.</p>
+          <p className="mt-3 text-muted">From an idea or from a website.</p>
         )}
       </div>
       <div className={`mt-10 grid gap-4 ${options.length > 1 ? "md:grid-cols-2" : "mx-auto max-w-xl"}`}>

@@ -20,7 +20,7 @@ export function AppMarquee() {
       <h2 id="marquee-title" className="px-4 text-center text-3xl font-semibold tracking-tight md:text-4xl">
         Apps you can make <span className="text-gradient">today</span>
       </h2>
-      <p className="mt-3 px-4 text-center text-muted">Restaurants, salons, gyms, shops, trackers and more. Hover to pause.</p>
+      <p className="mt-3 px-4 text-center text-muted">Restaurants, salons, gyms, shops and more.</p>
       <div className="marquee-mask mt-10 overflow-x-auto overflow-y-hidden pb-2 motion-safe:overflow-x-hidden">
         <div className="marquee-track">
           {row(false)}

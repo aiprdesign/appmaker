@@ -22,7 +22,7 @@ function collectErrors(page: Page) {
 test("landing page renders with no errors", async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("App Store app");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("into an app");
   await expect(page.locator("#pricing")).toBeVisible();
   expect(errors).toEqual([]);
 });

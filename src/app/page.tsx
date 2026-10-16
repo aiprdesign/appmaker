@@ -28,27 +28,27 @@ const STEPS = [
   {
     icon: MessageSquareText,
     title: "Describe it or paste a URL",
-    body: "Tell Appmaker what you want in plain English, or paste your website and it reads your brand, content and contact details. No code, no drag-and-drop.",
+    body: "Type your idea, or paste your website. No code.",
   },
   {
     icon: Smartphone,
-    title: "Watch it come alive",
-    body: "A real React Native app is written live and runs instantly in an iPhone or Android preview. Chat to refine it.",
+    title: "Try it on a phone",
+    body: "See it in an iPhone or Android preview. Ask for changes in plain words.",
   },
   {
     icon: Rocket,
-    title: "Ship to the stores",
-    body: "Get an App Store–ready listing, icon and a production Expo project with one-command builds for iOS and Android.",
+    title: "Publish",
+    body: "Get your icon, store listing and builds for the App Store and Google Play.",
   },
 ];
 
 const FEATURES = [
-  { icon: Wand2, title: "AI app engineer", body: "Multi-screen apps with navigation, persistence and real content — not mockups." },
-  { icon: Zap, title: "Instant live preview", body: "Every change runs in a device frame in under a second. Tap, type and test." },
-  { icon: Code2, title: "You own the code", body: "Clean Expo + React Native source. Edit it here or take it anywhere." },
-  { icon: Store, title: "Store listing studio", body: "Name, subtitle, keywords, description and category written for ASO." },
-  { icon: Palette, title: "Your logo as the icon", body: "Upload your logo for a store-ready 1024×1024 icon, or generate one from your brand color and an emoji." },
-  { icon: ShieldCheck, title: "Review-ready defaults", body: "Bundle IDs, privacy notes, build numbers and EAS config set up for you." },
+  { icon: Wand2, title: "Real apps", body: "Screens, navigation and saved data, not mockups." },
+  { icon: Zap, title: "Live preview", body: "Tap through every change on a phone frame." },
+  { icon: Code2, title: "Your code", body: "Download the whole project any time." },
+  { icon: Store, title: "Store listing", body: "Name, description and keywords drafted for you." },
+  { icon: Palette, title: "Your icon", body: "Use your logo, or make one from a color and an emoji." },
+  { icon: ShieldCheck, title: "Store settings", body: "App IDs, privacy notes and build numbers set up for you." },
 ];
 
 /** Phones in the showcase under the hero: template titles, widest in the middle. */
@@ -63,7 +63,7 @@ const SHOWCASE = [
 const FAQ = [
   {
     q: "Are these real native apps?",
-    a: "Yes. Appmaker writes Expo React Native code — the same stack behind apps from Microsoft, Shopify and Discord. It compiles to genuine iOS and Android binaries.",
+    a: "Yes. Appmaker writes Expo React Native code, which builds into iPhone and Android apps.",
   },
   {
     q: "How do I publish to the App Store and Google Play?",
@@ -71,11 +71,11 @@ const FAQ = [
   },
   {
     q: "Can I keep editing after the first version?",
-    a: "Absolutely. Chat with Appmaker to add screens, change the design or fix bugs. You can also edit the code by hand in the Code tab.",
+    a: "Yes. Ask for changes in the chat, or edit the code yourself.",
   },
   {
     q: "Do I need to know how to code?",
-    a: "No. But if you do, you get clean, idiomatic source code you fully own.",
+    a: "No. If you do code, the source is yours to change.",
   },
   {
     q: "Who is responsible for what's in my app?",
@@ -110,11 +110,10 @@ export default function Home() {
             URL to App: paste your website, get your app →
           </Link>
           <h1 className="mx-auto max-w-4xl text-4xl font-semibold tracking-tight md:text-7xl">
-            Turn a prompt or a website into an <span className="text-gradient text-gradient-live">App Store app</span>
+            Turn your idea or website into <span className="text-gradient text-gradient-live">an app</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-muted md:text-lg">
-            Describe your idea or paste your website. Appmaker designs and codes a native iOS &amp; Android app, lets you test it live, and
-            packages it for the App Store and Google Play.
+            For iPhone and Android. Describe it or paste your website, test it on a phone, then publish.
           </p>
           <div className="relative isolate mt-10">
             {/* A soft orb glowing behind the prompt box. */}
@@ -123,16 +122,16 @@ export default function Home() {
           </div>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs text-muted">
             <span className="flex items-center gap-1.5">
-              <Apple className="h-4 w-4" /> App Store ready
+              <Apple className="h-4 w-4" /> For the App Store
             </span>
             <span className="flex items-center gap-1.5">
-              <Smartphone className="h-4 w-4" /> Google Play ready
+              <Smartphone className="h-4 w-4" /> For Google Play
             </span>
             <span className="flex items-center gap-1.5">
-              <Code2 className="h-4 w-4" /> Expo · React Native
+              <Code2 className="h-4 w-4" /> Native code
             </span>
             <span className="flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Own your code
+              <Download className="h-4 w-4" /> Yours to download
             </span>
           </div>
         </section>
@@ -157,7 +156,7 @@ export default function Home() {
             ))}
           </div>
           <p className="mx-auto mt-6 max-w-xl text-center text-xs text-muted">
-            Real screens from Appmaker&apos;s app preview. Start from any of them below, or describe your own.
+            Screens from Appmaker&apos;s preview.
           </p>
         </section>
 
@@ -169,7 +168,7 @@ export default function Home() {
 
         {/* How it works */}
         <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
-          <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">From idea to store in three steps</h2>
+          <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">Three steps</h2>
           <div className="relative mt-12 grid gap-4 md:grid-cols-3">
             {/* A beam of light running from step to step, above the cards. */}
             <div aria-hidden="true" className="absolute inset-x-[16.6%] -top-6 hidden md:block">
@@ -215,9 +214,7 @@ export default function Home() {
           <div className="flex flex-col items-center text-center">
             <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">An app for your business</h2>
             <p className="mt-3 max-w-2xl text-muted">
-              Pick your kind of business and get a working app straight away: menu or services, orders and bookings that come to you,
-              opening hours and one-tap call and directions. A business area is built in: staff mode in the app and an owner page to manage orders and customers.
-              Then swap in your own details. Or use URL to App above and Appmaker fills them in from your website.
+              Pick your business and get a working app with orders, bookings and a staff area. Then add your details.
             </p>
           </div>
           <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -231,7 +228,7 @@ export default function Home() {
         <section id="templates" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
           <div className="flex flex-col items-center text-center">
             <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Start from a template</h2>
-            <p className="mt-3 text-muted">Pick one to start from — tweak the description, then build and refine it with chat.</p>
+            <p className="mt-3 text-muted">Pick one and change it in the chat.</p>
           </div>
           <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
             {TEMPLATES.map((t) => (
@@ -243,7 +240,7 @@ export default function Home() {
         {/* Pricing */}
         <section id="pricing" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
           <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">Simple pricing, no subscriptions</h2>
-          <p className="mt-3 text-center text-muted">Try it free. Pay with credits only when you&apos;re ready to ship.</p>
+          <p className="mt-3 text-center text-muted">Try it free. Pay only when you publish.</p>
           <PlanCards />
         </section>
 
@@ -270,12 +267,12 @@ export default function Home() {
           <div className="relative overflow-hidden rounded-3xl border border-line bg-surface px-6 py-16 text-center">
             <div className="glow pointer-events-none absolute inset-0" />
             <Orb size={140} className="relative mx-auto mb-8" />
-            <h2 className="relative text-3xl font-semibold tracking-tight md:text-5xl">Your app is one sentence away.</h2>
+            <h2 className="relative text-3xl font-semibold tracking-tight md:text-5xl">Describe your app to start.</h2>
             <Link
               href="#start"
               className="relative mt-8 inline-flex rounded-xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90"
             >
-              Get Started for Free
+              Start free
             </Link>
           </div>
         </section>
