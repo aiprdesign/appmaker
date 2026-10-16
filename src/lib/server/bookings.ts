@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { BookingInputError, parseSettings, toMinutes, type BookingSettings } from "../booking";
 import { currentUser } from "./auth";
 import { query } from "./db";
+import { firstName } from "../app-data";
 import { sealText, unsealText } from "./data-crypto";
 
 /**
@@ -214,11 +215,12 @@ const clean = (v: unknown, max: number) =>
     : "";
 
 export async function createBooking(setup: BookingSetup, input: Record<string, unknown>, now = Date.now()) {
-  const name = clean(input.name, 80);
+  // First name only: a last name is never needed to look after a booking.
+  const name = firstName(clean(input.name, 80));
   const phone = clean(input.phone, 30);
   const service = clean(input.service, 60);
   const note = clean(input.note, 300);
-  if (!name) throw new BookingInputError("Add your name.");
+  if (!name) throw new BookingInputError("Add your first name.");
   if (phone.replace(/\D/g, "").length < 6 || !/^[+\d\s().-]+$/.test(phone)) throw new BookingInputError("Add a phone number the business can reach you on.");
   if (setup.settings.services.length && !setup.settings.services.includes(service)) throw new BookingInputError("Choose a service.");
   const start = Date.parse(String(input.start ?? ""));

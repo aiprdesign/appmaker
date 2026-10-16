@@ -235,14 +235,14 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
       // Still changeable by the customer while it's waiting (merged in code, re-encrypted).
       expect((await appPatch(app("PATCH", { collection: "orders", id: item.id, data: { note: "no basil" } }), ctx(store.id))).status).toBe(200);
       const [raw] = await query<{ data: Record<string, unknown> }>("select data from app_data_records where id = $1", [item.id]);
-      expect(JSON.stringify(raw.data)).not.toContain("Ana Secret");
+      expect(JSON.stringify(raw.data)).not.toContain("Ana");
       expect(JSON.stringify(raw.data)).not.toContain("5550199");
       expect(typeof raw.data.$e).toBe("string");
       const mine = (await (await appGet(app("GET", undefined, "?collection=orders"), ctx(store.id))).json()).items[0];
-      expect(mine).toMatchObject({ name: "Ana Secret", phone: "5550199", note: "no basil" });
+      expect(mine).toMatchObject({ name: "Ana", phone: "5550199", note: "no basil" });
       const key = store.ownerUrl.split("#k=")[1];
       const view = await (await ownerGet(req(`/api/appdata/${store.id}/owner`, "GET", undefined, { "x-owner-key": key }), ctx(store.id))).json();
-      expect(view.collections.find((c: { name: string }) => c.name === "orders").items[0]).toMatchObject({ name: "Ana Secret" });
+      expect(view.collections.find((c: { name: string }) => c.name === "orders").items[0]).toMatchObject({ name: "Ana" });
       // The public menu isn't personal: stored as is.
       const [menu] = await query<{ data: Record<string, unknown> }>("select data from app_data_records where store_id = $1 and collection = 'menu' limit 1", [store.id]);
       expect(menu.data.$e).toBeUndefined();

@@ -1,5 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { COLLECTION_NAME, DataInputError, MAX_RECORD_BYTES, doneStatuses, isDone, cleanRecord, parseRules, type Access, type DataRules } from "../app-data";
+import { COLLECTION_NAME, DataInputError, MAX_RECORD_BYTES, doneStatuses, firstNameOnly, isDone, cleanRecord, parseRules, type Access, type DataRules } from "../app-data";
 import { currentUser } from "./auth";
 import { query } from "./db";
 import { alertOwner, isPushToken, notifyCustomer, shortRef } from "./app-alerts";
@@ -269,7 +269,7 @@ async function ownerPaid(store: DataStore): Promise<boolean> {
 export async function addItem(store: DataStore, collection: string, device: string, fields: unknown, pushToken?: string | null): Promise<DataItem> {
   const { access, statuses } = rule(store, collection);
   if (access === "public") throw new DataForbidden("Only the business can add to this.");
-  const data = cleanRecord(fields);
+  const data = access === "inbox" ? firstNameOnly(cleanRecord(fields)) : cleanRecord(fields);
   await purge(store);
   const [{ n, mine }] = await query<{ n: string; mine: string }>(
     "select count(*) as n, count(*) filter (where collection = $2 and device = $3) as mine from app_data_records where store_id = $1",
@@ -303,7 +303,7 @@ export async function updateItem(store: DataStore, collection: string, device: s
   const { access, statuses } = rule(store, collection);
   if (access === "public") throw new DataForbidden("Only the business can change this.");
   if (!RECORD_ID.test(id)) throw new DataInputError("Unknown item.");
-  const data = cleanRecord(fields);
+  const data = access === "inbox" ? firstNameOnly(cleanRecord(fields)) : cleanRecord(fields);
   const [current] = await query<RecordRow>("select * from app_data_records where store_id = $1 and collection = $2 and id = $3 and device = $4", [store.id, collection, id, device]);
   if (!current) throw new DataForbidden("You can only change your own items.");
   if (access === "inbox" && current.status !== (statuses?.[0] ?? "new")) throw new DataForbidden(STARTED);

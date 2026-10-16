@@ -16,3 +16,12 @@ describe("claims in text the owner types", () => {
     expect(claimsInText("")).toEqual([]);
   });
 });
+
+import { firstName, firstNameOnly } from "@/lib/app-data";
+
+describe("customers' names", () => {
+  it("keeps the first name only", () => {
+    expect(firstName("  Ana Maria Silva ")).toBe("Ana");
+    expect(firstNameOnly({ name: "Bo Jensen", lastName: "Jensen", phone: "555" })).toEqual({ name: "Bo", phone: "555" });
+  });
+});

@@ -156,7 +156,7 @@ export default function BookingScreen({ phone }) {
 
   const book = async () => {
     if (!slot || sending) return;
-    if (!name.trim() || tel.replace(/\\D/g, '').length < 6) return setError('Add your name and phone number.');
+    if (!name.trim() || tel.replace(/\\D/g, '').length < 6) return setError('Add your first name and phone number.');
     if (data.services.length && !service) return setError('Choose a service.');
     setSending(true);
     setError('');
@@ -275,7 +275,7 @@ export default function BookingScreen({ phone }) {
                 <Clock color={colors.primary} size={18} />
                 <Text style={styles.bookedTitle}>{current.weekday} {current.dayLabel}, {slot.label}</Text>
               </View>
-              <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor={colors.muted} autoComplete="name" />
+              <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your first name" accessibilityLabel="Your first name" placeholderTextColor={colors.muted} autoComplete="given-name" textContentType="givenName" />
               <TextInput style={styles.input} value={tel} onChangeText={setTel} placeholder="Phone number" placeholderTextColor={colors.muted} keyboardType="phone-pad" autoComplete="tel" />
               <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Note (optional)" placeholderTextColor={colors.muted} />
               {error ? <Text style={styles.error}>{error}</Text> : null}

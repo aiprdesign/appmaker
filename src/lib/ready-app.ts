@@ -522,7 +522,7 @@ export default function InfoScreen() {
     setSaved(null);
   };
   const forget = () =>
-    Alert.alert('Delete my data?', 'Your name, phone and requests are removed from this app.', [
+    Alert.alert('Delete my data?', 'Your first name, phone and requests are removed from this app.', [
       { text: 'Keep', style: 'cancel' },
       {
         text: 'Delete',

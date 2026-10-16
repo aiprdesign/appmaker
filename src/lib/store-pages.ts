@@ -159,7 +159,7 @@ export function privacySections(c: StorePageContent): PageSection[] {
       paragraphs: [
         ...(f.bookings
           ? [
-              `When you book an appointment, the app sends your name, phone number, the time you chose, the service and any note to ${c.developer} so they can see and manage your booking. Bookings are stored securely by Appmaker, the service that runs bookings for ${c.developer}, and are deleted automatically one year after the appointment. They are used only for your booking.`,
+              `When you book an appointment, the app sends your first name, phone number, the time you chose, the service and any note to ${c.developer} so they can see and manage your booking. Bookings are stored securely by Appmaker, the service that runs bookings for ${c.developer}, and are deleted automatically one year after the appointment. They are used only for your booking.`,
             ]
           : []),
         ...(f.appData

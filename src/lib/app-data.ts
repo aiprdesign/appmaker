@@ -37,6 +37,17 @@ export const COLLECTION_NAME = /^[a-z][a-zA-Z0-9_]{0,39}$/;
 const FIELD_NAME = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 export const MAX_COLLECTIONS = 12;
 export const MAX_RECORD_BYTES = 8_000;
+
+/** "Ana Maria Silva" → "Ana": customers are only ever asked for their first name. */
+export const firstName = (name: string) => name.trim().split(/\s+/)[0]?.slice(0, 30) ?? "";
+
+/** Orders and requests keep a customer's first name only, whatever the app's form sent. */
+export function firstNameOnly(data: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...data };
+  for (const k of ["name", "customerName", "fullName", "customer"]) if (typeof out[k] === "string") out[k] = firstName(out[k] as string);
+  for (const k of ["lastName", "surname", "familyName"]) delete out[k];
+  return out;
+}
 export const DEFAULT_STATUSES = ["new", "accepted", "ready", "done", "cancelled"];
 
 /** Statuses that mean an order or request is finished (or the last one in the list). */
@@ -577,9 +588,9 @@ export function useCollection(collection) {
 /** What the AI is told about app data. */
 export const DATA_PROMPT = `## App data (Appmaker's built-in database: no Supabase, Firebase or server to set up)
 Privacy first: collect only what the business needs to do the job, and nothing else.
-- Ask only for fields the order or request can't work without: usually a first name and a phone number (or email) to reach them, plus the details of what they want. No date of birth, gender, full address (unless it's a delivery), or "how did you hear about us" unless the request is about that.
+- Ask only for fields the order or request can't work without: a first name (label it "First name"; never ask for a last name, surname or full name) and a phone number (or email) to reach them, plus the details of what they want. Where the business needs to tell customers apart, show the first name with the last 4 digits of the phone ("Ana ·0199"), not more. No date of birth, gender, full address (unless it's a delivery), or "how did you hear about us" unless the request is about that.
 - Never collect passwords, payment card numbers, bank details, ID or passport numbers, or health details: Appmaker refuses them. Payment happens in person or through the business's own payment link.
-- Next to every form that sends data, one short line says what happens to it, e.g. "We use your name and phone only for this order." The app's privacy policy (made by Appmaker) lists the fields from src/data-rules.json, so keep its fields to what the form really asks.
+- Next to every form that sends data, one short line says what happens to it, e.g. "We use your first name and phone only for this order." The app's privacy policy (made by Appmaker) lists the fields from src/data-rules.json, so keep its fields to what the form really asks.
 - Settings or More has a "Delete my data" row: confirm with Alert.alert, then \`await forgetMe()\` (from src/appdata.js) and say "Your data was deleted. Orders still being prepared stay with {business} until they're finished."
 - Finished orders and requests are deleted automatically after 90 days; say nothing that contradicts this.
 

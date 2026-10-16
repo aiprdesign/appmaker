@@ -88,7 +88,7 @@ describe("the app's booking screen", () => {
     expect(facts.bookings).toBe(true);
     expect(appFacts({ [BOOKING_FILE]: bookingModule(null) }).bookings).toBe(false);
     const content = { appName: "Cuts", developer: "Cuts Ltd", email: "a@b.co", description: "", updated: "2026-10-01", facts };
-    expect(privacySections(content)[1].paragraphs[0]).toMatch(/your name, phone number, the time you chose.*Cuts Ltd.*deleted automatically one year/);
+    expect(privacySections(content)[1].paragraphs[0]).toMatch(/your first name, phone number, the time you chose.*Cuts Ltd.*deleted automatically one year/);
   });
 });
 

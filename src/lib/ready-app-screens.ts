@@ -1135,7 +1135,7 @@ export default function RequestScreen({ picked, setQty, clear, go, reorder }) {
           </View>
           <View style={styles.privacy}>
             <Icons.ShieldCheck size={16} color={colors.muted} />
-            <Text style={[styles.small, styles.flex, { color: colors.muted }]}>We use your name and phone only for this {kind === 'order' ? 'order' : 'request'}. Payment is in person.</Text>
+            <Text style={[styles.small, styles.flex, { color: colors.muted }]}>We use your first name and phone only for this {kind === 'order' ? 'order' : 'request'}. Payment is in person.</Text>
           </View>
           {!!problem && (
             <Animated.View style={shakeStyle}>
