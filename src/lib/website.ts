@@ -511,9 +511,16 @@ export interface SiteConcept {
 
 /** The three directions: simple, balanced and bold. */
 /** The three design directions; older projects may still name the earlier three (simple, balanced, bold). */
-export type ConceptTier = "editorial" | "soft" | "themed" | "simple" | "balanced" | "bold";
+export type ConceptTier = "modern" | "editorial" | "themed" | "soft" | "simple" | "balanced" | "bold";
 
 export const CONCEPT_TIERS: { tier: ConceptTier; name: string; styles: string[]; brief: string }[] = [
+  {
+    tier: "modern",
+    name: "Modern",
+    styles: ["aurora", "liquid-glass", "bento", "neon"],
+    brief:
+      "MODERN: like today's best product and studio sites (cinematic, confident, alive). A full-bleed hero that fills the first screen: the business's best photo (or a muted looping video when it has one) under a dark-to-transparent gradient, or a deep dark canvas with soft glowing colour light behind; an oversized display headline (text-6xl to text-8xl, tight tracking, a modern grotesk such as Inter Tight, Geist or Satoshi-like sans, one key word in the brand colour or a gradient), a short line and two pill buttons (one solid, one glass). Then a bento grid of features in cards of different sizes (rounded-3xl, hairline borders, subtle inner glow, frosted glass over imagery), large photo cards with captions over a gradient, a slow marquee of services or client logos, big numbers that count up, and a bold closing call-to-action band. Dark sections and light sections alternate for rhythm; a faint grain or grid texture and soft radial glows add depth, never clutter. Generous spacing, a sticky glass header that condenses on scroll. Motion: smooth and premium (staggered fade-and-rise reveals as sections scroll in, cards that tilt or lift slightly on hover, a slow parallax on the hero photo, glows that drift), always off with reduced motion.",
+  },
   {
     tier: "editorial",
     name: "Ultra-modern editorial",
@@ -522,41 +529,35 @@ export const CONCEPT_TIERS: { tier: ConceptTier; name: string; styles: string[];
       "ULTRA-MODERN EDITORIAL: like a design-led magazine or a modern studio site. Very large, confident display headlines (tight tracking, a striking serif or a crisp grotesk, text-6xl to text-8xl on desktop) set against generous white space; an asymmetric 12-column grid with deliberate tension (wide image beside a narrow text column, offset blocks); oversized full-bleed photos with small captions; thin hairline rules, numbered sections (01, 02…), small uppercase labels and eyebrow text; pull quotes in big type; a near-monochrome base (ink on paper, or paper on ink) with one sharp brand accent; crisp square or barely rounded corners. Motion: refined and slow (text that rises line by line, images that reveal with a clip-path wipe, a subtle scroll parallax, a slow marquee of a key phrase).",
   },
   {
-    tier: "soft",
-    name: "Modern soft & rounded",
-    styles: ["clay", "calm", "organic", "liquid-glass"],
-    brief:
-      "MODERN SOFT & ROUNDED: friendly, tactile and current. Big soft corners everywhere (rounded-3xl to rounded-[2.5rem] on cards, images and sections; pill-shaped buttons, chips and inputs); layered soft shadows and gentle inner highlights so cards feel like smooth physical tiles; light tinted surfaces made from the brand colour (5–10% tints) with blurred colour blobs in the background; bento-style card groups of different sizes; a rounded geometric sans (e.g. Plus Jakarta Sans, Manrope or DM Sans); icons in soft rounded squares. Motion: springy and smooth (cards that lift and scale slightly on hover, staggered fade-and-rise reveals, gently floating shapes).",
-  },
-  {
     tier: "themed",
     name: "Made for your business",
     styles: ["luxe", "organic", "bento", "aurora", "pop", "neon", "brutalist"],
     brief:
-      "MADE FOR THIS BUSINESS: the style that suits this kind of business best (its industry, its customers and its mood), pushed further than the other two directions. Commit fully to it: its typography, colour treatment, imagery and motion should feel unmistakably right for this business and different from the editorial and the soft-rounded designs. Motion: whatever fits the style, always smooth and never in the way.",
+      "MADE FOR THIS BUSINESS: the style that suits this kind of business best (its industry, its customers and its mood), pushed further than the other two directions. Commit fully to it: its typography, colour treatment, imagery and motion should feel unmistakably right for this business and different from the modern and the editorial designs. Motion: whatever fits the style, always smooth and never in the way.",
   },
 ];
 
 /** The name of a direction, including the earlier ones older projects used. */
 export function tierName(tier: ConceptTier | undefined): string | undefined {
-  const legacy: Partial<Record<ConceptTier, string>> = { simple: "Simple", balanced: "Balanced", bold: "Bold & colorful" };
+  const legacy: Partial<Record<ConceptTier, string>> = { soft: "Modern soft & rounded", simple: "Simple", balanced: "Balanced", bold: "Bold & colorful" };
   return CONCEPT_TIERS.find((t) => t.tier === tier)?.name ?? (tier ? legacy[tier] : undefined);
 }
 
 /**
- * The three concepts: ultra-modern editorial, modern soft and rounded, and one in
- * the style that suits the business (its picked style, unless that's one of the
- * first two; then the next best for its kind).
+ * The three concepts, in this order: modern (cinematic heroes, big type, bento grids,
+ * glass and glow), ultra-modern editorial, and one in the style that suits the business
+ * (its picked style, unless the first design already uses it; then the next best).
  */
 export function conceptStyles(picked: DesignStyle, all: DesignStyle[]): { tier: (typeof CONCEPT_TIERS)[number]; style: DesignStyle }[] {
-  const [editorial, soft, themed] = CONCEPT_TIERS;
-  // The third is the business's own style when it's a themed one (luxe, organic, bento…),
-  // else the first themed style; soft styles (clay, calm, glass) go to the second design.
-  const own = themed.styles.includes(picked.id) ? picked.id : themed.styles[0];
+  const [modern, editorial, themed] = CONCEPT_TIERS;
+  // Modern takes the business's style when it's a modern one (aurora, glass, bento, neon);
+  // the third is the business's own themed style, never the same as the first.
+  const first = modern.styles.includes(picked.id) ? picked.id : modern.styles[0];
+  const own = themed.styles.includes(picked.id) && picked.id !== first ? picked.id : themed.styles.find((id) => id !== first && !modern.styles.includes(id))!;
   const style = (id: string) => all.find((x) => x.id === id)!;
   return [
+    { tier: modern, style: style(first) },
     { tier: editorial, style: style("editorial") },
-    { tier: soft, style: style(soft.styles.includes(picked.id) && picked.id !== own ? picked.id : "clay") },
     { tier: themed, style: style(own) },
   ];
 }

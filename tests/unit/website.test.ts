@@ -89,22 +89,22 @@ describe("website download", () => {
 });
 
 describe("three design concepts", () => {
-  it("offers ultra-modern editorial, modern soft & rounded, and the business's own style", async () => {
+  it("offers modern first, ultra-modern editorial second, and the business's own style third", async () => {
     const { conceptStyles, conceptPrompt, finishSitePrompt, tierName } = await import("@/lib/website");
     const { DESIGN_STYLES } = await import("@/lib/styles");
     for (const picked of DESIGN_STYLES) {
       const three = conceptStyles(picked, DESIGN_STYLES);
-      expect(three.map((c) => c.tier.tier)).toEqual(["editorial", "soft", "themed"]);
-      expect(three[0].style.id).toBe("editorial");
+      expect(three.map((c) => c.tier.tier)).toEqual(["modern", "editorial", "themed"]);
+      expect(three[1].style.id).toBe("editorial");
       expect(new Set(three.map((c) => c.style.id)).size).toBe(3);
     }
-    // The third is the style picked for the business; if that's editorial or soft, the next best.
-    expect(conceptStyles(getStyle("pop")!, DESIGN_STYLES).map((c) => c.style.id)).toEqual(["editorial", "clay", "pop"]);
-    expect(conceptStyles(getStyle("luxe")!, DESIGN_STYLES).map((c) => c.style.id)).toEqual(["editorial", "clay", "luxe"]);
-    expect(conceptStyles(getStyle("calm")!, DESIGN_STYLES).map((c) => c.style.id)).toEqual(["editorial", "calm", "luxe"]);
+    // Modern uses the business's style when it's a modern one; the third is its own style, else the next best.
+    expect(conceptStyles(getStyle("pop")!, DESIGN_STYLES).map((c) => c.style.id)).toEqual(["aurora", "editorial", "pop"]);
+    expect(conceptStyles(getStyle("luxe")!, DESIGN_STYLES).map((c) => c.style.id)).toEqual(["aurora", "editorial", "luxe"]);
+    expect(conceptStyles(getStyle("bento")!, DESIGN_STYLES).map((c) => c.style.id)).toEqual(["bento", "editorial", "luxe"]);
     expect(conceptStyles(getStyle("editorial")!, DESIGN_STYLES)[2].style.id).toBe("luxe");
-    expect(conceptPrompt("Redesign it", getStyle("editorial")!, 1, "editorial")).toMatch(/direction ULTRA-MODERN EDITORIAL: like a design-led magazine/);
-    expect(conceptPrompt("Redesign it", getStyle("clay")!, 2, "soft")).toMatch(/direction MODERN SOFT & ROUNDED: .*rounded-3xl/);
+    expect(conceptPrompt("Redesign it", getStyle("aurora")!, 1, "modern")).toMatch(/direction MODERN: .*full-bleed hero.*bento grid/);
+    expect(conceptPrompt("Redesign it", getStyle("editorial")!, 2, "editorial")).toMatch(/direction ULTRA-MODERN EDITORIAL: like a design-led magazine/);
     expect(conceptPrompt("Redesign it", getStyle("pop")!, 3, "themed")).toMatch(/direction MADE FOR THIS BUSINESS/);
     // Older projects keep their direction names.
     expect(tierName("balanced")).toBe("Balanced");
@@ -137,7 +137,7 @@ describe("motion design", () => {
       expect(websiteSystemPrompt()).toContain(t);
     }
     expect(conceptPrompt("x", getStyle("editorial")!, 1, "editorial")).toContain("Motion: refined and slow");
-    expect(conceptPrompt("x", getStyle("clay")!, 2, "soft")).toContain("Motion: springy and smooth");
+    expect(conceptPrompt("x", getStyle("aurora")!, 1, "modern")).toContain("Motion: smooth and premium");
     const page = good;
     const animated = { "index.html": page, "contact.html": as("Contact", page), "styles.css": ".card{transition: transform .2s}", "script.js": "1" };
     expect(validateSite(animated).map((i) => i.message)).toContain(

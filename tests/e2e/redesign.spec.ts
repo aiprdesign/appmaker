@@ -63,11 +63,11 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
     expect(String(b.prompt)).toContain(`Design concept ${i + 1} of 3`);
   }
   await expect(page.getByRole("heading", { name: "Choose a design" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: /Design 1 · Ultra-modern editorial/ })).toBeVisible();
-  await expect(page.getByRole("tab", { name: /Design 2 · Modern soft & rounded/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Design 1 · Modern/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Design 2 · Ultra-modern editorial/ })).toBeVisible();
   await expect(page.getByRole("tab", { name: /Design 3 · Made for your business/ })).toBeVisible();
-  expect(String(bodies[0].prompt)).toContain("direction ULTRA-MODERN EDITORIAL");
-  expect(String(bodies[1].prompt)).toContain("direction MODERN SOFT & ROUNDED");
+  expect(String(bodies[0].prompt)).toContain("direction MODERN:");
+  expect(String(bodies[1].prompt)).toContain("direction ULTRA-MODERN EDITORIAL");
   expect(String(bodies[2].prompt)).toContain("direction MADE FOR THIS BUSINESS");
   await page.getByRole("tab", { name: /Design 2/ }).click();
   await expect(page.frameLocator('iframe[title="Website preview"]').getByRole("heading", { name: "Luigi's Trattoria" })).toBeVisible({ timeout: 30_000 });

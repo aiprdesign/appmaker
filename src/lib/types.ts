@@ -246,7 +246,7 @@ export interface Project {
   /** Website redesign: where its colours come from. */
   siteColors?: SiteColors;
   /** Website redesign: the three design concepts to choose from, until one is chosen. */
-  concepts?: { style: string; tier?: "editorial" | "soft" | "themed" | "simple" | "balanced" | "bold"; files: FileMap; status: "writing" | "ready" | "failed"; error?: string }[];
+  concepts?: { style: string; tier?: "modern" | "editorial" | "soft" | "themed" | "simple" | "balanced" | "bold"; files: FileMap; status: "writing" | "ready" | "failed"; error?: string }[];
   name: string;
   prompt: string;
   files: FileMap;
