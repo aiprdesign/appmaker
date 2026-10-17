@@ -29,7 +29,7 @@ export default function LoginPage() {
           <ul className="space-y-3 text-sm md:mt-6">
             {POINTS.map((p) => (
               <li key={p} className="flex items-start gap-3 text-foreground/90">
-                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet-500/15 text-violet-300">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-500/15 text-brand-300">
                   <Check className="h-3 w-3" />
                 </span>
                 {p}
@@ -37,7 +37,7 @@ export default function LoginPage() {
             ))}
           </ul>
         </section>
-        <div className="order-1 w-full rounded-3xl border border-line bg-surface/80 p-6 shadow-[0_30px_80px_-40px_rgba(139,92,246,0.5)] backdrop-blur md:order-2 md:p-8">
+        <div className="order-1 w-full rounded-3xl border border-line bg-surface/80 p-6 shadow-[0_30px_80px_-40px_rgba(196, 242, 43,0.5)] backdrop-blur md:order-2 md:p-8">
           <Suspense>
             <LoginForm />
           </Suspense>

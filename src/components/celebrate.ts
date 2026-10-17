@@ -18,7 +18,7 @@ export function celebrate(from?: { x: number; y: number }, emoji: string[] = ["ð
   if (!ctx) return canvas.remove();
   ctx.scale(dpr, dpr);
   const origin = from ?? { x: window.innerWidth / 2, y: window.innerHeight / 3 };
-  const colors = ["#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#3B82F6", "#F43F5E"];
+  const colors = ["#c4f22b", "#ff7a3d", "#F59E0B", "#10B981", "#3B82F6", "#F43F5E"];
   const parts = Array.from({ length: 90 }, (_, i) => {
     const angle = Math.random() * Math.PI * 2;
     const speed = 4 + Math.random() * 7;

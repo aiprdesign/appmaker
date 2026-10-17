@@ -79,7 +79,7 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
       >
         <div className="flex items-center justify-between border-b border-line px-5 py-3">
           <h2 id="phone-preview-title" className="flex items-center gap-2 font-semibold">
-            <Smartphone className="h-4 w-4 text-violet-300" /> Try it on your phone
+            <Smartphone className="h-4 w-4 text-brand-300" /> Try it on your phone
           </h2>
           <button ref={closeButton} onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-white/5 hover:text-foreground" aria-label="Close">
             <X className="h-4 w-4" />
@@ -173,7 +173,7 @@ export function PhonePreview({ project, onExpoChange, onClose }: { project: Proj
                 : "Connect your Expo account in the Publish tab to make a QR code for your phone."}
             </p>
           ) : phase ? (
-            <p role="status" className="flex items-center gap-2 text-sm text-violet-200">
+            <p role="status" className="flex items-center gap-2 text-sm text-brand-200">
               <Loader2 className="h-4 w-4 animate-spin" /> {phase}
             </p>
           ) : (

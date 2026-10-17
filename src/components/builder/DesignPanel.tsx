@@ -158,7 +158,7 @@ export function DesignPanel({
     <section aria-labelledby="design-title" className="flex max-h-full flex-col overflow-hidden rounded-2xl border border-line bg-background shadow-2xl">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <h2 id="design-title" className="flex items-center gap-2 font-semibold">
-          <Palette className="h-4 w-4 text-violet-300" /> Design
+          <Palette className="h-4 w-4 text-brand-300" /> Design
         </h2>
         <button
           onClick={onClose}
@@ -205,14 +205,14 @@ export function DesignPanel({
                         onClick={() => chooseStyle(x)}
                         aria-pressed={selected}
                         aria-label={`${x.name} style: ${x.blurb}`}
-                        className={`overflow-hidden rounded-xl border text-left transition ${selected ? "border-violet-400 ring-2 ring-violet-400/40" : "border-line hover:border-white/25"}`}
+                        className={`overflow-hidden rounded-xl border text-left transition ${selected ? "border-brand-400 ring-2 ring-brand-400/40" : "border-line hover:border-white/25"}`}
                       >
                         <StyleSample id={x.id} theme={themeFor(applyStyle(design, x, !!project.source), x.look.mode === "dark" ? "dark" : "light")} />
                         <div className="bg-surface px-2 py-1.5">
                           <div className="flex items-center gap-1 text-xs font-medium">
-                            {selected && <Check className="h-3 w-3 text-violet-300" />}
+                            {selected && <Check className="h-3 w-3 text-brand-300" />}
                             {x.name}
-                            {picked.style.id === x.id && <span className="ml-auto rounded-full bg-violet-500/15 px-1.5 text-[9px] font-medium text-violet-200">Auto</span>}
+                            {picked.style.id === x.id && <span className="ml-auto rounded-full bg-brand-500/15 px-1.5 text-[9px] font-medium text-brand-200">Auto</span>}
                           </div>
                           <div className="line-clamp-2 text-[10px] leading-tight text-muted">{x.blurb}</div>
                         </div>

@@ -40,7 +40,7 @@ const FILTERS = [
 const ORIGIN: Record<AppSummary["origin"], string> = { template: "Template", website: "From website", prompt: "AI from idea" };
 const badge = "rounded-full border px-2 py-0.5 text-[11px]";
 
-const input = "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-violet-500/60";
+const input = "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand-500/60";
 
 function when(ts: number | null): string {
   if (!ts) return "—";
@@ -124,7 +124,7 @@ export function AppsTab({ member, clearMember }: { member: { id: string; email: 
             key={key}
             onClick={() => setFilter(key)}
             aria-pressed={filter === key}
-            className={`min-h-8 rounded-full border px-3 text-xs ${filter === key ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line text-muted hover:text-foreground"}`}
+            className={`min-h-8 rounded-full border px-3 text-xs ${filter === key ? "border-brand-400/60 bg-brand-500/15 text-foreground" : "border-line text-muted hover:text-foreground"}`}
           >
             {label}
           </button>
@@ -316,7 +316,7 @@ function AppViewer({ app, onClose, onDelete }: { app: AppSummary; onClose: () =>
                       role="tab"
                       aria-selected={tab === t}
                       onClick={() => setTab(t)}
-                      className={`min-h-10 border-b-2 px-3 text-sm ${tab === t ? "border-violet-400 font-medium" : "border-transparent text-muted hover:text-foreground"}`}
+                      className={`min-h-10 border-b-2 px-3 text-sm ${tab === t ? "border-brand-400 font-medium" : "border-transparent text-muted hover:text-foreground"}`}
                     >
                       {t === "listing"
                         ? "Store listing"
@@ -364,7 +364,7 @@ function AppViewer({ app, onClose, onDelete }: { app: AppSummary; onClose: () =>
                             key={f}
                             onClick={() => setFile(f)}
                             aria-pressed={file === f}
-                            className={`min-h-7 rounded-md border px-2 font-mono text-[11px] ${file === f ? "border-violet-500/60 bg-violet-500/10" : "border-line text-muted hover:text-foreground"}`}
+                            className={`min-h-7 rounded-md border px-2 font-mono text-[11px] ${file === f ? "border-brand-500/60 bg-brand-500/10" : "border-line text-muted hover:text-foreground"}`}
                           >
                             {f}
                           </button>

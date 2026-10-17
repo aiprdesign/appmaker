@@ -136,7 +136,7 @@ export function SiteColorsPanel({
   return (
     <div className="border-b border-line px-4 py-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <Palette className="h-3.5 w-3.5 text-violet-300" />
+        <Palette className="h-3.5 w-3.5 text-brand-300" />
         <span className="font-medium">Website colors</span>
         <div role="radiogroup" aria-label="Colors" className="flex rounded-lg border border-line bg-surface p-0.5">
           {(

@@ -92,15 +92,15 @@ export function friendlyError(message: string): string {
 function ChecksOverlay({ generating }: { generating: boolean }) {
   const checks = ["Quality: code that runs on iPhone and Android", "Claim-safe wording", "Health, medical & financial claims"];
   return (
-    <div role="status" aria-live="polite" className="absolute inset-0 z-10 grid place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-8 text-neutral-700">
+    <div role="status" aria-live="polite" className="absolute inset-0 z-10 grid place-items-center bg-gradient-to-b from-brand-50 to-flare-50 p-8 text-neutral-700">
       <div className="w-full max-w-[260px]">
-        <ShieldCheck className="mx-auto h-9 w-9 text-violet-500" />
+        <ShieldCheck className="mx-auto h-9 w-9 text-brand-800" />
         <p className="mt-3 text-center text-sm font-semibold">{generating ? "Fixing what the checks found…" : "Running checks…"}</p>
         <p className="mt-1 text-center text-xs text-neutral-500">Your app appears once it passes all three.</p>
         <ul className="mt-4 space-y-2 text-xs">
           {checks.map((c) => (
             <li key={c} className="flex items-center gap-2">
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-violet-500" /> {c}
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-800" /> {c}
             </li>
           ))}
         </ul>
@@ -1239,7 +1239,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
               }
             }}
             disabled={!hasApp || generating || zipping}
-            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg bg-brand-400 px-3 py-1.5 text-xs font-medium text-black disabled:opacity-40"
           >
             {zipping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}{" "}
             <span className="hidden sm:inline">{zipping ? "Packing images…" : "Download website"}</span>
@@ -1260,7 +1260,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
           onClick={() => setTab("publish")}
           disabled={!hasApp}
           aria-label="Publish"
-          className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-lg bg-brand-400 px-3 py-1.5 text-xs font-medium text-black disabled:opacity-40"
         >
           <Rocket className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Publish</span>
         </button>
@@ -1290,7 +1290,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
             key={v}
             onClick={() => setMobileView(v)}
             className={`flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-medium ${
-              mobileView === v ? "border-b-2 border-violet-500 text-foreground" : "text-muted"
+              mobileView === v ? "border-b-2 border-brand-500 text-foreground" : "text-muted"
             }`}
           >
             {v === "chat" ? <MessageSquare className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}
@@ -1400,8 +1400,8 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
           {tab === "preview" && isSite && (
             <div className="stage relative flex min-h-0 flex-1 flex-col overflow-hidden p-3">
               {(generating || checking) && (
-                <span role="status" aria-label={generating ? "Building your website" : "Checking your website"} className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 py-1 pl-1.5 pr-3 text-xs font-medium text-violet-100">
-                  <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-violet-300/25 border-t-violet-300 border-r-pink-400" />
+                <span role="status" aria-label={generating ? "Building your website" : "Checking your website"} className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full border border-brand-400/30 bg-brand-500/10 py-1 pl-1.5 pr-3 text-xs font-medium text-brand-100">
+                  <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-brand-300/25 border-t-brand-300 border-r-flare-400" />
                   {generating ? (live?.writing ? `Writing ${live.writing}…` : "Redesigning your website…") : "Checking…"}
                 </span>
               )}
@@ -1431,7 +1431,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
               ) : (
                 <div className="grid flex-1 place-items-center text-center text-sm text-muted">
                   <div>
-                    <Wand2 className="mx-auto h-8 w-8 text-violet-400" />
+                    <Wand2 className="mx-auto h-8 w-8 text-brand-400" />
                     <p className="mt-4">{generating ? "Your new website appears here as soon as it's written." : "Your redesigned website will appear here"}</p>
                     {generating && live && Object.keys(live.files).length > 0 && (
                       <p className="mt-2 text-xs">Pages so far: {Object.keys(live.files).join(", ")}</p>
@@ -1445,8 +1445,8 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
             <div className="stage relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="flex flex-wrap items-center justify-center gap-2 p-3">
                 {(generating || checking) && (
-                  <span role="status" aria-label={generating ? "Building your app" : "Checking your app"} className="inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 py-1 pl-1.5 pr-3 text-xs font-medium text-violet-100">
-                    <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-violet-300/25 border-t-violet-300 border-r-pink-400" />
+                  <span role="status" aria-label={generating ? "Building your app" : "Checking your app"} className="inline-flex items-center gap-2 rounded-full border border-brand-400/30 bg-brand-500/10 py-1 pl-1.5 pr-3 text-xs font-medium text-brand-100">
+                    <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-brand-300/25 border-t-brand-300 border-r-flare-400" />
                     {generating ? "Building…" : "Checking…"}
                   </span>
                 )}
@@ -1475,7 +1475,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                     aria-pressed={scheme === "dark"}
                     aria-label="Preview in dark mode"
                     title={scheme === "dark" ? "Showing dark mode. Show light mode" : "Show dark mode"}
-                    className={`grid h-7 w-7 place-items-center rounded-lg border ${scheme === "dark" ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"}`}
+                    className={`grid h-7 w-7 place-items-center rounded-lg border ${scheme === "dark" ? "border-brand-400/60 bg-brand-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"}`}
                   >
                     {scheme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
                   </button>
@@ -1488,7 +1488,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                     }}
                     aria-pressed={detailsOpen && !designOpen}
                     className={`flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
-                      detailsOpen && !designOpen ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
+                      detailsOpen && !designOpen ? "border-brand-400/60 bg-brand-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
                     }`}
                   >
                     <Store className="h-3.5 w-3.5" /> Your details
@@ -1519,7 +1519,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                     onClick={() => setDesignOpen((o) => !o)}
                     aria-pressed={designOpen}
                     className={`flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
-                      designOpen ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
+                      designOpen ? "border-brand-400/60 bg-brand-500/15 text-foreground" : "border-line bg-surface text-muted hover:text-foreground"
                     }`}
                   >
                     <Palette className="h-3.5 w-3.5" /> Design
@@ -1539,7 +1539,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                 )}
                 {generating && hasApp && (
                   <span className="flex items-center gap-1.5 text-xs text-muted">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> Applying changes…
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-400" /> Applying changes…
                   </span>
                 )}
               </div>
@@ -1616,9 +1616,9 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                   ) : generating && !checking ? (
                     <PhoneBuilding live={live} startedAt={startedAt} source={project.source} design={project.design} prompt={project.prompt} />
                   ) : (
-                    <div className="grid h-full place-items-center bg-gradient-to-b from-violet-50 to-pink-50 p-10 text-center text-neutral-600">
+                    <div className="grid h-full place-items-center bg-gradient-to-b from-brand-50 to-flare-50 p-10 text-center text-neutral-600">
                       <div>
-                        <Wand2 className="mx-auto h-8 w-8 text-violet-600" />
+                        <Wand2 className="mx-auto h-8 w-8 text-brand-800" />
                         <p className="mt-4 text-sm">{checking ? "Running checks…" : "Your app will appear here"}</p>
                       </div>
                     </div>

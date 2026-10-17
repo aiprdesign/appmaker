@@ -80,7 +80,7 @@ const EDIT_SCRIPT = `<script>
 (function () {
   var TEXT = "h1,h2,h3,h4,h5,h6,p,li,a,button,span,small,strong,em,figcaption,blockquote,td,th,dt,dd,label,summary";
   var css = document.createElement("style");
-  css.textContent = "[data-am-editable]:hover{outline:2px dashed #8b5cf6;outline-offset:3px;cursor:text}[contenteditable=true]{outline:2px solid #8b5cf6!important;outline-offset:3px;background:rgba(139,92,246,.08)}";
+  css.textContent = "[data-am-editable]:hover{outline:2px dashed #c4f22b;outline-offset:3px;cursor:text}[contenteditable=true]{outline:2px solid #c4f22b!important;outline-offset:3px;background:rgba(196, 242, 43,.08)}";
   document.head.appendChild(css);
   function editable(el) { return el && el.matches && el.matches(TEXT) && !el.closest(".a11y-ui, .am-video, .am-marquee-toggle") && el.children.length === 0 && el.textContent.trim().length > 0; }
   document.addEventListener("mouseover", function (e) { if (editable(e.target)) e.target.setAttribute("data-am-editable", ""); }, true);
@@ -321,7 +321,7 @@ export function SitePreview({
         </div>
       )}
       {editing && (
-        <p role="status" className="mx-auto rounded-lg bg-violet-500/10 px-3 py-1.5 text-xs text-violet-100">
+        <p role="status" className="mx-auto rounded-lg bg-brand-500/10 px-3 py-1.5 text-xs text-brand-100">
           Click any text on the page to change it. Enter saves, Esc cancels. Each change is made on every design and every page where that text appears.
         </p>
       )}

@@ -26,7 +26,7 @@ import {
 } from "@/lib/store-shots";
 import type { Project } from "@/lib/types";
 
-const field = "min-h-9 w-full rounded-lg border border-line bg-background px-2.5 text-sm text-foreground outline-none focus:border-violet-500/60";
+const field = "min-h-9 w-full rounded-lg border border-line bg-background px-2.5 text-sm text-foreground outline-none focus:border-brand-500/60";
 
 /** One listing image, drawn at display size from the full-size render. */
 function ShotPreview({ shot, style, brand, platform: selected }: { shot: Shot; style: ShotStyle; brand: string; platform: "ios" | "android" | "ipad" }) {
@@ -245,7 +245,7 @@ export function StoreScreenshots({ project }: { project: Project }) {
   return (
     <section className="@container rounded-2xl border border-line bg-surface p-5" aria-labelledby="shots-title">
       <h2 id="shots-title" className="flex items-center gap-2 font-semibold">
-        <ImageIcon className="h-4 w-4 text-violet-300" /> Store screenshots
+        <ImageIcon className="h-4 w-4 text-brand-300" /> Store screenshots
       </h2>
       <p className="mt-1 text-sm text-muted">
         Press Generate screenshots and Appmaker opens each main screen of your app on iPhone{ipadOn ? " and iPad" : ""} and turns them into listing images with
@@ -286,7 +286,7 @@ export function StoreScreenshots({ project }: { project: Project }) {
           <button
             onClick={generate}
             disabled={!!busy || !Object.keys(project.files).length}
-            className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-pink-600 text-sm font-medium text-white disabled:opacity-50"
+            className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand-400 text-sm font-medium text-black disabled:opacity-50"
           >
             {busy === "generate" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
             {busy === "generate" ? "Capturing screens…" : shots.length ? "Generate screenshots again" : "Generate screenshots"}

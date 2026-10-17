@@ -7,7 +7,7 @@ import { uploadPhoto } from "@/lib/images";
 import { DEFAULT_WORDING, type Wording } from "@/lib/claims";
 import { claimsInText } from "@/lib/edit-claims";
 
-const box = "rounded-lg border border-line bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted/70 focus:border-violet-400/60 focus:outline-none";
+const box = "rounded-lg border border-line bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted/70 focus:border-brand-400/60 focus:outline-none";
 const input = `mt-1 w-full ${box}`;
 
 /** A note under a field when its words make a claim (same checks as the AI's work). */
@@ -211,7 +211,7 @@ export function ReadyDetails({
     <section aria-labelledby="ready-title" className="flex max-h-full flex-col overflow-hidden rounded-2xl border border-line bg-background shadow-2xl">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <h2 id="ready-title" className="flex items-center gap-2 font-semibold">
-          <Store className="h-4 w-4 text-violet-300" /> Your details
+          <Store className="h-4 w-4 text-brand-300" /> Your details
         </h2>
         <button onClick={onClose} aria-label="Close your details" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-white/5 hover:text-foreground">
           <X className="h-4 w-4" />
@@ -223,7 +223,7 @@ export function ReadyDetails({
         </p>
         <div className="rounded-xl border border-line bg-surface/60 p-3">
           <label htmlFor="ready-site" className="flex items-center gap-1.5 text-sm font-semibold">
-            <Globe className="h-4 w-4 text-violet-300" aria-hidden /> Fill in from your website
+            <Globe className="h-4 w-4 text-brand-300" aria-hidden /> Fill in from your website
           </label>
           <p className="mt-0.5 text-xs text-muted">Your name, contact details, hours, colors, photos and, when the site lists them, your {itemsWord} with prices.</p>
           <form
@@ -244,9 +244,9 @@ export function ReadyDetails({
             </p>
           )}
         </div>
-        <div className="rounded-xl border border-violet-400/30 bg-violet-500/10 p-3 text-xs">
+        <div className="rounded-xl border border-brand-400/30 bg-brand-500/10 p-3 text-xs">
           <p className="flex items-center gap-1.5 font-semibold text-foreground">
-            <KeyRound className="h-3.5 w-3.5 text-violet-300" aria-hidden /> Your business area is built in
+            <KeyRound className="h-3.5 w-3.5 text-brand-300" aria-hidden /> Your business area is built in
           </p>
           <ul className="mt-1.5 list-disc space-y-1 pl-4 text-muted">
             <li>
@@ -261,7 +261,7 @@ export function ReadyDetails({
               <KeyRound className="h-4 w-4" aria-hidden /> Open your owner page<span className="sr-only"> (opens in a new tab)</span>
             </a>
           ) : (
-            <button onClick={onOpenPublish} className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-violet-400/40 px-3 text-sm hover:bg-violet-500/10">
+            <button onClick={onOpenPublish} className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-brand-400/40 px-3 text-sm hover:bg-brand-500/10">
               <KeyRound className="h-4 w-4" aria-hidden /> Get your owner page (turn on the app database)
             </button>
           )}
@@ -282,7 +282,7 @@ export function ReadyDetails({
           ) : (
             <p className="mt-1 text-xs text-muted">
               Customers get a <strong>Pay now</strong> button with the total filled in, or pay when they collect.{" "}
-              <a href="https://www.paypal.com/paypalme/" target="_blank" rel="noreferrer" className="text-violet-300 underline underline-offset-2">
+              <a href="https://www.paypal.com/paypalme/" target="_blank" rel="noreferrer" className="text-brand-300 underline underline-offset-2">
                 Don&apos;t have one? Get a free PayPal.me link →
               </a>
               <span className="mt-1 block">Already published? Customers see a new link after you publish an update.</span>

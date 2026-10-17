@@ -11,7 +11,7 @@ function inline(text: string) {
     const link = /^\[([^\]]+)\]\((\/[a-z]+)\)$/.exec(p);
     if (link) {
       return SAFE_LINKS.has(link[2]) ? (
-        <Link key={i} href={link[2]} className="font-medium text-violet-300 underline underline-offset-2">
+        <Link key={i} href={link[2]} className="font-medium text-brand-300 underline underline-offset-2">
           {link[1]}
         </Link>
       ) : (

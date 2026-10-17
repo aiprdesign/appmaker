@@ -48,7 +48,7 @@ export function SiteContentPanel({
   return (
     <div className="border-b border-line px-4 py-3 text-xs">
       <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex min-h-8 w-full items-center gap-2 text-left">
-        <ListChecks className="h-3.5 w-3.5 text-violet-300" />
+        <ListChecks className="h-3.5 w-3.5 text-brand-300" />
         <span className="font-medium">Website content</span>
         <span className="text-muted">
           {kept} of {total} sections
@@ -91,7 +91,7 @@ export function SiteContentPanel({
                     return (
                       <li key={key}>
                         <label className="flex min-h-6 cursor-pointer items-start gap-2">
-                          <input type="checkbox" checked={!draft.includes(key)} onChange={() => toggle(key)} className="mt-0.5 h-3.5 w-3.5 accent-violet-500" />
+                          <input type="checkbox" checked={!draft.includes(key)} onChange={() => toggle(key)} className="mt-0.5 h-3.5 w-3.5 accent-brand-500" />
                           <span className={draft.includes(key) ? "text-muted line-through" : ""}>
                             {label}
                             {s.images.length > 0 && <span className="ml-1 text-muted">· {s.images.length} picture{s.images.length === 1 ? "" : "s"}</span>}

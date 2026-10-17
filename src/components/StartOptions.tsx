@@ -50,11 +50,11 @@ export function StartOptions() {
           <div key={o.mode} className="lift reveal flex flex-col rounded-2xl border border-line bg-surface p-6">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2" aria-hidden="true">
-                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-900/40">
+                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-brand-400 text-black shadow-lg shadow-brand-900/40">
                   <o.icon className="h-8 w-8" />
                 </span>
                 <ArrowRight className="h-5 w-5 text-muted" />
-                <span className="grid h-16 w-11 place-items-center rounded-xl border-2 border-white/20 bg-surface-2 text-violet-200">
+                <span className="grid h-16 w-11 place-items-center rounded-xl border-2 border-white/20 bg-surface-2 text-brand-200">
                   <Smartphone className="h-6 w-6" />
                 </span>
               </div>
@@ -71,7 +71,7 @@ export function StartOptions() {
             </ul>
             <StartButton
               mode={o.mode}
-              className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-4 text-sm font-medium text-white"
+              className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand-400 px-4 text-sm font-medium text-black"
             >
               {o.cta} <ArrowUp className="h-4 w-4" />
             </StartButton>

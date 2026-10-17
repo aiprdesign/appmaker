@@ -33,7 +33,7 @@ interface View {
 
 const KEY = (id: string) => `appmaker.owner.${id}`;
 const box = "rounded-2xl border border-line bg-surface p-4 sm:p-5";
-const field = "min-h-10 rounded-lg border border-line bg-background px-2 text-sm text-foreground outline-none focus:border-violet-500/60";
+const field = "min-h-10 rounded-lg border border-line bg-background px-2 text-sm text-foreground outline-none focus:border-brand-500/60";
 
 function readKey(id: string): string {
   const fromLink = new URLSearchParams(window.location.hash.slice(1)).get("k");
@@ -168,7 +168,7 @@ export function OwnerPage({ id }: { id: string }) {
 
       <section className={box} aria-labelledby="upcoming">
         <h2 id="upcoming" className="flex items-center gap-2 font-semibold">
-          <CalendarDays className="h-4 w-4 text-violet-300" /> Upcoming bookings
+          <CalendarDays className="h-4 w-4 text-brand-300" /> Upcoming bookings
         </h2>
         {groups.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No bookings yet. They appear here the moment a customer books in the app.</p>
@@ -239,7 +239,7 @@ export function OwnerPage({ id }: { id: string }) {
 
       <section className={box} aria-labelledby="block">
         <h2 id="block" className="flex items-center gap-2 font-semibold">
-          <CalendarOff className="h-4 w-4 text-violet-300" /> Block time
+          <CalendarOff className="h-4 w-4 text-brand-300" /> Block time
         </h2>
         <p className="mt-1 text-sm text-muted">Holidays, lunch, or a booking you took by phone: blocked time isn&apos;t offered in the app.</p>
         <div className="mt-3 flex flex-wrap items-end gap-2">
@@ -252,7 +252,7 @@ export function OwnerPage({ id }: { id: string }) {
               type="checkbox"
               checked={block.allDay}
               onChange={(e) => setBlock({ ...block, allDay: e.target.checked })}
-              className="h-4 w-4 accent-violet-500"
+              className="h-4 w-4 accent-brand-500"
             />
             All day
           </label>
@@ -304,7 +304,7 @@ export function OwnerPage({ id }: { id: string }) {
       {hours && (
         <section className={box} aria-labelledby="hours">
           <h2 id="hours" className="mb-3 flex items-center gap-2 font-semibold">
-            <Clock className="h-4 w-4 text-violet-300" /> Hours and appointments
+            <Clock className="h-4 w-4 text-brand-300" /> Hours and appointments
           </h2>
           <HoursEditor value={hours} onChange={setHours} />
           <button
@@ -319,7 +319,7 @@ export function OwnerPage({ id }: { id: string }) {
 
       <section className={box} aria-labelledby="calendar">
         <h2 id="calendar" className="flex items-center gap-2 font-semibold">
-          <CalendarPlus className="h-4 w-4 text-violet-300" /> See bookings in your phone&apos;s calendar
+          <CalendarPlus className="h-4 w-4 text-brand-300" /> See bookings in your phone&apos;s calendar
         </h2>
         <p className="mt-1 text-sm text-muted">Optional. Bookings then show up in your calendar with the customer&apos;s name and phone number.</p>
         <div className="mt-3 flex flex-wrap gap-2">

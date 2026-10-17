@@ -11,8 +11,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     start_url: base,
     scope: base,
     display: "standalone",
-    background_color: "#0b0b12",
-    theme_color: "#0b0b12",
+    background_color: "#0a0a09",
+    theme_color: "#0a0a09",
     icons: [192, 512].flatMap((size) => [
       { src: `${base}/app-icon?size=${size}`, sizes: `${size}x${size}`, type: "image/png", purpose: "any" },
       { src: `${base}/app-icon?size=${size}&maskable=1`, sizes: `${size}x${size}`, type: "image/png", purpose: "maskable" },

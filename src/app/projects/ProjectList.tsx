@@ -48,7 +48,7 @@ export function ProjectList() {
         </Link>
       </div>
       {cloud.enabled && !cloud.user && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/30 bg-violet-500/5 p-4 text-sm">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-500/30 bg-brand-500/5 p-4 text-sm">
           <span>These apps are saved in this browser only. Sign in to keep them in your account and open them on any device.</span>
           <Link href="/login" className="inline-flex min-h-9 items-center rounded-lg bg-white px-3 text-sm font-medium text-black">
             Sign in
@@ -71,7 +71,7 @@ export function ProjectList() {
               <Link
                 key={idea}
                 href={`/?idea=${encodeURIComponent(idea)}#start`}
-                className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3.5 text-sm text-foreground/90 hover:border-violet-400/50 hover:bg-violet-500/10"
+                className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3.5 text-sm text-foreground/90 hover:border-brand-400/50 hover:bg-brand-500/10"
               >
                 {idea}
               </Link>
@@ -79,7 +79,7 @@ export function ProjectList() {
           </div>
           <Link
             href="/#start"
-            className="mt-8 inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 px-5 text-sm font-medium text-white"
+            className="mt-8 inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-brand-400 px-5 text-sm font-medium text-black"
           >
             <Plus className="h-4 w-4" /> Describe your own
           </Link>
@@ -105,7 +105,7 @@ export function ProjectList() {
                 href={`/owner/${p.booking.id}`}
                 className="relative z-10 mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:border-white/20"
               >
-                <CalendarCheck className="h-4 w-4 text-violet-300" /> Bookings
+                <CalendarCheck className="h-4 w-4 text-brand-300" /> Bookings
               </Link>
             )}
             <button

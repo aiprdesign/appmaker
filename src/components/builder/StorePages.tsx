@@ -8,7 +8,7 @@ import { downloadBlob } from "@/lib/export";
 import { pageAsHtml, pageAsText, pageContentFor, type OwnPage, type StorePageContent } from "@/lib/store-pages";
 import type { Project, StoreListing, StorePagesState } from "@/lib/types";
 
-const input = "w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-violet-500/60";
+const input = "w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-brand-500/60";
 
 /** What the pages say, minus the date, to tell when they're out of date. */
 function fingerprint(c: StorePageContent): string {
@@ -94,7 +94,7 @@ export function StorePages({
   return (
     <section className="rounded-2xl border border-line bg-surface p-5" aria-labelledby="store-pages-title">
       <h2 id="store-pages-title" className="flex items-center gap-2 font-semibold">
-        <FileText className="h-4 w-4 text-violet-300" /> Support page, privacy policy &amp; terms
+        <FileText className="h-4 w-4 text-brand-300" /> Support page, privacy policy &amp; terms
       </h2>
       <p className="mt-1 text-sm text-muted">
         Apple requires a support page, and both stores require a privacy policy. Appmaker writes them for this app, based on what its code does. Let Appmaker

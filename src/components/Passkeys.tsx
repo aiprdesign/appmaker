@@ -103,7 +103,7 @@ export function PasskeyManager() {
       <button
         onClick={add}
         disabled={busy}
-        className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 text-sm font-medium text-white disabled:opacity-60"
+        className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg bg-brand-400 text-sm font-medium text-black disabled:opacity-60"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <span aria-hidden="true">✨</span>}
         {busy ? "Check your device…" : list?.length ? "Add another passkey" : "Add a passkey"}
@@ -144,7 +144,7 @@ export function PasskeyNudge() {
   }
   if (dismissed || list.length > 0) return null;
   return (
-    <div className="mt-6 flex flex-wrap items-center gap-4 rounded-2xl border border-fuchsia-500/30 bg-gradient-to-r from-violet-500/10 to-pink-500/10 p-4">
+    <div className="mt-6 flex flex-wrap items-center gap-4 rounded-2xl border border-flare-500/30 bg-gradient-to-r from-brand-500/10 to-flare-500/10 p-4">
       <span className="text-3xl motion-safe:animate-pulse" aria-hidden="true">
         🔑
       </span>

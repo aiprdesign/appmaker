@@ -22,7 +22,7 @@ export function SiteCard({ site, onRemove }: { site: SiteSummary; onRemove?: () 
   ].filter(Boolean) as string[];
   return (
     <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-left">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-violet-500/15 text-violet-300">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-500/15 text-brand-300">
         <Globe className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">

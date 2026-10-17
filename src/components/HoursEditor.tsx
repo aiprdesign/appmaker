@@ -2,7 +2,7 @@
 
 import { SLOT_LENGTHS, WEEKDAYS, type BookingSettings } from "@/lib/booking";
 
-const field = "min-h-10 rounded-lg border border-line bg-background px-2 text-sm text-foreground outline-none focus:border-violet-500/60";
+const field = "min-h-10 rounded-lg border border-line bg-background px-2 text-sm text-foreground outline-none focus:border-brand-500/60";
 
 /** Opening hours, appointment length and services: all a business needs to set to take bookings. */
 export function HoursEditor({ value, onChange }: { value: BookingSettings; onChange: (next: BookingSettings) => void }) {
@@ -23,7 +23,7 @@ export function HoursEditor({ value, onChange }: { value: BookingSettings; onCha
                     type="checkbox"
                     checked={!!day}
                     onChange={(e) => setDay(i, e.target.checked ? (value.hours.find(Boolean) ?? { open: "09:00", close: "17:00" }) : null)}
-                    className="h-4 w-4 accent-violet-500"
+                    className="h-4 w-4 accent-brand-500"
                   />
                   {WEEKDAYS[i]}
                 </label>

@@ -50,7 +50,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<{ status: n
   return { status: res.status, data: await res.json().catch(() => ({}) as T & { error?: string }) };
 }
 
-const input = "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-violet-500/60";
+const input = "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand-500/60";
 
 function when(ts: number | null): string {
   if (!ts) return "—";
@@ -102,7 +102,7 @@ export function AdminApp() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <ShieldCheck className="h-6 w-6 text-violet-400" /> Admin
+          <ShieldCheck className="h-6 w-6 text-brand-400" /> Admin
         </h1>
         <button
           onClick={async () => {
@@ -141,7 +141,7 @@ export function AdminApp() {
             tabIndex={tab === t.key ? 0 : -1}
             onClick={() => setTab(t.key)}
             className={`inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-4 text-sm capitalize ${
-              tab === t.key ? "border-violet-400 font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"
+              tab === t.key ? "border-brand-400 font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"
             }`}
           >
             <t.icon className="h-4 w-4" aria-hidden="true" /> {t.key}
@@ -185,7 +185,7 @@ function AdminLogin({ onIn }: { onIn: () => void }) {
         else setError(data.error || "Couldn't sign in.");
       }}
     >
-      <ShieldCheck className="h-8 w-8 text-violet-400" />
+      <ShieldCheck className="h-8 w-8 text-brand-400" />
       <h1 className="mt-3 text-2xl font-semibold tracking-tight">Admin sign-in</h1>
       <p className="mt-2 text-sm text-muted">
         Use the password set in the server&apos;s <code className="font-mono">ADMIN_PASSWORD</code> variable. After 3 wrong tries, sign-in locks for 15 minutes.
@@ -220,7 +220,7 @@ function AdminLogin({ onIn }: { onIn: () => void }) {
       <button
         type="submit"
         disabled={busy}
-        className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 text-sm font-medium text-white disabled:opacity-50"
+        className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand-400 text-sm font-medium text-black disabled:opacity-50"
       >
         {busy && <Loader2 className="h-4 w-4 animate-spin" />} Sign in
       </button>
@@ -307,7 +307,7 @@ function SignupsChart({ days }: { days: { day: string; count: number }[] }) {
                 {d.count > 0 && (
                   <path
                     d={`M${x},${H - pad.bottom} v${-(h - 4)} a4,4 0 0 1 4,-4 h${bar - 8} a4,4 0 0 1 4,4 v${h - 4} z`}
-                    fill="#8B5CF6"
+                    fill="#c4f22b"
                     opacity={hover === null || hover === i ? 1 : 0.55}
                     pointerEvents="none"
                   />
@@ -431,7 +431,7 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
     m.apps > 0 ? (
       <button
         onClick={() => showApps({ id: m.id, email: m.email })}
-        className="inline-flex min-h-8 items-center gap-1 rounded-full bg-violet-500/15 px-3 text-xs font-medium text-violet-200 hover:bg-violet-500/25"
+        className="inline-flex min-h-8 items-center gap-1 rounded-full bg-brand-500/15 px-3 text-xs font-medium text-brand-200 hover:bg-brand-500/25"
         aria-label={`Show ${m.email}'s ${m.apps} apps`}
       >
         <AppWindow className="h-3.5 w-3.5" /> {m.apps} app{m.apps === 1 ? "" : "s"}
@@ -564,11 +564,11 @@ function MembersTab({ showApps }: { showApps: (m: { id: string; email: string })
                   step={1}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-violet-500/60"
+                  className="mt-1 w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-brand-500/60"
                 />
               </label>
               <label className="flex min-h-9 items-center gap-2 text-sm">
-                <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="h-4 w-4 accent-violet-500" />
+                <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="h-4 w-4 accent-brand-500" />
                 Paid plan (store builds, bookings, live updates, no Made with Appmaker line)
               </label>
             </div>
@@ -755,7 +755,7 @@ function PaymentsSection() {
     <section aria-labelledby="payments-title" className="rounded-2xl border border-line bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="payments-title" className="flex items-center gap-2 font-semibold">
-          <CreditCard className="h-4 w-4 text-violet-300" /> Payments (Stripe)
+          <CreditCard className="h-4 w-4 text-brand-300" /> Payments (Stripe)
         </h2>
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${p.enabled ? (p.mode === "live" ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-200") : "bg-white/10 text-muted"}`}
@@ -804,7 +804,7 @@ function PaymentsSection() {
                   step={1}
                   value={draft[f.key] ?? ""}
                   onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
-                  className="min-h-9 w-20 rounded-lg border border-line bg-surface-2 px-2 text-sm text-foreground outline-none focus:border-violet-500/60"
+                  className="min-h-9 w-20 rounded-lg border border-line bg-surface-2 px-2 text-sm text-foreground outline-none focus:border-brand-500/60"
                 />
                 {f.hint}
               </span>

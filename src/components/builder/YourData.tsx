@@ -40,7 +40,7 @@ function AddInput({ label, hint, onAdd, busy }: { label: string; hint: string; o
         setOpen(false);
       }}
     >
-      <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={hint} aria-label={label} className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs focus:border-violet-400/60 focus:outline-none" />
+      <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={hint} aria-label={label} className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs focus:border-brand-400/60 focus:outline-none" />
       <button type="submit" className="min-h-8 rounded-lg bg-white px-3 text-xs font-medium text-black">
         Add
       </button>

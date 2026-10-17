@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   };
 }
 
-export const viewport: Viewport = { themeColor: "#0b0b12" };
+export const viewport: Viewport = { themeColor: "#0a0a09" };
 
 /** The business's page for its app's data. Opened with the owner link (the key stays in the URL's #). */
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {

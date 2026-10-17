@@ -8,7 +8,7 @@ import { signIn, useCloud } from "@/lib/cloud";
 import { PasskeyCancelled, passkeysSupported, signInWithPasskey } from "@/lib/passkeys";
 import { celebrate } from "@/components/celebrate";
 
-const input = "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-violet-500/60";
+const input = "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-brand-500/60";
 
 export function LoginForm() {
   const cloud = useCloud();
@@ -119,7 +119,7 @@ export function LoginForm() {
             type="button"
             onClick={passkey}
             disabled={passkeyBusy || !!welcome}
-            className="group relative flex min-h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-70"
+            className="group relative flex min-h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-brand-400 text-sm font-semibold text-black shadow-lg shadow-brand-900/30 transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-70"
           >
             <span className="text-lg transition group-hover:-rotate-12 group-hover:scale-110 motion-reduce:transition-none" aria-hidden="true">
               {welcome ? "🎉" : "🔑"}
@@ -177,7 +177,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={busy || cloud.enabled === null}
-          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 text-sm font-medium text-white disabled:opacity-50"
+          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand-400 text-sm font-medium text-black disabled:opacity-50"
         >
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}
           {mode === "login" ? "Sign in" : "Create account"}

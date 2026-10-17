@@ -108,7 +108,7 @@ function hostOf(url: string): string {
 }
 
 const input =
-  "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-violet-500/60 disabled:opacity-50";
+  "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand-500/60 disabled:opacity-50";
 
 export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
   const saved = useAiSettings();
@@ -333,7 +333,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
 
   const status = (id: ProviderId) => {
     if (draft.keys[id]) return { label: "Your key", tone: "text-emerald-300 bg-emerald-500/10" };
-    if (config?.serverKeys.includes(id)) return { label: "Ready", tone: "text-violet-200 bg-violet-500/15" };
+    if (config?.serverKeys.includes(id)) return { label: "Ready", tone: "text-brand-200 bg-brand-500/15" };
     if (id === "custom" && !config?.customEndpointsAllowed) return { label: "Disabled", tone: "text-muted bg-white/5" };
     if (id === "custom") return draft.baseURL ? { label: "Set up", tone: "text-emerald-300 bg-emerald-500/10" } : { label: "Needs URL", tone: "text-muted bg-white/5" };
     return { label: "Needs key", tone: "text-muted bg-white/5" };
@@ -396,10 +396,10 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
           </nav>
 
           <div className="scrollbar-thin min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-            <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-3">
+            <div className="rounded-xl border border-brand-500/30 bg-brand-500/5 p-3">
               <label className="block">
                 <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium">
-                  <Sparkles className="h-3.5 w-3.5 text-violet-300" /> Quick setup — paste any API key
+                  <Sparkles className="h-3.5 w-3.5 text-brand-300" /> Quick setup — paste any API key
                 </span>
                 <input
                   className={`${input} font-mono`}
@@ -523,7 +523,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                   <span className="mb-1.5 flex items-center justify-between text-xs font-medium">
                     <span>API key</span>
                     {provider.keyUrl && (
-                      <a href={provider.keyUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-6 items-center gap-1 px-1 text-violet-300 hover:underline">
+                      <a href={provider.keyUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-6 items-center gap-1 px-1 text-brand-300 hover:underline">
                         Get a key <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
@@ -590,7 +590,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                           type="button"
                           onClick={() => setDraft((d) => ({ ...d, provider: providerId, model: m.id }))}
                           className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm ${
-                            model === m.id ? "border-violet-500/60 bg-violet-500/10" : "border-line hover:border-white/20"
+                            model === m.id ? "border-brand-500/60 bg-brand-500/10" : "border-line hover:border-white/20"
                           }`}
                         >
                           <span>
@@ -608,7 +608,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                         {myModels.map((id) => (
                           <li
                             key={id}
-                            className={`flex items-center gap-1 rounded-lg border pr-1 text-sm ${model === id ? "border-violet-500/60 bg-violet-500/10" : "border-line"}`}
+                            className={`flex items-center gap-1 rounded-lg border pr-1 text-sm ${model === id ? "border-brand-500/60 bg-brand-500/10" : "border-line"}`}
                           >
                             <button
                               type="button"
@@ -730,7 +730,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
             <button
               onClick={save}
               disabled={!model || !!customBlocked}
-              className="rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+              className="rounded-lg bg-brand-400 px-4 py-1.5 text-sm font-medium text-black disabled:opacity-40"
             >
               Save
             </button>

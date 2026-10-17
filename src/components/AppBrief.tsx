@@ -77,7 +77,7 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
     }
   };
   const chip = (on: boolean) =>
-    `inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm ${on ? "border-violet-400/70 bg-violet-500/15 text-foreground" : "border-line text-muted hover:border-white/20 hover:text-foreground"}`;
+    `inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm ${on ? "border-brand-400/70 bg-brand-500/15 text-foreground" : "border-line text-muted hover:border-white/20 hover:text-foreground"}`;
   const toggleFeature = (f: string) =>
     setA((x) => ({ ...x, features: x.features.includes(f) ? x.features.filter((y) => y !== f) : [...x.features, f].slice(0, 6) }));
 
@@ -97,7 +97,7 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
       </h2>
       {phase === "asking" ? (
         <p role="status" className="mt-2 flex items-center gap-2 text-sm text-muted">
-          <Loader2 className="h-4 w-4 animate-spin text-violet-400" /> The AI is reading your idea to ask the right questions.
+          <Loader2 className="h-4 w-4 animate-spin text-brand-400" /> The AI is reading your idea to ask the right questions.
         </p>
       ) : phase === "ai" && ai?.understood ? (
         <p className="mt-1 text-sm text-foreground/90">
@@ -162,7 +162,7 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
             onChange={(e) => setA({ ...a, extra: e.target.value })}
             maxLength={300}
             placeholder="e.g. share lists with my partner"
-            className="mt-1 min-h-9 w-full rounded-lg border border-line bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted/70 focus:border-violet-500/60"
+            className="mt-1 min-h-9 w-full rounded-lg border border-line bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted/70 focus:border-brand-500/60"
           />
         </label>
       )}
@@ -191,7 +191,7 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
                   value={a.business ?? ""}
                   onChange={(e) => setA({ ...a, business: e.target.value })}
                   maxLength={80}
-                  className="mt-1 min-h-9 w-full rounded-lg border border-line bg-background px-3 text-sm text-foreground outline-none focus:border-violet-500/60"
+                  className="mt-1 min-h-9 w-full rounded-lg border border-line bg-background px-3 text-sm text-foreground outline-none focus:border-brand-500/60"
                 />
               </label>
             )}
@@ -213,7 +213,7 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
                 onChange={(e) => setA({ ...a, extra: e.target.value })}
                 maxLength={300}
                 placeholder="e.g. share lists with my partner"
-                className="mt-1 min-h-9 w-full rounded-lg border border-line bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted/70 focus:border-violet-500/60"
+                className="mt-1 min-h-9 w-full rounded-lg border border-line bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted/70 focus:border-brand-500/60"
               />
             </label>
           </fieldset>
@@ -252,7 +252,7 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
                   : a,
               );
             }}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 px-4 text-sm font-medium text-white"
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-400 px-4 text-sm font-medium text-black"
           >
             Build my app <ArrowRight className="h-4 w-4" />
           </button>
@@ -268,7 +268,7 @@ export function AppBrief({ prompt, onBuild, onCancel }: { prompt: string; onBuil
           Skip, just build it
         </button>
         <label className="ml-auto flex min-h-10 items-center gap-2 text-xs text-muted">
-          <input type="checkbox" checked={never} onChange={(e) => setNever(e.target.checked)} className="h-6 w-6 accent-violet-500" />
+          <input type="checkbox" checked={never} onChange={(e) => setNever(e.target.checked)} className="h-6 w-6 accent-brand-500" />
           Don&apos;t ask me again
         </label>
       </div>

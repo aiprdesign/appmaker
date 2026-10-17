@@ -1,14 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  --background: #07070b;
-  --surface: #0f0f16;
-  --surface-2: #161621;
-  --border: #23232f;
-  --foreground: #f3f2f8;
-  --muted: #9a98ad;
-  --accent: #8b5cf6;
-  --accent-2: #ec4899;
+  --background: #0a0a09;
+  --surface: #121211;
+  --surface-2: #1a1a18;
+  --border: #2a2a27;
+  --foreground: #f5f5f0;
+  --muted: #a3a39b;
+  --accent: #c4f22b;
+  --accent-2: #ff7a3d;
+}
+
+/*
+ * Appmaker's brand, "Ink & Lime": warm near-black surfaces, an electric lime as the
+ * signature colour (always with dark text on it), and tangerine used sparingly.
+ */
+@theme {
+  --color-brand-50: #f8ffe5;
+  --color-brand-100: #efffc2;
+  --color-brand-200: #e1ff8a;
+  --color-brand-300: #d2fb52;
+  --color-brand-400: #c4f22b;
+  --color-brand-500: #a8d816;
+  --color-brand-600: #84ab0d;
+  --color-brand-700: #64810f;
+  --color-brand-800: #4f6612;
+  --color-brand-900: #435614;
+  --color-brand-950: #233005;
+  --color-flare-50: #fff4ed;
+  --color-flare-100: #ffe6d4;
+  --color-flare-200: #ffc9a8;
+  --color-flare-300: #ffa370;
+  --color-flare-400: #ff7a3d;
+  --color-flare-500: #fe5a17;
+  --color-flare-600: #ef3f0d;
+  --color-flare-700: #c62d0d;
+  --color-flare-800: #9d2613;
+  --color-flare-900: #7e2313;
+  --color-flare-950: #440e07;
 }
 
 @theme inline {
@@ -34,7 +63,7 @@ body {
 }
 
 .text-gradient {
-  background: linear-gradient(100deg, #c4b5fd 0%, #f0abfc 45%, #fda4af 100%);
+  background: linear-gradient(100deg, #e1ff8a 0%, #f5f5f0 45%, #ffa370 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -42,8 +71,8 @@ body {
 
 .glow {
   background:
-    radial-gradient(60% 50% at 50% 0%, rgba(139, 92, 246, 0.35), transparent 70%),
-    radial-gradient(40% 40% at 80% 10%, rgba(236, 72, 153, 0.22), transparent 70%);
+    radial-gradient(60% 50% at 50% 0%, rgba(196, 242, 43, 0.16), transparent 70%),
+    radial-gradient(40% 40% at 85% 5%, rgba(255, 122, 61, 0.08), transparent 70%);
 }
 
 .grid-bg {
@@ -64,7 +93,7 @@ body {
   inset: -1px;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(120deg, rgba(139, 92, 246, 0.8), rgba(236, 72, 153, 0.6), rgba(255, 255, 255, 0.08));
+  background: linear-gradient(120deg, rgba(196, 242, 43, 0.8), rgba(255, 122, 61, 0.6), rgba(255, 255, 255, 0.08));
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -75,7 +104,7 @@ body {
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: #2a2a38 transparent;
+  scrollbar-color: #2c2c29 transparent;
   /* Keep the scrollbar's space, so content doesn't jump as it appears and disappears. */
   scrollbar-gutter: stable;
 }
@@ -84,7 +113,7 @@ body {
   height: 8px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #2a2a38;
+  background: #2c2c29;
   border-radius: 8px;
 }
 
@@ -93,7 +122,7 @@ body {
   100% { background-position: 200% 0; }
 }
 .shimmer {
-  background: linear-gradient(90deg, #9a98ad 0%, #ffffff 50%, #9a98ad 100%);
+  background: linear-gradient(90deg, #a3a39b 0%, #ffffff 50%, #a3a39b 100%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -104,7 +133,7 @@ body {
 .prose-chat p + p { margin-top: 0.5rem; }
 .prose-chat ul { list-style: disc; padding-left: 1.1rem; margin-top: 0.4rem; }
 .prose-chat li + li { margin-top: 0.2rem; }
-.prose-chat code { background: #1d1d29; padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
+.prose-chat code { background: #1f1f1c; padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
 
 /* Home page concept graphic: dots flowing along the connectors, and a gently floating center. */
 @keyframes flow {
@@ -112,7 +141,7 @@ body {
   to { background-position: 24px 0; }
 }
 .flow-line {
-  background-image: radial-gradient(circle, rgba(196, 181, 253, 0.9) 1.5px, transparent 2px);
+  background-image: radial-gradient(circle, rgba(210, 251, 82, 0.9) 1.5px, transparent 2px);
   background-size: 12px 4px;
   background-repeat: repeat-x;
   background-position: 0 center;
@@ -133,8 +162,8 @@ body {
 /* Slowly drifting color light behind the hero. */
 .aurora {
   background:
-    radial-gradient(35% 45% at 20% 30%, rgba(139, 92, 246, 0.28), transparent 70%),
-    radial-gradient(30% 40% at 80% 20%, rgba(236, 72, 153, 0.2), transparent 70%),
+    radial-gradient(35% 45% at 20% 30%, rgba(196, 242, 43, 0.12), transparent 70%),
+    radial-gradient(30% 40% at 80% 20%, rgba(255, 122, 61, 0.07), transparent 70%),
     radial-gradient(30% 35% at 55% 70%, rgba(56, 189, 248, 0.12), transparent 70%);
   filter: blur(20px);
 }
@@ -148,11 +177,11 @@ body {
 .gradient-border-live::before {
   background: conic-gradient(
     from var(--border-angle),
-    rgba(139, 92, 246, 0.9),
-    rgba(236, 72, 153, 0.75),
+    rgba(196, 242, 43, 0.9),
+    rgba(255, 122, 61, 0.75),
     rgba(56, 189, 248, 0.6),
     rgba(255, 255, 255, 0.08) 60%,
-    rgba(139, 92, 246, 0.9)
+    rgba(196, 242, 43, 0.9)
   );
 }
 
@@ -178,7 +207,7 @@ body {
     100% { background-position: 200% 50%; }
   }
   .text-gradient-live {
-    background: linear-gradient(100deg, #c4b5fd 0%, #f0abfc 25%, #fda4af 50%, #f0abfc 75%, #c4b5fd 100%);
+    background: linear-gradient(100deg, #e1ff8a 0%, #f5f5f0 25%, #ffa370 50%, #f5f5f0 75%, #e1ff8a 100%);
     background-size: 200% 100%;
     -webkit-background-clip: text;
     background-clip: text;
@@ -232,7 +261,7 @@ body {
 }
 .lift:hover {
   transform: translateY(-4px);
-  box-shadow: 0 18px 40px -18px rgba(139, 92, 246, 0.45);
+  box-shadow: 0 18px 40px -18px rgba(196, 242, 43, 0.45);
   border-color: rgba(255, 255, 255, 0.18);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -286,14 +315,14 @@ html.a11y-spacing body {
 .beam-x {
   height: 1px;
   width: 160px;
-  background: linear-gradient(90deg, transparent, rgba(196, 181, 253, 0.9), rgba(244, 114, 182, 0.9), transparent);
+  background: linear-gradient(90deg, transparent, rgba(210, 251, 82, 0.9), rgba(255, 163, 112, 0.9), transparent);
   box-shadow: 0 0 12px 1px rgba(167, 139, 250, 0.45);
 }
 .beam-y {
   width: 1px;
   height: 160px;
-  background: linear-gradient(180deg, transparent, rgba(125, 211, 252, 0.9), rgba(196, 181, 253, 0.9), transparent);
-  box-shadow: 0 0 12px 1px rgba(125, 211, 252, 0.4);
+  background: linear-gradient(180deg, transparent, rgba(245, 245, 240, 0.9), rgba(210, 251, 82, 0.9), transparent);
+  box-shadow: 0 0 12px 1px rgba(245, 245, 240, 0.4);
 }
 /* A connector line with a glow running along it. */
 .beam-link {
@@ -306,7 +335,7 @@ html.a11y-spacing body {
   position: absolute;
   inset: 0 auto 0 0;
   width: 30%;
-  background: linear-gradient(90deg, transparent, rgba(196, 181, 253, 0.95), rgba(244, 114, 182, 0.95), transparent);
+  background: linear-gradient(90deg, transparent, rgba(210, 251, 82, 0.95), rgba(255, 163, 112, 0.95), transparent);
   transform: translateX(-100%);
   opacity: 0;
 }
@@ -326,7 +355,7 @@ html.a11y-spacing body {
   border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%;
 }
 .orb::before {
-  background: conic-gradient(from 0deg, #8b5cf6, #ec4899, #38bdf8, #a78bfa, #8b5cf6);
+  background: conic-gradient(from 0deg, #c4f22b, #ff7a3d, #ffd166, #d2fb52, #c4f22b);
   filter: blur(18px) saturate(1.2);
   opacity: 0.85;
 }
@@ -381,9 +410,9 @@ html.a11y-spacing body {
 /* The builder's stage: a dotted floor under a soft spotlight. */
 .stage {
   background:
-    radial-gradient(ellipse 60% 50% at 50% 45%, rgba(139, 92, 246, 0.1), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 50% 45%, rgba(196, 242, 43, 0.1), transparent 70%),
     radial-gradient(circle, rgba(255, 255, 255, 0.07) 1px, transparent 1.5px) 0 0 / 22px 22px,
-    radial-gradient(ellipse at center, #13131c 0%, #07070b 75%);
+    radial-gradient(ellipse at center, #161614 0%, #0a0a09 75%);
 }
 
 /* Building screen: placeholders shimmer and empty cards blink while the app is made. */
@@ -417,11 +446,11 @@ html.a11y-spacing body {
   border-radius: 1.5rem;
   background: conic-gradient(
     from var(--glow-angle),
-    rgba(139, 92, 246, 0.95),
-    rgba(236, 72, 153, 0.85),
+    rgba(196, 242, 43, 0.95),
+    rgba(255, 122, 61, 0.85),
     rgba(56, 189, 248, 0.7),
-    rgba(139, 92, 246, 0.15) 60%,
-    rgba(139, 92, 246, 0.95)
+    rgba(196, 242, 43, 0.15) 60%,
+    rgba(196, 242, 43, 0.95)
   );
   filter: blur(24px);
   opacity: 0.55;
@@ -455,13 +484,13 @@ html.a11y-spacing body {
 /* The prompt box's build button: a shimmering gradient, and a ring that calls once there's something to build. */
 .send-live {
   position: relative;
-  background-image: linear-gradient(110deg, #8b5cf6, #ec4899, #f59e0b, #ec4899, #8b5cf6);
+  background-image: linear-gradient(110deg, #c4f22b, #e1ff8a, #c4f22b, #a8d816, #c4f22b);
   background-size: 250% 100%;
   transition: transform 0.2s ease, box-shadow 0.3s ease, opacity 0.2s ease;
 }
 .send-live:not(:disabled):hover {
   transform: translateY(-1px) scale(1.06);
-  box-shadow: 0 8px 24px -6px rgba(236, 72, 153, 0.7);
+  box-shadow: 0 8px 24px -6px rgba(196, 242, 43, 0.6);
 }
 .send-live:not(:disabled):active {
   transform: scale(0.94);
@@ -483,9 +512,9 @@ html.a11y-spacing body {
     to { background-position: -250% 0; }
   }
   @keyframes send-ring {
-    0% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.55); }
-    70% { box-shadow: 0 0 0 12px rgba(236, 72, 153, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(196, 242, 43, 0.5); }
+    70% { box-shadow: 0 0 0 12px rgba(196, 242, 43, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(196, 242, 43, 0); }
   }
   .send-live { animation: send-shimmer 5s linear infinite; }
   .send-live[data-ready="true"]:not(:hover) { animation: send-shimmer 2.5s linear infinite, send-ring 1.8s ease-out infinite; }

@@ -63,7 +63,7 @@ export function AccessibilityMenu({ inline = false }: { inline?: boolean }) {
         <span className="block text-sm text-foreground">{label}</span>
         <span className="block text-xs text-muted">{hint}</span>
       </span>
-      <input type="checkbox" checked={s[key]} onChange={(e) => update({ [key]: e.target.checked })} className="h-5 w-5 shrink-0 accent-violet-500" />
+      <input type="checkbox" checked={s[key]} onChange={(e) => update({ [key]: e.target.checked })} className="h-5 w-5 shrink-0 accent-brand-500" />
     </label>
   );
 
@@ -108,7 +108,7 @@ export function AccessibilityMenu({ inline = false }: { inline?: boolean }) {
                   role="radio"
                   aria-checked={s.text === t}
                   onClick={() => update({ text: t })}
-                  className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border text-sm capitalize ${s.text === t ? "border-violet-400/60 bg-violet-500/15" : "border-line text-muted hover:text-foreground"}`}
+                  className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border text-sm capitalize ${s.text === t ? "border-brand-400/60 bg-brand-500/15" : "border-line text-muted hover:text-foreground"}`}
                 >
                   {s.text === t && <Check className="h-3.5 w-3.5" />}
                   {t === "normal" ? "Normal" : t === "large" ? "Large" : "Larger"}

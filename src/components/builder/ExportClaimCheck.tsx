@@ -53,7 +53,7 @@ export function useExportClaimCheck(project: Project | null | undefined, onFix?:
                 setPending(null);
                 onFix();
               }}
-              className="min-h-10 rounded-lg bg-violet-600 px-3 font-medium text-white"
+              className="min-h-10 rounded-lg bg-brand-600 px-3 font-medium text-black"
             >
               Fix the wording with AI
             </button>

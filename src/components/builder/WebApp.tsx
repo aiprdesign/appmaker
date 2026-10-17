@@ -85,7 +85,7 @@ export function WebApp({ project, gate = (_what, run) => void run() }: { project
   return (
     <section className="rounded-2xl border border-line bg-surface p-5" aria-labelledby="webapp-title">
       <h2 id="webapp-title" className="flex items-center gap-2 font-semibold">
-        <Globe className="h-4 w-4 text-violet-300" aria-hidden /> Web app: install from the browser
+        <Globe className="h-4 w-4 text-brand-300" aria-hidden /> Web app: install from the browser
       </h2>
       <p className="mt-1 text-xs text-muted">
         A second way to get your app, ready today: customers open the link and add it to their Home Screen on iPhone or Android. The store versions can follow.
@@ -95,7 +95,7 @@ export function WebApp({ project, gate = (_what, run) => void run() }: { project
           <div className="flex flex-wrap items-center gap-4">
             <QrCode value={url} size={120} label={`QR code for ${url}`} />
             <div className="min-w-0 flex-1 space-y-2">
-              <a href={url} target="_blank" rel="noreferrer" className="block break-all text-sm font-medium text-violet-300 underline underline-offset-2">
+              <a href={url} target="_blank" rel="noreferrer" className="block break-all text-sm font-medium text-brand-300 underline underline-offset-2">
                 {url}
               </a>
               <div className="flex flex-wrap gap-2">
@@ -147,7 +147,7 @@ export function WebApp({ project, gate = (_what, run) => void run() }: { project
             <p className="mt-3 text-xs text-muted">Tips: put the poster by the till, add the link to your website and Google profile, and send the message to regular customers. The app also shows these steps the first time someone opens it.</p>
           </details>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => void publish()} disabled={!!busy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-violet-600 px-3 text-sm font-medium text-white disabled:opacity-50">
+            <button onClick={() => void publish()} disabled={!!busy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-medium text-black disabled:opacity-50">
               {busy === "publish" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />} Update with the latest version
             </button>
             <button onClick={() => void remove()} disabled={!!busy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line px-3 text-sm disabled:opacity-50">
@@ -156,7 +156,7 @@ export function WebApp({ project, gate = (_what, run) => void run() }: { project
           </div>
         </div>
       ) : (
-        <button onClick={() => void publish()} disabled={!!busy} className="mt-4 inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-violet-600 px-4 text-sm font-medium text-white disabled:opacity-50">
+        <button onClick={() => void publish()} disabled={!!busy} className="mt-4 inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-brand-600 px-4 text-sm font-medium text-black disabled:opacity-50">
           {busy === "publish" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Globe className="h-4 w-4" aria-hidden />} Publish web app
         </button>
       )}

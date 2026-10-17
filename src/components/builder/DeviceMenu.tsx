@@ -63,7 +63,7 @@ export function DeviceMenu({
             }}
             className="flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-white/5"
           >
-            <QrCode className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+            <QrCode className="mt-0.5 h-4 w-4 shrink-0 text-brand-300" />
             <span className="min-w-0 flex-1">
               <span className="text-sm font-medium">Your phone (Expo Go)</span>
               <span className="mt-0.5 block text-[11px] leading-snug text-muted">Scan a QR code to run the real app, on the same Expo version as your store builds</span>
@@ -78,7 +78,7 @@ export function DeviceMenu({
               }}
               className="flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-white/5"
             >
-              <Download className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+              <Download className="mt-0.5 h-4 w-4 shrink-0 text-brand-300" />
               <span className="min-w-0 flex-1">
                 <span className="text-sm font-medium">Android test app</span>
                 <span className="mt-0.5 block text-[11px] leading-snug text-muted">
@@ -102,7 +102,7 @@ export function DeviceMenu({
               }}
               className="flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-white/5"
             >
-              <o.icon className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+              <o.icon className="mt-0.5 h-4 w-4 shrink-0 text-brand-300" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 text-sm font-medium">
                   {o.label} <ExternalLink className="h-3 w-3 text-muted" aria-hidden="true" />

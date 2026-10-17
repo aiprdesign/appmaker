@@ -41,7 +41,7 @@ export function PublishGuide({ project }: { project: Project }) {
     },
   ];
   return (
-    <section aria-labelledby="guide-title" className="rounded-2xl border border-violet-500/30 bg-violet-500/5 p-5">
+    <section aria-labelledby="guide-title" className="rounded-2xl border border-brand-500/30 bg-brand-500/5 p-5">
       <h2 id="guide-title" className="font-semibold">
         What the stores need before you publish
       </h2>

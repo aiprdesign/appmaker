@@ -28,7 +28,7 @@ export function LegalSection() {
   return (
     <section aria-labelledby="legal-title" className="rounded-2xl border border-line bg-surface p-5">
       <h2 id="legal-title" className="flex items-center gap-2 font-semibold">
-        <FileText className="h-4 w-4 text-violet-300" /> Legal details
+        <FileText className="h-4 w-4 text-brand-300" /> Legal details
       </h2>
       <p className="mt-1 text-sm text-muted">
         These fill the blanks on your{" "}
@@ -51,7 +51,7 @@ export function LegalSection() {
               value={draft[f.key]}
               onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
               placeholder={f.placeholder}
-              className="min-h-9 rounded-lg border border-line bg-surface-2 px-3 text-sm text-foreground outline-none focus:border-violet-500/60"
+              className="min-h-9 rounded-lg border border-line bg-surface-2 px-3 text-sm text-foreground outline-none focus:border-brand-500/60"
             />
             <span>{f.hint}</span>
           </label>

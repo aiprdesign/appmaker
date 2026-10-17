@@ -36,7 +36,7 @@ export function CodePanel({ files, selected, onSelect, onChange, readOnly, writi
                 p === current ? "bg-surface-2 text-foreground" : "text-muted hover:bg-white/5"
               }`}
             >
-              <FileCode2 className={`h-3.5 w-3.5 ${writing === p ? "animate-pulse text-violet-400" : ""}`} />
+              <FileCode2 className={`h-3.5 w-3.5 ${writing === p ? "animate-pulse text-brand-400" : ""}`} />
               <span className="truncate">{p}</span>
             </button>
           ))}
@@ -71,7 +71,7 @@ export function CodePanel({ files, selected, onSelect, onChange, readOnly, writi
           Tab indents · Esc then Tab to leave
         </span>
         {readOnly && (
-          <span className="absolute right-3 top-3 rounded-md bg-violet-500/20 px-2 py-0.5 text-[11px] text-violet-300">
+          <span className="absolute right-3 top-3 rounded-md bg-brand-500/20 px-2 py-0.5 text-[11px] text-brand-300">
             AI is writing…
           </span>
         )}

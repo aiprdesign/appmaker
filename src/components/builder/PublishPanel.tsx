@@ -121,7 +121,7 @@ function LogoPicker({ icon, onIconChange }: { icon?: AppIconImage; onIconChange:
   return (
     <div className="w-full space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <label className="relative inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg bg-white px-3 text-sm font-medium text-black focus-within:ring-2 focus-within:ring-violet-400">
+        <label className="relative inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg bg-white px-3 text-sm font-medium text-black focus-within:ring-2 focus-within:ring-brand-400">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
           {icon ? "Change logo" : "Use your logo"}
           <input
@@ -198,7 +198,7 @@ function Field({
 }
 
 const input =
-  "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-violet-500/60";
+  "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand-500/60";
 
 function CopyCommand({ cmd }: { cmd: string }) {
   const [copied, setCopied] = useState(false);
@@ -381,7 +381,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
                   </Field>
                   <div className="sm:col-span-2">
                     <label className="flex min-h-10 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-2/40 p-3">
-                      <input type="checkbox" checked={l.ipad !== false} onChange={(e) => set("ipad", e.target.checked)} className="mt-0.5 h-6 w-6 shrink-0 accent-violet-500" />
+                      <input type="checkbox" checked={l.ipad !== false} onChange={(e) => set("ipad", e.target.checked)} className="mt-0.5 h-6 w-6 shrink-0 accent-brand-500" />
                       <span>
                         <span className="block text-sm font-medium">Also for iPad</span>
                         <span className="block text-xs text-muted">
@@ -518,7 +518,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
             {step < steps.length - 1 && (
               <button
                 onClick={() => setStep(step + 1)}
-                className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 px-5 text-sm font-medium text-white"
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-brand-400 px-5 text-sm font-medium text-black"
               >
                 Next: {steps[step + 1].title} <ChevronRight className="h-4 w-4" />
               </button>
@@ -559,7 +559,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
                 </div>
                 <div className="mt-3 h-1.5 rounded-full bg-surface-2">
                   <div
-                    className="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 transition-all"
+                    className="h-1.5 rounded-full bg-brand-400 transition-all"
                     style={{ width: `${(ready / checks.length) * 100}%` }}
                   />
                 </div>
@@ -581,12 +581,12 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
                                 showAll(false);
                                 setStep(stepOf(c.label));
                               }}
-                              className="mt-0.5 block min-h-6 text-[11px] font-medium text-violet-300 underline underline-offset-2 hover:text-violet-200"
+                              className="mt-0.5 block min-h-6 text-[11px] font-medium text-brand-300 underline underline-offset-2 hover:text-brand-200"
                             >
                               Fix in step {stepOf(c.label) + 1}: {steps[stepOf(c.label)].title}
                             </button>
                           ) : (
-                            <span className="mt-0.5 block text-[11px] text-violet-300">Ask the AI in the chat to fix it.</span>
+                            <span className="mt-0.5 block text-[11px] text-brand-300">Ask the AI in the chat to fix it.</span>
                           ))}
                       </span>
                     </li>
@@ -610,7 +610,7 @@ export function PublishPanel({ project, buildRequest, onChange, onExpoChange, on
                 <button
                   onClick={() => download()}
                   disabled={exporting || !Object.keys(project.files).length}
-                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-400 py-2.5 text-sm font-medium text-black disabled:opacity-50"
                 >
                   {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   Download Expo project

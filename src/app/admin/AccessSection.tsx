@@ -25,7 +25,7 @@ export function AccessSection() {
   return (
     <section aria-labelledby="access-title" className="rounded-2xl border border-line bg-surface p-5">
       <h2 id="access-title" className="flex items-center gap-2 font-semibold">
-        <LockKeyhole className="h-4 w-4 text-violet-300" /> Site lock
+        <LockKeyhole className="h-4 w-4 text-brand-300" /> Site lock
         <span
           className={`ml-1 rounded-full px-2 py-0.5 text-xs font-medium ${access.locked ? "bg-amber-500/15 text-amber-200" : "bg-emerald-500/15 text-emerald-200"}`}
         >

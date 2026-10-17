@@ -96,7 +96,7 @@ const urlKey = (b64: string) => {
 
 const KEY = (id: string) => `appmaker.data-owner.${id}`;
 const box = "rounded-2xl border border-line bg-surface p-4 sm:p-5";
-const field = "min-h-10 w-full rounded-lg border border-line bg-background px-2 text-sm text-foreground outline-none focus:border-violet-500/60";
+const field = "min-h-10 w-full rounded-lg border border-line bg-background px-2 text-sm text-foreground outline-none focus:border-brand-500/60";
 const ACCESS = {
   public: { icon: Store, text: "You edit this; everyone using the app sees it." },
   inbox: { icon: Inbox, text: "Sent by customers; only you see all of them. Move each one on and the customer sees where it's at." },
@@ -531,7 +531,7 @@ export function DataOwnerPage({ id }: { id: string }) {
     const itemsText = c.fields.filter((f) => f !== "total").map((f) => show(item[f])).join(" ");
     const hidden = (f: string) => f === timeField || (f === "total" && itemsText.includes(show(item[f])));
     return (
-      <li key={item.id} id={`item-${item.id}`} className={`flex flex-wrap items-start gap-3 py-3 ${waiting ? "border-l-4 border-violet-400 pl-3" : ""} ${isNew ? "rounded-lg ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-transparent" : ""}`}>
+      <li key={item.id} id={`item-${item.id}`} className={`flex flex-wrap items-start gap-3 py-3 ${waiting ? "border-l-4 border-brand-400 pl-3" : ""} ${isNew ? "rounded-lg ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-transparent" : ""}`}>
         <div className="min-w-0 flex-1 space-y-0.5 text-sm">
           {c.fields
             .filter((f) => show(item[f]) && !hidden(f))
@@ -551,7 +551,7 @@ export function DataOwnerPage({ id }: { id: string }) {
               ) : isPhone(f) ? (
                 // The number isn't on screen (owner pages often sit on a counter tablet): Call uses it, Show reveals it.
                 <div key={f} className="flex flex-wrap items-center gap-2">
-                  <a href={`tel:${show(item[f]).replace(/[^\d+]/g, "")}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-violet-200">
+                  <a href={`tel:${show(item[f]).replace(/[^\d+]/g, "")}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-brand-200">
                     <Phone className="h-3.5 w-3.5" aria-hidden /> Call
                   </a>
                   {shown.includes(item.id + f) ? (
@@ -644,7 +644,7 @@ export function DataOwnerPage({ id }: { id: string }) {
   return (
     <main id="main" className="mx-auto max-w-3xl space-y-4 p-4 pb-32 sm:p-6">
       <header className="flex items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/15 text-violet-200">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-500/15 text-brand-200">
           <Database className="h-5 w-5" aria-hidden />
         </span>
         <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">{view.name || "Your app"}</h1>
@@ -669,8 +669,8 @@ export function DataOwnerPage({ id }: { id: string }) {
         </div>
       )}
       {!standalone && (install || ios) && (
-        <section aria-label="Install the owner app" className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-400/30 bg-violet-500/10 p-3 text-sm">
-          <Smartphone className="h-5 w-5 shrink-0 text-violet-200" aria-hidden />
+        <section aria-label="Install the owner app" className="flex flex-wrap items-center gap-3 rounded-xl border border-brand-400/30 bg-brand-500/10 p-3 text-sm">
+          <Smartphone className="h-5 w-5 shrink-0 text-brand-200" aria-hidden />
           <p className="min-w-0 flex-1">
             <span className="font-medium">Put this on your Home Screen</span>
             <span className="block text-muted">
@@ -682,7 +682,7 @@ export function DataOwnerPage({ id }: { id: string }) {
           {install && (
             <button
               onClick={() => void install.prompt().finally(() => setInstall(null))}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-violet-400 px-3 font-medium text-black"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-brand-400 px-3 font-medium text-black"
             >
               <Download className="h-4 w-4" aria-hidden /> Install app
             </button>
@@ -707,10 +707,10 @@ export function DataOwnerPage({ id }: { id: string }) {
               role="tab"
               aria-selected={c.name === current?.name}
               onClick={() => setTab(c.name)}
-              className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm ${c.name === current?.name ? "border-violet-400 bg-violet-500/15 font-medium" : "border-line hover:border-white/20"}`}
+              className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm ${c.name === current?.name ? "border-brand-400 bg-brand-500/15 font-medium" : "border-line hover:border-white/20"}`}
             >
               {nameOf(c)}
-              <span className={`rounded-full px-2 text-xs ${waiting ? "bg-violet-400 font-semibold text-black" : "bg-white/10"}`}>{waiting ? `${waiting} waiting` : c.count}</span>
+              <span className={`rounded-full px-2 text-xs ${waiting ? "bg-brand-400 font-semibold text-black" : "bg-white/10"}`}>{waiting ? `${waiting} waiting` : c.count}</span>
             </button>
           );
         })}

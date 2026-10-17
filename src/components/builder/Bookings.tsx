@@ -141,7 +141,7 @@ export function Bookings({
   return (
     <section className="rounded-2xl border border-line bg-surface p-5" aria-labelledby="bookings-title">
       <h2 id="bookings-title" className="flex items-center gap-2 font-semibold">
-        <CalendarCheck className="h-4 w-4 text-violet-300" /> Bookings
+        <CalendarCheck className="h-4 w-4 text-brand-300" /> Bookings
       </h2>
       <p className="mt-1 text-sm text-muted">
         Customers pick a free time in the app and are booked straight away. The business sees bookings on its own page, can block time off, and change hours

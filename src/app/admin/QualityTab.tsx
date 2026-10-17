@@ -92,7 +92,7 @@ export function QualityTab() {
       </div>
 
       {top && (
-        <section aria-labelledby="focus" className="rounded-2xl border border-violet-500/30 bg-violet-500/5 p-4">
+        <section aria-labelledby="focus" className="rounded-2xl border border-brand-500/30 bg-brand-500/5 p-4">
           <h2 id="focus" className="text-sm font-semibold">
             Improve next: {QUALITY_EVENTS[top.event as QualityEvent]}
           </h2>

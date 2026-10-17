@@ -171,7 +171,7 @@ export function SiteA11yReport({
             </button>
           </div>
           {progress ? (
-            <p role="status" className="mt-2 flex items-center gap-2 text-violet-200">
+            <p role="status" className="mt-2 flex items-center gap-2 text-brand-200">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> {progress}
             </p>
           ) : shown ? (

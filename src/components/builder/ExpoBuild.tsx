@@ -65,9 +65,9 @@ const TARGET_LABEL: Record<BuildTarget, string> = {
 };
 
 /** Links inside sentences, with a 24px-tall tap area. */
-const inlineLink = "inline-block py-1 text-violet-300 underline underline-offset-2 hover:text-violet-200";
+const inlineLink = "inline-block py-1 text-brand-300 underline underline-offset-2 hover:text-brand-200";
 
-const input = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-violet-500/60";
+const input = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand-500/60";
 
 function statusText(b: CloudBuild): { label: string; tone: "busy" | "ok" | "bad" | "muted" } {
   switch (b.status) {
@@ -389,7 +389,7 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, 
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 id="expo-build-title" className="flex items-center gap-2 font-semibold">
-            <Rocket className="h-4 w-4 text-violet-400" /> Build &amp; upload with Expo
+            <Rocket className="h-4 w-4 text-brand-400" /> Build &amp; upload with Expo
           </h2>
           <p className="mt-1 text-xs text-muted">
             {server?.hosted
@@ -454,7 +454,7 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, 
                   aria-checked={target === t.id}
                   onClick={() => setTarget(t.id)}
                   className={`rounded-xl border p-3 text-left transition ${
-                    target === t.id ? "border-violet-500/70 bg-violet-500/10" : "border-line hover:border-white/20"
+                    target === t.id ? "border-brand-500/70 bg-brand-500/10" : "border-line hover:border-white/20"
                   }`}
                 >
                   <t.icon className="h-4 w-4" />
@@ -591,7 +591,7 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, 
               <label className={`mt-3 flex items-center gap-2.5 text-xs ${canUpload ? "text-foreground/90" : "text-muted"}`}>
                 <input
                   type="checkbox"
-                  className="h-6 w-6 shrink-0 accent-violet-500"
+                  className="h-6 w-6 shrink-0 accent-brand-500"
                   checked={submit && canUpload}
                   disabled={!canUpload}
                   onChange={(e) => setSubmit(e.target.checked)}
@@ -623,7 +623,7 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, 
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
                 <button
                   onClick={() => onBundleIdChange(suggestBundleId(project))}
-                  className="inline-flex min-h-8 items-center rounded-lg border border-violet-400/40 bg-violet-500/10 px-3 font-medium text-violet-100 hover:border-violet-300"
+                  className="inline-flex min-h-8 items-center rounded-lg border border-brand-400/40 bg-brand-500/10 px-3 font-medium text-brand-100 hover:border-brand-300"
                 >
                   Use {suggestBundleId(project)}
                 </button>
@@ -634,7 +634,7 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, 
             <button
               onClick={build}
               disabled={!canUseExpo || busy || blockers.length > 0 || available === false}
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 px-4 text-sm font-medium text-white disabled:opacity-50"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-400 px-4 text-sm font-medium text-black disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
               {target === "ios"
@@ -700,7 +700,7 @@ export function ExpoBuild({ project, onExpoChange, onDownload, hasPreviewError, 
                           : s.tone === "bad"
                             ? "bg-rose-500/15 text-rose-300"
                             : s.tone === "busy"
-                              ? "bg-violet-500/15 text-violet-200"
+                              ? "bg-brand-500/15 text-brand-200"
                               : "bg-surface-2 text-muted"
                       }`}
                     >

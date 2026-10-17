@@ -73,7 +73,7 @@ export function LiveUpdates({ project, onChange }: { project: Project; onChange:
   return (
     <section className="rounded-2xl border border-line bg-surface p-5" aria-labelledby="live-title">
       <h2 id="live-title" className="flex items-center gap-2 font-semibold">
-        <Radio className="h-4 w-4 text-violet-300" /> Live updates from your website
+        <Radio className="h-4 w-4 text-brand-300" /> Live updates from your website
       </h2>
       <p className="mt-1 text-sm text-muted">
         When you change {new URL(project.source.url).hostname.replace(/^www\./, "")} — new photos, prices, dishes, hours or offers — the app shows them within a

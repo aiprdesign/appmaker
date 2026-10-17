@@ -82,7 +82,7 @@ export function AccountButton() {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label={`Account: ${cloud.user.email}`}
-        className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-pink-500 text-sm font-semibold uppercase text-white"
+        className="grid h-8 w-8 place-items-center rounded-full bg-brand-400 text-sm font-semibold uppercase text-black"
       >
         {cloud.user.email[0]}
       </button>

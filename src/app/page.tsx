@@ -104,7 +104,7 @@ export default function Home() {
             href="#ways"
             className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-muted hover:text-foreground"
           >
-            <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-300">
+            <span className="rounded-full bg-brand-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-300">
               New
             </span>
             URL to App: paste your website, get your app →
@@ -176,7 +176,7 @@ export default function Home() {
               {[0, 50, 100].map((x) => (
                 <span
                   key={x}
-                  className="absolute top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-300 shadow-[0_0_10px_2px_rgba(167,139,250,0.6)]"
+                  className="absolute top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-300 shadow-[0_0_10px_2px_rgba(167,139,250,0.6)]"
                   style={{ left: `${x}%` }}
                 />
               ))}
@@ -184,7 +184,7 @@ export default function Home() {
             {STEPS.map((s, i) => (
               <div key={s.title} className="lift reveal rounded-2xl border border-line bg-surface p-6">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-violet-500/20 to-pink-500/20 text-violet-300">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-flare-500/20 text-brand-300">
                     <s.icon className="h-5 w-5" />
                   </span>
                   <span className="text-xs font-medium text-muted">Step {i + 1}</span>
@@ -201,7 +201,7 @@ export default function Home() {
           <div className="reveal grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
             {FEATURES.map((f) => (
               <div key={f.title} className="bg-surface p-6 transition-colors hover:bg-surface-2">
-                <f.icon className="h-5 w-5 text-pink-300" />
+                <f.icon className="h-5 w-5 text-flare-300" />
                 <h3 className="mt-4 font-semibold">{f.title}</h3>
                 <p className="mt-1.5 text-sm text-muted">{f.body}</p>
               </div>

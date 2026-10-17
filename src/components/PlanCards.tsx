@@ -44,7 +44,7 @@ export function PlanCards({ info: given }: { info?: Info }) {
       <div className="gradient-border mx-auto mt-12 max-w-md rounded-2xl p-6 text-center">
         <h3 className="text-xl font-semibold">Free while we&apos;re in beta</h3>
         <p className="mt-2 text-sm text-muted">Every feature, no credits needed.</p>
-        <Link href="/#start" className="mt-6 inline-flex rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 px-5 py-2.5 text-sm font-medium text-white">
+        <Link href="/#start" className="mt-6 inline-flex rounded-xl bg-brand-400 px-5 py-2.5 text-sm font-medium text-black">
           Get Started for Free
         </Link>
       </div>
@@ -120,7 +120,7 @@ export function PlanCards({ info: given }: { info?: Info }) {
               {current ? (
                 <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">Your plan</span>
               ) : c.highlight ? (
-                <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[11px] font-semibold text-violet-200">No subscription</span>
+                <span className="rounded-full bg-brand-500/20 px-2 py-0.5 text-[11px] font-semibold text-brand-200">No subscription</span>
               ) : null}
             </div>
             <p className="mt-1 text-sm text-muted">{c.blurb}</p>
@@ -134,7 +134,7 @@ export function PlanCards({ info: given }: { info?: Info }) {
                   {c.key === "free" && f.startsWith("Made with") ? (
                     <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
                   ) : (
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
                   )}
                   <span className="text-foreground/90">{f}</span>
                 </li>
@@ -143,7 +143,7 @@ export function PlanCards({ info: given }: { info?: Info }) {
             <Link
               href={c.href}
               className={`mt-8 rounded-xl py-2.5 text-center text-sm font-medium ${
-                c.highlight ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white" : "border border-line bg-surface-2 hover:border-white/20"
+                c.highlight ? "bg-brand-400 text-black" : "border border-line bg-surface-2 hover:border-white/20"
               }`}
             >
               {c.cta}

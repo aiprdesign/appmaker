@@ -220,7 +220,7 @@ export function AppSidebar({
           href="/#start"
           aria-label="New app"
           title={collapsed ? "New app" : undefined}
-          className={`${item} justify-center bg-gradient-to-r from-violet-500 to-pink-500 font-medium text-white shadow-[0_8px_24px_-12px_rgba(139,92,246,0.8)] hover:opacity-95 ${collapsed ? "w-10 px-0" : "px-3"}`}
+          className={`${item} justify-center bg-brand-400 font-medium text-black shadow-[0_8px_24px_-12px_rgba(196, 242, 43,0.8)] hover:opacity-95 ${collapsed ? "w-10 px-0" : "px-3"}`}
         >
           <Plus className="h-4 w-4 shrink-0" />
           {!collapsed && <span>New app</span>}
@@ -233,7 +233,7 @@ export function AppSidebar({
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search apps"
               aria-label="Search your apps"
-              className="min-h-9 w-full rounded-lg border border-line bg-background pl-8 pr-2 text-sm outline-none placeholder:text-muted/70 focus:border-violet-500/60"
+              className="min-h-9 w-full rounded-lg border border-line bg-background pl-8 pr-2 text-sm outline-none placeholder:text-muted/70 focus:border-brand-500/60"
             />
           </label>
         )}
@@ -257,7 +257,7 @@ export function AppSidebar({
                     if (e.key === "Enter") rename(p);
                     if (e.key === "Escape") setRenaming(null);
                   }}
-                  className="min-h-9 w-full rounded-lg border border-violet-500/60 bg-background px-2.5 text-sm outline-none"
+                  className="min-h-9 w-full rounded-lg border border-brand-500/60 bg-background px-2.5 text-sm outline-none"
                 />
               </li>
             );
@@ -273,7 +273,7 @@ export function AppSidebar({
                   current ? "bg-white/10 text-foreground" : "text-foreground/80 hover:bg-white/5 hover:text-foreground"
                 }`}
               >
-                <span className={`shrink-0 rounded-[9px] ${current ? "ring-2 ring-violet-400/70 ring-offset-2 ring-offset-background" : ""}`}>
+                <span className={`shrink-0 rounded-[9px] ${current ? "ring-2 ring-brand-400/70 ring-offset-2 ring-offset-background" : ""}`}>
                   <AppIcon listing={p.listing} icon={p.icon} size={28} />
                 </span>
                 {!collapsed && (

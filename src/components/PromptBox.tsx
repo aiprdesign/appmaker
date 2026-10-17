@@ -287,7 +287,7 @@ export function PromptBox() {
           e.preventDefault();
           start();
         }}
-        className="gradient-border gradient-border-live hero-glow rounded-2xl p-3 shadow-2xl shadow-violet-900/30 focus-within:ring-2 focus-within:ring-violet-400/70"
+        className="gradient-border gradient-border-live hero-glow rounded-2xl p-3 shadow-2xl shadow-brand-900/30 focus-within:ring-2 focus-within:ring-brand-400/70"
       >
         {site && (
           <div className="mb-2">
@@ -321,7 +321,7 @@ export function PromptBox() {
         )}
         {showUrl && !site && (
           <div className="mb-2 px-1">
-            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2/60 px-2 py-1.5 focus-within:border-violet-500/60">
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2/60 px-2 py-1.5 focus-within:border-brand-500/60">
               <Globe className="h-4 w-4 shrink-0 text-muted" />
               <input
                 autoFocus
@@ -403,7 +403,7 @@ export function PromptBox() {
         )}
 
         {bareUrl && (
-          <p role="status" className="mb-1 px-2 text-xs text-violet-200">
+          <p role="status" className="mb-1 px-2 text-xs text-brand-200">
             That&apos;s a website address. Press Enter to use <strong>URL to App</strong>, which reads the site and builds its app, or describe what the app should do.
           </p>
         )}
@@ -413,7 +413,7 @@ export function PromptBox() {
             type="button"
             onClick={() => importSite(detected)}
             disabled={importing}
-            className="mb-1 ml-1 inline-flex items-center gap-1.5 rounded-full border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-xs text-violet-200 hover:bg-violet-500/20"
+            className="mb-1 ml-1 inline-flex items-center gap-1.5 rounded-full border border-brand-500/40 bg-brand-500/10 px-2.5 py-1 text-xs text-brand-200 hover:bg-brand-500/20"
           >
             {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
             {importing ? "Reading site…" : `Use content from ${detected.replace(/^https?:\/\//, "").split("/")[0]}`}
@@ -431,7 +431,7 @@ export function PromptBox() {
               }}
             />
             <span className="hidden items-center gap-1.5 px-2 text-xs text-muted md:flex">
-              <Sparkles className="h-3.5 w-3.5 text-violet-400" /> iOS + Android
+              <Sparkles className="h-3.5 w-3.5 text-brand-400" /> iOS + Android
             </span>
           </div>
           {value.length > MAX_PROMPT * 0.8 && (
@@ -443,7 +443,7 @@ export function PromptBox() {
             type="submit"
             disabled={(!value.trim() && !site) || busy || importing || tooLong}
             data-ready={(!!value.trim() || !!site) && !busy && !importing && !tooLong}
-            className="send-live grid h-9 w-9 place-items-center rounded-xl text-white disabled:opacity-40"
+            className="send-live grid h-9 w-9 place-items-center rounded-xl text-black disabled:opacity-40"
             aria-label="Build app"
           >
             <ArrowUp className="h-4 w-4" />

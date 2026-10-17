@@ -51,7 +51,7 @@ export function Feedback({
     reportQuality([v === "up" ? "feedback:up" : "feedback:down"]);
   };
   const button = (active: boolean) =>
-    `grid h-8 w-8 place-items-center rounded-lg border ${active ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line text-muted hover:border-white/20 hover:text-foreground"}`;
+    `grid h-8 w-8 place-items-center rounded-lg border ${active ? "border-brand-400/60 bg-brand-500/15 text-foreground" : "border-line text-muted hover:border-white/20 hover:text-foreground"}`;
   return (
     <div className="mt-2">
       <div className="flex items-center gap-1.5 text-xs text-muted">
@@ -76,7 +76,7 @@ export function Feedback({
                   if (reason !== r.key) reportQuality([`down:${r.key}` as QualityEvent]);
                   setReason(r.key);
                 }}
-                className={`min-h-8 rounded-full border px-3 text-xs ${reason === r.key ? "border-violet-400/60 bg-violet-500/15 text-foreground" : "border-line text-muted hover:text-foreground"}`}
+                className={`min-h-8 rounded-full border px-3 text-xs ${reason === r.key ? "border-brand-400/60 bg-brand-500/15 text-foreground" : "border-line text-muted hover:text-foreground"}`}
               >
                 {r.label}
               </button>

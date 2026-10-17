@@ -65,7 +65,7 @@ export function PublishSteps({
               className="group block min-h-11 w-full py-2 text-left"
             >
               <span
-                className={`block h-1.5 rounded-full transition-colors ${!all && i === step ? "bg-gradient-to-r from-violet-500 to-pink-500" : s.done ? "bg-emerald-500/70" : "bg-surface-2 group-hover:bg-white/20"}`}
+                className={`block h-1.5 rounded-full transition-colors ${!all && i === step ? "bg-brand-400" : s.done ? "bg-emerald-500/70" : "bg-surface-2 group-hover:bg-white/20"}`}
               />
               <span className={`mt-1.5 flex items-start gap-1 text-[11px] leading-tight ${!all && i === step ? "font-medium text-foreground" : "text-muted"}`}>
                 {s.done ? (

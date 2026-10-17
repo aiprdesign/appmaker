@@ -142,7 +142,7 @@ export function CreditsPage() {
                   <div key={pack.id} className={`lift flex flex-col rounded-2xl p-5 ${pack.badge ? "gradient-border" : "border border-line bg-surface"}`}>
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="font-semibold">{pack.name}</h3>
-                      {pack.badge && <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[11px] font-semibold text-violet-200">{pack.badge}</span>}
+                      {pack.badge && <span className="rounded-full bg-brand-500/20 px-2 py-0.5 text-[11px] font-semibold text-brand-200">{pack.badge}</span>}
                     </div>
                     <div className="mt-3 text-3xl font-semibold tabular-nums">{pack.credits.toLocaleString()}</div>
                     <div className="text-sm text-muted">credits</div>

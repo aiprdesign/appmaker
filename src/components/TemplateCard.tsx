@@ -51,7 +51,7 @@ export function TemplateCard({ template: t }: { template: Template }) {
           </div>
           <div className="text-xs text-muted">{t.category}</div>
         </div>
-        <span className="hidden shrink-0 items-center gap-1 text-xs text-violet-300 opacity-80 transition group-hover:opacity-100 sm:inline-flex">
+        <span className="hidden shrink-0 items-center gap-1 text-xs text-brand-300 opacity-80 transition group-hover:opacity-100 sm:inline-flex">
           {ready ? "Open app" : "Use"} <ArrowRight className="h-3.5 w-3.5" />
         </span>
       </div>

@@ -96,7 +96,7 @@ function Progress({ live, startedAt }: { live: LiveGeneration | null; startedAt:
     <div className="rounded-2xl border border-line bg-surface p-4 text-sm">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 font-medium">
-          <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
+          <Loader2 className="h-4 w-4 animate-spin text-brand-400" />
           <span className="shimmer">{steps[stage]}</span>
         </div>
         <span className="font-mono text-xs text-muted" aria-label="Time elapsed">
@@ -109,7 +109,7 @@ function Progress({ live, startedAt }: { live: LiveGeneration | null; startedAt:
             {i < stage ? (
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
             ) : i === stage ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-400" />
             ) : (
               <Circle className="h-3.5 w-3.5" />
             )}
@@ -123,7 +123,7 @@ function Progress({ live, startedAt }: { live: LiveGeneration | null; startedAt:
         <ul className="mt-3 space-y-1.5">
           {files.map((f) => (
             <li key={f} className="flex items-center gap-2 font-mono text-xs text-muted">
-              {live?.writing === f ? <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />}
+              {live?.writing === f ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-400" /> : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />}
               {f}
             </li>
           ))}
@@ -182,7 +182,7 @@ export function ChatPanel(props: Props) {
           ) : (
             <div key={m.id} className="text-sm leading-relaxed text-foreground/90">
               <div className="mb-2 flex items-center gap-2 text-xs text-muted">
-                <span className="grid h-5 w-5 place-items-center rounded-md bg-gradient-to-br from-violet-500 to-pink-500 text-[10px] text-white">◆</span>
+                <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-400 text-[10px] text-black">◆</span>
                 Appmaker
               </div>
               <Markdown text={m.content} />
@@ -245,7 +245,7 @@ export function ChatPanel(props: Props) {
         {reviewing && !generating && (
           <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs text-muted">
             <p role="status" className="flex flex-1 items-center gap-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" /> The review agents and quality critic are checking your app…
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-400" /> The review agents and quality critic are checking your app…
             </p>
             <button onClick={onStop} className="min-h-8 shrink-0 rounded-lg px-2 text-foreground underline underline-offset-2 hover:text-white">
               Skip
@@ -272,7 +272,7 @@ export function ChatPanel(props: Props) {
             ))}
           </div>
         )}
-        <div className={`rounded-xl border bg-surface focus-within:border-violet-500/60 ${tooLong ? "border-rose-500/60" : "border-line"}`}>
+        <div className={`rounded-xl border bg-surface focus-within:border-brand-500/60 ${tooLong ? "border-rose-500/60" : "border-line"}`}>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -306,7 +306,7 @@ export function ChatPanel(props: Props) {
                 <button
                   onClick={submit}
                   disabled={!draft.trim() || tooLong}
-                  className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-pink-500 text-white disabled:opacity-40"
+                  className="grid h-8 w-8 place-items-center rounded-lg bg-brand-400 text-black disabled:opacity-40"
                   aria-label="Send"
                 >
                   <ArrowUp className="h-4 w-4" />
@@ -333,7 +333,7 @@ function ReviewCard({ review, fixing, canFix, onFix }: { review: Review; fixing:
   return (
     <section aria-label={`${AGENT_NAMES[review.agent]} review`} className="rounded-2xl border border-line bg-surface p-3 text-sm">
       <div className="flex items-center gap-2 font-medium">
-        <span className="grid h-6 w-6 place-items-center rounded-lg bg-violet-500/15 text-violet-300">
+        <span className="grid h-6 w-6 place-items-center rounded-lg bg-brand-500/15 text-brand-300">
           <Icon className="h-3.5 w-3.5" />
         </span>
         {AGENT_NAMES[review.agent]}
