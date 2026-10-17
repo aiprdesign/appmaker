@@ -321,6 +321,36 @@ async function fetchSmallText(url: URL): Promise<string> {
   }
 }
 
+/**
+ * The logo as a picture to keep with the project (images/logo.…), when it doesn't load
+ * from its https address: fetched over https or plain http, any picture type.
+ */
+export async function fetchLogo(url: string): Promise<{ path: string; dataUrl: string } | null> {
+  const types: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif", "image/svg+xml": "svg" };
+  for (const protocol of ["https:", "http:"]) {
+    try {
+      const u = new URL(url);
+      u.protocol = protocol;
+      let res = await request(u);
+      for (let i = 0; i < 2 && res.location && res.status >= 300 && res.status < 400; i++) res = await request(new URL(res.location, u));
+      const type = res.type.split(";")[0].trim().toLowerCase();
+      const ext = types[type] ?? (/\.svg(\?|$)/i.test(u.pathname) && /xml|text/.test(type) ? "svg" : undefined);
+      const bytes = res.bytes?.length ? res.bytes : Buffer.from(res.body ?? "");
+      if (res.status !== 200 || !ext || !bytes.length || bytes.length > 1_000_000) continue;
+      let data = bytes;
+      if (ext === "svg") {
+        const svg = bytes.toString("utf8");
+        if (!/<svg\b/i.test(svg)) continue;
+        data = Buffer.from(svg.replace(/<script[\s\S]*?<\/script>|<foreignObject[\s\S]*?<\/foreignObject>/gi, "").replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, ""));
+      }
+      return { path: `images/logo.${ext}`, dataUrl: `data:${ext === "svg" ? "image/svg+xml" : type};base64,${data.toString("base64")}` };
+    } catch {
+      // Try the next way.
+    }
+  }
+  return null;
+}
+
 /** Whether the logo really loads over https (any picture type, SVG too): only then is it used. */
 export async function logoLoads(url: string): Promise<boolean> {
   try {
@@ -504,6 +534,8 @@ const JUNK_IMAGE = /(pixel|spacer|tracking|sprite|blank|placeholder|loader|lazy|
 interface Details {
   videos: SiteVideo[];
   logos: string[];
+  /** The logo drawn inline as SVG (no picture file), when the site has one. */
+  logoSvg?: string;
   clientLogos: { src: string; alt: string }[];
   images: string[];
   contact: Partial<SiteContact> & { phones: string[]; emails: string[]; hours: string[]; social: string[] };
@@ -688,6 +720,8 @@ function hiddenImages(root: HTMLElement, base: URL): string[] {
 }
 
 const HERO_AREAS = "[class*=hero], [id*=hero], [class*=banner], [class*=masthead], [class*=jumbotron], [class*=slider], [class*=carousel], [class*=cover], [class*=splash], video[poster]";
+/** Where a site's logo sits: its header, navigation or banner. */
+const TOP_AREAS = "header, nav, [role=banner], #masthead, .site-header, .navbar, [class*=header], [id*=header]";
 const LOGO_HINT = /logo|brand|site-title|site-name|custom-logo|navbar-header/i;
 
 /** A picture's address for a logo: any format (SVG too) and any size, lazy loaders included. */
@@ -702,8 +736,10 @@ function linksHome(a: HTMLElement | null, base: URL): boolean {
   const href = a?.getAttribute("href");
   if (href == null) return false;
   try {
+    if (/^\s*(#|\.\/?|\/)?\s*$/.test(href) || /^#top$/i.test(href)) return true;
     const u = new URL(href, base);
-    return u.host === base.host && /^\/(index\.\w+|home\/?)?$/i.test(u.pathname);
+    const host = (h: string) => h.replace(/^www\./i, "").toLowerCase();
+    return host(u.host) === host(base.host) && /^\/([a-z]{2}(-[a-z]{2})?\/?)?(index\.\w+|home\/?)?$/i.test(u.pathname);
   } catch {
     return false;
   }
@@ -728,10 +764,59 @@ export function findLogos(root: HTMLElement, base: URL, skip: Set<string> = new 
     // Inside a logo strip (clients, partners) it's someone else's logo.
     if (hinted && !img.closest("[class*=client], [class*=partner], [class*=sponsor], [class*=trust], [class*=marquee]")) add(logoSrc(img, base));
   }
-  for (const img of root.querySelectorAll("header img, nav img, [class*=header] img, [id*=header] img").slice(0, 20)) {
-    if (linksHome(img.closest("a"), base)) add(logoSrc(img, base));
+  const tops = root.querySelectorAll(TOP_AREAS);
+  for (const top of tops.slice(0, 6)) for (const img of top.querySelectorAll("img").slice(0, 20)) if (linksHome(img.closest("a"), base)) add(logoSrc(img, base));
+  // A logo drawn as a background picture: <a class="logo" style="background-image:url(…)">.
+  for (const el of root.querySelectorAll("[class*=logo], [id*=logo], [class*=brand]").slice(0, 40)) {
+    if (el.closest("[class*=client], [class*=partner], [class*=sponsor], [class*=trust], [class*=marquee]")) continue;
+    const bg = /url\(\s*['"]?([^'")]+)['"]?\s*\)/i.exec(el.getAttribute("style") ?? "")?.[1] ?? el.getAttribute("data-bg") ?? undefined;
+    add(absolute(bg, base, true));
+  }
+  // Last: the first picture at the top of the page (most sites open with their logo).
+  for (const top of tops.slice(0, 3)) {
+    const img = top.querySelector("img");
+    if (img && !/icon|flag|avatar|cart|search|menu|close|arrow/i.test(`${img.getAttribute("src") ?? ""} ${img.getAttribute("class") ?? ""} ${img.getAttribute("alt") ?? ""}`)) add(logoSrc(img, base));
   }
   return out;
+}
+
+/**
+ * A logo the site draws inline as SVG (no picture file): the one in a logo or brand
+ * element, or in the home link at the top of the page. Scripts and event handlers are
+ * removed; it's only ever shown as a picture.
+ */
+export function inlineLogoSvg(root: HTMLElement, base: URL): string | undefined {
+  const candidates = [
+    ...root.querySelectorAll("[class*=logo] svg, [id*=logo] svg, [class*=brand] svg"),
+    ...root.querySelectorAll(TOP_AREAS).flatMap((t) => t.querySelectorAll("a svg").filter((svg) => linksHome(svg.closest("a"), base))),
+  ];
+  for (const svg of candidates.slice(0, 20)) {
+    if (svg.closest("[class*=client], [class*=partner], [class*=sponsor], [class*=marquee], button")) continue;
+    let markup = svg.toString();
+    // Icons (menus, carts, arrows) are small; a logo has some detail.
+    if (markup.length < 300 || markup.length > 80_000 || /<use\b/i.test(markup)) continue;
+    markup = markup
+      .replace(/<script[\s\S]*?<\/script>|<foreignObject[\s\S]*?<\/foreignObject>/gi, "")
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/(href\s*=\s*["'])\s*javascript:[^"']*/gi, "$1#");
+    if (!/\sxmlns=/.test(markup.slice(0, 300))) markup = markup.replace(/^<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+    // currentColor has no colour outside the page: use the text colour of a light page.
+    return markup.replace(/currentColor/g, "#111111");
+  }
+  return undefined;
+}
+
+/** Logos set as backgrounds in a stylesheet (.logo { background: url(…) }). */
+export function logoCssImages(css: string, base: URL): string[] {
+  const out: string[] = [];
+  for (const m of css.slice(0, 1_500_000).matchAll(/([^{}]{1,300})\{([^{}]*url\([^{}]*)\}/g)) {
+    if (!/(^|[\s.#_-])(site-)?logo|brand/i.test(m[1]) || /client|partner|sponsor/i.test(m[1])) continue;
+    for (const u of m[2].matchAll(CSS_URL)) {
+      const url = absolute(u[1], base, true);
+      if (url && !TRACKING.test(url) && /\.(png|jpe?g|webp|svg|gif)(\?|$)/i.test(url)) out.push(url);
+    }
+  }
+  return [...new Set(out)];
 }
 
 function extractDetails(root: HTMLElement, base: URL): Details {
@@ -744,6 +829,7 @@ function extractDetails(root: HTMLElement, base: URL): Details {
   }
   const clients = new Set(d.clientLogos.map((l) => l.src));
   d.logos.push(...findLogos(root, base, clients));
+  if (!d.logos.length) d.logoSvg = inlineLogoSvg(root, base);
   for (const img of root.querySelectorAll("img").slice(0, 200)) {
     const url = imageUrl(img, base);
     // Clients' logos are theirs, not the business's logo or its photos.
@@ -912,6 +998,7 @@ function priceListItems(root: HTMLElement, base: URL): SiteItem[] {
 
 function mergeDetails(all: Details[]): {
   logo?: string;
+  logoSvg?: string;
   images: string[];
   contact?: SiteContact;
   clientLogos?: { src: string; alt: string }[];
@@ -920,6 +1007,7 @@ function mergeDetails(all: Details[]): {
 } {
   const videos = all.flatMap((d) => d.videos).filter((v, i, arr) => arr.findIndex((w) => w.kind === v.kind && w.id === v.id) === i).slice(0, MAX_VIDEOS);
   const logo = all.flatMap((d) => d.logos)[0];
+  const logoSvg = logo ? undefined : all.find((d) => d.logoSvg)?.logoSvg;
   const seenLogos = new Set<string>();
   const clientLogos = all
     .flatMap((d) => d.clientLogos)
@@ -945,6 +1033,7 @@ function mergeDetails(all: Details[]): {
     .slice(0, MAX_ITEMS);
   return {
     ...(logo ? { logo } : {}),
+    ...(logoSvg ? { logoSvg } : {}),
     images,
     ...(contact ? { contact } : {}),
     ...(clientLogos.length ? { clientLogos } : {}),
@@ -1041,6 +1130,13 @@ export async function importSite(input: string): Promise<SiteSummary> {
   const colors = extractColors(root, meta(root, "theme-color"), { css: css.map((c) => c.text).join("\n"), logoSvg, logoColors });
   // Background photos set in the stylesheets (often the hero), after the page's own pictures.
   const fromCss = css.flatMap((c) => cssImages(c.text, c.url)).filter((u) => u !== merged.logo && !(merged.clientLogos ?? []).some((l) => l.src === u));
+  // No logo picture or inline logo: one set in the stylesheets, else the site's own icon.
+  if (!merged.logo && !merged.logoSvg) {
+    const fromSheets = css.flatMap((c) => logoCssImages(c.text, c.url))[0] ?? root.querySelectorAll("style").flatMap((st) => logoCssImages(st.text, first.url))[0];
+    const icon = iconUrl(root, first.url);
+    if (fromSheets) merged.logo = fromSheets;
+    else if (icon) merged.logo = icon;
+  }
   // Hero and banner backgrounds from the home page's stylesheets lead: they're the site's main pictures.
   const heroes = css.flatMap((c) => heroCssImages(c.text, c.url)).filter((u) => u !== merged.logo);
   const images = tidyImages([...new Set([...heroes, ...merged.images, ...fromCss])]).slice(0, MAX_SITE_IMAGES);

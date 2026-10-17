@@ -9,7 +9,9 @@ import type { SiteContact } from "./types";
 export const MAX_SITE_IMAGES = 24;
 
 /** Pictures kept with a website project (screenshot parts and saved photos), by their path in the new site. */
-export const SITE_ASSET_PATH = /^images\/(?:shot-(?:hero|\d)|site-\d{1,2})\.jpg$/;
+export const SITE_ASSET_PATH = /^images\/(?:(?:shot-(?:hero|\d)|site-\d{1,2})\.jpg|logo\.(?:png|jpg|webp|gif|svg))$/;
+/** The business's logo saved with the project (it didn't load over https, or the site draws it inline). */
+export const LOGO_PATH = /^images\/logo\.(?:png|jpg|webp|gif|svg)$/;
 
 /** An https link with no characters that could break out of code or markup. */
 export function safeHttpsUrl(v: unknown, max = 500): string | null {

@@ -5,7 +5,7 @@ import { REGULATED_RULES } from "./regulated";
 import type { DesignStyle } from "./styles";
 import type { FileMap, SiteColors, SiteSection, SiteSummary } from "./types";
 import type { ValidationIssue } from "./validate";
-import { SITE_ASSET_PATH } from "./site-details";
+import { LOGO_PATH, SITE_ASSET_PATH } from "./site-details";
 import { ALLOWED_FRAME } from "./site-media";
 
 /**
@@ -259,7 +259,7 @@ Show every listed logo, never the business's own logo and never invented ones, u
 Write a complete multi-page site, one .html file per page, with the same header, navigation and footer on every page:
 - index.html (home): a strong hero with the business's real headline, one clear call to action and the business's own hero picture (the first of the Images, as a large photo or a background under an overlay), then highlights of services or products, trust (years in business, locations, real details only), and contact.
 - One page per main section of the current site (for example services.html or menu.html, about.html, gallery.html when there are photos), and contact.html. Use short, lowercase file names.
-- Navigation: sticky header with the business's Logo picture when <website_content> lists one (in the home link, h-8 to h-12, width auto, object-contain; on every page, never redrawn or replaced by text), else the name, links to every page (the current page marked with aria-current="page"), and a mobile menu button that opens the links (toggled in script.js, with aria-expanded).
+- Navigation: sticky header with the business's Logo picture when <website_content> lists one (in the home link, h-8 to h-12, width auto, object-contain; on every page, never redrawn or replaced by text; the footer shows it too), else the name, links to every page (the current page marked with aria-current="page"), and a mobile menu button that opens the links (toggled in script.js, with aria-expanded).
 - Footer: address, phone, email, opening hours and social links when known, the year, and links to all pages.
 
 ## Contact and booking
@@ -392,7 +392,7 @@ export async function siteZip(
   const zip = new JSZip();
   // Screenshot parts and saved photos are already where the pages expect them (images/…).
   for (const [path, dataUrl] of Object.entries(assets)) {
-    const m = /^data:image\/(jpeg|png|webp);base64,(.+)$/.exec(dataUrl);
+    const m = /^data:image\/(jpeg|png|webp|gif|svg\+xml);base64,(.+)$/.exec(dataUrl);
     if (m && SITE_ASSET_PATH.test(path)) zip.file(path, m[2], { base64: true });
   }
   const taken = new Set<string>();
@@ -708,46 +708,91 @@ function sitePictures(site: SiteSummary | undefined): string[] {
 const shows = (html: string, url: string) => html.includes(url) || html.includes(url.replace(/&/g, "&amp;"));
 const htmlPages = (files: FileMap) => Object.keys(files).filter((p) => p.endsWith(".html"));
 
-/** The business's logo missing from a page's header, and a home page without any of the site's photos. */
-function brandGaps(files: FileMap, site: SiteSummary | undefined): { logo: string[]; hero: boolean } {
-  const logo = site?.logo && /^https:\/\/[^\s"'<>]+$/i.test(site.logo) ? site.logo : "";
+/** The business's logo for a redesign: its https address, or the copy saved with the project. */
+export function brandLogo(site: SiteSummary | undefined): string {
+  if (site?.logoPath && LOGO_PATH.test(site.logoPath)) return site.logoPath;
+  return site?.logo && /^https:\/\/[^\s"'<>]+$/i.test(site.logo) ? site.logo : "";
+}
+
+/** A page's first <header> (or, without one, its first <nav>) and its <footer>, as [start, end] of their markup. */
+function region(html: string, tag: "header" | "nav" | "footer"): [number, number] | null {
+  const open = new RegExp(`<${tag}\\b[^>]*>`, "i").exec(html);
+  if (!open) return null;
+  const close = html.toLowerCase().indexOf(`</${tag}>`, open.index);
+  return [open.index, close >= 0 ? close : html.length];
+}
+
+const top = (html: string) => region(html, "header") ?? region(html, "nav");
+
+/**
+ * Where the business's logo is missing (the header and the footer of every page), and
+ * whether the home page shows none of the site's photos.
+ */
+function brandGaps(files: FileMap, site: SiteSummary | undefined): { header: string[]; footer: string[]; hero: boolean } {
+  const logo = brandLogo(site);
   const pictures = sitePictures(site);
   const home = files["index.html"];
+  const missing = (html: string, r: [number, number] | null) => !!r && !shows(html.slice(r[0], r[1]), logo);
   return {
-    logo: logo ? htmlPages(files).filter((p) => !shows(files[p], logo)) : [],
+    // A page without a header or navigation still needs the logo somewhere at its top.
+    header: logo ? htmlPages(files).filter((p) => (top(files[p]) ? missing(files[p], top(files[p])) : !shows(files[p], logo))) : [],
+    footer: logo ? htmlPages(files).filter((p) => missing(files[p], region(files[p], "footer"))) : [],
     hero: home != null && pictures.length > 0 && !pictures.some((u) => shows(home, u)),
   };
 }
 
 function brandIssues(files: FileMap, site: SiteSummary | undefined): ValidationIssue[] {
   const gaps = brandGaps(files, site);
+  const logo = brandLogo(site);
   return [
-    ...gaps.logo.map((file) => ({ file, message: `the business's logo ${site!.logo} is missing: show it in the header (in the home link, h-8 to h-12, width auto, object-contain, alt with the business name)` })),
+    ...gaps.header.map((file) => ({ file, message: `the business's logo ${logo} is missing from the header: show it in the home link (h-8 to h-12, width auto, object-contain, alt with the business name), never replaced by text` })),
+    ...gaps.footer.map((file) => ({ file, message: `the business's logo ${logo} is missing from the footer: show it at the top of the footer, linking home` })),
     ...(gaps.hero ? [{ file: "index.html", message: `the home page shows none of the current site's photos: use ${sitePictures(site)[0]} as the hero picture (or its background, under an overlay that keeps the text readable)` }] : []),
   ];
 }
 
 /**
- * Every design keeps the business's own look: its logo in each page's header, and
- * on the home page at least one of its own photos (the first, usually the hero).
- * What the AI left out is put in by Appmaker. Returns the new files and what was added.
+ * Every design keeps the business's own look: its logo in the header and the footer of
+ * each page, and on the home page at least one of its own photos (the first, usually the
+ * hero). What the AI left out is put in by Appmaker. Returns the new files and what was added.
  */
 export function ensureBrand(files: FileMap, site: SiteSummary | undefined): { files: FileMap; added: number } {
   const gaps = brandGaps(files, site);
+  const logo = escapeHtml(brandLogo(site));
+  const name = escapeHtml(site?.siteName || "Home");
   const out = { ...files };
   let added = 0;
-  for (const file of gaps.logo) {
+  for (const file of gaps.header) {
     const html = out[file];
-    const header = /<header\b[^>]*>/i.exec(html);
-    if (!header) continue;
-    const link = /<a\b[^>]*>/i.exec(html.slice(header.index + header[0].length));
-    const at = link ? header.index + header[0].length + link.index + link[0].length : header.index + header[0].length;
+    const r = top(html);
+    if (!r) {
+      // No header at all: a slim one with the logo opens the page.
+      const body = /<body\b[^>]*>/i.exec(html);
+      const bar = `\n<header class="brand-bar mx-auto flex max-w-6xl items-center px-6 py-4"><a href="index.html"><img src="${logo}" alt="${name}" width="160" height="40" class="brand-logo h-10 w-auto max-w-[180px] object-contain"></a></header>\n`;
+      out[file] = body ? html.slice(0, body.index + body[0].length) + bar + html.slice(body.index + body[0].length) : bar + html;
+      added += 1;
+      continue;
+    }
+    const openEnd = html.indexOf(">", r[0]) + 1;
+    const link = /<a\b[^>]*>/i.exec(html.slice(openEnd, r[1]));
+    const at = link ? openEnd + link.index + link[0].length : openEnd;
     // Beside the name in the home link, the logo needs no words of its own.
     const close = link ? html.indexOf("</a>", at) : -1;
     const named = close > at && html.slice(at, close).replace(/<[^>]+>/g, "").trim().length > 0;
-    const alt = named ? "" : escapeHtml(site?.siteName || "Home");
-    const img = `<img src="${escapeHtml(site!.logo!)}" alt="${alt}" width="160" height="40" class="brand-logo inline-block h-9 w-auto max-w-[160px] object-contain align-middle${named ? " mr-2" : ""}">`;
-    out[file] = html.slice(0, at) + img + html.slice(at);
+    const img = `<img src="${logo}" alt="${named ? "" : name}" width="160" height="40" class="brand-logo inline-block h-9 w-auto max-w-[160px] object-contain align-middle${named ? " mr-2" : ""}">`;
+    out[file] = html.slice(0, at) + (link ? img : `<a href="index.html" class="inline-flex items-center">${img}</a>`) + html.slice(at);
+    added += 1;
+  }
+  for (const file of gaps.footer) {
+    const html = out[file];
+    const r = region(html, "footer");
+    if (!r) continue;
+    const at = html.indexOf(">", r[0]) + 1;
+    const mark = `\n<a href="index.html" class="brand-footer-logo mb-6 inline-block"><img src="${logo}" alt="${name}" width="160" height="40" loading="lazy" class="brand-logo h-10 w-auto max-w-[180px] object-contain"></a>\n`;
+    // Inside the footer's first container, so it lines up with the rest of the footer.
+    const inner = /^\s*<div\b[^>]*>/i.exec(html.slice(at));
+    const pos = inner ? at + inner.index + inner[0].length : at;
+    out[file] = html.slice(0, pos) + mark + html.slice(pos);
     added += 1;
   }
   if (gaps.hero) {

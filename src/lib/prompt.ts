@@ -1,6 +1,6 @@
 import { CLAIM_SAFE_RULES, DEFAULT_WORDING, type Wording } from "./claims";
 import { REGULATED_RULES } from "./regulated";
-import { safeHttpsUrl, sanitizeContact, sanitizeImages, SITE_ASSET_PATH } from "./site-details";
+import { LOGO_PATH, safeHttpsUrl, sanitizeContact, sanitizeImages, SITE_ASSET_PATH } from "./site-details";
 import type { FileMap, SiteContact, SitePage, SiteSection, SiteSummary, StoreListing } from "./types";
 import { styleBrief, type DesignStyle } from "./styles";
 import { embedUrl, sanitizeVideos, thumbnailUrl } from "./site-media";
@@ -292,7 +292,8 @@ function sections(page: SitePage): SiteSection[] {
 
 export function formatSite(site: SiteSummary): string {
   // Checked again here: the browser sends the imported site back with each request.
-  const logo = safeHttpsUrl(site.logo);
+  // A redesign's logo may be the copy saved with the project (images/logo.…).
+  const logo = (typeof site.logoPath === "string" && LOGO_PATH.test(site.logoPath) ? site.logoPath : null) ?? safeHttpsUrl(site.logo);
   const images = sanitizeImages(site.images).filter((u) => u !== logo);
   const contact = sanitizeContact(site.contact);
   const pages = site.pages
@@ -329,7 +330,7 @@ export function formatSite(site: SiteSummary): string {
     site.description && `Description: ${fence(site.description)}`,
     site.colors.length ? `Brand colors (most prominent first): ${site.colors.filter((c) => /^#[0-9a-f]{6}$/i.test(c)).join(", ")}` : "",
     site.language && `Language: ${fence(site.language)}`,
-    logo && `Logo: ${logo}`,
+    logo && `Logo: ${logo} (the business's own logo: use exactly this picture in the header and the footer of every page)`,
     images.length ? `Images (use only these exact URLs):\n${images.map((u) => `- ${u}`).join("\n")}` : "",
     localImages(site).length
       ? `More photos from the current site, saved with the project (use them like the photos above, with exactly these paths):\n${localImages(site)

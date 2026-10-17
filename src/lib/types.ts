@@ -102,6 +102,10 @@ export interface SiteSummary {
   pages: SitePage[];
   /** The business's logo (https link), if the site marks one. */
   logo?: string;
+  /** For a redesign: the logo saved with the project (images/logo.…), when it doesn't load over https or the site draws it inline; the picture is in Project.siteAssets. */
+  logoPath?: string;
+  /** While importing only: the site's inline SVG logo, before it's saved as images/logo.svg. */
+  logoSvg?: string;
   /** Photo links from the site (https only). Older imports don't have them. */
   images?: string[];
   /** Parts of a screenshot of the site (when it had few pictures), as images/… paths; the pictures are in Project.siteAssets. */

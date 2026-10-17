@@ -9,7 +9,7 @@ export function SiteCard({ site, onRemove }: { site: SiteSummary; onRemove?: () 
   const videos = site.videos?.length ?? 0;
   const clients = site.clientLogos?.length ?? 0;
   const found = [
-    site.logo && "logo",
+    (site.logo || site.logoPath) && "logo",
     photos && `${photos} photo${photos === 1 ? "" : "s"}`,
     c?.phones.length && "phone",
     c?.address && "address",

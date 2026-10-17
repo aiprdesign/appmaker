@@ -1,5 +1,5 @@
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { checkImages, logoLoads, SiteError, importSite } from "@/lib/site";
+import { checkImages, fetchLogo, logoLoads, SiteError, importSite } from "@/lib/site";
 import { MAX_SITE_IMAGES } from "@/lib/site-details";
 import { renderSite, screenshotsAvailable } from "@/lib/site-shots";
 import { feature } from "@/lib/server/features";
@@ -45,9 +45,22 @@ export async function POST(req: Request) {
       site.localImages = [...(site.localImages ?? []), ...local.map(({ path, from, width, height }) => ({ path, from, width, height }))];
       return ok;
     };
-    // A logo that doesn't load would show as a broken picture in every design.
+    // The logo must show in every design: when it doesn't load from its address (or the site
+    // draws it inline), a copy is kept with the project as images/logo.….
     const [, logoOk] = await Promise.all([redesign && site.images?.length ? check(site.images).then((ok) => (site.images = ok)) : null, redesign && site.logo ? logoLoads(site.logo) : true]);
-    if (!logoOk) delete site.logo;
+    if (redesign && site.logo && !logoOk) {
+      const kept = await fetchLogo(site.logo);
+      if (kept) {
+        assets[kept.path] = kept.dataUrl;
+        site.logoPath = kept.path;
+      }
+      delete site.logo;
+    }
+    if (redesign && site.logoSvg && !site.logo && !site.logoPath) {
+      assets["images/logo.svg"] = `data:image/svg+xml;base64,${Buffer.from(site.logoSvg).toString("base64")}`;
+      site.logoPath = "images/logo.svg";
+    }
+    delete site.logoSvg;
     // Still few pictures: render the page in a browser to find the ones JavaScript shows,
     // and for a redesign, cut parts of a screenshot.
     if (pictures() < 4 && (await screenshotsAvailable())) {

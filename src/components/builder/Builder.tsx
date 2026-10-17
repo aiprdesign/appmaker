@@ -585,6 +585,8 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
         if (preset) files["src/business.js"] = businessModule(preset, base.ready!.info, rules);
       }
       if (isApp) files[BRAND_FILE] = brandModule(brandedRef.current);
+      // A redesign always shows the business's logo (header and footer of every page) and its photos.
+      if (isSite && base.source && hasSiteEntry(files)) Object.assign(files, ensureBrand(files, selectedSite(base.source, base.excludedSections)).files);
 
       const continuing = cutOff && Object.keys(parsed.files).some((p) => p !== parsed.writing && allowed(p)) && continueBudget.current > 0 && !demoRef.current;
 
