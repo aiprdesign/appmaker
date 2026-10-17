@@ -133,6 +133,8 @@ async function render(url: string, opts: { shots: boolean }): Promise<{ images: 
       window.scrollTo(0, 0);
     });
     await page.waitForTimeout(700);
+    // Pictures still downloading have no size yet: give them a moment to finish.
+    await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete), null, { timeout: 4_000 }).catch(() => {});
 
     // The real pictures, as the browser shows them.
     const found = await page.evaluate(() => {
