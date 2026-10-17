@@ -8,7 +8,7 @@ const html = (text: string) => renderToStaticMarkup(createElement(Markdown, { te
 describe("chat markdown", () => {
   it("links only to Appmaker's own pages", () => {
     expect(html("You're out of credits. [Buy credits](/credits) to keep building.")).toContain(
-      '<a class="font-medium text-violet-300 underline underline-offset-2" href="/credits">Buy credits</a>',
+      '<a class="font-medium text-brand-300 underline underline-offset-2" href="/credits">Buy credits</a>',
     );
     // Anything else stays plain text, so AI replies can't carry links elsewhere.
     expect(html("[Click me](/admin)")).not.toContain("<a");
