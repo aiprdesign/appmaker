@@ -176,7 +176,7 @@ describe("presenting the business", () => {
 
   it("tells the designer how to present the business", async () => {
     const { websiteSystemPrompt } = await import("@/lib/website");
-    for (const t of ["## Present the business", "The first screen answers four questions", "slim sticky action bar", "quick-facts strip", "closing call-to-action band"]) expect(websiteSystemPrompt()).toContain(t);
+    for (const t of ["## Present the business", "The first screen answers four questions", "quick-facts strip", "closing call-to-action band"]) expect(websiteSystemPrompt()).toContain(t);
   });
 });
 
@@ -197,5 +197,17 @@ describe("redesign progress", () => {
     expect(plannedPages({ "index.html": '<a href="menu.html">Menu</a><a href="./about.html#team">About</a><a href="https://x.example/a.html">x</a><a href="menu.html">again</a>' })).toEqual(["index.html", "menu.html", "about.html"]);
     expect(pageName("index.html")).toBe("the home page");
     expect(pageName("our-story.html")).toBe("the our story page");
+  });
+});
+
+describe("the modern design", () => {
+  it("gets the effects kit: glass, text effects, a hero loop with a pause button, all off with reduced motion", async () => {
+    const { conceptPrompt, websiteSystemPrompt } = await import("@/lib/website");
+    const { getStyle } = await import("@/lib/styles");
+    const system = websiteSystemPrompt();
+    for (const t of ["## Modern effects kit", "backdrop-blur-xl", "Spotlight cards", "word by word", "Ken Burns", 'aria-label "Pause background motion"', "feTurbulence", "prefers-reduced-motion: no-preference"]) expect(system).toContain(t);
+    // Appmaker's own phone bar carries the actions: the AI doesn't build a second one.
+    expect(system).not.toContain("slim sticky action bar");
+    expect(conceptPrompt("Redesign it", getStyle("aurora")!, 1, "modern")).toMatch(/Modern effects kit generously: glass cards/);
   });
 });
