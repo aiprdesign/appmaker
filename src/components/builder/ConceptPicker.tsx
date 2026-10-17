@@ -41,7 +41,7 @@ export function ConceptPicker({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Choose a design</h2>
-          <p className="text-xs text-muted" aria-live="polite">{writing ? `${ready} of ${concepts.length} ready · designing the rest…` : "The other pages follow the one you pick."}</p>
+          <p className="text-xs text-muted" aria-live="polite">{writing ? `${ready} of ${concepts.length} ready · designing the rest…` : "Two pages each for now; the rest are made in the one you pick."}</p>
         </div>
         <div role="tablist" aria-label="Design options" className="inline-flex rounded-full border border-line p-0.5">
           {concepts.map((c, i) => {
@@ -81,11 +81,11 @@ export function ConceptPicker({
       </div>
       <div className="min-h-0 flex-1">
         {concept?.status === "ready" ? (
-          <SitePreview key={shown} files={concept.files} assets={assets} onEdit={onEdit} />
+          <SitePreview key={shown} files={concept.files} assets={assets} onEdit={onEdit} demo />
         ) : concept?.status === "writing" && concept.files["index.html"] ? (
           // The home page is done: look at it while the inside page is written.
           <div className="relative h-full">
-            <SitePreview key={`${shown}-early`} files={concept.files} assets={assets} />
+            <SitePreview key={`${shown}-early`} files={concept.files} assets={assets} demo />
             <span role="status" className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/80 px-3 py-1.5 text-xs text-white shadow-lg backdrop-blur">
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> {concept.stage ?? "Finishing"} · {concept.progress ?? 60}%
             </span>

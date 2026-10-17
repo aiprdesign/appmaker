@@ -15,7 +15,7 @@ const SITE = {
 // The AI's designs leave out the logo and every photo.
 const reply = (n: number) => `<file path="index.html">
 <!doctype html><html lang="en"><head><meta charset="utf-8"><title>Home · Bella Pizza</title></head>
-<body><header class="flex items-center justify-between p-6"><a href="index.html" class="text-xl font-bold">Bella Pizza</a><nav><a href="menu.html">Menu</a></nav></header>
+<body><header class="flex items-center justify-between p-6"><a href="index.html" class="text-xl font-bold">Bella Pizza</a><nav><a href="menu.html">Menu</a> <a href="about.html">About</a></nav></header>
 <main><section class="p-10"><h1 class="text-5xl font-bold">Pizza night ${n}</h1><p>Wood-fired pizza in Brooklyn.</p></section><section class="p-10"><h2>Our menu</h2></section></main><footer class="p-10"><div><p>© Bella Pizza</p></div></footer></body></html>
 </file>
 <file path="menu.html">
@@ -55,6 +55,11 @@ test(`every design shows the business's logo (${kind}) in the header and footer,
     const hero = preview.locator('main img[src="https://img.bella.example/hero.jpg"]');
     await expect(hero).toBeVisible();
     await expect.poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+    // Only two pages exist before a design is chosen: other links say so.
+    if (i === 1) {
+      await preview.getByRole("link", { name: "About" }).click();
+      await expect(page.getByRole("status").filter({ hasText: "Not ready yet" })).toContainText("Choose a design and all pages are made in it.");
+    }
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/design-${kind}-${i}.png` });
   }
 });

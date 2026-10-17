@@ -152,8 +152,11 @@ export function SitePreview({
   report,
   onReport,
   onEdit,
+  demo = false,
 }: {
   files: FileMap;
+  /** A design to choose from: only some pages exist yet, so other links say so. */
+  demo?: boolean;
   onFix?: (request: string) => void;
   assets?: Record<string, string>;
   /** The latest site-wide WCAG 2.2 check, and where a new one goes (the finished site only). */
@@ -164,6 +167,12 @@ export function SitePreview({
 }) {
   const [audit, setAudit] = useState<{ page: string; issues: SiteA11yIssue[] } | null>(null);
   const [showIssues, setShowIssues] = useState(false);
+  const [notReady, setNotReady] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notReady) return;
+    const t = setTimeout(() => setNotReady(null), 4000);
+    return () => clearTimeout(t);
+  }, [notReady]);
   const pages = Object.keys(files)
     .filter((p) => p.endsWith(".html"))
     .sort((a, b) => (a === "index.html" ? -1 : b === "index.html" ? 1 : a.localeCompare(b)));
@@ -196,6 +205,7 @@ export function SitePreview({
       if (e.data.type === "appmaker:site-page" && typeof e.data.page === "string") {
         const target = e.data.page.replace(/^\.?\//, "");
         if (files[target] != null) setPage(target);
+        else if (demo) setNotReady(target);
         else setNote(`This link goes to ${target}, which the site doesn't have yet.`);
       }
       if (e.data.type === "appmaker:site-a11y" && Array.isArray(e.data.violations)) {
@@ -220,7 +230,7 @@ export function SitePreview({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [files, current, onEdit]);
+  }, [files, current, onEdit, demo]);
 
   const width = WIDTHS[viewport];
   const scale = Math.min(1, (boxWidth - 8) / width);
@@ -334,6 +344,12 @@ export function SitePreview({
         </p>
       )}
       <div ref={box} className="relative min-h-0 flex-1 overflow-hidden rounded-xl">
+        {notReady && (
+          <div role="status" className="absolute left-1/2 top-4 z-10 w-[min(92%,26rem)] -translate-x-1/2 rounded-2xl bg-black/85 px-4 py-3 text-center text-sm text-white shadow-2xl backdrop-blur">
+            <p className="font-semibold">Not ready yet</p>
+            <p className="mt-0.5 text-xs text-white/75">This design shows two pages for now. Choose a design and all pages are made in it.</p>
+          </div>
+        )}
         <div
           className="absolute left-1/2 top-0 origin-top overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-line"
           style={{ width, height: `${100 / scale}%`, transform: `translateX(-50%) scale(${scale})` }}
