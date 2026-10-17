@@ -27,7 +27,7 @@ import { withStatement, type A11yReport, type StatementInfo } from "@/lib/site-s
 import { polishSite, type PolishInfo } from "@/lib/site-polish";
 import { withSiteFeatures, type FeatureInfo } from "@/lib/site-features";
 import { addEdit, applyEdit, applyEdits, editsNote, selectedSite, type ContentEdit } from "@/lib/site-content";
-import { conceptPrompt, conceptStyles, contentIssues, ensureBrand, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
+import { conceptProgress, conceptPrompt, conceptStyles, contentIssues, ensureBrand, pageName, plannedPages, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { useFeatures } from "@/lib/use-features";
@@ -65,7 +65,7 @@ type Tab = "preview" | "code" | "publish";
 /** Automatic repair passes allowed after each request the user sends. */
 const AUTO_FIX_BUDGET = 2;
 /** Requests the content keeper may make to get the owner's content back, before restoring it itself. */
-const CONTENT_FIX_BUDGET = 3;
+const CONTENT_FIX_BUDGET = 1;
 /** Extra requests allowed to finish an app the model couldn't write in one reply. */
 const CONTINUE_BUDGET = 3;
 /** How long after a generation a preview crash counts as caused by it. */
@@ -127,6 +127,18 @@ function featureInfo(p: Project): FeatureInfo {
     ...(c?.hours?.length ? { hours: c.hours } : {}),
     primary: p.design?.primary ?? p.listing.primaryColor,
   };
+}
+
+/** What the website build is doing: "Writing the about page · page 3 of 6", from the pages its navigation links to. */
+function siteStatus(files: FileMap, live: { files: FileMap; writing: string | null } | null): string {
+  if (!live) return "Redesigning your website…";
+  const all = { ...files, ...live.files };
+  const planned = plannedPages(all);
+  const done = planned.filter((p) => p !== live.writing && all[p] != null).length;
+  if (!live.writing) return done ? `Finishing up · ${done} of ${planned.length} pages ready` : "Planning the pages…";
+  if (!live.writing.endsWith(".html")) return `Writing ${live.writing}…`;
+  const at = Math.min(planned.length, done + 1);
+  return planned.length > 1 ? `Writing ${pageName(live.writing)} · page ${at} of ${Math.max(planned.length, at)}` : `Writing ${pageName(live.writing)}…`;
 }
 
 function polishInfo(p: Project): PolishInfo {
@@ -768,14 +780,37 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
               }),
             });
             if (!res.ok || !res.body) throw new Error((await res.json().catch(() => ({}))).error || `Request failed (${res.status})`);
-            const raw = takeSignals(await res.text()).text;
+            // Streamed: the design's progress shows as it's written, and its home page as soon as it's done.
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let raw = "";
+            let last = 0;
+            let early = false;
+            const siteNow = selectedSite(current.source, current.excludedSections);
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              raw = takeSignals(raw + decoder.decode(value, { stream: true })).text;
+              const now = performance.now();
+              if (now - last < 400) continue;
+              last = now;
+              const partial = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
+              const { progress, stage } = conceptProgress(partial);
+              const home = partial.writing !== "index.html" ? partial.files["index.html"] : undefined;
+              if (home && !early && hasSiteEntry({ "index.html": home })) {
+                early = true;
+                const shown = Object.fromEntries(Object.entries(partial.files).filter(([p]) => p !== partial.writing && isAllowedSitePath(p)));
+                update(i, { progress, stage, files: withA11yWidget(applyEdits(ensureBrand(shown, siteNow).files, projectRef.current?.contentEdits)) });
+              } else update(i, { progress, stage });
+            }
+            raw = takeSignals(raw + decoder.decode()).text;
             const err = /<error>([\s\S]*?)<\/error>/.exec(raw)?.[1];
             const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
             const files = Object.fromEntries(Object.entries(parsed.files).filter(([p]) => p !== parsed.writing && isAllowedSitePath(p)));
             if (!files["index.html"]) throw new Error(err ? friendlyError(err) : "the AI didn't write a home page");
             // Each design shows the business's logo and its own photos, even when the AI left them out.
             const branded = ensureBrand(files, selectedSite(current.source, current.excludedSections)).files;
-            update(i, { status: "ready", files: withA11yWidget(applyEdits(branded, projectRef.current?.contentEdits)) });
+            update(i, { status: "ready", progress: 100, stage: undefined, files: withA11yWidget(applyEdits(branded, projectRef.current?.contentEdits)) });
           } catch (e) {
             update(i, { status: "failed", error: (e as Error).message.slice(0, 200) });
           }
@@ -1404,7 +1439,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
               {(generating || checking) && (
                 <span role="status" aria-label={generating ? "Building your website" : "Checking your website"} className="mx-auto mb-2 inline-flex items-center gap-2 rounded-full border border-brand-400/30 bg-brand-500/10 py-1 pl-1.5 pr-3 text-xs font-medium text-brand-100">
                   <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-brand-300/25 border-t-brand-300 border-r-flare-400" />
-                  {generating ? (live?.writing ? `Writing ${live.writing}…` : "Redesigning your website…") : "Checking…"}
+                  {generating ? siteStatus(project.files, live) : "Checking…"}
                 </span>
               )}
               {project.concepts && !hasApp ? (

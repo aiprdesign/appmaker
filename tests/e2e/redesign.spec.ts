@@ -88,9 +88,9 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await page.getByRole("tab", { name: /Design 2/ }).click();
   await page.getByRole("button", { name: "Use design 2" }).click();
   // Then the content keeper: this mock reply leaves out most of the site's sections and
-  // pictures, so it asks for them back (three times, its limit), naming what's missing,
+  // pictures, so it asks for them back (once, to stay quick), naming what's missing,
   // and then puts the owner's content back itself.
-  await expect.poll(() => bodies.length).toBe(10);
+  await expect.poll(() => bodies.length).toBe(8);
   expect(String(bodies[7].prompt)).toMatch(/Content keeper \(checks the redesign kept the owner's content\)/);
   expect(String(bodies[7].prompt)).toMatch(/section ".+" from the current site's \/ page is missing/);
   expect(String(bodies[6].prompt)).toMatch(/every section of its matching current page/);
@@ -99,7 +99,7 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   expect(String(bodies[6].prompt)).toMatch(/The owner chose design ".+" \(index\.html and contact\.html are already written\)/);
 
   await expect(page.getByText(/Content keeper: the AI left out \d+ sections? of your current site/)).toBeVisible({ timeout: 30_000 });
-  expect(String(bodies[10 - 1].prompt)).toMatch(/Content keeper/);
+  expect(bodies).toHaveLength(8);
 
   // The new site, with its own stylesheet and script working in the preview.
   const site = page.frameLocator('iframe[title="Website preview"]');
@@ -153,10 +153,10 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await page.getByLabel("Message").fill("Make the hero bigger");
   await page.keyboard.press("Enter");
   // (The content keeper doesn't run on edits: the owner may remove a section on purpose.)
-  await expect.poll(() => bodies.length).toBe(11);
+  await expect.poll(() => bodies.length).toBe(9);
   await page.waitForTimeout(1500);
-  expect(bodies).toHaveLength(11);
-  expect(bodies[10]).toMatchObject({ kind: "website", files: { "index.html": expect.stringContaining("Luigi's Trattoria") } });
+  expect(bodies).toHaveLength(9);
+  expect(bodies[8]).toMatchObject({ kind: "website", files: { "index.html": expect.stringContaining("Luigi's Trattoria") } });
 });
 
 test("the owner picks sections and edits text on a design; the change is on every design", async ({ page }) => {

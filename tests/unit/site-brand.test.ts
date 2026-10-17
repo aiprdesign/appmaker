@@ -179,3 +179,23 @@ describe("presenting the business", () => {
     for (const t of ["## Present the business", "The first screen answers four questions", "slim sticky action bar", "quick-facts strip", "closing call-to-action band"]) expect(websiteSystemPrompt()).toContain(t);
   });
 });
+
+describe("redesign progress", () => {
+  it("shows each design's progress: planning, home page, inside page, finishing", async () => {
+    const { conceptProgress } = await import("@/lib/website");
+    expect(conceptProgress({ files: {}, writing: null })).toEqual({ progress: 6, stage: "Planning the design" });
+    const half = conceptProgress({ files: { "index.html": "x".repeat(8_000) }, writing: "index.html" });
+    expect(half.stage).toBe("Writing the home page");
+    expect(half.progress).toBeGreaterThan(25);
+    expect(half.progress).toBeLessThan(40);
+    expect(conceptProgress({ files: { "index.html": "x", "menu.html": "y".repeat(12_000) }, writing: "menu.html" })).toEqual({ progress: 94, stage: "Writing the menu page" });
+    expect(conceptProgress({ files: { "index.html": "x", "menu.html": "y" }, writing: null }).progress).toBe(96);
+  });
+
+  it("counts the pages the site will have from its navigation", async () => {
+    const { plannedPages, pageName } = await import("@/lib/website");
+    expect(plannedPages({ "index.html": '<a href="menu.html">Menu</a><a href="./about.html#team">About</a><a href="https://x.example/a.html">x</a><a href="menu.html">again</a>' })).toEqual(["index.html", "menu.html", "about.html"]);
+    expect(pageName("index.html")).toBe("the home page");
+    expect(pageName("our-story.html")).toBe("the our story page");
+  });
+});

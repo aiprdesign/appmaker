@@ -518,6 +518,44 @@ export interface SiteConcept {
   /** Still being written, or failed. */
   status: "writing" | "ready" | "failed";
   error?: string;
+  /** While writing: about how far along it is (0–100), and what it's doing. */
+  progress?: number;
+  stage?: string;
+}
+
+/** About how long a concept's home page and inside page are, for the progress bar. */
+const HOME_CHARS = 16_000;
+const PAGE_CHARS = 12_000;
+
+/** A page's name for people: "the home page", "the menu page". */
+export function pageName(path: string): string {
+  if (path === "index.html") return "the home page";
+  const base = path.replace(/\.html$/, "").replace(/[-_]/g, " ");
+  return /\.html$/.test(path) ? `the ${base} page` : path;
+}
+
+/**
+ * How far a design concept is, from its reply so far: planning, then the home page,
+ * then the inside page, then the finishing touches. Never says 100 until it's done.
+ */
+export function conceptProgress(parsed: { files: FileMap; writing: string | null; summary?: string }): { progress: number; stage: string } {
+  const pages = Object.keys(parsed.files).filter((p) => p.endsWith(".html"));
+  const len = (p: string) => parsed.files[p]?.length ?? 0;
+  if (!pages.length) return { progress: 6, stage: "Planning the design" };
+  const homeDone = pages.includes("index.html") && parsed.writing !== "index.html";
+  if (!homeDone) return { progress: Math.round(8 + 47 * Math.min(1, len("index.html") / HOME_CHARS)), stage: "Writing the home page" };
+  const inside = pages.find((p) => p !== "index.html");
+  if (!inside) return { progress: 56, stage: "Starting the inside page" };
+  if (parsed.writing === inside) return { progress: Math.round(56 + 38 * Math.min(1, len(inside) / PAGE_CHARS)), stage: `Writing ${pageName(inside)}` };
+  return { progress: 96, stage: "Finishing touches" };
+}
+
+/** The pages a site's navigation links to (its home page's links to other .html pages), for "page 3 of 6". */
+export function plannedPages(files: FileMap): string[] {
+  const home = files["index.html"] ?? "";
+  const out = new Set<string>(["index.html"]);
+  for (const m of home.matchAll(/href=["'](?:\.\/)?([a-z0-9][a-z0-9_-]*\.html)["'#?]/gi)) out.add(m[1].toLowerCase());
+  return [...out];
 }
 
 /** The three directions: simple, balanced and bold. */

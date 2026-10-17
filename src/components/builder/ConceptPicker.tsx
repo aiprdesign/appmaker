@@ -34,13 +34,14 @@ export function ConceptPicker({
   const shown = picked ?? firstReady;
   const concept = concepts[shown];
   const writing = concepts.filter((c) => c.status === "writing").length;
+  const ready = concepts.filter((c) => c.status === "ready").length;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Choose a design</h2>
-          <p className="text-xs text-muted">{writing ? `Designing ${writing} more…` : "The other pages follow the one you pick."}</p>
+          <p className="text-xs text-muted" aria-live="polite">{writing ? `${ready} of ${concepts.length} ready · designing the rest…` : "The other pages follow the one you pick."}</p>
         </div>
         <div role="tablist" aria-label="Design options" className="inline-flex rounded-full border border-line p-0.5">
           {concepts.map((c, i) => {
@@ -64,10 +65,15 @@ export function ConceptPicker({
                   setPicked(next);
                   (e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
                 }}
-                className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-4 text-sm transition ${shown === i ? "bg-foreground font-medium text-background" : "text-muted hover:text-foreground"}`}
+                className={`relative inline-flex min-h-9 items-center gap-1.5 overflow-hidden rounded-full px-4 text-sm transition ${shown === i ? "bg-foreground font-medium text-background" : "text-muted hover:text-foreground"}`}
               >
                 {c.status === "writing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : c.status === "failed" ? <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-red-400" /> : null}
                 {i + 1}
+                {c.status === "writing" && (
+                  <span aria-hidden className="absolute inset-x-3 bottom-1 h-0.5 overflow-hidden rounded-full bg-white/20">
+                    <span className="block h-full rounded-full bg-brand-400 transition-[width] duration-500" style={{ width: `${c.progress ?? 4}%` }} />
+                  </span>
+                )}
               </button>
             );
           })}
@@ -76,6 +82,14 @@ export function ConceptPicker({
       <div className="min-h-0 flex-1">
         {concept?.status === "ready" ? (
           <SitePreview key={shown} files={concept.files} assets={assets} onEdit={onEdit} />
+        ) : concept?.status === "writing" && concept.files["index.html"] ? (
+          // The home page is done: look at it while the inside page is written.
+          <div className="relative h-full">
+            <SitePreview key={`${shown}-early`} files={concept.files} assets={assets} />
+            <span role="status" className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/80 px-3 py-1.5 text-xs text-white shadow-lg backdrop-blur">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> {concept.stage ?? "Finishing"} · {concept.progress ?? 60}%
+            </span>
+          </div>
         ) : concept?.status === "failed" ? (
           <div className="grid h-full place-items-center text-center text-sm text-muted">
             <div>
@@ -92,10 +106,30 @@ export function ConceptPicker({
             </div>
           </div>
         ) : (
-          <div className="grid h-full place-items-center text-sm text-muted">
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Designing {shown + 1}…
-            </span>
+          <div className="grid h-full place-items-center">
+            <div role="status" className="w-full max-w-sm space-y-4 px-6">
+              <p className="flex items-center justify-between text-sm">
+                <span className="inline-flex items-center gap-2 font-medium">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {concept?.stage ?? "Starting"}…
+                </span>
+                <span className="tabular-nums text-muted">{concept?.progress ?? 2}%</span>
+              </p>
+              <ul className="space-y-2.5" aria-label="All designs">
+                {concepts.map((c, i) => (
+                  <li key={i} className="space-y-1">
+                    <span className="flex justify-between text-xs text-muted">
+                      <span className={i === shown ? "text-foreground" : ""}>
+                        Design {i + 1} · {c.tier ? tierName(c.tier) : (getStyle(c.style)?.name ?? c.style)}
+                      </span>
+                      <span className="tabular-nums">{c.status === "ready" ? "Ready" : c.status === "failed" ? "Failed" : `${c.progress ?? 2}%`}</span>
+                    </span>
+                    <span aria-hidden className="block h-1 overflow-hidden rounded-full bg-white/10">
+                      <span className={`block h-full rounded-full transition-[width] duration-500 ${c.status === "failed" ? "bg-red-400" : "bg-brand-400"}`} style={{ width: `${c.status === "ready" ? 100 : (c.progress ?? 2)}%` }} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         )}
       </div>
