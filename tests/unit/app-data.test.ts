@@ -372,6 +372,49 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     expect((await appGet(app("GET", undefined, ANA, "?collection=menu"), ctx(store.id))).status).toBe(404);
   });
 
+  it("gives named staff orders only, and the owner PIN everything", async () => {
+    await setFeature("appData", true);
+    const cookie = await account("roles");
+    const { store } = await (await storeRoute(req("/api/appdata", "POST", { projectId: "proj795abc", name: "Roles", rules: RULES }, { cookie }))).json();
+    const key = store.ownerUrl.split("#k=")[1];
+    const as = (k: string) => (body: unknown) => ownerPost(req(`/api/appdata/${store.id}/owner`, "POST", body, { "x-owner-key": k }), ctx(store.id));
+    const owner = as(key);
+    const staff = (pin: string) => staffRoute(req(`/api/appdata/${store.id}/staff`, "POST", { pin }), ctx(store.id));
+
+    expect((await owner({ action: "set-owner-pin", pin: "123456" })).status).toBe(400);
+    expect((await (await owner({ action: "set-owner-pin", pin: "87654321" })).json()).hasOwnerPin).toBe(true);
+    expect((await owner({ action: "staff-add", name: "Mia", pin: "87654321" })).status).toBe(400);
+    const added = await (await owner({ action: "staff-add", name: "Mia", pin: "135790" })).json();
+    expect(added.staff.map((m: { name: string }) => m.name)).toEqual(["Mia"]);
+
+    const boss = await (await staff("87654321")).json();
+    expect(boss).toMatchObject({ role: "owner", ownerKey: key });
+    const mia = await (await staff("135790")).json();
+    expect(mia.role).toBe("staff");
+    expect(mia.ownerKey).not.toBe(key);
+
+    // Staff: orders only. No menu, no staff list, no editing, no PINs, no link reset.
+    const asMia = as(mia.ownerKey);
+    const view = await (await ownerGet(req(`/api/appdata/${store.id}/owner`, "GET", undefined, { "x-owner-key": mia.ownerKey }), ctx(store.id))).json();
+    expect(view.role).toBe("staff");
+    expect(view.staff).toEqual([]);
+    expect(view.collections.every((c: { access: string }) => c.access === "inbox")).toBe(true);
+    for (const body of [
+      { action: "add", collection: "menu", data: { name: "x" } },
+      { action: "delete", collection: "orders", id: "abcdefgh" },
+      { action: "set-owner-pin", pin: "11112222" },
+      { action: "staff-add", name: "Eve", pin: "222333" },
+      { action: "set-pin", pin: "" },
+      { action: "reset-link" },
+    ])
+      expect((await asMia(body)).status).toBe(403);
+    expect((await asMia({ action: "live-ticket" })).status).toBe(200);
+
+    // Removing Mia signs her phones out.
+    await owner({ action: "staff-remove", id: added.staff[0].id });
+    expect((await asMia({ action: "live-ticket" })).status).toBe(404);
+  });
+
   it("alerts the business about new orders and the customer about status changes; staff sign in with a PIN", async () => {
     await setFeature("appData", true);
     const cookie = await account("alerts");
@@ -379,13 +422,15 @@ describe.skipIf(!DB)("app data (PostgreSQL)", () => {
     const key = store.ownerUrl.split("#k=")[1];
     const owner = (body: unknown) => req(`/api/appdata/${store.id}/owner`, "POST", body, { "x-owner-key": key });
 
-    // Staff mode stays shut until the business sets a PIN; then the right PIN gives the owner key.
+    // Staff mode stays shut until the business sets a PIN; the older shared PIN now signs in as staff (never the owner key).
     const staff = (pin: string) => staffRoute(req(`/api/appdata/${store.id}/staff`, "POST", { pin }), ctx(store.id));
     expect((await staff("123456")).status).toBe(403);
     expect((await ownerPost(owner({ action: "set-pin", pin: "12" }), ctx(store.id))).status).toBe(400);
     expect((await (await ownerPost(owner({ action: "set-pin", pin: "246810" }), ctx(store.id))).json()).hasStaffPin).toBe(true);
     expect((await staff("111111")).status).toBe(403);
-    expect((await (await staff("246810")).json()).ownerKey).toBe(key);
+    const legacy = await (await staff("246810")).json();
+    expect(legacy.role).toBe("staff");
+    expect(legacy.ownerKey).not.toBe(key);
     const view = await (await ownerGet(req(`/api/appdata/${store.id}/owner`, "GET", undefined, { "x-owner-key": key }), ctx(store.id))).json();
     expect(view.vapidKey).toMatch(/^[A-Za-z0-9_-]{80,}$/);
 

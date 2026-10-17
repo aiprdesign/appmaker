@@ -9,7 +9,7 @@ const RULES = {
   orders: { access: "inbox", fields: ["name", "phone", "items"], statuses: ["new", "preparing", "ready"] },
 };
 
-test("the owner page chimes and counts new orders, moves them on and sets the staff PIN", async ({ browser }) => {
+test("the owner page chimes and counts new orders, moves them on and adds staff", async ({ browser }) => {
   const ctx = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": "10.67.0.1" } });
   // Records what the page says out loud.
   await ctx.addInitScript(() => {
@@ -76,11 +76,12 @@ test("the owner page chimes and counts new orders, moves them on and sets the st
   await expect(page.getByText("All caught up.")).toBeVisible();
   await page.getByRole("button", { name: "Done (1)" }).click();
   await expect(page.getByText("2 Margherita")).toBeVisible();
-  await page.getByText("Alerts and staff PIN").click();
-  await page.getByLabel("Staff PIN (6 to 8 digits)").fill("246810");
-  await page.getByRole("button", { name: "Set PIN" }).click();
-  await expect(page.getByText("Staff PIN saved.")).toBeVisible();
-  expect((await page.request.post(`${store.apiUrl}/staff`, { data: { pin: "246810" } })).ok()).toBe(true);
+  await page.getByText("Alerts, staff and PINs").click();
+  await page.getByLabel("Name").fill("Mia");
+  await page.getByLabel("Their PIN (6 to 8 digits)").fill("246810");
+  await page.getByRole("button", { name: "Add" }).click();
+  await expect(page.getByText("Mia added.")).toBeVisible();
+  expect((await (await page.request.post(`${store.apiUrl}/staff`, { data: { pin: "246810" } })).json()).role).toBe("staff");
 
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);

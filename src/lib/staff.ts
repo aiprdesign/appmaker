@@ -20,12 +20,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, Vibration, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { ArrowRight, Bell, ChevronDown, ChevronLeft, Inbox, KeyRound, LogOut, Phone, Plus, Trash2 } from 'lucide-react-native';
+import { ArrowRight, Bell, ChevronDown, ChevronLeft, ExternalLink, Inbox, KeyRound, LogOut, Phone, Plus, Store, Trash2, Users } from 'lucide-react-native';
 import { colors, radius, font, card } from './theme';
 import { preview } from './appdata';
 
 const API = ${JSON.stringify(apiUrl)};
 const KEY = 'appdata:staff-key';
+const OWNER_TAB = '__owner';
 const DONE = ${done};
 const label = (f) => String(f).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase());
 const show = (v) => (v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
@@ -113,16 +114,16 @@ function SignIn({ onKey, onClose }) {
       <Header title="Staff" onClose={onClose} />
       <View style={[card, styles.box]}>
         <View style={styles.iconTile}><KeyRound size={24} color={colors.primary} accessible={false} /></View>
-        <Text style={styles.h2}>Staff sign in</Text>
-        <Text style={styles.muted}>Enter the staff PIN from the owner page to see new orders and requests, update them and get alerts on this phone.</Text>
+        <Text style={styles.h2}>Staff and owner sign in</Text>
+        <Text style={styles.muted}>Enter your PIN. Staff PINs open orders and alerts; the owner PIN also opens the Owner tab.</Text>
         <TextInput
           value={pin}
           onChangeText={(t) => setPin(t.replace(/[^0-9]/g, '').slice(0, 8))}
           keyboardType="number-pad"
           secureTextEntry
-          placeholder="Staff PIN"
+          placeholder="Your PIN"
           placeholderTextColor={colors.muted}
-          accessibilityLabel="Staff PIN"
+          accessibilityLabel="Your PIN"
           style={styles.input}
           returnKeyType="done"
           onSubmitEditing={submit}
@@ -289,6 +290,52 @@ function PreviewStaff({ onClose }) {
 }
 
 /** Staff mode: orders and requests waiting on staff first (oldest first), then what the app shows. */
+/** The owner's tab (owner PIN only): today at a glance, who has a staff PIN, and the full owner page. */
+function OwnerPanel({ view, ownerKey }) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const inboxes = view.collections.filter((c) => c.access === 'inbox');
+  const today = inboxes.flatMap((c) => c.items.filter((i) => i.createdAt >= start.getTime() && !STOPPED.test(String(i.status || ''))));
+  const waiting = inboxes.reduce((n, c) => n + c.items.filter((i) => !isDone(i.status, c.statuses || [])).length, 0);
+  const unpaid = today.filter((i) => i.paid !== 'yes').length;
+  const page = API.replace('/api/appdata/', '/owner/data/') + '#k=' + encodeURIComponent(ownerKey);
+  const stat = (n, text) => (
+    <View style={styles.stat} key={text}>
+      <Text style={styles.statNumber}>{n}</Text>
+      <Text style={styles.small}>{text}</Text>
+    </View>
+  );
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={[card, styles.box]}>
+        <Text style={styles.h2} accessibilityRole="header">Today</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {stat(today.length, 'orders')}
+          {stat(waiting, 'open')}
+          {stat(unpaid, 'unpaid')}
+        </View>
+      </View>
+      <View style={[card, styles.box]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Users size={18} color={colors.primary} accessible={false} />
+          <Text style={styles.h2} accessibilityRole="header">Staff</Text>
+        </View>
+        {view.staff && view.staff.length ? (
+          view.staff.map((m) => <Text key={m.id} style={styles.detail}>{m.name}</Text>)
+        ) : (
+          <Text style={styles.muted}>No staff yet. Add people and their PINs on the owner page.</Text>
+        )}
+        <Text style={styles.small}>Staff see orders only. Add or remove them on the owner page.</Text>
+      </View>
+      <Pressable onPress={() => Linking.openURL(page).catch(() => {})} accessibilityRole="link" style={({ pressed }) => [styles.primary, { flexDirection: 'row', gap: 8 }, pressed && styles.pressed]}>
+        <Store size={18} color={colors.onPrimary} accessible={false} />
+        <Text style={styles.primaryText}>Open the full owner page</Text>
+        <ExternalLink size={16} color={colors.onPrimary} accessible={false} />
+      </Pressable>
+    </View>
+  );
+}
+
 export default function StaffScreen({ onClose }) {
   const [key, setKey] = useState(null);
   const [view, setView] = useState(null);
@@ -437,14 +484,16 @@ export default function StaffScreen({ onClose }) {
   if (key === null) return <ActivityIndicator style={{ marginTop: 80 }} color={colors.primary} />;
   if (!key) return <SignIn onKey={setKey} onClose={onClose} />;
 
-  const current = view && (view.collections.find((c) => c.name === tab) || view.collections[0]);
+  const isOwner = !!view && view.role !== 'staff';
+  const ownerTab = isOwner && tab === OWNER_TAB;
+  const current = view && !ownerTab ? view.collections.find((c) => c.name === tab) || view.collections[0] : null;
   const inbox = current && current.access === 'inbox';
   const active = inbox ? current.items.filter((i) => !isDone(i.status, current.statuses)).sort((a, b) => a.createdAt - b.createdAt) : [];
   const finished = inbox ? current.items.filter((i) => isDone(i.status, current.statuses)) : [];
   return (
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />} keyboardShouldPersistTaps="handled">
       <Header
-        title="Staff"
+        title={isOwner ? 'Owner' : 'Staff'}
         onClose={onClose}
         right={
           <Pressable onPress={signOut} accessibilityRole="button" accessibilityLabel="Sign out of staff mode" style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
@@ -482,8 +531,15 @@ export default function StaffScreen({ onClose }) {
                 </Pressable>
               );
             })}
+            {isOwner ? (
+              <Pressable onPress={() => setTab(OWNER_TAB)} accessibilityRole="tab" accessibilityState={{ selected: ownerTab }} style={({ pressed }) => [styles.chip, ownerTab && styles.chipOn, pressed && styles.pressed]}>
+                <Text style={[styles.chipText, ownerTab && styles.chipTextOn]}>Owner</Text>
+              </Pressable>
+            ) : null}
           </ScrollView>
-          {editing ? (
+          {ownerTab ? (
+            <OwnerPanel view={view} ownerKey={key} />
+          ) : editing ? (
             <Editor
               collection={editing.collection}
               item={editing.item}
@@ -548,6 +604,8 @@ export default function StaffScreen({ onClose }) {
 }
 
 const styles = StyleSheet.create({
+  stat: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  statNumber: { fontSize: 24, fontWeight: font.heading, color: colors.text },
   content: { padding: 20, paddingBottom: 120, gap: 16 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
   back: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingRight: 8 },

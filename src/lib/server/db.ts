@@ -175,6 +175,16 @@ create index if not exists app_data_records_device on app_data_records(store_id,
 create index if not exists app_data_records_month on app_data_records(store_id, created_at);
 alter table app_data_records add column if not exists push_token text not null default '';
 alter table app_data_stores add column if not exists staff_pin text not null default '';
+alter table app_data_stores add column if not exists owner_pin text not null default '';
+create table if not exists app_data_staff (
+  id text primary key,
+  store_id text not null references app_data_stores(id) on delete cascade,
+  name text not null,
+  pin_hash text not null,
+  key text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists app_data_staff_store on app_data_staff(store_id);
 create table if not exists app_data_alerts (
   store_id text not null references app_data_stores(id) on delete cascade,
   kind text not null,

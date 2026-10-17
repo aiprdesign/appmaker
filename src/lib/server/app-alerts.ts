@@ -134,6 +134,8 @@ export async function alertOwner(storeId: string, title: string, body: string, u
 // ---------- staff PIN ----------
 
 export const STAFF_PIN = /^\d{6,8}$/;
+/** The owner PIN is longer: it opens everything. */
+export const OWNER_PIN = /^\d{8}$/;
 
 export function hashPin(pin: string): string {
   const salt = randomBytes(16);

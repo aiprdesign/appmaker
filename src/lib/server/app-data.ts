@@ -3,7 +3,7 @@ import { COLLECTION_NAME, DataInputError, MAX_RECORD_BYTES, doneStatuses, firstN
 import { currentUser } from "./auth";
 import { query } from "./db";
 import { alertOwner, isPushToken, notifyCustomer, shortRef } from "./app-alerts";
-import { seal, unseal } from "./data-crypto";
+import { seal, sealText, unseal, unsealText } from "./data-crypto";
 import { isPaid, paymentsConfig } from "./credits";
 import { bump } from "./data-versions";
 
@@ -18,7 +18,17 @@ export interface DataStore {
   rules: DataRules;
   /** Hash of the staff PIN that opens staff mode in the app ("" until the business sets one). */
   staffPin: string;
+  /** Hash of the owner PIN: opens the Owner tab in the app ("" until set). */
+  ownerPin: string;
 }
+/** Who's asking: the owner (link, owner PIN or the app's account) or a named staff member (orders only). */
+export type DataRole = "owner" | "staff";
+export interface StaffMember {
+  id: string;
+  name: string;
+}
+/** Most staff PINs one app keeps. */
+export const MAX_STAFF = 10;
 export interface DataItem {
   id: string;
   createdAt: number;
@@ -39,10 +49,10 @@ const DEVICE = /^[A-Za-z0-9_-]{16,64}$/;
 const STORE_ID = /^[A-Za-z0-9_-]{8,20}$/;
 const RECORD_ID = /^[A-Za-z0-9_-]{6,40}$/;
 
-type StoreRow = { id: string; user_id: string; project_id: string; owner_key: string; name: string; rules: DataRules; staff_pin: string };
+type StoreRow = { id: string; user_id: string; project_id: string; owner_key: string; name: string; rules: DataRules; staff_pin: string; owner_pin: string };
 type RecordRow = { id: string; collection: string; device: string; data: Record<string, unknown>; status: string; push_token: string; created_at: Date; updated_at: Date };
 
-const toStore = (r: StoreRow): DataStore => ({ id: r.id, userId: r.user_id, projectId: r.project_id, ownerKey: r.owner_key, name: r.name, rules: r.rules, staffPin: r.staff_pin ?? "" });
+const toStore = (r: StoreRow): DataStore => ({ id: r.id, userId: r.user_id, projectId: r.project_id, ownerKey: r.owner_key, name: r.name, rules: r.rules, staffPin: r.staff_pin ?? "", ownerPin: r.owner_pin ?? "" });
 
 function toItem(r: RecordRow, device: string | null, access: Access): DataItem {
   return {
@@ -136,16 +146,55 @@ export async function resetDataOwnerKey(id: string): Promise<string> {
   return key;
 }
 
-/** The account that made the app, or anyone with the owner link. */
-export async function canManageData(req: Request, store: DataStore): Promise<boolean> {
+export async function setOwnerPin(id: string, hash: string): Promise<void> {
+  await query("update app_data_stores set owner_pin = $2 where id = $1", [id, hash]);
+  bump(id, "*");
+}
+
+type StaffRow = { id: string; name: string; pin_hash: string; key: string };
+
+const same = (x: string, y: string) => {
+  const a = Buffer.from(x);
+  const b = Buffer.from(y);
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+
+export async function staffRows(storeId: string): Promise<StaffRow[]> {
+  return query<StaffRow>("select id, name, pin_hash, key from app_data_staff where store_id = $1 order by created_at", [storeId]);
+}
+
+export async function listStaff(storeId: string): Promise<StaffMember[]> {
+  return (await staffRows(storeId)).map((r) => ({ id: r.id, name: r.name }));
+}
+
+/** A named staff member with their own PIN; their phones get a staff key (orders only), never the owner key. */
+export async function addStaff(storeId: string, name: string, pinHash: string): Promise<{ id: string; key: string }> {
+  const id = randomBytes(9).toString("base64url");
+  const key = `s_${randomBytes(24).toString("base64url")}`;
+  await query("insert into app_data_staff (id, store_id, name, pin_hash, key) values ($1, $2, $3, $4, $5)", [id, storeId, name, pinHash, sealText(key)]);
+  return { id, key };
+}
+
+/** Removing someone signs out every phone they used. */
+export async function removeStaff(storeId: string, id: string): Promise<void> {
+  await query("delete from app_data_staff where store_id = $1 and id = $2", [storeId, id]);
+  bump(storeId, "*");
+}
+
+/** The account that made the app or anyone with the owner key is the owner; a staff key is staff. */
+export async function dataRole(req: Request, store: DataStore): Promise<DataRole | null> {
   const key = req.headers.get("x-owner-key") ?? "";
-  if (key) {
-    const a = Buffer.from(key);
-    const b = Buffer.from(store.ownerKey);
-    if (a.length === b.length && timingSafeEqual(a, b)) return true;
+  if (key && same(key, store.ownerKey)) return "owner";
+  if (key.startsWith("s_")) {
+    for (const r of await staffRows(store.id)) if (same(key, unsealText(r.key))) return "staff";
   }
   const user = await currentUser(req);
-  return user?.id === store.userId;
+  return user?.id === store.userId ? "owner" : null;
+}
+
+/** Owner only: the account that made the app, or anyone with the owner link. */
+export async function canManageData(req: Request, store: DataStore): Promise<boolean> {
+  return (await dataRole(req, store)) === "owner";
 }
 
 function rule(store: DataStore, collection: string) {
@@ -372,12 +421,17 @@ export interface OwnerCollection {
   items: DataItem[];
 }
 
-export async function ownerData(store: DataStore): Promise<{ name: string; hasStaffPin: boolean; usage: { month: number; limit: number }; collections: OwnerCollection[] }> {
+export async function ownerData(
+  store: DataStore,
+  role: DataRole = "owner",
+): Promise<{ name: string; role: DataRole; hasStaffPin: boolean; hasOwnerPin: boolean; staff: StaffMember[]; usage: { month: number; limit: number }; collections: OwnerCollection[] }> {
   await purge(store);
   const collections: OwnerCollection[] = [];
   // Two queries for the whole page, whatever the number of collections: the counts, and the newest items of each.
-  const names = Object.keys(store.rules);
-  const shown = Object.entries(store.rules).filter(([, r]) => r.access !== "private").map(([n]) => n);
+  // Staff see orders and requests only; the menu and the rest are the owner's.
+  const rules = Object.fromEntries(Object.entries(store.rules).filter(([, r]) => role === "owner" || r.access === "inbox"));
+  const names = Object.keys(rules);
+  const shown = Object.entries(rules).filter(([, r]) => r.access !== "private").map(([n]) => n);
   const [counts, all] = await Promise.all([
     query<{ collection: string; n: string }>("select collection, count(*) as n from app_data_records where store_id = $1 and collection = any($2::text[]) group by collection", [store.id, names]),
     shown.length
@@ -388,7 +442,7 @@ export async function ownerData(store: DataStore): Promise<{ name: string; hasSt
         )
       : Promise.resolve([] as RecordRow[]),
   ]);
-  for (const [name, r] of Object.entries(store.rules)) {
+  for (const [name, r] of Object.entries(rules)) {
     const n = counts.find((c) => c.collection === name)?.n ?? "0";
     const rows = r.access === "private" ? [] : all.filter((row) => row.collection === name);
     // Fields: the rules' fields, then any others the app saved.
@@ -402,14 +456,17 @@ export async function ownerData(store: DataStore): Promise<{ name: string; hasSt
     "select count(*) as month from app_data_records where store_id = $1 and device <> '' and created_at >= date_trunc('month', now())",
     [store.id],
   );
-  return { name: store.name, hasStaffPin: !!store.staffPin, usage: { month: Number(month), limit: monthlyLimit() }, collections };
+  const staff = role === "owner" ? await listStaff(store.id) : [];
+  return { name: store.name, role, hasStaffPin: !!store.staffPin || staff.length > 0, hasOwnerPin: !!store.ownerPin, staff, usage: { month: Number(month), limit: monthlyLimit() }, collections };
 }
 
 /** The business adds, edits, deletes or sets the status of items (any collection but private). */
-export async function ownerAction(store: DataStore, body: Record<string, unknown>): Promise<void> {
+export async function ownerAction(store: DataStore, body: Record<string, unknown>, role: DataRole = "owner"): Promise<void> {
   const collection = String(body.collection ?? "");
   const r = rule(store, collection);
   if (r.access === "private") throw new DataForbidden("Private data belongs to each person.");
+  // Staff move orders along and mark them paid; adding, editing and deleting are the owner's.
+  if (role === "staff" && (r.access !== "inbox" || (body.action !== "status" && body.action !== "paid"))) throw new DataForbidden("Only the owner can do that.");
   const id = String(body.id ?? "");
   switch (body.action) {
     case "add":

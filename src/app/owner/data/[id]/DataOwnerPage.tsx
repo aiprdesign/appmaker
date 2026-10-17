@@ -24,6 +24,8 @@ interface Collection {
 interface View {
   name: string;
   hasStaffPin: boolean;
+  hasOwnerPin?: boolean;
+  staff?: { id: string; name: string }[];
   usage?: { month: number; limit: number };
   vapidKey?: string | null;
   collections: Collection[];
@@ -175,6 +177,8 @@ export function DataOwnerPage({ id }: { id: string }) {
   const [fresh, setFresh] = useState(0);
   const [alerts, setAlerts] = useState<"off" | "on" | "blocked" | "unsupported">("off");
   const [pin, setPin] = useState("");
+  const [ownerPin, setOwnerPinInput] = useState("");
+  const [staffName, setStaffName] = useState("");
   const [pinNote, setPinNote] = useState("");
   const key = useRef("");
   const seen = useRef<Set<string> | null>(null);
@@ -433,13 +437,16 @@ export function DataOwnerPage({ id }: { id: string }) {
     }
   };
 
-  const savePin = async (next: string) => {
+  // Owner PIN, and adding or removing staff: each answer is the whole page again.
+  const pinCall = async (body: Record<string, unknown>, note: string) => {
     setBusy("pin");
     try {
-      const v = await call("POST", { action: "set-pin", pin: next });
-      setView((old) => (old ? { ...old, hasStaffPin: v.hasStaffPin } : old));
+      const v = await call("POST", body);
+      setView((old) => (old ? { ...old, hasStaffPin: v.hasStaffPin, hasOwnerPin: v.hasOwnerPin, staff: v.staff } : old));
       setPin("");
-      setPinNote(next ? "Staff PIN saved. Staff open Staff mode in the app and enter it." : "Staff PIN removed: staff mode is closed.");
+      setOwnerPinInput("");
+      setStaffName("");
+      setPinNote(note);
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -854,8 +861,8 @@ export function DataOwnerPage({ id }: { id: string }) {
       </p>
       <details className={`${box} group`}>
         <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 font-semibold">
-          <Bell className="h-4 w-4" aria-hidden /> Alerts and staff PIN
-          <span className="ml-auto text-xs font-normal text-muted">{alerts === "on" ? "Alerts on" : "Alerts off"} · {view.hasStaffPin ? "PIN set" : "No PIN"}</span>
+          <Bell className="h-4 w-4" aria-hidden /> Alerts, staff and PINs
+          <span className="ml-auto text-xs font-normal text-muted">{alerts === "on" ? "Alerts on" : "Alerts off"} · {view.staff?.length ? `${view.staff.length} staff` : "No staff"}</span>
           <ChevronDown className="h-4 w-4 text-muted transition group-open:rotate-180" aria-hidden />
         </summary>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -908,33 +915,68 @@ export function DataOwnerPage({ id }: { id: string }) {
             ))}
           </fieldset>
         </div>
-        <form
-          className="space-y-2 text-sm"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void savePin(pin);
-          }}
-        >
-          <h2 className="flex items-center gap-1.5 font-semibold">
-            <KeyRound className="h-4 w-4" aria-hidden /> Staff mode in the app
-          </h2>
-          <p className="text-muted">
-            {view.hasStaffPin ? "A staff PIN is set." : "Set a PIN so staff can manage orders in the app itself and get alerts on their phone."} Open Staff in the app&apos;s settings and enter it.
-          </p>
-          <div className="flex gap-2">
-            <label className="sr-only" htmlFor="staff-pin">Staff PIN (6 to 8 digits)</label>
-            <input id="staff-pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{6,8}" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="6–8 digits" className={`${field} max-w-40`} />
-            <button disabled={!!busy || pin.length < 6} className="min-h-10 rounded-lg bg-white px-3 font-medium text-black disabled:opacity-50">
-              {view.hasStaffPin ? "Change" : "Set PIN"}
-            </button>
-            {view.hasStaffPin && (
-              <button type="button" onClick={() => void savePin("")} disabled={!!busy} className="min-h-10 rounded-lg border border-line px-3">
-                Remove
+        <div className="space-y-4 text-sm">
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void pinCall({ action: "set-owner-pin", pin: ownerPin }, "Owner PIN saved. In the app, open Staff and enter it to get the Owner tab.");
+            }}
+          >
+            <h2 className="flex items-center gap-1.5 font-semibold">
+              <Lock className="h-4 w-4" aria-hidden /> Owner PIN
+            </h2>
+            <p className="text-muted">{view.hasOwnerPin ? "Set. It opens everything in the app: orders, menu, staff." : "8 digits. Opens everything in the app. Keep it to yourself."}</p>
+            <div className="flex gap-2">
+              <label className="sr-only" htmlFor="owner-pin">Owner PIN (8 digits)</label>
+              <input id="owner-pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{8}" value={ownerPin} onChange={(e) => setOwnerPinInput(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="8 digits" className={`${field} max-w-40`} />
+              <button disabled={!!busy || ownerPin.length !== 8} className="min-h-10 rounded-lg bg-white px-3 font-medium text-black disabled:opacity-50">
+                {view.hasOwnerPin ? "Change" : "Set"}
               </button>
+              {view.hasOwnerPin && (
+                <button type="button" onClick={() => void pinCall({ action: "set-owner-pin", pin: "" }, "Owner PIN removed.")} disabled={!!busy} className="min-h-10 rounded-lg border border-line px-3">
+                  Remove
+                </button>
+              )}
+            </div>
+          </form>
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void pinCall({ action: "staff-add", name: staffName, pin }, `${staffName.trim()} added. They open Staff in the app and enter their PIN.`);
+            }}
+          >
+            <h2 className="flex items-center gap-1.5 font-semibold">
+              <KeyRound className="h-4 w-4" aria-hidden /> Staff ({view.staff?.length ?? 0}/10)
+            </h2>
+            <p className="text-muted">Each person gets their own PIN. Staff see orders only: they can move them along and mark them paid.</p>
+            {!!view.staff?.length && (
+              <ul className="divide-y divide-line rounded-lg border border-line">
+                {view.staff.map((s) => (
+                  <li key={s.id} className="flex min-h-10 items-center gap-2 px-3">
+                    <span className="flex-1 truncate">{s.name}</span>
+                    <button type="button" onClick={() => void pinCall({ action: "staff-remove", id: s.id }, `${s.name} removed: their phones are signed out.`)} disabled={!!busy} aria-label={`Remove ${s.name}`} className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:text-foreground">
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
-          </div>
+            {(view.staff?.length ?? 0) < 10 && (
+              <div className="flex flex-wrap gap-2">
+                <label className="sr-only" htmlFor="staff-name">Name</label>
+                <input id="staff-name" value={staffName} onChange={(e) => setStaffName(e.target.value.slice(0, 30))} placeholder="Name" className={`${field} max-w-36`} />
+                <label className="sr-only" htmlFor="staff-pin">Their PIN (6 to 8 digits)</label>
+                <input id="staff-pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{6,8}" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="6–8 digits" className={`${field} max-w-32`} />
+                <button disabled={!!busy || pin.length < 6 || !staffName.trim()} className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-white px-3 font-medium text-black disabled:opacity-50">
+                  <Plus className="h-4 w-4" aria-hidden /> Add
+                </button>
+              </div>
+            )}
+          </form>
           {pinNote && <p role="status" className="text-emerald-300">{pinNote}</p>}
-        </form>
+        </div>
         </div>
       </details>
     </main>
