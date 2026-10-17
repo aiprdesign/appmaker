@@ -23,6 +23,7 @@ import * as Notifications from 'expo-notifications';
 import { ArrowRight, Bell, ChevronDown, ChevronLeft, ExternalLink, Inbox, KeyRound, LogOut, Phone, Plus, Store, Trash2, Users } from 'lucide-react-native';
 import { colors, radius, font, card } from './theme';
 import { preview } from './appdata';
+import * as WebBrowser from 'expo-web-browser';
 
 const API = ${JSON.stringify(apiUrl)};
 const KEY = 'appdata:staff-key';
@@ -327,7 +328,7 @@ function OwnerPanel({ view, ownerKey }) {
         )}
         <Text style={styles.small}>Staff see orders only. Add or remove them on the owner page.</Text>
       </View>
-      <Pressable onPress={() => Linking.openURL(page).catch(() => {})} accessibilityRole="link" style={({ pressed }) => [styles.primary, { flexDirection: 'row', gap: 8 }, pressed && styles.pressed]}>
+      <Pressable onPress={() => WebBrowser.openBrowserAsync(page, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET, dismissButtonStyle: 'done' }).catch(() => Linking.openURL(page).catch(() => {}))} accessibilityRole="link" style={({ pressed }) => [styles.primary, { flexDirection: 'row', gap: 8 }, pressed && styles.pressed]}>
         <Store size={18} color={colors.onPrimary} accessible={false} />
         <Text style={styles.primaryText}>Open the full owner page</Text>
         <ExternalLink size={16} color={colors.onPrimary} accessible={false} />
