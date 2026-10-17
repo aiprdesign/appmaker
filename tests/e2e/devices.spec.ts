@@ -168,7 +168,11 @@ test("Your phone (Expo Go): a QR code made for an older Expo SDK is replaced, no
   await dialog.getByRole("button", { name: "Make a QR code for my phone" }).click();
   await expect(dialog.getByText("Up to date with your latest changes.")).toBeVisible();
 
-  // The same app, but its saved preview was made before Appmaker moved to Expo Go's SDK.
+  // The same app, but its saved preview was made before Appmaker moved to Expo Go's SDK
+  // (once the app has saved the QR code).
+  await expect
+    .poll(() => page.evaluate(() => Object.values(JSON.parse(localStorage.getItem("appmaker.projects.v1") || "{}")).some((p) => !!(p as { expo?: { phone?: unknown } }).expo?.phone)))
+    .toBe(true);
   await page.evaluate(() => {
     const key = "appmaker.projects.v1";
     const projects = JSON.parse(localStorage.getItem(key) || "{}");
@@ -206,6 +210,8 @@ test("Your phone (Expo Go): shows Expo's error and lets you try again", async ({
     const name = new URL(route.request().url()).pathname.split("/").pop()!;
     if (route.request().method() === "GET") return json(route, { available: true, hosted: true });
     if (name === "link") return json(route, { link: { projectId: "0b6e6a8e-3f5e-4c47-9d68-6e0d3c1f2a11", owner: "appmaker-builds", slug: "streaks" } });
+    // Only publishing counts: other Expo requests (build status) mustn't use up the failure.
+    if (name !== "update") return json(route, { builds: [] });
     attempts++;
     if (attempts === 1) return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "Expo couldn't publish the preview:\nSomething broke" }) });
     return json(route, { preview: { groupId: GROUP, url: EXPO_GO_URL, platforms: ["android", "ios"], publishedAt: Date.now() } });
