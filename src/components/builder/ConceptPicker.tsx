@@ -14,6 +14,7 @@ export function ConceptPicker({
   onChoose,
   onRetry,
   busy,
+  running = false,
   assets,
   onEdit,
 }: {
@@ -21,6 +22,8 @@ export function ConceptPicker({
   onChoose: (index: number) => void;
   onRetry: (index: number) => void;
   busy: boolean;
+  /** Designs are still being made (one at a time): a failed one can be tried again once they're done. */
+  running?: boolean;
   /** Screenshot parts of the current site the designs may use. */
   assets?: Record<string, string>;
   /** Text edited on a design: made on all three designs. */
@@ -33,7 +36,7 @@ export function ConceptPicker({
   const [picked, setPicked] = useState<number | null>(null);
   const shown = picked ?? firstReady;
   const concept = concepts[shown];
-  const writing = concepts.filter((c) => c.status === "writing").length;
+  const writing = concepts.filter((c) => c.status === "writing" || c.status === "queued").length;
   const ready = concepts.filter((c) => c.status === "ready").length;
 
   return (
@@ -41,7 +44,7 @@ export function ConceptPicker({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Choose a design</h2>
-          <p className="text-xs text-muted" aria-live="polite">{writing ? `${ready} of ${concepts.length} ready · designing the rest…` : "Two pages each for now; the rest are made in the one you pick."}</p>
+          <p className="text-xs text-muted" aria-live="polite">{writing ? `${ready} of ${concepts.length} ready · ${ready ? "choose one now, or wait for the others" : "designing one at a time"}` : "Two pages each for now; the rest are made in the one you pick."}</p>
         </div>
         <div role="tablist" aria-label="Design options" className="inline-flex rounded-full border border-line p-0.5">
           {concepts.map((c, i) => {
@@ -98,7 +101,7 @@ export function ConceptPicker({
               </p>
               <button
                 onClick={() => onRetry(shown)}
-                disabled={busy}
+                disabled={busy || running}
                 className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line px-4 text-xs text-foreground hover:border-white/20 disabled:opacity-50"
               >
                 <RotateCw className="h-3.5 w-3.5" aria-hidden /> Try again
@@ -110,9 +113,15 @@ export function ConceptPicker({
             <div role="status" className="w-full max-w-sm space-y-4 px-6">
               <p className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium">
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {concept?.stage ?? "Starting"}…
+                  {concept?.status === "queued" ? (
+                    <>Design {shown + 1} starts after design {shown}…</>
+                  ) : (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {concept?.stage ?? "Starting"}…
+                    </>
+                  )}
                 </span>
-                <span className="tabular-nums text-muted">{concept?.progress ?? 2}%</span>
+                <span className="tabular-nums text-muted">{concept?.status === "queued" ? "Waiting" : `${concept?.progress ?? 2}%`}</span>
               </p>
               <ul className="space-y-2.5" aria-label="All designs">
                 {concepts.map((c, i) => (
@@ -121,10 +130,10 @@ export function ConceptPicker({
                       <span className={i === shown ? "text-foreground" : ""}>
                         Design {i + 1} · {c.tier ? tierName(c.tier) : (getStyle(c.style)?.name ?? c.style)}
                       </span>
-                      <span className="tabular-nums">{c.status === "ready" ? "Ready" : c.status === "failed" ? "Failed" : `${c.progress ?? 2}%`}</span>
+                      <span className="tabular-nums">{c.status === "ready" ? "Ready" : c.status === "failed" ? "Failed" : c.status === "queued" ? "Waiting" : `${c.progress ?? 2}%`}</span>
                     </span>
                     <span aria-hidden className="block h-1 overflow-hidden rounded-full bg-white/10">
-                      <span className={`block h-full rounded-full transition-[width] duration-500 ${c.status === "failed" ? "bg-red-400" : "bg-brand-400"}`} style={{ width: `${c.status === "ready" ? 100 : (c.progress ?? 2)}%` }} />
+                      <span className={`block h-full rounded-full transition-[width] duration-500 ${c.status === "failed" ? "bg-red-400" : "bg-brand-400"}`} style={{ width: `${c.status === "ready" ? 100 : c.status === "queued" ? 0 : (c.progress ?? 2)}%` }} />
                     </span>
                   </li>
                 ))}

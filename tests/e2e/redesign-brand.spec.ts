@@ -63,3 +63,39 @@ test(`every design shows the business's logo (${kind}) in the header and footer,
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/design-${kind}-${i}.png` });
   }
 });
+
+test("designs are made one at a time, and the first can be chosen before the others are done", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.route("https://img.bella.example/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG }));
+  await page.route("**/api/site", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ site: SITE }) }));
+  const prompts: string[] = [];
+  await page.route("**/api/generate", async (route) => {
+    const prompt = String(route.request().postDataJSON().prompt);
+    prompts.push(prompt);
+    // Design 2 takes a long time; the finished site comes back at once.
+    if (/Design concept 2 of 3/.test(prompt)) await new Promise((r) => setTimeout(r, 30_000));
+    await route.fulfill({ status: 200, contentType: "text/plain", headers: { "X-Appmaker-Mode": "ai" }, body: reply(prompts.length) }).catch(() => {});
+  });
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Redesign website" }).click();
+  await page.getByLabel("Website address").fill("https://bella.example/");
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(page.getByText("Bella Pizza").first()).toBeVisible({ timeout: 20_000 });
+  await page.getByLabel("Describe your app").press("Enter");
+
+  // Design 1 alone first; design 2 starts when it's done, design 3 waits.
+  await expect(page.getByRole("button", { name: "Use design 1" })).toBeEnabled({ timeout: 30_000 });
+  await expect.poll(() => prompts.length).toBe(2);
+  expect(prompts[0]).toContain("Design concept 1 of 3");
+  expect(prompts[1]).toContain("Design concept 2 of 3");
+  await expect(page.getByText("1 of 3 ready · choose one now, or wait for the others")).toBeVisible();
+  await page.getByRole("tab", { name: /^Design 3 ·/ }).click();
+  await expect(page.getByText("Design 3 starts after design 2…")).toBeVisible();
+
+  // Choosing design 1 now makes the rest of the site; design 3 is never made.
+  await page.getByRole("tab", { name: /^Design 1 ·/ }).click();
+  await page.getByRole("button", { name: "Use design 1" }).click();
+  await expect.poll(() => prompts.some((p) => /The owner chose design/.test(p))).toBe(true);
+  await page.waitForTimeout(1000);
+  expect(prompts.filter((p) => /Design concept 3 of 3/.test(p))).toEqual([]);
+});

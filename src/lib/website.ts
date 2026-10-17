@@ -553,8 +553,8 @@ export interface SiteConcept {
   style: string;
   tier?: ConceptTier;
   files: FileMap;
-  /** Still being written, or failed. */
-  status: "writing" | "ready" | "failed";
+  /** Waiting its turn (designs are made one after another), being written, done, or failed. */
+  status: "queued" | "writing" | "ready" | "failed";
   error?: string;
   /** While writing: about how far along it is (0–100), and what it's doing. */
   progress?: number;

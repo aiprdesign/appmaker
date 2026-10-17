@@ -732,6 +732,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
   );
   // Website redesign: three design concepts (home page + one inside page) first.
   const conceptsRunning = useRef(false);
+  const conceptsAbort = useRef<AbortController | null>(null);
   const makeConcepts = useCallback(
     async (only?: number) => {
       const current = projectRef.current;
@@ -742,11 +743,12 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
       const start: SiteConcept[] =
         current.concepts && only != null
           ? current.concepts.map((c, i) => (i === only ? { ...c, status: "writing", error: undefined } : c))
-          : plan.map(({ tier, style }) => ({ style: style.id, tier: tier.tier, files: {}, status: "writing" }));
+          : // One design at a time: the first arrives sooner, and can be chosen before the others are done.
+            plan.map(({ tier, style }, i) => ({ style: style.id, tier: tier.tier, files: {}, status: i === 0 ? "writing" : "queued" }));
       const intro: ChatMessage = {
         id: uid(),
         role: "assistant",
-        content: "Designing three options for your home page and one inside page: Modern, Ultra-modern editorial, and a style made for your business. Look through them on the right and choose one; then I'll make the other pages in that design.",
+        content: "Designing three options for your home page and one inside page, one after another: Modern first, then Ultra-modern editorial and a style made for your business. Choose one as soon as you like it; then I'll make the other pages in that design.",
         createdAt: Date.now(),
       };
       commit({
@@ -761,13 +763,19 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
         if (!p?.concepts) return;
         commit({ ...p, concepts: p.concepts.map((c, n) => (n === i ? { ...c, ...patch } : c)) });
       };
-      await Promise.all(
-        start.map(async (c, i) => {
-          if (c.status !== "writing") return;
+      const abort = new AbortController();
+      conceptsAbort.current = abort;
+      for (const [i, c] of start.entries()) {
+        if (c.status !== "writing" && c.status !== "queued") continue;
+        // Choosing a design stops the ones still waiting.
+        if (abort.signal.aborted) break;
+        await (async () => {
+          if (c.status === "queued") update(i, { status: "writing" });
           const style = getStyle(c.style)!;
           try {
             const res = await fetch("/api/generate", {
               method: "POST",
+              signal: abort.signal,
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 prompt: [conceptPrompt(current.prompt, style, i + 1, c.tier, colors), editsNote(current.contentEdits)].filter(Boolean).join("\n\n"),
@@ -812,10 +820,10 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
             const branded = ensureBrand(files, selectedSite(current.source, current.excludedSections)).files;
             update(i, { status: "ready", progress: 100, stage: undefined, files: withA11yWidget(applyEdits(branded, projectRef.current?.contentEdits)) });
           } catch (e) {
-            update(i, { status: "failed", error: (e as Error).message.slice(0, 200) });
+            if (!abort.signal.aborted) update(i, { status: "failed", error: (e as Error).message.slice(0, 200) });
           }
-        }),
-      );
+        })();
+      }
       conceptsRunning.current = false;
       window.dispatchEvent(new Event(PLAN_CHANGED));
     },
@@ -825,6 +833,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
     const p = projectRef.current;
     const c = p?.concepts?.[i];
     if (!p || !c || c.status !== "ready") return;
+    conceptsAbort.current?.abort();
     const style = getStyle(c.style)!;
     const design = applyStyle(p.design ?? defaultDesign(p.listing), style, !!p.source);
     const files = withA11yWidget(c.files);
@@ -1345,7 +1354,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
               key={(project.excludedSections ?? []).join("|")}
               site={project.source}
               excluded={project.excludedSections ?? []}
-              busy={generating || checking || !!project.concepts?.some((c) => c.status === "writing")}
+              busy={generating || checking || !!project.concepts?.some((c) => c.status === "writing" || c.status === "queued")}
               applyLabel={hasApp ? "Update the website" : "Redo the 3 designs with this content"}
               onApply={(excluded) => {
                 const p = projectRef.current ?? project;
@@ -1377,7 +1386,7 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
               key={JSON.stringify(project.siteColors ?? null)}
               colors={resolveSiteColors(project.siteColors, project.source?.colors)}
               brand={project.source?.colors ?? []}
-              busy={generating || checking || !!project.concepts?.some((c) => c.status === "writing")}
+              busy={generating || checking || !!project.concepts?.some((c) => c.status === "writing" || c.status === "queued")}
               applyLabel={hasApp ? "Recolor the website" : "Redo the 3 designs with these colors"}
               onApply={(siteColors) => {
                 commit({ ...(projectRef.current ?? project), siteColors });
@@ -1447,7 +1456,8 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
                   concepts={project.concepts}
                   assets={project.siteAssets}
                   onEdit={editText}
-                  busy={generating || project.concepts.some((c) => c.status === "writing")}
+                  busy={generating}
+                  running={project.concepts.some((c) => c.status === "writing" || c.status === "queued")}
                   onChoose={chooseConcept}
                   onRetry={(i) => void makeConcepts(i)}
                 />
