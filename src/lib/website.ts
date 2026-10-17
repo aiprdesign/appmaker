@@ -137,6 +137,12 @@ export function pageA11yIssues(path: string, html: string): string[] {
   return [...new Set(out)].map((m) => `${m} (WCAG 2.2 AA)`);
 }
 
+/** A page's inline Tailwind configuration, without spacing differences, or null when it has none. */
+function tailwindConfig(html: string): string | null {
+  const m = /tailwind\.config\s*=\s*(\{[\s\S]*?\})\s*;?\s*<\/script>/i.exec(html);
+  return m ? m[1].replace(/\s+/g, "") : null;
+}
+
 export function validateSite(files: FileMap): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   if (files["index.html"] == null) issues.push({ file: "index.html", message: "index.html (the home page) is missing" });
@@ -168,6 +174,11 @@ export function validateSite(files: FileMap): ValidationIssue[] {
       if (!/^https?:\/\//i.test(href) && files[resolveFrom(path, href)] == null) issues.push({ file: path, message: `links to ${href}, which doesn't exist` });
     }
     if (/\beval\s*\(|new\s+Function\s*\(/.test(code)) issues.push({ file: path, message: "uses eval or new Function; write plain JavaScript" });
+    // One design system: every page uses the home page's Tailwind configuration.
+    const config = tailwindConfig(code);
+    const homeConfig = files["index.html"] != null ? tailwindConfig(files["index.html"]) : null;
+    if (path !== "index.html" && homeConfig && config !== homeConfig)
+      issues.push({ file: path, message: config ? "has a different tailwind.config from index.html: use the same design system (colours, fonts, radius, shadows) on every page, copied exactly" : "has no tailwind.config: copy the design system from index.html exactly" });
     for (const message of pageA11yIssues(path, code)) issues.push({ file: path, message });
     if (/outline\s*:\s*(none|0)\b/i.test(code) && !/focus-visible|:focus/.test(Object.values(files).join("\n"))) {
       issues.push({ file: path, message: "removes focus outlines without a visible focus style (WCAG 2.2 AA 2.4.7)" });
@@ -261,7 +272,20 @@ Show every listed logo, never the business's own logo and never invented ones, u
 
 ## Technology (hard rules)
 - Plain static files only: .html pages, an optional styles.css and script.js, sitemap.xml and robots.txt. No build step, no frameworks, no server code, no package.json.
-- Styling with Tailwind via its CDN in every page's <head>: <script src="https://cdn.tailwindcss.com"></script>, configured inline with the brand colors (tailwind.config = { theme: { extend: { colors: { brand: '#…', accent: '#…' } } } }). Extra CSS goes in styles.css.
+- Styling with Tailwind via its CDN in every page's <head>: <script src="https://cdn.tailwindcss.com"></script>, configured inline with the design system below (the same tailwind.config, character for character, on every page). Extra CSS goes in styles.css.
+
+## Design system (every design has its own, used everywhere)
+Decide the design system first, write it once as the tailwind.config (and CSS variables in styles.css), then build every section only from it: no one-off colours, sizes or shadows.
+- Colour with the 60-30-10 rule:
+  - 60% dominant: the page's canvas and large surfaces (backgrounds, big sections), a calm neutral or a very soft tint of the brand. Roles: canvas, surface (cards, raised areas), ink (text) and muted (secondary text, 4.5:1 on canvas and surface).
+  - 30% secondary: the brand colour's world: headers, footer, alternating bands, card fills, icons, illustrations and image overlays. Roles: brand, plus brand-soft (a light or dark tint) and brand-deep (a darker shade) for depth.
+  - 10% accent: only what must be noticed: the primary action buttons, key links, highlights, one key word, badges. Role: accent (a strong colour that contrasts with brand), with on-accent (its text colour, 4.5:1).
+  - The proportions are by area on every page: a visitor's eye should land on the 10% first. Never use the accent for large areas, and never more than these roles (plus pure white/black where needed).
+- tailwind.config = { theme: { extend: { colors: { canvas, surface, ink, muted, brand: { DEFAULT, soft, deep }, accent: { DEFAULT, on } }, fontFamily: { display, body }, borderRadius: { card, button }, boxShadow: { card, lift } } } } with the real values, then classes like bg-canvas, text-ink, bg-brand-soft, bg-accent text-accent-on, rounded-card, shadow-card.
+- Type scale: one display font and one body font (at most one Google Font pair); a fixed scale used everywhere: display (hero, 3.5–6rem), h2 (2.25–3rem), h3 (1.25–1.5rem), body (1–1.125rem, line-height 1.6–1.75, 60–75 characters per line), small (0.875rem); headings with tighter tracking and line-height.
+- Spacing on an 8px grid: section padding (py-20 to py-32 on desktop, py-14 to py-20 on phones), the same container width (max-w-6xl or max-w-7xl with px-6) and the same gaps between cards on every page.
+- Shape and depth: one corner radius for cards, one for buttons and inputs; at most two shadow levels (card and lift on hover).
+- Components, written once and reused with the same classes everywhere: primary button (accent), secondary button (outline or glass), link, card, badge, section heading (eyebrow + h2 + lead), form field, header and footer. A section that needs something new reuses these parts instead of inventing new styles.
 - No other external scripts. Small vanilla JavaScript in script.js only (mobile menu, form handling, a slider).
 - Images: only the exact image and logo URLs listed in <website_content> (in the Images list or a section's images) (with width, height, loading="lazy" except the first, and meaningful alt text). Never invent image URLs. Without photos, use large inline SVG icons, gradients and typography.
 - Fonts: system fonts, or at most one Google Font pair via <link> in <head>.
@@ -636,12 +660,12 @@ Design concept ${n} of 3, in the ${style.name} style${direction ? `, direction $
 Make it as beautiful as it can be in its own way: the owner compares it with a simpler and a bolder option, so commit fully to this direction. Write ONLY two pages so the owner can choose between three designs before the rest is made:
 - index.html, the complete home page, and
 - one inside page: the most important section of the site (services.html, menu.html or products.html, whichever fits; otherwise about.html).
-Make both complete and polished, with the full header, navigation and footer, and with every section of the matching current page (its words and its images, in order; long text folded behind "Read more", never cut). The navigation already links to every page the finished site will have; those pages are written after the owner picks a design. No sitemap.xml or robots.txt yet. Make this concept look clearly different from a generic template: commit fully to the ${style.name} style.`;
+Start from this design's own design system (60-30-10 colour roles, type scale, spacing, radius, shadows and components, see "Design system") and build both pages only from it. Make both complete and polished, with the full header, navigation and footer, and with every section of the matching current page (its words and its images, in order; long text folded behind "Read more", never cut). The navigation already links to every page the finished site will have; those pages are written after the owner picks a design. No sitemap.xml or robots.txt yet. Make this concept look clearly different from a generic template: commit fully to the ${style.name} style.`;
 }
 
 /** After the owner picks a concept: write the rest of the site in that design. */
 export function finishSitePrompt(style: DesignStyle, pages: string[], colors?: SiteColors): string {
-  return `${colors && colors.mode !== "auto" ? `${colorInstruction(colors)}\n\n` : ""}The owner chose design "${style.name}" (${pages.join(" and ")} are already written). Now write every other page linked in the navigation, each with every section of its matching current page (the owner's words and each section's images, in order; long text folded behind "Read more", never cut), plus sitemap.xml and robots.txt, matching the chosen design exactly: the same header, footer, colors, typography, spacing and components. Keep ${pages.join(" and ")} as they are, changing them only where a link needs fixing.`;
+  return `${colors && colors.mode !== "auto" ? `${colorInstruction(colors)}\n\n` : ""}The owner chose design "${style.name}" (${pages.join(" and ")} are already written). Now write every other page linked in the navigation, each with every section of its matching current page (the owner's words and each section's images, in order; long text folded behind "Read more", never cut), plus sitemap.xml and robots.txt, matching the chosen design exactly: the same design system (the tailwind.config copied exactly, the same 60-30-10 colour roles, type scale, spacing, radius, shadows and components), header and footer. Keep ${pages.join(" and ")} as they are, changing them only where a link needs fixing.`;
 }
 
 const HEX6 = /^#[0-9a-f]{6}$/i;

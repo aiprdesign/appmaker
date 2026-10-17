@@ -211,3 +211,22 @@ describe("the modern design", () => {
     expect(conceptPrompt("Redesign it", getStyle("aurora")!, 1, "modern")).toMatch(/Modern effects kit generously: glass cards/);
   });
 });
+
+describe("each design's design system", () => {
+  it("asks for 60-30-10 colour roles, a type scale and shared components, and keeps every page on the same system", async () => {
+    const { conceptPrompt, finishSitePrompt, validateSite, websiteSystemPrompt } = await import("@/lib/website");
+    const { getStyle } = await import("@/lib/styles");
+    const system = websiteSystemPrompt();
+    for (const t of ["## Design system", "60% dominant", "30% secondary", "10% accent", "Type scale", "8px grid", "Components, written once"]) expect(system).toContain(t);
+    expect(conceptPrompt("x", getStyle("aurora")!, 1, "modern")).toContain("Start from this design's own design system (60-30-10");
+    expect(finishSitePrompt(getStyle("aurora")!, ["index.html"])).toContain("the tailwind.config copied exactly");
+    const page = (config: string) =>
+      `<!doctype html><html lang="en"><head><title>Page title</title><meta name="description" content="d"><meta name="viewport" content="width=device-width"><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config = ${config};</script></head><body><a href="index.html">Home</a></body></html>`;
+    const home = page("{ theme: { extend: { colors: { canvas: '#fff', accent: '#f60' } } } }");
+    const same = page("{theme:{extend:{colors:{canvas:'#fff',accent:'#f60'}}}}");
+    const other = page("{ theme: { extend: { colors: { canvas: '#000' } } } }");
+    const messages = (f: Record<string, string>) => validateSite(f).map((i) => `${i.file}: ${i.message}`).filter((m) => /tailwind\.config/.test(m));
+    expect(messages({ "index.html": home, "about.html": same })).toEqual([]);
+    expect(messages({ "index.html": home, "about.html": other })).toEqual([expect.stringMatching(/^about\.html: has a different tailwind\.config from index\.html/)]);
+  });
+});
