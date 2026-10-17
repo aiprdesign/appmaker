@@ -79,7 +79,7 @@ test("the owner page chimes and counts new orders, moves them on and adds staff"
   await page.getByText("Alerts, staff and PINs").click();
   await page.getByLabel("Name").fill("Mia");
   await page.getByLabel("Their PIN (6 to 8 digits)").fill("246810");
-  await page.getByRole("button", { name: "Add" }).click();
+  await page.getByRole("button", { name: "Add staff member" }).click();
   await expect(page.getByText("Mia added.")).toBeVisible();
   expect((await (await page.request.post(`${store.apiUrl}/staff`, { data: { pin: "246810" } })).json()).role).toBe("staff");
 

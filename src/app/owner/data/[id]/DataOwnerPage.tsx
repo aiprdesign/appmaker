@@ -969,7 +969,7 @@ export function DataOwnerPage({ id }: { id: string }) {
                 <input id="staff-name" value={staffName} onChange={(e) => setStaffName(e.target.value.slice(0, 30))} placeholder="Name" className={`${field} max-w-36`} />
                 <label className="sr-only" htmlFor="staff-pin">Their PIN (6 to 8 digits)</label>
                 <input id="staff-pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{6,8}" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="6–8 digits" className={`${field} max-w-32`} />
-                <button disabled={!!busy || pin.length < 6 || !staffName.trim()} className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-white px-3 font-medium text-black disabled:opacity-50">
+                <button disabled={!!busy || pin.length < 6 || !staffName.trim()} aria-label="Add staff member" className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-white px-3 font-medium text-black disabled:opacity-50">
                   <Plus className="h-4 w-4" aria-hidden /> Add
                 </button>
               </div>
