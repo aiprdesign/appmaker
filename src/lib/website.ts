@@ -224,6 +224,17 @@ The owner's content is the site. The redesign may present it better, but always 
 - Lists stay lists (every item), prices stay with their items, questions stay with their answers.
 - The design is built from the content: pick the layout of each section to suit what it holds (a list of services becomes cards, a story becomes text with its photo, questions become an accordion), keeping the page's order and structure.
 
+## Present the business (what every design must do)
+The site exists to win the business customers. Design every page around what a visitor needs to decide, using only the owner's real content and details:
+- The first screen answers four questions without scrolling, on a phone too: what this business is (its name and what it does, in the owner's own words), where (the town or area, when known), why choose it (one real strength from the content: years in business, a speciality, a stated award or rating), and what to do next (one primary action).
+- One primary action, the same everywhere, picked from the real details in this order: the booking or ordering link ("Book now", "Order online"), else the phone ("Call 718-555-0142", a tel: link), else WhatsApp, else email, else "Get directions". It's the hero's main button, it sits in the header on desktop, and on phones it's in a slim sticky action bar at the bottom of the screen (Call, Directions, and Book or Order when there's a link; each 44px or taller, with safe-area padding, never covering content at the end of the page). A second, quieter button may lead to the main offer (Menu, Services, Our work).
+- A quick-facts strip right under the hero: today's opening hours (or "Open Tue–Sun, 5–11pm"), the address or area with a Directions link, the phone, and price range or a stated rating when the content has them. Only real details; leave out what isn't known.
+- The offer is easy to scan: services, products or menu items as cards or a clean list with their real names, short descriptions and prices exactly as given, grouped the way the owner groups them.
+- Trust sits next to decisions: testimonials, reviews, client logos, years, certifications and awards from the content go near the offer and the calls to action, never invented and never inflated.
+- Every page ends with a closing call-to-action band (a short line in the owner's voice, the primary action, and the phone or address), above the footer.
+- Navigation uses the words visitors look for (Menu, Services, Prices, About, Contact), five or six links at most; the rest go in the footer.
+- Speak to the customer: headings say what the visitor gets ("Fresh pasta, made every morning"), not what the section is ("Our products"), keeping the owner's facts and voice.
+
 ## Accessibility statement
 Appmaker adds accessibility.html (the site's WCAG 2.2 accessibility statement) and links it in every footer. Don't write, change or remove that page or its footer link; keep the footer link when you edit a footer.
 
@@ -243,9 +254,9 @@ Show every listed logo, never the business's own logo and never invented ones, u
 - Write each logo once, in a plain <ul>: the strip repeats them for a seamless endless scroll, fades the edges, pauses on hover and keyboard focus, adds a pause button, and shows a calm centred row for 3 or fewer logos or when motion is turned off. Don't write your own marquee animation, duplicate the list, or add a slider script for logos.
 - Optional: data-direction="right" scrolls the other way; data-speed="slow" or "fast". Style the <li> and <img> with Tailwind for the look (keep logos one height, about h-8 to h-12, width auto, object-contain).
 - Make it look designed, in this concept's direction:
-  - Simple: one quiet row on the page background, logos in grayscale at about 60% opacity turning full colour on hover (grayscale opacity-60 transition hover:grayscale-0 hover:opacity-100), a small uppercase "Trusted by" label above.
-  - Balanced: logos on soft white chips (rounded-2xl, a hairline border, gentle shadow, px-6 py-4) on a lightly tinted band, with a short line about the clients from the site's own words.
-  - Bold & colorful: a full-bleed band in the brand colour or gradient, slightly tilted (-rotate-1 or -rotate-2, with overflow hidden on the section), two strips scrolling in opposite directions (split the logos between them, or the same logos with data-direction="right" on the second), logos on glassy tiles or turned white (brightness-0 invert) when they're one colour on the band.
+  - Editorial: one quiet row on the page background, logos in grayscale at about 60% opacity turning full colour on hover (grayscale opacity-60 transition hover:grayscale-0 hover:opacity-100), a small uppercase "Trusted by" label above.
+  - Modern: logos on soft white or glass chips (rounded-2xl, a hairline border, gentle shadow, px-6 py-4) on a lightly tinted band, with a short line about the clients from the site's own words.
+  - Made for the business, when its style is bold: a full-bleed band in the brand colour or gradient, slightly tilted (-rotate-1 or -rotate-2, with overflow hidden on the section), two strips scrolling in opposite directions (split the logos between them, or the same logos with data-direction="right" on the second), logos on glassy tiles or turned white (brightness-0 invert) when they're one colour on the band.
 - Logos that are dark on a dark band, or light on a light one, get a light or dark chip behind them so every logo stays visible.
 
 ## Technology (hard rules)
@@ -257,7 +268,7 @@ Show every listed logo, never the business's own logo and never invented ones, u
 
 ## Pages
 Write a complete multi-page site, one .html file per page, with the same header, navigation and footer on every page:
-- index.html (home): a strong hero with the business's real headline, one clear call to action and the business's own hero picture (the first of the Images, as a large photo or a background under an overlay), then highlights of services or products, trust (years in business, locations, real details only), and contact.
+- index.html (home): a strong hero with the business's real headline, the primary action and the business's own hero picture (the first of the Images, as a large photo or a background under an overlay), the quick-facts strip, then the current home page's sections in order (presented as above: offer, trust, story), and the closing call-to-action band.
 - One page per main section of the current site (for example services.html or menu.html, about.html, gallery.html when there are photos), and contact.html. Use short, lowercase file names.
 - Navigation: sticky header with the business's Logo picture when <website_content> lists one (in the home link, h-8 to h-12, width auto, object-contain; on every page, never redrawn or replaced by text; the footer shows it too), else the name, links to every page (the current page marked with aria-current="page"), and a mobile menu button that opens the links (toggled in script.js, with aria-expanded).
 - Footer: address, phone, email, opening hours and social links when known, the year, and links to all pages.
@@ -742,10 +753,26 @@ function brandGaps(files: FileMap, site: SiteSummary | undefined): { header: str
   };
 }
 
+/** The business's primary action, from its real details (see "Present the business"). */
+export function primaryAction(site: SiteSummary | undefined): { label: string; href: string } | null {
+  const c = site?.contact;
+  if (c?.booking) return { label: "Book or order online", href: c.booking };
+  if (c?.phones?.[0]) return { label: `Call ${c.phones[0]}`, href: `tel:${c.phones[0].replace(/[^\d+]/g, "")}` };
+  if (c?.whatsapp) return { label: "WhatsApp", href: c.whatsapp };
+  if (c?.emails?.[0]) return { label: "Email", href: `mailto:${c.emails[0]}` };
+  if (c?.maps) return { label: "Get directions", href: c.maps };
+  return null;
+}
+
 function brandIssues(files: FileMap, site: SiteSummary | undefined): ValidationIssue[] {
   const gaps = brandGaps(files, site);
   const logo = brandLogo(site);
+  // The home page must let visitors act: its primary action's link (or any call, booking or message link).
+  const home = files["index.html"];
+  const action = primaryAction(site);
+  const canAct = !home || !action || shows(home, action.href) || /href=["'](tel:|mailto:|https:\/\/wa\.me)/i.test(home);
   return [
+    ...(canAct ? [] : [{ file: "index.html", message: `the home page has no way to act: add the primary action "${action!.label}" (${action!.href}) as the hero's main button, in the header and in the phone's sticky action bar` }]),
     ...gaps.header.map((file) => ({ file, message: `the business's logo ${logo} is missing from the header: show it in the home link (h-8 to h-12, width auto, object-contain, alt with the business name), never replaced by text` })),
     ...gaps.footer.map((file) => ({ file, message: `the business's logo ${logo} is missing from the footer: show it at the top of the footer, linking home` })),
     ...(gaps.hero ? [{ file: "index.html", message: `the home page shows none of the current site's photos: use ${sitePictures(site)[0]} as the hero picture (or its background, under an overlay that keeps the text readable)` }] : []),

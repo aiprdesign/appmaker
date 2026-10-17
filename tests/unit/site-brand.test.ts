@@ -153,3 +153,29 @@ describe("redesign quality rounds: logo and hero picture", () => {
     expect(contentIssues(files, local).filter((i) => /logo/.test(i.message))).toEqual([]);
   });
 });
+
+describe("presenting the business", () => {
+  const base = { url: "https://bella.example/", siteName: "Bella Pizza", title: "", description: "", colors: [], language: "en", pages: [] };
+  const contact = (c: object) => ({ ...base, contact: { phones: [], emails: [], hours: [], social: [], ...c } }) as unknown as SiteSummary;
+
+  it("picks one primary action from the real details: booking, then call, WhatsApp, email, directions", async () => {
+    const { primaryAction } = await import("@/lib/website");
+    expect(primaryAction(contact({ booking: "https://book.example/bella", phones: ["+1 718-555-0142"] }))?.label).toBe("Book or order online");
+    expect(primaryAction(contact({ phones: ["+1 718-555-0142"] }))).toEqual({ label: "Call +1 718-555-0142", href: "tel:+17185550142" });
+    expect(primaryAction(contact({ maps: "https://maps.example/b" }))?.label).toBe("Get directions");
+    expect(primaryAction(contact({}))).toBeNull();
+  });
+
+  it("asks for the primary action when the home page gives visitors no way to act", () => {
+    const site = contact({ phones: ["+1 718-555-0142"] });
+    const without = { "index.html": "<html><body><main><h1>Bella</h1></main></body></html>" };
+    expect(contentIssues(without, site).map((i) => i.message)).toContainEqual(expect.stringMatching(/^the home page has no way to act: add the primary action "Call \+1 718-555-0142" \(tel:\+17185550142\)/));
+    const withCall = { "index.html": '<html><body><main><h1>Bella</h1><a href="tel:+17185550142">Call</a></main></body></html>' };
+    expect(contentIssues(withCall, site).filter((i) => /no way to act/.test(i.message))).toEqual([]);
+  });
+
+  it("tells the designer how to present the business", async () => {
+    const { websiteSystemPrompt } = await import("@/lib/website");
+    for (const t of ["## Present the business", "The first screen answers four questions", "slim sticky action bar", "quick-facts strip", "closing call-to-action band"]) expect(websiteSystemPrompt()).toContain(t);
+  });
+});
