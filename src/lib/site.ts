@@ -321,6 +321,19 @@ async function fetchSmallText(url: URL): Promise<string> {
   }
 }
 
+/** Whether the logo really loads over https (any picture type, SVG too): only then is it used. */
+export async function logoLoads(url: string): Promise<boolean> {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    let res = await request(u);
+    for (let i = 0; i < 2 && res.location && res.status >= 300 && res.status < 400; i++) res = await request(new URL(res.location, u));
+    return res.status === 200 && /^image\//i.test(res.type) && !!(res.bytes?.length || res.body.length);
+  } catch {
+    return false;
+  }
+}
+
 /** The site's biggest icon (apple-touch-icon first), usually the logo mark in brand colours. */
 function iconUrl(root: HTMLElement, base: URL): string | undefined {
   const links = root.querySelectorAll('link[rel~="apple-touch-icon"], link[rel~="icon"]');
@@ -356,7 +369,13 @@ function imageUrl(img: HTMLElement, base: URL): string | null {
   // A <picture>'s best <source> wins over its fallback <img>; lazy loaders keep the real
   // address in data-* attributes while src holds a tiny placeholder.
   const source = img.parentNode && (img.parentNode as HTMLElement).tagName === "PICTURE" ? (img.parentNode as HTMLElement).querySelector("source[srcset]") : null;
-  const lazy = img.getAttribute("data-src") || img.getAttribute("data-lazy-src") || img.getAttribute("data-original") || fromSrcset(img.getAttribute("data-srcset") ?? img.getAttribute("data-lazy-srcset"));
+  const lazy =
+    img.getAttribute("data-src") ||
+    img.getAttribute("data-lazy-src") ||
+    img.getAttribute("data-lazyload") ||
+    img.getAttribute("data-lazy") ||
+    img.getAttribute("data-original") ||
+    fromSrcset(img.getAttribute("data-srcset") ?? img.getAttribute("data-lazy-srcset"));
   const plain = img.getAttribute("src");
   const src =
     lazy ||
@@ -371,12 +390,23 @@ function imageUrl(img: HTMLElement, base: URL): string | null {
   return url;
 }
 
-const BLOCKS = "h1, h2, h3, h4, h5, h6, p, li, blockquote, figcaption, dt, dd, td, img, div, [style*=background], [data-bg], [data-background-image], [data-background], [data-image]";
+/** Elements whose background picture is set inline or by a lazy loader. */
+const BACKGROUNDS = "[style*=url], [data-bg], [data-bg-src], [data-bgset], [data-background-image], [data-background], [data-background-src], [data-image]";
+const BLOCKS = `h1, h2, h3, h4, h5, h6, p, li, blockquote, figcaption, dt, dd, td, img, div, ${BACKGROUNDS}`;
 /** Elements that hold other text blocks: their own text is read through those. */
 const HOLDS_BLOCKS = "p, li, blockquote, h1, h2, h3, h4, h5, h6, div, section, article, ul, ol, table, figure, dl";
 /** A background picture set in a style or by a lazy loader (common in page builders). */
 function backgroundUrl(el: HTMLElement, base: URL): string | null {
-  const attr = el.getAttribute("data-bg") || el.getAttribute("data-background-image") || el.getAttribute("data-background") || el.getAttribute("data-image") || /background(?:-image)?\s*:[^;]*url\(\s*['"]?([^'")]+)['"]?\s*\)/i.exec(el.getAttribute("style") ?? "")?.[1];
+  const attr =
+    el.getAttribute("data-bg") ||
+    el.getAttribute("data-bg-src") ||
+    fromSrcset(el.getAttribute("data-bgset") ?? undefined) ||
+    el.getAttribute("data-background-image") ||
+    el.getAttribute("data-background") ||
+    el.getAttribute("data-background-src") ||
+    el.getAttribute("data-image") ||
+    // background: url(…), or a custom property a theme reads (--bg-image: url(…)).
+    /url\(\s*['"]?([^'")]+)['"]?\s*\)/i.exec(el.getAttribute("style") ?? "")?.[1];
   const url = absolute(attr?.replace(/^url\(\s*['"]?|['"]?\s*\)$/g, ""), base, true);
   return url && !/\.(svg|gif|ico)(\?|$)/i.test(url) && !JUNK_IMAGE.test(url) && !/logo/i.test(url) ? url : null;
 }
@@ -603,6 +633,18 @@ export function tidyImages(urls: string[]): string[] {
   return [...best.values()].sort((a, b) => a.at - b.at).map((b) => b.url);
 }
 
+const HERO_SELECTOR = /hero|banner|masthead|jumbotron|slider|slide|carousel|cover|splash|intro|header|showcase|top-section|page-title/i;
+
+/** Background photos of a stylesheet's hero, banner or slider rules: the site's main pictures, so they come first. */
+export function heroCssImages(css: string, base: URL): string[] {
+  const out: string[] = [];
+  for (const m of css.slice(0, 1_500_000).matchAll(/([^{}]{1,300})\{([^{}]*url\([^{}]*)\}/g)) {
+    if (!HERO_SELECTOR.test(m[1]) || /logo|icon/i.test(m[1])) continue;
+    out.push(...cssImages(m[2], base));
+  }
+  return [...new Set(out)];
+}
+
 export function cssImages(css: string, base: URL): string[] {
   const out: string[] = [];
   for (const m of css.matchAll(CSS_URL)) {
@@ -630,14 +672,66 @@ function hiddenImages(root: HTMLElement, base: URL): string[] {
     const url = absolute(fromSrcset(source.getAttribute("srcset") ?? source.getAttribute("data-srcset") ?? undefined), base, true);
     if (photo(url)) out.push(url);
   }
-  for (const el of root.querySelectorAll("[style*=background], [data-bg], [data-background-image], [data-background], [data-image]").slice(0, 200)) {
+  for (const el of root.querySelectorAll(BACKGROUNDS).slice(0, 200)) {
     const url = backgroundUrl(el, base);
     if (photo(url)) out.push(url);
   }
-  for (const style of root.querySelectorAll("style")) out.push(...cssImages(style.text, base));
+  // A hero video's poster is a still of the hero.
+  for (const v of root.querySelectorAll("video[poster]").slice(0, 10)) {
+    const url = absolute(v.getAttribute("poster") ?? undefined, base, true);
+    if (photo(url)) out.push(url);
+  }
+  for (const style of root.querySelectorAll("style")) out.push(...heroCssImages(style.text, base), ...cssImages(style.text, base));
   const raw = root.toString().slice(0, 1_500_000).replace(/\\\//g, "/");
   for (const m of raw.matchAll(BUILDER_IMAGE)) if (photo(m[0]) && !/logo/i.test(m[0])) out.push(m[0]);
   return [...new Set(out)];
+}
+
+const HERO_AREAS = "[class*=hero], [id*=hero], [class*=banner], [class*=masthead], [class*=jumbotron], [class*=slider], [class*=carousel], [class*=cover], [class*=splash], video[poster]";
+const LOGO_HINT = /logo|brand|site-title|site-name|custom-logo|navbar-header/i;
+
+/** A picture's address for a logo: any format (SVG too) and any size, lazy loaders included. */
+function logoSrc(img: HTMLElement, base: URL): string | null {
+  const src = img.getAttribute("data-src") || img.getAttribute("data-lazy-src") || (/^data:/i.test(img.getAttribute("src") ?? "") ? "" : img.getAttribute("src")) || fromSrcset(img.getAttribute("srcset") ?? undefined);
+  const url = absolute(src ?? undefined, base, true);
+  return url && !TRACKING.test(url) && !/\.ico(\?|$)/i.test(url) ? url : null;
+}
+
+/** Whether a link goes to the site's home page. */
+function linksHome(a: HTMLElement | null, base: URL): boolean {
+  const href = a?.getAttribute("href");
+  if (href == null) return false;
+  try {
+    const u = new URL(href, base);
+    return u.host === base.host && /^\/(index\.\w+|home\/?)?$/i.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The business's own logo, best first: a picture named or placed like a logo (the
+ * picture, its link or a wrapper up to three levels up says "logo" or "brand"), then
+ * the first picture in the header or navigation that links to the home page.
+ */
+export function findLogos(root: HTMLElement, base: URL, skip: Set<string> = new Set()): string[] {
+  const out: string[] = [];
+  const add = (url: string | null) => url && !skip.has(url) && !out.includes(url) && out.push(url);
+  const imgs = root.querySelectorAll("img").slice(0, 300);
+  for (const img of imgs) {
+    let el: HTMLElement | null = img;
+    let hinted = false;
+    for (let i = 0; el && i < 4 && !hinted; i++, el = el.parentNode as HTMLElement | null) {
+      if (!el.getAttribute) break;
+      hinted = LOGO_HINT.test(`${el.getAttribute("class") ?? ""} ${el.getAttribute("id") ?? ""} ${i === 0 ? `${el.getAttribute("alt") ?? ""} ${el.getAttribute("src") ?? ""}` : ""}`);
+    }
+    // Inside a logo strip (clients, partners) it's someone else's logo.
+    if (hinted && !img.closest("[class*=client], [class*=partner], [class*=sponsor], [class*=trust], [class*=marquee]")) add(logoSrc(img, base));
+  }
+  for (const img of root.querySelectorAll("header img, nav img, [class*=header] img, [id*=header] img").slice(0, 20)) {
+    if (linksHome(img.closest("a"), base)) add(logoSrc(img, base));
+  }
+  return out;
 }
 
 function extractDetails(root: HTMLElement, base: URL): Details {
@@ -649,10 +743,11 @@ function extractDetails(root: HTMLElement, base: URL): Details {
     if (url) d.images.push(url);
   }
   const clients = new Set(d.clientLogos.map((l) => l.src));
+  d.logos.push(...findLogos(root, base, clients));
   for (const img of root.querySelectorAll("img").slice(0, 200)) {
     const url = imageUrl(img, base);
     // Clients' logos are theirs, not the business's logo or its photos.
-    if (!url || clients.has(url)) continue;
+    if (!url || clients.has(url) || d.logos.includes(url)) continue;
     const label = `${url} ${img.getAttribute("alt") ?? ""} ${img.getAttribute("class") ?? ""} ${img.getAttribute("id") ?? ""}`;
     if (/logo/i.test(label)) d.logos.push(url);
     else d.images.push(url);
@@ -660,6 +755,16 @@ function extractDetails(root: HTMLElement, base: URL): Details {
 
   // More of the site's own pictures, where page builders and lazy loaders hide them.
   for (const url of hiddenImages(root, base)) if (!clients.has(url) && !d.images.includes(url)) d.images.push(url);
+
+  // The hero's pictures (its background, slides or photo) lead: they're what the site opens with.
+  const hero: string[] = root.querySelectorAll("style").flatMap((st) => heroCssImages(st.text, base)).filter((u) => d.images.includes(u));
+  for (const el of root.querySelectorAll(HERO_AREAS).slice(0, 20)) {
+    for (const x of [el, ...el.querySelectorAll(`img, video[poster], ${BACKGROUNDS}`)].slice(0, 30)) {
+      const url = x.tagName === "IMG" ? imageUrl(x, base) : x.tagName === "VIDEO" ? absolute(x.getAttribute("poster") ?? undefined, base, true) : backgroundUrl(x, base);
+      if (url && d.images.includes(url) && !hero.includes(url)) hero.push(url);
+    }
+  }
+  if (hero.length) d.images = [...hero, ...d.images.filter((u) => !hero.includes(u))];
 
   for (const a of root.querySelectorAll("a[href]").slice(0, 500)) {
     const href = (a.getAttribute("href") ?? "").trim();
@@ -687,7 +792,7 @@ function extractDetails(root: HTMLElement, base: URL): Details {
     if (phone) c.phones.push(phone);
     const email = cleanEmail(o.email);
     if (email) c.emails.push(email);
-    const logo = absolute(typeof o.logo === "string" ? o.logo : ((o.logo as { url?: string } | undefined)?.url ?? undefined), base);
+    const logo = absolute(typeof o.logo === "string" ? o.logo : ((o.logo as { url?: string } | undefined)?.url ?? undefined), base, true);
     if (logo) d.logos.unshift(logo);
     const addr = o.address as Record<string, unknown> | string | undefined;
     if (!c.address && addr) {
@@ -936,7 +1041,9 @@ export async function importSite(input: string): Promise<SiteSummary> {
   const colors = extractColors(root, meta(root, "theme-color"), { css: css.map((c) => c.text).join("\n"), logoSvg, logoColors });
   // Background photos set in the stylesheets (often the hero), after the page's own pictures.
   const fromCss = css.flatMap((c) => cssImages(c.text, c.url)).filter((u) => u !== merged.logo && !(merged.clientLogos ?? []).some((l) => l.src === u));
-  const images = tidyImages([...new Set([...merged.images, ...fromCss])]).slice(0, MAX_SITE_IMAGES);
+  // Hero and banner backgrounds from the home page's stylesheets lead: they're the site's main pictures.
+  const heroes = css.flatMap((c) => heroCssImages(c.text, c.url)).filter((u) => u !== merged.logo);
+  const images = tidyImages([...new Set([...heroes, ...merged.images, ...fromCss])]).slice(0, MAX_SITE_IMAGES);
   const videos = [...(merged.videos ?? []), ...(await channelVideos(merged.contact?.social ?? []))]
     .filter((v, i, arr) => arr.findIndex((w) => w.kind === v.kind && w.id === v.id) === i)
     .slice(0, MAX_VIDEOS);

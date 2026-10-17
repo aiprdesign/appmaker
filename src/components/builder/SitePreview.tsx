@@ -227,8 +227,8 @@ export function SitePreview({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <div className="flex rounded-lg border border-line bg-surface p-0.5 text-xs" role="radiogroup" aria-label="Screen size">
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <div className="flex rounded-full border border-line p-0.5 text-xs" role="radiogroup" aria-label="Screen size">
           {(
             [
               ["desktop", Monitor, "Desktop"],
@@ -241,19 +241,18 @@ export function SitePreview({
               role="radio"
               aria-checked={viewport === v}
               onClick={() => setViewport(v)}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 font-medium ${viewport === v ? "bg-surface-2 text-foreground" : "text-muted"}`}
+              aria-label={label}
+              title={`${label} · ${WIDTHS[v]}px`}
+              className={`grid h-8 w-9 place-items-center rounded-full ${viewport === v ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"}`}
             >
-              <Icon className="h-3.5 w-3.5" /> {label}
-              <span className="hidden font-normal text-muted lg:inline">{WIDTHS[v]}px</span>
+              <Icon className="h-4 w-4" aria-hidden />
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-1.5 text-xs text-muted">
-          Page
-          <select
+        <select
             value={current}
             onChange={(e) => setPage(e.target.value)}
-            className="min-h-8 rounded-lg border border-line bg-surface px-2 text-xs text-foreground"
+            className="min-h-9 max-w-48 rounded-full border border-line bg-transparent px-3 text-xs text-foreground"
             aria-label="Page"
           >
             {pages.map((p) => {
@@ -261,12 +260,11 @@ export function SitePreview({
               const title = /<title>([^<]*)<\/title>/i.exec(files[p] ?? "")?.[1]?.split(/\s[·|–—-]\s/)[0]?.trim();
               return (
                 <option key={p} value={p}>
-                  {title ? `${title} (${p})` : p}
+                  {title || p}
                 </option>
               );
             })}
           </select>
-        </label>
         <button
           onClick={() => {
             // The page on its own, full size, in a new tab (pictures and styles included).
@@ -274,17 +272,19 @@ export function SitePreview({
             window.open(url, "_blank", "noopener");
             setTimeout(() => URL.revokeObjectURL(url), 60_000);
           }}
-          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-medium hover:border-white/20"
+          aria-label="Open full size"
+          title="Open full size"
+          className="grid h-9 w-9 place-items-center rounded-full border border-line text-muted hover:text-foreground"
         >
-          <ExternalLink className="h-3.5 w-3.5" /> Open full size
+          <ExternalLink className="h-4 w-4" aria-hidden />
         </button>
         {onEdit && (
           <button
             onClick={() => setEditing((v) => !v)}
             aria-pressed={editing}
-            className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${editing ? "border-violet-400 bg-violet-500/15 text-violet-100" : "border-line bg-surface hover:border-white/20"}`}
+            className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs ${editing ? "border-foreground bg-foreground text-background" : "border-line text-muted hover:text-foreground"}`}
           >
-            <PencilLine className="h-3.5 w-3.5" /> {editing ? "Done editing" : "Edit text"}
+            <PencilLine className="h-3.5 w-3.5" aria-hidden /> {editing ? "Done editing" : "Edit text"}
           </button>
         )}
         {onReport && <SiteA11yReport files={files} assets={assets} auditSrc={auditSrc} report={report} onReport={onReport} onFix={onFix} />}

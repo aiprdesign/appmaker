@@ -27,7 +27,7 @@ import { withStatement, type A11yReport, type StatementInfo } from "@/lib/site-s
 import { polishSite, type PolishInfo } from "@/lib/site-polish";
 import { withSiteFeatures, type FeatureInfo } from "@/lib/site-features";
 import { addEdit, applyEdit, applyEdits, editsNote, selectedSite, type ContentEdit } from "@/lib/site-content";
-import { conceptPrompt, conceptStyles, contentIssues, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
+import { conceptPrompt, conceptStyles, contentIssues, ensureBrand, restoreContent, resolveSiteColors, finishSitePrompt, hasSiteEntry, isAllowedSitePath, siteZip, validateSite, type SiteConcept } from "@/lib/website";
 import { applyStyle, DESIGN_STYLES, getStyle, pickStyle } from "@/lib/styles";
 import { PROJECTS_CHANGED, useCloud } from "@/lib/cloud";
 import { useFeatures } from "@/lib/use-features";
@@ -771,7 +771,9 @@ export function Builder({ id, autoStart, openDetails = false }: { id: string; au
             const parsed = parseGeneration(raw.replace(/<error>[\s\S]*?<\/error>/, ""));
             const files = Object.fromEntries(Object.entries(parsed.files).filter(([p]) => p !== parsed.writing && isAllowedSitePath(p)));
             if (!files["index.html"]) throw new Error(err ? friendlyError(err) : "the AI didn't write a home page");
-            update(i, { status: "ready", files: withA11yWidget(applyEdits(files, projectRef.current?.contentEdits)) });
+            // Each design shows the business's logo and its own photos, even when the AI left them out.
+            const branded = ensureBrand(files, selectedSite(current.source, current.excludedSections)).files;
+            update(i, { status: "ready", files: withA11yWidget(applyEdits(branded, projectRef.current?.contentEdits)) });
           } catch (e) {
             update(i, { status: "failed", error: (e as Error).message.slice(0, 200) });
           }

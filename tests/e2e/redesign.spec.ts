@@ -82,11 +82,11 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   await page.getByRole("button", { name: "Redo the 3 designs with these colors" }).click();
   await expect.poll(() => bodies.length).toBe(6);
   for (const b of bodies.slice(3)) expect(String(b.prompt)).toContain("the owner chose these colours: #123456");
-  await expect(page.getByRole("button", { name: "Use design 2 and make the other pages" })).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Use design 2" })).toBeEnabled({ timeout: 30_000 });
 
   // Choosing one makes the other pages in that design, in those colours.
   await page.getByRole("tab", { name: /Design 2/ }).click();
-  await page.getByRole("button", { name: "Use design 2 and make the other pages" }).click();
+  await page.getByRole("button", { name: "Use design 2" }).click();
   // Then the content keeper: this mock reply leaves out most of the site's sections and
   // pictures, so it asks for them back (three times, its limit), naming what's missing,
   // and then puts the owner's content back itself.
@@ -117,7 +117,7 @@ test("redesigns a website: reads the site, writes new pages, previews them at an
   // A real WCAG 2.2 AA audit (axe-core) runs on the page in the preview.
   await expect(page.getByRole("status").filter({ hasText: /Accessibility: / })).toBeVisible({ timeout: 20_000 });
   // Every finished site has an accessibility statement, linked from the footer.
-  await expect(page.getByLabel("Page").locator("option", { hasText: "accessibility.html" })).toHaveCount(1);
+  await expect(page.getByLabel("Page").locator(`option[value="accessibility.html"]`)).toHaveCount(1);
   // The WCAG 2.2 report checks every page, and its result goes into the statement.
   await page.getByRole("button", { name: "WCAG 2.2 report" }).click();
   const report = page.getByRole("region", { name: "WCAG 2.2 level AA report" });

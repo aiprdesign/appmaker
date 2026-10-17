@@ -257,9 +257,9 @@ Show every listed logo, never the business's own logo and never invented ones, u
 
 ## Pages
 Write a complete multi-page site, one .html file per page, with the same header, navigation and footer on every page:
-- index.html (home): a strong hero with the business's real headline and one clear call to action, then highlights of services or products, trust (years in business, locations, real details only), and contact.
+- index.html (home): a strong hero with the business's real headline, one clear call to action and the business's own hero picture (the first of the Images, as a large photo or a background under an overlay), then highlights of services or products, trust (years in business, locations, real details only), and contact.
 - One page per main section of the current site (for example services.html or menu.html, about.html, gallery.html when there are photos), and contact.html. Use short, lowercase file names.
-- Navigation: sticky header with the logo or name, links to every page (the current page marked with aria-current="page"), and a mobile menu button that opens the links (toggled in script.js, with aria-expanded).
+- Navigation: sticky header with the business's Logo picture when <website_content> lists one (in the home link, h-8 to h-12, width auto, object-contain; on every page, never redrawn or replaced by text), else the name, links to every page (the current page marked with aria-current="page"), and a mobile menu button that opens the links (toggled in script.js, with aria-expanded).
 - Footer: address, phone, email, opening hours and social links when known, the year, and links to all pages.
 
 ## Contact and booking
@@ -700,6 +700,69 @@ function lostLogos(files: FileMap, site: SiteSummary | undefined): { src: string
   return logos.filter((l) => !raw.includes(l.src) && !raw.includes(l.src.replace(/&/g, "&amp;")));
 }
 
+/** The site's own pictures a design can show: its photos, the copies kept with the project, and screenshot parts. */
+function sitePictures(site: SiteSummary | undefined): string[] {
+  return [...(site?.images ?? []), ...(site?.localImages ?? []).map((l) => l.path), ...(site?.screenshots ?? []).map((s) => s.path)].filter((u) => typeof u === "string" && !!u);
+}
+
+const shows = (html: string, url: string) => html.includes(url) || html.includes(url.replace(/&/g, "&amp;"));
+const htmlPages = (files: FileMap) => Object.keys(files).filter((p) => p.endsWith(".html"));
+
+/** The business's logo missing from a page's header, and a home page without any of the site's photos. */
+function brandGaps(files: FileMap, site: SiteSummary | undefined): { logo: string[]; hero: boolean } {
+  const logo = site?.logo && /^https:\/\/[^\s"'<>]+$/i.test(site.logo) ? site.logo : "";
+  const pictures = sitePictures(site);
+  const home = files["index.html"];
+  return {
+    logo: logo ? htmlPages(files).filter((p) => !shows(files[p], logo)) : [],
+    hero: home != null && pictures.length > 0 && !pictures.some((u) => shows(home, u)),
+  };
+}
+
+function brandIssues(files: FileMap, site: SiteSummary | undefined): ValidationIssue[] {
+  const gaps = brandGaps(files, site);
+  return [
+    ...gaps.logo.map((file) => ({ file, message: `the business's logo ${site!.logo} is missing: show it in the header (in the home link, h-8 to h-12, width auto, object-contain, alt with the business name)` })),
+    ...(gaps.hero ? [{ file: "index.html", message: `the home page shows none of the current site's photos: use ${sitePictures(site)[0]} as the hero picture (or its background, under an overlay that keeps the text readable)` }] : []),
+  ];
+}
+
+/**
+ * Every design keeps the business's own look: its logo in each page's header, and
+ * on the home page at least one of its own photos (the first, usually the hero).
+ * What the AI left out is put in by Appmaker. Returns the new files and what was added.
+ */
+export function ensureBrand(files: FileMap, site: SiteSummary | undefined): { files: FileMap; added: number } {
+  const gaps = brandGaps(files, site);
+  const out = { ...files };
+  let added = 0;
+  for (const file of gaps.logo) {
+    const html = out[file];
+    const header = /<header\b[^>]*>/i.exec(html);
+    if (!header) continue;
+    const link = /<a\b[^>]*>/i.exec(html.slice(header.index + header[0].length));
+    const at = link ? header.index + header[0].length + link.index + link[0].length : header.index + header[0].length;
+    // Beside the name in the home link, the logo needs no words of its own.
+    const close = link ? html.indexOf("</a>", at) : -1;
+    const named = close > at && html.slice(at, close).replace(/<[^>]+>/g, "").trim().length > 0;
+    const alt = named ? "" : escapeHtml(site?.siteName || "Home");
+    const img = `<img src="${escapeHtml(site!.logo!)}" alt="${alt}" width="160" height="40" class="brand-logo inline-block h-9 w-auto max-w-[160px] object-contain align-middle${named ? " mr-2" : ""}">`;
+    out[file] = html.slice(0, at) + img + html.slice(at);
+    added += 1;
+  }
+  if (gaps.hero) {
+    let html = out["index.html"];
+    const src = sitePictures(site)[0];
+    const block = `\n<div class="restored-content mx-auto mt-10 max-w-6xl px-6"><img src="${escapeHtml(src)}" alt="${escapeHtml(site?.siteName || "")}" width="1600" height="900" fetchpriority="high" class="aspect-[16/9] w-full rounded-3xl object-cover"></div>\n`;
+    const main = /<main\b[^>]*>/i.exec(html);
+    const end = main ? html.indexOf("</section>", main.index) : -1;
+    html = end >= 0 ? html.slice(0, end) + block + html.slice(end) : insertInMain(html, block, []);
+    out["index.html"] = html;
+    added += 1;
+  }
+  return { files: out, added };
+}
+
 export function contentIssues(files: FileMap, site: SiteSummary | undefined, max = 12): ValidationIssue[] {
   const logos = lostLogos(files, site);
   const logoIssue: ValidationIssue[] = logos.length
@@ -712,7 +775,7 @@ export function contentIssues(files: FileMap, site: SiteSummary | undefined, max
         },
       ]
     : [];
-  return [...logoIssue, ...sectionIssues(files, site, max)];
+  return [...brandIssues(files, site), ...logoIssue, ...sectionIssues(files, site, max)];
 }
 
 function sectionIssues(files: FileMap, site: SiteSummary | undefined, max: number): ValidationIssue[] {
@@ -778,8 +841,9 @@ function imagesHtml(images: string[], alt: string): string {
  * how many sections were restored.
  */
 export function restoreContent(files: FileMap, site: SiteSummary | undefined): { files: FileMap; restored: number } {
-  const out = { ...files };
-  let restored = 0;
+  const brand = ensureBrand(files, site);
+  const out = brand.files;
+  let restored = brand.added;
   // Missing client logos join the site's logo strip, or get one of their own after the hero.
   const logos = lostLogos(out, site);
   if (logos.length && out["index.html"] != null) {
